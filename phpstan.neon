@@ -1,0 +1,9 @@
+parameters:
+    level: 6
+    paths:
+        - src
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        - identifier: missingType.iterableValue
+        # src/Concerns are for applications' components (the tests' fixtures use them).
+        - identifier: trait.unused

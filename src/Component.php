@@ -1,0 +1,153 @@
+<?php
+
+namespace Nitro\Fusion;
+
+use Illuminate\Support\Facades\Validator;
+use Nitro\Fusion\Rendering\Context;
+use Nitro\Fusion\Support\PendingDispatch;
+use ReflectionClass;
+use ReflectionProperty;
+
+/**
+ * A Fusion component: a class and a Blade view.
+ *
+ *   class Counter extends Component
+ *   {
+ *       public int $count = 0;
+ *
+ *       public function increment(): void     // compiled to JavaScript, runs in the browser
+ *       {
+ *           $this->count++;
+ *       }
+ *
+ *       #[Server]
+ *       public function save(): void          // runs on the server, called from the browser
+ *       {
+ *           Counter::create(['count' => $this->count]);
+ *       }
+ *   }
+ *
+ * Public properties are the component's state: rendered by the server, sent to the browser,
+ * sent back with every #[Server] call. mount() runs on the server only, when the component is
+ * created (its parameters come from the route or the parent's tag).
+ */
+abstract class Component
+{
+    private ?Context $fusion = null;
+
+    /**
+     * Fusion's bookkeeping for this instance (id, name, errors, effects).
+     *
+     * @internal
+     */
+    final public function fusion(): Context
+    {
+        return $this->fusion ??= new Context;
+    }
+
+    final public function getId(): string
+    {
+        return $this->fusion()->id;
+    }
+
+    /**
+     * $this->total for a #[Computed] total(): worked out once per render (a method run outside a
+     * render, a #[Server] one, always gets it afresh).
+     */
+    final public function __get(string $name): mixed
+    {
+        if (! app(Fusion::class)->meta(static::class)->isComputed($name)) {
+            trigger_error('Undefined property: '.static::class.'::$'.$name, E_USER_WARNING);
+
+            return null;
+        }
+
+        $context = $this->fusion();
+
+        if (! $context->rendering) {
+            return $this->{$name}();
+        }
+
+        if (! array_key_exists($name, $context->computed)) {
+            $context->computed[$name] = $this->{$name}();
+        }
+
+        return $context->computed[$name];
+    }
+
+    final public function __isset(string $name): bool
+    {
+        return app(Fusion::class)->meta(static::class)->isComputed($name) && $this->__get($name) !== null;
+    }
+
+    /**
+     * Dispatch an event to the components listening for it (#[On('event')]) and the window; or,
+     * as in Livewire, to one: ->to(Dashboard::class), ->self().
+     */
+    final protected function dispatch(string $event, mixed ...$params): PendingDispatch
+    {
+        $context = $this->fusion();
+        $context->dispatches[] = ['event' => $event, 'params' => $params];
+
+        return new PendingDispatch($context, array_key_last($context->dispatches));
+    }
+
+    /**
+     * Run JavaScript in the browser once it has rendered the component's new state, as Livewire's
+     * $this->js(): $fusion (the component: its properties and methods), $refs (the elements marked
+     * fusion:ref="name") and $el (its root element) are in scope.
+     *
+     *   $this->js('$refs.search.focus()');
+     *
+     * The code is code: never build it from what a visitor typed.
+     */
+    final protected function js(string $expression): void
+    {
+        $this->fusion()->js[] = $expression;
+    }
+
+    /**
+     * Send the browser to another URL (with fusion:navigate when $navigate is true).
+     */
+    final protected function redirect(string $url, bool $navigate = false): void
+    {
+        $this->fusion()->redirect = ['url' => $url, 'navigate' => $navigate];
+    }
+
+    /**
+     * Set properties back to their declared defaults (all public properties when none are given).
+     */
+    final protected function reset(string ...$properties): void
+    {
+        $class = new ReflectionClass($this);
+
+        foreach ($class->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            if (($properties === [] || in_array($property->getName(), $properties, true))
+                && ! $property->isStatic() && $property->hasDefaultValue()) {
+                $property->setValue($this, $property->getDefaultValue());
+            }
+        }
+    }
+
+    /**
+     * Validate the public properties (rules keyed by property, dot notation for arrays). Failures
+     * reach the browser as $errors, as they would on a form request.
+     *
+     * @return array<string, mixed> the validated data
+     */
+    final protected function validate(array $rules, array $messages = [], array $attributes = []): array
+    {
+        return Validator::make(State::of($this), $rules, $messages, $attributes)->validate();
+    }
+
+    /**
+     * A routed page (Route::fusion()) is dispatched as a controller: Laravel (and Nitro) resolve
+     * mount()'s route parameters, bindings included, and call this.
+     *
+     * @internal
+     */
+    final public function callAction(string $method, array $parameters): mixed
+    {
+        return app(Fusion::class)->page($this, $parameters);
+    }
+}

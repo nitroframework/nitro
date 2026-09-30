@@ -1,0 +1,61 @@
+{
+    "name": "nitro/fusion",
+    "description": "Fusion: Livewire-style components (a PHP class and a Blade view) compiled to JavaScript that runs in the browser. Works on Laravel and on Nitro.",
+    "keywords": ["nitro", "laravel", "fusion", "components", "reactive", "transpiler"],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Zeeshan Ali",
+            "homepage": "https://github.com/ZeeshanX4",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "laravel/framework": "^13.0",
+        "nikic/php-parser": "^5.6"
+    },
+    "require-dev": {
+        "livewire/livewire": "^4.4",
+        "nitro/framework": "@dev",
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^12.0"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../nitro-framework",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Nitro\\Fusion\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nitro\\Fusion\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Nitro\\Fusion\\FusionServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "@php vendor/phpunit/phpunit/phpunit --colors=always",
+        "analyse": "@php vendor/bin/phpstan analyse --memory-limit=1G"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

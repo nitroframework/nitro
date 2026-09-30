@@ -1,0 +1,6 @@
+/vendor/
+/node_modules/
+/.phpunit.cache/
+/tests/Fixtures/app/storage/
+/tests/Fixtures/app/bootstrap/cache/*
+!/tests/Fixtures/app/bootstrap/cache/.gitignore

@@ -1,0 +1,15 @@
+{
+    "name": "nitro-fusion-runtime",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node js/build.mjs"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.0",
+        "jsdom": "^26.0.0"
+    },
+    "dependencies": {
+        "nprogress": "^0.2.0"
+    }
+}
