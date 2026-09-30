@@ -2,7 +2,9 @@
 
 namespace Nitro\Fusion\Compiler;
 
+use Closure;
 use Illuminate\Support\Str;
+use Nitro\Fusion\Compiler\Template\VariableSubstitution;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
@@ -136,6 +138,14 @@ final class Transpiler
     /** @var list<string> component methods the compiled code calls (read and reset by the caller) */
     public array $calledMethods = [];
 
+    /**
+     * In a view inlined by BladeInliner: a variable's replacement (null keeps it), applied to
+     * every template expression, handler and @for as it is parsed. Set by the TemplateCompiler.
+     *
+     * @var (Closure(string): ?Expr)|null
+     */
+    public ?Closure $substitute = null;
+
     /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>} what the Laravel helpers name, and the functions of js/functions called */
     public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => []];
 
@@ -220,10 +230,12 @@ final class Transpiler
     private function parse(string $code, int $line): array
     {
         try {
-            return (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse($code) ?? [];
+            $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse($code) ?? [];
         } catch (Throwable $e) {
             throw new CompileException('Invalid PHP: '.$e->getMessage(), $this->scope->file, $line);
         }
+
+        return $this->substitute === null ? $stmts : VariableSubstitution::apply($stmts, $this->substitute);
     }
 
     private function parseExpression(string $code, int $line): Expr
@@ -853,8 +865,15 @@ final class Transpiler
             return Globals::TEMPLATE_VARIABLES['errors'].'.'.$method.'('.implode(', ', $this->args($e->args)).')';
         }
 
+        /** $photo->temporaryUrl(), ->getClientOriginalName(), ...: an Upload's, checked at run time as PHP would. */
+        if (! $this->isThis($e->var) && $e->name instanceof Identifier && in_array($e->name->toString(), Globals::UPLOAD_METHODS, true)) {
+            $call = 'P.upload('.$this->expr($e->var).', '.$this->string($e->name->toString()).', ['.implode(', ', $this->args($e->args)).'])';
+
+            return $e instanceof Expr\NullsafeMethodCall ? '('.$this->expr($e->var).' === null ? null : '.$call.')' : $call;
+        }
+
         if (! $this->isThis($e->var)) {
-            throw $this->error('Only methods of the component ($this->method()) can be called in the browser; data from the server arrives as arrays', $e);
+            throw $this->error('Only methods of the component ($this->method()) can be called in the browser, and an Upload\'s ('.implode('(), ', Globals::UPLOAD_METHODS).'()); data from the server arrives as arrays', $e);
         }
 
         if (! $e->name instanceof Identifier) {

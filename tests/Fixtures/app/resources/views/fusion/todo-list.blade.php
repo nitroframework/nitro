@@ -8,6 +8,10 @@
     @error('todos.*.title')
         <p class="error">{{ $message }}</p>
     @enderror
+    {{-- count() of a Countable ($errors, Laravel's MessageBag): every message, as PHP 8 counts it. --}}
+    @if (count($errors) > 0)
+        <p class="error-count">{{ count($errors) }} to fix</p>
+    @endif
     <nav>
         @foreach (['all' => 'All', 'open' => 'Open', 'done' => 'Done'] as $value => $label)
             <button @class(['active' => $filter === $value]) fusion:click="$set('filter', $value)">{{ $label }}</button>

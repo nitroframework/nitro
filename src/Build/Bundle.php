@@ -9,6 +9,8 @@ use Illuminate\View\Factory as ViewFactory;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentCompiler;
 use Nitro\Fusion\Compiler\Functions;
+use Nitro\Fusion\Compiler\Template\BladeInliner;
+use Nitro\Fusion\Compiler\Template\ComponentTags;
 use Nitro\Fusion\Fusion;
 use ReflectionClass;
 use RuntimeException;
@@ -350,12 +352,16 @@ final class Bundle
         $files = $this->files->allFiles(dirname(__DIR__).DIRECTORY_SEPARATOR.'Compiler');
         $files = array_map(fn ($file) => $file->getPathname(), $files);
 
+        $inliner = new BladeInliner($this->views, new ComponentTags($this->blade));
+
         foreach ($this->fusion->registry()->all() as $name => $class) {
             for ($reflection = new ReflectionClass($class); $reflection !== false; $reflection = $reflection->getParentClass()) {
                 $files = [...$files, ...$this->classFiles($reflection)];
             }
 
-            $files[] = $this->views->getFinder()->find($this->fusion->meta($name)->view);
+            $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);
+            /** And the views it includes or uses as <x-components>: they are inlined into it. */
+            $files = [...$files, $view, ...$inliner->dependencies($view)];
         }
 
         sort($files);

@@ -5,6 +5,7 @@ namespace Nitro\Fusion\Compiler;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Nitro\Fusion\Attributes\Url;
+use Nitro\Fusion\Upload;
 use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
@@ -16,6 +17,8 @@ use ReflectionUnionType;
  *   value       null, bool, int, float, string, array (checked against its declared type)
  *   model       an Eloquent model: the browser gets its attributes, the server re-reads it
  *   collection  an Eloquent collection of models, likewise
+ *   upload      a file the browser uploaded (Nitro\Fusion\Upload): set from the browser with a
+ *               signed reference only (Wire::decode checks it), so it is not locked
  */
 final class PropertyMeta
 {
@@ -24,6 +27,8 @@ final class PropertyMeta
     public const MODEL = 'model';
 
     public const COLLECTION = 'collection';
+
+    public const UPLOAD = 'upload';
 
     private const SCALARS = ['int', 'float', 'string', 'bool', 'array', 'mixed', 'null'];
 
@@ -69,13 +74,15 @@ final class PropertyMeta
                 continue;
             }
 
-            if (is_a($name, Model::class, true) && count($types) === 1) {
+            if (is_a($name, Upload::class, true) && count($types) === 1) {
+                $kind = self::UPLOAD;
+            } elseif (is_a($name, Model::class, true) && count($types) === 1) {
                 $kind = self::MODEL;
             } elseif (is_a($name, EloquentCollection::class, true) && count($types) === 1) {
                 $kind = self::COLLECTION;
             } else {
                 throw new CompileException(
-                    "\${$property->getName()} is a {$name}: component properties hold null, bool, int, float, string, array, an Eloquent model or an Eloquent collection",
+                    "\${$property->getName()} is a {$name}: component properties hold null, bool, int, float, string, array, an Eloquent model, an Eloquent collection or an Upload",
                     $file,
                     $property->getDeclaringClass()->getStartLine()
                 );
@@ -91,7 +98,7 @@ final class PropertyMeta
             $kind,
             $types,
             $nullable,
-            $locked || $kind !== self::VALUE,
+            $locked || ! in_array($kind, [self::VALUE, self::UPLOAD], true),
             $property->hasDefaultValue(),
             $property->hasDefaultValue() ? $property->getDefaultValue() : null,
             $url,
@@ -138,6 +145,11 @@ final class PropertyMeta
      */
     public function accepts(mixed $value): bool
     {
+        /** An upload property takes an Upload (Wire::decode made it from a reference it checked) or null. */
+        if ($this->kind === self::UPLOAD) {
+            return $value instanceof Upload || ($value === null && $this->nullable);
+        }
+
         if ($this->kind !== self::VALUE) {
             return false;
         }

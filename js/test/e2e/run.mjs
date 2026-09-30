@@ -640,6 +640,87 @@ await scenario('livewire', async () => {
     window.close();
 });
 
+// ------------------------------------------------------------------ uploads (/gallery)
+await scenario('uploads', async () => {
+    const window = await open('/gallery');
+    const { document } = window;
+    const gallery = document.querySelector('.gallery');
+    const input = gallery.querySelector('input.photo');
+
+    /** A file chosen in the input (a browser's FileList; jsdom's inputs take none, so a list stands in). */
+    const choose = (el, files) => {
+        Object.defineProperty(el, 'files', { configurable: true, value: files });
+        change(window, el);
+    };
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+
+    const events = [];
+    for (const name of ['fusion-upload-start', 'fusion-upload-progress', 'fusion-upload-finish', 'fusion-upload-error']) {
+        input.addEventListener(name, (e) => events.push(name + (e.detail?.status ? `:${e.detail.status}` : '')));
+    }
+
+    choose(input, [new window.File([png], 'Birthday Cake.png', { type: 'image/png' })]);
+    check('the loading state shows while it uploads', gallery.querySelector('.uploading').hasAttribute('data-fusion-loading'));
+    await until('the preview shows', () => /\/_fusion\/upload\/preview\?t=/.test(gallery.querySelector('.preview img')?.getAttribute('src') ?? ''));
+    check('what the view shows of it', text(gallery.querySelector('figcaption')) === 'Birthday Cake.png (png, image/png, 68 bytes)', text(gallery.querySelector('figcaption')));
+    check('start and finish on the input', events.includes('fusion-upload-start') && events.includes('fusion-upload-finish'), events.join(', '));
+    check('the loading state is gone', !gallery.querySelector('.uploading').hasAttribute('data-fusion-loading'));
+
+    const preview = await fetch(new URL(gallery.querySelector('.preview img').getAttribute('src'), url));
+    check('the preview is the image', preview.status === 200 && preview.headers.get('content-type') === 'image/png', `${preview.status} ${preview.headers.get('content-type')}`);
+
+    /** Several, for the array property. */
+    choose(gallery.querySelector('input.photos'), [new window.File([png], 'one.png', { type: 'image/png' }), new window.File(['hello'], 'notes.txt', { type: 'text/plain' })]);
+    await until('the list shows both', () => text(gallery.querySelector('.count')) === '2 photos');
+    check('their names', text(gallery.querySelector('ul.photos')) === 'one.png notes.txt', text(gallery.querySelector('ul.photos')));
+
+    click(window, gallery.querySelector('.save'));
+    await until('save() stored the photo', () => text(gallery.querySelector('.stored')) === 'gallery/cover.png');
+    check('the property is empty again', gallery.querySelector('.preview') === null && text(gallery.querySelector('.count')) === '0 photos');
+    check('so is the input', input.value === '');
+
+    /** Too big for fusion.uploads.rules (max 1024 KB): the message, as validate() gives it. */
+    choose(input, [new window.File([new Uint8Array(1100 * 1024)], 'huge.png', { type: 'image/png' })]);
+    await until('the error shows', () => /must not be greater than 1024 kilobytes/.test(text(gallery.querySelector('.error')) ?? ''));
+    check('an error event', events.includes('fusion-upload-error:422'), events.join(', '));
+    check('no photo', gallery.querySelector('.preview') === null);
+
+    choose(input, [new window.File([png], 'again.png', { type: 'image/png' })]);
+    await until('a good file clears the error', () => gallery.querySelector('.error') === null && text(gallery.querySelector('figcaption'))?.startsWith('again.png'));
+    window.close();
+});
+
+// ------------------------------------------------------------------ Blade components and @include (/showcase)
+await scenario('inlined views', async () => {
+    const window = await open('/showcase');
+    const { document } = window;
+    const showcase = document.querySelector('.showcase');
+    const [clickButton, featureButton] = showcase.querySelectorAll('button');
+
+    /** fusion:click given to <x-button>: the Fusion component's method. */
+    click(window, clickButton);
+    await until('the count follows', () => text(showcase.querySelector('.clicks')) === '1');
+    check('the card\'s named slot follows', text(showcase.querySelector('.foot')) === '1 clicks', text(showcase.querySelector('.foot')));
+
+    click(window, clickButton);
+    click(window, clickButton);
+    await until('three clicks', () => text(showcase.querySelector('.clicks')) === '3');
+    check(':disabled given to <x-button> is on (true: the attribute\'s name)', clickButton.getAttribute('disabled') === 'disabled', clickButton.outerHTML);
+
+    /** @includeWhen, a prop and @class inside components follow the state. */
+    check('no featured heading yet', !text(showcase).includes('Featured'));
+    click(window, featureButton);
+    await until('the featured heading shows', () => text(showcase).includes('Featured'));
+    check('the badges follow the tone', showcase.querySelector('#main-badge').className === 'badge badge-red extra', showcase.querySelector('#main-badge').className);
+    check('the rows see $tone', [...showcase.querySelectorAll('li small')].every((s) => text(s) === 'red'));
+    check('the card has its shadow', showcase.querySelector('.card').classList.contains('shadow'));
+
+    click(window, featureButton);
+    await until('and back', () => !text(showcase).includes('Featured') && showcase.querySelector('#main-badge').className === 'badge badge-gold extra');
+    check('the shadow is gone', !showcase.querySelector('.card').classList.contains('shadow'));
+    window.close();
+});
+
 for (const line of log) {
     if (!/fusion:error|Not implemented/.test(line) && !expectedErrors.some((pattern) => pattern.test(line))) failures.push(`console.error: ${line}`);
 }

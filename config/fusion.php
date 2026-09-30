@@ -72,6 +72,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Uploads
+    |--------------------------------------------------------------------------
+    |
+    | Files chosen in a fusion:model file input are uploaded at once into
+    | `directory`, checked against `rules` (each file), and given to the
+    | component as Nitro\Fusion\Upload: the component validates and store()s
+    | them. Files no component stored are removed after a day. `max_files`
+    | limits a multiple input; `throttle` the uploads per minute. PHP's own
+    | upload_max_filesize and post_max_size must allow the size in `rules`.
+    |
+    */
+
+    'uploads' => [
+        'directory' => storage_path('app/fusion-uploads'),
+        'rules' => ['file', 'max:12288'],
+        'max_files' => 20,
+        'throttle' => '60,1',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Public config
     |--------------------------------------------------------------------------
     |

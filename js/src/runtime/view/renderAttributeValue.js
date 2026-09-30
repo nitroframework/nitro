@@ -22,9 +22,9 @@ export function attributeValues(instance, node, scope) {
         if (attribute.on) values.set(`fusion:h-${attribute.on.e}`, '');
 
         let valueContent = '';
-        if (attribute.when !== undefined) {
-            if (!evaluate(instance, attribute.when, scope)) continue;
-        } else if (attribute.h) {
+        /** when: whether it is there (@disabled, a component's attribute); its value, if it has one, still follows. */
+        if (attribute.when !== undefined && !evaluate(instance, attribute.when, scope)) continue;
+        if (attribute.h) {
             for (const attributeValue of attribute.h) {
                 valueContent += attributeValue.e ? evaluate(instance, attributeValue.code, scope) : attributeValue.c;
             }

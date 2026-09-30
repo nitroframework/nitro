@@ -25,6 +25,9 @@ final class Lexer
 
     private int $textLine = 1;
 
+    /** Where BladeInliner's last marker ended: a directive right after it is one (written text "@endif" after a word is not). */
+    private int $afterMarker = -1;
+
     /** @param  Closure(string): bool  $isDirective  whether Blade compiles @name */
     public function __construct(private readonly Closure $isDirective, private readonly ?string $file = null)
     {
@@ -91,8 +94,11 @@ final class Lexer
     private function at(): void
     {
         $preceding = $this->position > 0 ? $this->source[$this->position - 1] : '';
+        /** BladeInliner's markers sit wherever an inlined view begins or ends, after a word too. */
+        $inlined = preg_match('/\G@(?:(?:end)?fusion(?:Scope|Slot|Frame)|fusionAttr)\b/', $this->source, $_, 0, $this->position) === 1;
+        $afterMarker = $this->position === $this->afterMarker;
 
-        if (preg_match('/\w/', $preceding) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $m, 0, $this->position)) {
+        if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $m, 0, $this->position)) {
             $this->character();
 
             return;
@@ -140,6 +146,10 @@ final class Lexer
         $this->tokens[] = new Token(Token::DIRECTIVE, $name, $line, $args);
         $this->advance($after);
         $this->textLine = $this->line;
+
+        if ($inlined) {
+            $this->afterMarker = $after;
+        }
     }
 
     /** Plain text, up to the next place a Blade construct could start ({ or @). */

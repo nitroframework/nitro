@@ -13,6 +13,12 @@ return [
         Illuminate\Auth\Middleware\Authorize::class,
     ],
     'max_payload' => 64 * 1024,
+    'uploads' => [
+        'directory' => dirname(__DIR__).'/storage/app/fusion-uploads',
+        'rules' => ['file', 'max:1024'],
+        'max_files' => 3,
+        'throttle' => '1000,1',
+    ],
     'public_config' => ['app.name'],
     'compiled' => dirname(__DIR__).'/storage/framework/fusion',
     /** esbuild from the package's own node_modules (the fixture app has none). */

@@ -1,0 +1,198 @@
+<?php
+
+namespace Nitro\Fusion\Tests\Feature;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Nitro\Fusion\Support\Wire;
+use Nitro\Fusion\Tests\Fixtures\Models\User;
+use Nitro\Fusion\Tests\TestCase;
+use Nitro\Fusion\Upload;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * fusion:model on a file input: POST /_fusion/upload takes files for a component's upload
+ * property, the component gets them as Upload, validates and stores them; previews are images only.
+ */
+class UploadTest extends TestCase
+{
+    private function gallery(string $uri = '/gallery'): array
+    {
+        $response = $this->request('GET', $uri);
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+
+        return $this->snapshots((string) $response->getContent())[0]['envelope'];
+    }
+
+    /** POST /_fusion/upload, as the runtime sends it (FormData). */
+    private function upload(array $envelope, string $property, array $files): Response
+    {
+        $kernel = $this->app->make(HttpKernel::class);
+        $request = Request::create('/_fusion/upload', 'POST', ['snapshot' => json_encode($envelope), 'property' => $property], $this->cookies, ['files' => $files], [
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
+            'HTTP_SEC_FETCH_SITE' => 'same-origin',
+        ]);
+        $response = $kernel->handle($request);
+        $kernel->terminate($request, $response);
+
+        return $response;
+    }
+
+    private function save(array $envelope, array $updates): Response
+    {
+        return $this->update(['snapshot' => $envelope, 'updates' => $updates, 'call' => ['method' => 'save', 'params' => []]]);
+    }
+
+    private function jpeg(string $name = 'Birthday Cake.jpg', int $width = 200, int $height = 100): UploadedFile
+    {
+        return UploadedFile::fake()->image($name, $width, $height);
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_a_file_input_uploads_and_the_component_stores_it(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+
+        $response = $this->upload($envelope, 'photo', [$this->jpeg()]);
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $wire = $this->json($response)['uploads'][0];
+        $this->assertSame(['Birthday Cake.jpg', 'image/jpeg', 'jpg'], [$wire['$u']['name'], $wire['$u']['mime'], $wire['$u']['ext']]);
+        $this->assertStringContainsString('/_fusion/upload/preview?t=', $wire['$u']['url']);
+
+        /** The same reference each time it is sent: the server's render and the browser's agree. */
+        $upload = Wire::decode($wire);
+        $this->assertInstanceOf(Upload::class, $upload);
+        $this->assertSame($wire, Wire::encode($upload));
+
+        /** The browser sets the property to it; save() validates and stores it. */
+        $response = $this->save($envelope, ['photo' => $wire]);
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $data = Wire::fromJson($this->json($response)['snapshot']['state'])['data'];
+        $this->assertSame('gallery/cover.jpg', $data['stored']['photo']);
+        $this->assertNull($data['photo']);
+        $this->assertFileExists(self::APP.'/storage/app/private/gallery/cover.jpg');
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_several_files_for_an_array_property(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+
+        $response = $this->upload($envelope, 'photos', [$this->jpeg('one.jpg'), UploadedFile::fake()->create('menu.pdf', 20, 'application/pdf')]);
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $uploads = $this->json($response)['uploads'];
+        $this->assertSame(['one.jpg', 'menu.pdf'], array_map(fn ($u) => $u['$u']['name'], $uploads));
+        $this->assertNull($uploads[1]['$u']['url'], 'Only images have a preview.');
+
+        $photo = $this->json($this->upload($envelope, 'photo', [$this->jpeg()]))['uploads'][0];
+        $data = Wire::fromJson($this->json($this->save($envelope, ['photo' => $photo, 'photos' => $uploads]))['snapshot']['state'])['data'];
+        $this->assertSame(['one.jpg', 'menu.pdf'], $data['stored']['photos']);
+
+        /** More than max_files (3). */
+        $this->assertSame(422, $this->upload($envelope, 'photos', [$this->jpeg('a.jpg'), $this->jpeg('b.jpg'), $this->jpeg('c.jpg'), $this->jpeg('d.jpg')])->getStatusCode());
+        /** One file for a single upload property. */
+        $this->assertSame(422, $this->upload($envelope, 'photo', [$this->jpeg('a.jpg'), $this->jpeg('b.jpg')])->getStatusCode());
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_the_rules_and_the_components_validation(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+
+        /** fusion.uploads.rules: max 1024 KB. */
+        $response = $this->upload($envelope, 'photo', [UploadedFile::fake()->create('huge.jpg', 2048, 'image/jpeg')]);
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('photo', $this->json($response)['errors']);
+
+        /** Accepted by the upload rules, refused by save()'s: $errors, as validate() gives them. */
+        $pdf = $this->json($this->upload($envelope, 'photo', [UploadedFile::fake()->create('menu.pdf', 20, 'application/pdf')]))['uploads'][0];
+        $state = Wire::fromJson($this->json($this->save($envelope, ['photo' => $pdf]))['snapshot']['state']);
+        $this->assertArrayHasKey('photo', $state['memo']['errors'] ?? []);
+        $this->assertSame([], $state['data']['stored']);
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_what_the_upload_endpoint_refuses(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+
+        /** A changed or made-up snapshot. */
+        $renamed = ['state' => str_replace('"gallery"', '"wallet"', $envelope['state']), 'checksum' => $envelope['checksum']];
+        $this->assertNotSame($envelope['state'], $renamed['state']);
+        $this->assertSame(419, $this->upload($renamed, 'photo', [$this->jpeg()])->getStatusCode());
+        $this->assertSame(419, $this->upload(['state' => $envelope['state'], 'checksum' => str_repeat('0', 64)], 'photo', [$this->jpeg()])->getStatusCode());
+
+        /** A property that does not hold uploads, a locked one, one that is not there. */
+        foreach (['caption', 'stored', 'nothing'] as $property) {
+            $this->assertSame(403, $this->upload($envelope, $property, [$this->jpeg()])->getStatusCode(), $property);
+        }
+
+        /** No file. */
+        $this->assertSame(422, $this->upload($envelope, 'photo', [])->getStatusCode());
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_a_reference_cannot_be_made_up_or_changed(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+        $wire = $this->json($this->upload($envelope, 'photo', [$this->jpeg()]))['uploads'][0];
+
+        [$payload, $signature] = explode('.', $wire['$u']['t']);
+        $data = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
+        $data['f'] = str_repeat('a', 40).'.php';
+        $changed = rtrim(strtr(base64_encode(json_encode($data)), '+/', '-_'), '=').'.'.$signature;
+
+        foreach ([['t' => $changed], ['t' => 'x.y'], ['t' => 5], 'nope'] as $bad) {
+            $response = $this->save($envelope, ['photo' => ['$u' => $bad]]);
+            $this->assertSame(400, $response->getStatusCode(), json_encode($bad));
+        }
+
+        /** A plain value for an upload property. */
+        $this->assertSame(403, $this->save($envelope, ['photo' => 'C:/Windows/win.ini'])->getStatusCode());
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_uploads_follow_the_pages_authorization(string $framework): void
+    {
+        $this->boot($framework);
+        $user = User::create(['name' => 'Ann', 'email' => 'ann@example.com', 'password' => 'x']);
+        $this->app->instance('request', Request::create('/'));
+        $this->app->make('auth')->guard('web')->setUser($user);
+        $envelope = $this->gallery('/private-gallery');
+
+        $this->assertSame(200, $this->upload($envelope, 'photo', [$this->jpeg()])->getStatusCode());
+
+        $this->app->make('auth')->guard('web')->logout();
+        $this->assertContains($this->upload($envelope, 'photo', [$this->jpeg()])->getStatusCode(), [401, 403]);
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_previews_are_images_only(string $framework): void
+    {
+        $this->boot($framework);
+        $envelope = $this->gallery();
+
+        $image = $this->json($this->upload($envelope, 'photo', [$this->jpeg()]))['uploads'][0]['$u'];
+        $response = $this->request('GET', parse_url($image['url'], PHP_URL_PATH).'?'.parse_url($image['url'], PHP_URL_QUERY));
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('image/jpeg', $response->headers->get('Content-Type'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        $this->assertStringContainsString('sandbox', (string) $response->headers->get('Content-Security-Policy'));
+
+        /** An HTML page named .jpg is text/html by its content: no preview. */
+        $html = UploadedFile::fake()->createWithContent('cake.jpg', '<html><script>alert(1)</script></html>');
+        $page = $this->json($this->upload($envelope, 'photos', [$html]))['uploads'][0]['$u'];
+        $this->assertNull($page['url']);
+        $this->assertSame(404, $this->request('GET', '/_fusion/upload/preview?t='.urlencode($page['t']))->getStatusCode());
+
+        $this->assertSame(404, $this->request('GET', '/_fusion/upload/preview?t=x.y')->getStatusCode());
+    }
+}

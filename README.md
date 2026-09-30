@@ -136,6 +136,45 @@ fails the build with the file and line.
 | `fusion:init="load"` | Call a method once, when the element appears |
 | `fusion:ref="name"` | The element as `$refs.name` in `$this->js()` |
 
+## Uploads
+
+```php
+use Nitro\Fusion\Upload;
+
+class CakeForm extends Component
+{
+    public ?Upload $photo = null;     // one file
+    public array $photos = [];        // several: <input type="file" multiple>
+
+    #[Server]
+    public function save(): void
+    {
+        $this->validate(['photo' => 'required|image|max:2048']);
+        $path = $this->photo->store('cakes', 'public');
+        $this->reset('photo');
+    }
+}
+```
+
+```blade
+<input type="file" fusion:model="photo">
+<span fusion:loading fusion:target="photo">Uploading…</span>
+@error('photo') <p>{{ $message }}</p> @enderror
+@if ($photo)
+    <img src="{{ $photo->temporaryUrl() }}" alt="{{ $photo->getClientOriginalName() }}">
+@endif
+```
+
+Choosing files uploads them at once (`POST {endpoint}/upload`, with the component's signed state, so
+only for a page the visitor may still see) into `fusion.uploads.directory`, each checked against
+`fusion.uploads.rules`; the property becomes an `Upload`, an `UploadedFile`, so validation rules and
+`store()` work as usual. The browser holds only a signed reference to the file. In views,
+`temporaryUrl()` (images only), `getClientOriginalName()`, `getClientOriginalExtension()`,
+`getSize()` and `getMimeType()` work on both sides. The input fires `fusion-upload-start`,
+`fusion-upload-progress` (`detail.progress`), `fusion-upload-finish` and `fusion-upload-error`; a
+file the rules refuse gives the property's `$errors` message. Uploads no component stored are
+removed after a day.
+
 ## Pages
 
 ```php

@@ -244,6 +244,7 @@ export function arrayLiteral(items) {
 
 export function typeName(v) {
     if (v === null || v === undefined) return 'null';
+    if (v instanceof Upload) return 'Nitro\\Fusion\\Upload';
     if (typeof v === 'boolean') return 'bool';
     if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float';
     if (typeof v === 'string') return 'string';
@@ -753,9 +754,15 @@ function need(fn, v, type, n = 1) {
     return v;
 }
 
+/**
+ * PHP 8's count(): an array's length, or a Countable's count(). Viewi's count() returns 1 for any
+ * object (PHP 7); PHP 8 calls Countable::count(), so count($errors) is every message of the
+ * MessageBag (TemplateParityTest, todo-list with errors), and other objects are a TypeError.
+ */
 export function count(v) {
     if (Array.isArray(v)) return v.length;
     if (v instanceof Map) return v.size;
+    if (v !== null && typeof v === 'object' && typeof v.count === 'function') return v.count();
     throw typeError(`count(): Argument #1 ($value) must be of type Countable|array, ${typeName(v)} given`);
 }
 
@@ -1210,6 +1217,7 @@ export function decode(x) {
     if (Array.isArray(x)) return x.map(decode);
     if (x !== null && typeof x === 'object') {
         if (Array.isArray(x.$m)) return normalize(new Map(x.$m.map(([k, v]) => [key(k), decode(v)])));
+        if (x.$u !== undefined && Object.keys(x).length === 1) return new Upload(x.$u);
         return normalize(new Map(Object.keys(x).map((k) => [key(k), decode(x[k])])));
     }
     return x;
@@ -1217,8 +1225,50 @@ export function decode(x) {
 
 export function encode(v) {
     if (v === undefined) return null;
+    if (v instanceof Upload) return { $u: v.wire };
     if (Array.isArray(v)) return v.map(encode);
     if (v instanceof Map) return { $m: [...v.entries()].map(([k, x]) => [k, encode(x)]) };
     if (typeof v === 'number' && !Number.isFinite(v)) throw new PhpError('Error', 'INF and NAN cannot be sent to the server');
     return v;
+}
+
+// ---------------------------------------------------------------- uploads
+
+/**
+ * A file a fusion:model file input uploaded (Nitro\Fusion\Upload on the server): its signed
+ * reference, sent back unchanged, and what a view may show of it. Upload::toWire() made it.
+ */
+export class Upload {
+    constructor(wire) {
+        this.wire = wire;
+    }
+
+    temporaryUrl() {
+        if (this.wire.url === null || this.wire.url === undefined) {
+            throw new PhpError('RuntimeException', `${this.wire.name} is not an image: only images have a temporary URL.`);
+        }
+        return this.wire.url;
+    }
+
+    getClientOriginalName() {
+        return this.wire.name;
+    }
+
+    getClientOriginalExtension() {
+        return this.wire.ext;
+    }
+
+    getSize() {
+        return this.wire.size;
+    }
+
+    getMimeType() {
+        return this.wire.mime;
+    }
+}
+
+/** $value->temporaryUrl() and the other Upload methods (Globals::UPLOAD_METHODS), as PHP calls them. */
+export function upload(v, method, args) {
+    if (!(v instanceof Upload)) throw new PhpError('Error', `Call to a member function ${method}() on ${typeName(v)}`);
+    return v[method](...args);
 }

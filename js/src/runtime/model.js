@@ -7,9 +7,12 @@
  *   .number                 stores a number (as PHP's (float) or (int) would read it)
  *   .trim                   trims the text
  *   .boolean                stores true/false
+ *
+ * On a file input it uploads the chosen files (runtime/upload.js) and binds what the server answers.
  */
 import * as P from '../php.js';
 import { timing } from './events.js';
+import { upload } from './upload.js';
 
 export function modelAttribute(el) {
     return el.getAttributeNames().find((n) => n === 'fusion:model' || n.startsWith('fusion:model.')) ?? null;
@@ -28,6 +31,14 @@ export class Model {
         if (!(el instanceof Element)) return;
         const attribute = modelAttribute(el);
         if (!attribute) return;
+
+        /** A file input: its files are chosen once (change), then uploaded. */
+        if (el.type === 'file') {
+            const component = type === 'change' ? this.runtime.owner(el) : null;
+            if (component) upload(this.runtime, this.runtime.network.config, component, el, el.getAttribute(attribute));
+            return;
+        }
+
         const modifiers = attribute.split('.').slice(1);
         const lazy = modifiers.some((m) => m === 'blur' || m === 'change' || m === 'lazy');
         const isToggle = el.type === 'checkbox' || el.type === 'radio' || el.tagName === 'SELECT';
@@ -77,6 +88,12 @@ export class Model {
             const attribute = modelAttribute(el);
             if (!attribute || this.runtime.owner(el) !== component) continue;
             const value = component.getPath(el.getAttribute(attribute));
+
+            /** A file input's files cannot be set: it is emptied when the property is ($this->reset('photo')), and otherwise left. */
+            if (el.type === 'file') {
+                if (!P.bool(value) && el.value !== '') el.value = '';
+                continue;
+            }
 
             if (el.type === 'checkbox') {
                 el.checked = P.isArray(value) ? P.entries(value).some(([, v]) => P.toStr(v) === el.value) : P.bool(value);

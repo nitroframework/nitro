@@ -3,10 +3,12 @@
 use Illuminate\Support\Facades\Route;
 use Nitro\Fusion\Tests\Fixtures\Components\Board;
 use Nitro\Fusion\Tests\Fixtures\Components\Counter;
+use Nitro\Fusion\Tests\Fixtures\Components\Gallery;
 use Nitro\Fusion\Tests\Fixtures\Components\Journal;
 use Nitro\Fusion\Tests\Fixtures\Components\Links;
 use Nitro\Fusion\Tests\Fixtures\Components\Panels;
 use Nitro\Fusion\Tests\Fixtures\Components\Shelf;
+use Nitro\Fusion\Tests\Fixtures\Components\Showcase;
 use Nitro\Fusion\Tests\Fixtures\Components\StudentPage;
 
 Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
@@ -17,6 +19,9 @@ Route::fusion('/journal', Journal::class)->name('journal');
 Route::fusion('/shelf', Shelf::class)->name('shelf');
 Route::fusion('/panels', Panels::class)->name('panels');
 Route::fusion('/private', Counter::class)->middleware('auth');
+Route::fusion('/gallery', Gallery::class)->name('gallery');
+Route::fusion('/private-gallery', Gallery::class)->middleware('auth');
+Route::fusion('/showcase', Showcase::class)->name('showcase');
 
 Route::get('/embed', fn () => view('embed'));
 Route::get('/portals', fn () => view('portals'));

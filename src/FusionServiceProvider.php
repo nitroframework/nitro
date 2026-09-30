@@ -16,6 +16,7 @@ use Nitro\Fusion\Http\AssetController;
 use Nitro\Fusion\Http\FillPortals;
 use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
+use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Rendering\Renderer;
 
 /**
@@ -95,6 +96,13 @@ class FusionServiceProvider extends ServiceProvider
         Route::middleware($config->get('fusion.middleware', ['web']))
             ->post($endpoint.'/update', UpdateController::class)
             ->name('fusion.update');
+
+        /** Files for a fusion:model file input, and previews of them ($upload->temporaryUrl()). */
+        Route::middleware($config->get('fusion.middleware', ['web']))
+            ->post($endpoint.'/upload', [UploadController::class, 'store'])
+            ->middleware('throttle:'.$config->get('fusion.uploads.throttle', '60,1'))
+            ->name('fusion.upload');
+        Route::get($endpoint.'/upload/preview', [UploadController::class, 'preview'])->name('fusion.upload.preview');
 
         Route::get($endpoint.'/fusion.js', [AssetController::class, 'runtime'])->name('fusion.runtime');
         Route::get($endpoint.'/app.js', [AssetController::class, 'bundle'])->name('fusion.bundle');

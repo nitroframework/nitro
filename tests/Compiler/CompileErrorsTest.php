@@ -77,7 +77,8 @@ class CompileErrorsTest extends TestCase
     {
         return [
             '@php' => ["<div>\n@php \$x = 1; @endphp\n</div>", '@php cannot render in the browser', 2],
-            '@include' => ["<div>\n\n@include('partial')</div>", '@include cannot render in the browser', 3],
+            /** @include and <x-components> are inlined (BladeInliner, tests/Feature/InlinedViewsTest). */
+            '@push' => ["<div>\n\n@push('scripts') x</div>", '@push cannot render in the browser', 3],
             'unknown fusion attribute' => ['<div fusion:clik="save"></div>', 'Unknown attribute fusion:clik', 1],
             'unknown modifier' => ['<form fusion:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
             'unknown navigate modifier' => ["<div>\n<a href=\"/x\" fusion:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on fusion:navigate (it takes .keypress)', 2],

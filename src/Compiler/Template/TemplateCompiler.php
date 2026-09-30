@@ -7,6 +7,10 @@ use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\Globals;
 use Nitro\Fusion\Compiler\Scope;
 use Nitro\Fusion\Compiler\Transpiler;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Stmt;
+use PhpParser\ParserFactory;
+use PhpParser\PhpVersion;
 
 /**
  * Compiles a component's Blade view the way Viewi compiles its templates: the markup becomes a
@@ -35,13 +39,18 @@ final class TemplateCompiler
         'break', 'continue', 'switch', 'case', 'default', 'endswitch', 'error', 'enderror',
         'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json',
         'teleport', 'endteleport',
+        /** BladeInliner's, around an inlined @include or <x-component> (not written in views). */
+        'fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot', 'fusionFrame', 'endfusionFrame', 'fusionAttr',
     ];
+
+    /** BladeInliner's directives that sit inside a tag (a component's attributes). */
+    private const INLINED_TAG_DIRECTIVES = ['fusionAttr', 'fusionFrame', 'endfusionFrame'];
 
     /** Directives that write an attribute of the tag they are in. */
     private const ATTRIBUTE_DIRECTIVES = ['class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required'];
 
     /** Directives Blade compiles to a statement ending in "?>": PHP drops a newline right after it. */
-    private const KEEPS_NEWLINE = ['class', 'style'];
+    private const KEEPS_NEWLINE = ['class', 'style', 'fusionScope', 'fusionSlot', 'endfusionSlot'];
 
     private const CONDITIONALS = ['if', 'unless', 'isset', 'empty', 'error'];
 
@@ -120,6 +129,30 @@ final class TemplateCompiler
     /** @var list<string> component methods the template calls (for the compiler's reachability) */
     public array $calledMethods = [];
 
+    /**
+     * Inlined views (BladeInliner), innermost last: their variables (parsed), whether they see
+     * the variables around them (an include) or not (a component), and how many template
+     * variables were declared when the view began (those after are its own).
+     *
+     * @var list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>
+     */
+    private array $frames = [];
+
+    /** @var array<int, list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>> by frame: the frames around it (its slots compile there) */
+    private array $frameParents = [];
+
+    /** @var list<list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>> frames set aside while a slot compiles */
+    private array $setAside = [];
+
+    /** @var list<array{0: ?string, 1: int}> by line of the inlined source: the file and line it came from */
+    private array $lineMap = [];
+
+    /** Compiling a handler: $event and the component's methods are the handler's own. */
+    private bool $inHandler = false;
+
+    /** @var list<int> by open slot: where its text starts in the text not yet made a node (Blade trims a slot's output) */
+    private array $slotText = [];
+
     /** @param  Closure(string): bool  $isBladeDirective */
     public function __construct(private readonly Closure $isBladeDirective)
     {
@@ -141,7 +174,31 @@ final class TemplateCompiler
         $this->state = 'data';
         $this->tag = null;
         $this->calledMethods = [];
+        $this->frames = [];
+        $this->frameParents = [];
+        $this->setAside = [];
+        $this->lineMap = [];
+        $this->inHandler = false;
+        $this->slotText = [];
 
+        /** @include and <x-components>: inlined (BladeInliner), their variables replaced as they are parsed. */
+        if (BladeInliner::needed($source)) {
+            [$source, $this->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler'))))->expand($source, $file);
+            $this->transpiler->substitute = fn (string $name) => $this->replacement($name);
+        }
+
+        try {
+            return $this->read($source, $file);
+        } catch (CompileException $e) {
+            /** A line of the inlined source is reported where it came from. */
+            $origin = $e->sourceFile === $file && $e->sourceLine !== null ? ($this->lineMap[$e->sourceLine - 1] ?? null) : null;
+
+            throw $origin === null ? $e : new CompileException($e->reason, $origin[0], $origin[1]);
+        }
+    }
+
+    private function read(string $source, ?string $file): string
+    {
         $root = new TemplateNode(['t' => 'r']);
         $this->stack = [['kind' => 'root', 'node' => $root, 'line' => 1, 'locals' => []]];
 
@@ -273,6 +330,8 @@ final class TemplateCompiler
 
         $text = $this->text;
         $this->text = '';
+        /** A slot's text read so far is out of the buffer: what the slot adds from now starts at 0. */
+        $this->slotText = array_map(fn () => 0, $this->slotText);
         $top = end($this->stack);
 
         /** Between @switch and its first @case: Blade's PHP, where only whitespace belongs. */
@@ -454,6 +513,12 @@ final class TemplateCompiler
             return;
         }
 
+        if (in_array($name, ['fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot'], true)) {
+            $this->inlined($name, $args);
+
+            return;
+        }
+
         if ($this->state === 'value') {
             if ($name !== 'json') {
                 throw $this->error("@{$name} cannot be used inside an attribute value: use @class, @style or an echo");
@@ -516,6 +581,130 @@ final class TemplateCompiler
         return $args;
     }
 
+    // ------------------------------------------------------------ inlined views (BladeInliner)
+
+    /**
+     * The markers @fusionScope({...}) ... @endfusionScope: an inlined view begins and ends;
+     * the markers @fusionSlot(id) ... @endfusionSlot (and @fusionFrame in a tag): what is read there belongs where the
+     * component's tag is, so its frames are those around the component.
+     */
+    private function inlined(string $name, ?string $args): void
+    {
+        switch ($name) {
+            case 'fusionScope':
+                $frame = json_decode((string) base64_decode((string) $args), true, 16, JSON_THROW_ON_ERROR);
+                $vars = [];
+
+                /** What the view is given is read where it is included: through the frames around it. */
+                foreach ($frame['vars'] as $var => $php) {
+                    $vars[$var] = $this->parseReplacement($php);
+                }
+
+                $this->frameParents[$frame['id']] = $this->frames;
+                $this->frames[] = ['id' => $frame['id'], 'vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($this->locals)];
+
+                break;
+            case 'endfusionScope':
+                array_pop($this->frames);
+
+                break;
+            case 'fusionSlot':
+            case 'fusionFrame':
+                $this->setAside[] = $this->frames;
+                $this->frames = $this->frameParents[(int) $args] ?? [];
+
+                if ($name === 'fusionSlot') {
+                    $this->slotText[] = strlen($this->text);
+                }
+
+                break;
+            case 'endfusionSlot':
+            case 'endfusionFrame':
+                $this->frames = array_pop($this->setAside) ?? [];
+
+                /** Blade trims what a slot renders: its trailing whitespace (a component's last newline) goes. */
+                if ($name === 'endfusionSlot') {
+                    $start = array_pop($this->slotText) ?? 0;
+                    $this->text = substr($this->text, 0, $start).rtrim(substr($this->text, $start));
+                }
+
+                break;
+        }
+    }
+
+    /**
+     * An inlined view's variable: what it was given, kept (one of the template's own, or, in an
+     * included view, one of the view around it), or an error (a component sees only its own).
+     */
+    private function replacement(string $name): ?Expr
+    {
+        for ($i = count($this->frames) - 1; $i >= 0; $i--) {
+            $frame = $this->frames[$i];
+
+            if (array_key_exists($name, $frame['vars'])) {
+                return $frame['vars'][$name];
+            }
+
+            if (in_array($name, array_slice($this->locals, $frame['mark']), true)) {
+                return null;
+            }
+
+            if ($frame['isolated']) {
+                if ($this->inHandler || $name === 'errors') {
+                    return null;
+                }
+
+                throw $this->error($name === 'this'
+                    ? "{$frame['label']}: a Blade component has no \$this (it renders on its own); give it what it needs as attributes"
+                    : "{$frame['label']} has no \${$name}: a Blade component sees its @props, its attributes and its slots, so pass \${$name} as an attribute");
+            }
+        }
+
+        return null;
+    }
+
+    /** A value given to an inlined view, as PHP, read through the frames around it. */
+    private function parseReplacement(string $php): Expr
+    {
+        try {
+            $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php ('.$php.');') ?? [];
+        } catch (\PhpParser\Error $e) {
+            throw $this->error('Invalid PHP: '.$e->getRawMessage());
+        }
+
+        $stmts = VariableSubstitution::apply($stmts, fn (string $name) => $this->replacement($name));
+        $stmt = $stmts[0] ?? null;
+
+        if (! $stmt instanceof Stmt\Expression) {
+            throw $this->error('Expected an expression: '.$php);
+        }
+
+        return $stmt->expr;
+    }
+
+    /**
+     * The marker @fusionAttr('name', $value): a component's attribute, as ComponentAttributeBag prints it:
+     * left out when its value is null or false, its name for true, else its trimmed value (the
+     * bag's values are as the server writes them in the HTML: the parser's decoding is done here).
+     */
+    private function componentAttribute(string $args): void
+    {
+        if (! preg_match('/^\s*\'((?:[^\'\\\\]|\\\\.)*)\'\s*,(.*)$/s', $args, $m)) {
+            throw $this->error('Malformed component attribute');
+        }
+
+        $name = str_replace(["\\'", '\\\\'], ["'", '\\'], $m[1]);
+        $code = trim($m[2]);
+        $true = $name === 'x-data' || str_starts_with($name, 'wire:') ? "''" : var_export($name, true);
+        $value = "html_entity_decode(trim((string) (({$code}) === true ? {$true} : ({$code}))), ENT_QUOTES)";
+
+        $this->tag->attributes[] = [
+            'c' => $name,
+            'when' => $this->condition("({$code}) !== null && ({$code}) !== false"),
+            'h' => [['e' => 1, 'code' => $this->expression('P.toStr('.$this->expr($value).')')]],
+        ];
+    }
+
     /** A condition, as PHP reads it, to a JavaScript boolean. */
     private function condition(string $code): int
     {
@@ -525,6 +714,12 @@ final class TemplateCompiler
     /** @class, @style, @checked, ... inside a tag: attributes of it. */
     private function tagDirective(string $name, ?string $args): void
     {
+        if (in_array($name, self::INLINED_TAG_DIRECTIVES, true)) {
+            $name === 'fusionAttr' ? $this->componentAttribute((string) $args) : $this->inlined($name, $args);
+
+            return;
+        }
+
         if (! in_array($name, self::ATTRIBUTE_DIRECTIVES, true)) {
             throw $this->error("@{$name} cannot sit inside a tag: wrap the element in it, or use @class, @style, @disabled, @checked, ...");
         }
@@ -1165,7 +1360,14 @@ final class TemplateCompiler
     /** A handler: an expression whose value is the function to run ($event => ...). */
     private function handler(string $code): int
     {
-        $handler = $this->transpiler->handler($code, $this->scope, $this->locals, $this->line);
+        $this->inHandler = true;
+
+        try {
+            $handler = $this->transpiler->handler($code, $this->scope, $this->locals, $this->line);
+        } finally {
+            $this->inHandler = false;
+        }
+
         $this->track();
 
         return $this->expression($handler);
@@ -1208,6 +1410,11 @@ final class TemplateCompiler
      */
     private function child(string $text, int $at): int
     {
+        /** Children are numbered by the server per view file: inlined, the numbers would not match. */
+        if ($this->frames !== []) {
+            throw $this->error("<fusion:...> inside {$this->frames[count($this->frames) - 1]['label']}: put Fusion children in the component's own view, not in an included view or a Blade component");
+        }
+
         $tag = ChildTag::parse($text, $at, $this->children++, $this->file, $this->line);
 
         /**

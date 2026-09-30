@@ -6,12 +6,16 @@ use BackedEnum;
 use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
 use JsonException;
+use Nitro\Fusion\Upload;
 
 /**
  * Values between PHP and the browser. JSON, where every PHP array that is not a list becomes
  * {"$m": [[key, value], ...]}: plain JSON objects would lose PHP's key order (integer keys are
  * reordered by JavaScript) and the difference between 5 and "5" keys. Mirrors encode()/decode()
  * in js/src/php.js, which decodes these into JavaScript Maps.
+ *
+ * An upload travels as {"$u": {...}}, its signed reference (Upload::toWire()): decoding one checks
+ * the signature, so a value from the browser can only name an upload this application received.
  */
 final class Wire
 {
@@ -43,6 +47,10 @@ final class Wire
             return ['$m' => $pairs];
         }
 
+        if ($value instanceof Upload) {
+            return ['$u' => $value->toWire()];
+        }
+
         if ($value instanceof BackedEnum) {
             return $value->value;
         }
@@ -55,12 +63,16 @@ final class Wire
     }
 
     /**
-     * @throws InvalidArgumentException on a malformed {"$m": ...} array
+     * @throws InvalidArgumentException on a malformed {"$m": ...} array, or an upload reference this application did not sign
      */
     public static function decode(mixed $value): mixed
     {
         if (! is_array($value)) {
             return $value;
+        }
+
+        if (count($value) === 1 && array_key_exists('$u', $value)) {
+            return Upload::fromWire($value['$u']);
         }
 
         if (count($value) === 1 && isset($value['$m']) && is_array($value['$m']) && array_is_list($value['$m'])) {

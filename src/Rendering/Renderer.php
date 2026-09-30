@@ -164,6 +164,13 @@ final class Renderer
         $level = ob_get_level();
         ob_start();
 
+        /**
+         * Counted as a render, as View::render() counts one: a Blade component in the view renders
+         * its own view, and when that ends the factory flushes its state if nothing else is
+         * rendering, the component tags still open around it included.
+         */
+        $this->views->incrementRender();
+
         try {
             (function () use ($__path, $__data) {
                 extract($__data, EXTR_SKIP);
@@ -176,6 +183,8 @@ final class Renderer
             }
 
             throw $e;
+        } finally {
+            $this->views->decrementRender();
         }
 
         /** A component is its root element: whitespace around it (the view file's last newline) is not part of it. */

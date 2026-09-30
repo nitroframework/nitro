@@ -28,6 +28,9 @@ final class Globals
     /** Methods of $errors, as on Laravel's MessageBag. */
     public const ERROR_METHODS = ['has', 'first', 'get', 'all', 'any', 'count'];
 
+    /** Methods of an Upload (a file a fusion:model file input uploaded) the browser has: what it shows of the file. */
+    public const UPLOAD_METHODS = ['temporaryUrl', 'getClientOriginalName', 'getClientOriginalExtension', 'getSize', 'getMimeType'];
+
     /** Variables a handler (fusion:click="...") can read besides the template's. */
     public const HANDLER_VARIABLES = ['event'];
 

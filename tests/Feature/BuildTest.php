@@ -27,10 +27,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('14 Fusion components built', $output);
+        $this->assertStringContainsString('16 Fusion components built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['board', 'card', 'clock', 'counter', 'journal', 'links', 'panels', 'roster', 'search-box', 'shelf', 'student-page', 'todo-item', 'todo-list', 'wallet'],
+            ['board', 'card', 'clock', 'counter', 'gallery', 'journal', 'links', 'panels', 'roster', 'search-box', 'shelf', 'showcase', 'student-page', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -90,7 +90,7 @@ class BuildTest extends TestCase
             'lang' => ['Nothing to translate', 'Open :name', 'messages.welcome'],
             'config' => ['app.name'],
             /** Viewi's: the PHP functions the components call, from js/functions (their bundle has them). */
-            'functions' => ['Str_camel', 'Str_headline', 'Str_limit', 'Str_mask', 'Str_padLeft', 'Str_slug', 'Str_title', 'levenshtein', 'preg_match', 'preg_match_all', 'preg_replace', 'preg_split', 'str_word_count', 'strtr'],
+            'functions' => ['Str_camel', 'Str_headline', 'Str_limit', 'Str_mask', 'Str_padLeft', 'Str_slug', 'Str_title', 'html_entity_decode', 'levenshtein', 'preg_match', 'preg_match_all', 'preg_replace', 'preg_split', 'str_word_count', 'strtr'],
         ], $bundle->uses());
         $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_fusion/app.js')->getContent());
         $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());

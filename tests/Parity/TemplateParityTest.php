@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Tests\Parity;
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\MessageBag;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Component;
@@ -10,6 +11,7 @@ use Nitro\Fusion\Support\Wire;
 use Nitro\Fusion\Tests\Fixtures\Models\Student;
 use Nitro\Fusion\Tests\Support\Node;
 use Nitro\Fusion\Tests\TestCase;
+use Nitro\Fusion\Upload;
 
 /**
  * Each fixture view, in many states, rendered by Blade on the server and by its compiled render
@@ -100,6 +102,9 @@ class TemplateParityTest extends TestCase
             ['id' => 7, 'title' => 'Ünïcödé ✓', 'done' => false],
         ];
 
+        $jpeg = Upload::receive(UploadedFile::fake()->image('Birthday Cake «1».jpg', 40, 30));
+        $pdf = Upload::receive(UploadedFile::fake()->create('menu.pdf', 3, 'application/pdf'));
+
         return [
             ['counter', [], []],
             ['counter', ['count' => 7, 'step' => 2, 'history' => [2, 4, 7]], []],
@@ -129,6 +134,15 @@ class TemplateParityTest extends TestCase
             ['panels', ['panel' => '', 'stack' => []], []],
             ['links', [], []],
             ['links', ['studentId' => 42, 'name' => 'ünï <b>x</b>', 'slug' => 'a/b?c#d', 'student' => Student::find(1)], []],
+            /** Uploads in the state: what the view shows of them (Globals::UPLOAD_METHODS) is the server's. */
+            ['gallery', [], []],
+            ['gallery', ['photo' => $jpeg, 'photos' => [$jpeg, $pdf], 'caption' => 'Cakes'], []],
+            ['gallery', ['photo' => $pdf], ['photo' => ['The photo field must be an image.']]],
+            ['gallery', ['stored' => ['photo' => 'gallery/cover.jpg', 'photos' => ['one.jpg']]], []],
+            /** Blade components and @include, inlined: what Blade renders of them. */
+            ['showcase', [], []],
+            ['showcase', ['featured' => true, 'tone' => 'red', 'clicks' => 3, 'note' => '<b>x</b> & "y"'], []],
+            ['showcase', ['cakes' => [], 'note' => '0'], []],
         ];
     }
 }
