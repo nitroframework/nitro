@@ -46,6 +46,15 @@ class Counter extends Component
 @fusionScripts
 ```
 
+## Requirements
+
+- PHP 8.3 or higher
+- Laravel 13, or Nitro
+- Node.js and esbuild (`npm install --save-dev esbuild`), to minify the compiled components
+
+Fusion's browser versions of Laravel's helpers (`Str::`, `route()`, `__()`) follow Laravel 13's
+behavior, so earlier Laravel versions are not supported.
+
 ## Installing
 
 ```bash
@@ -57,12 +66,14 @@ Put `@fusionScripts` before `</body>` in your layout. Components live in `app/Fu
 (`App\Fusion\Students\StudentForm` is `<fusion:students.student-form />` and renders
 `resources/views/fusion/students/student-form.blade.php`).
 
-Components compile to one script, served at `/_fusion/app.js` from `storage/framework/fusion`.
-Without a build it is compiled on first use, readable, and again whenever a component changes
-(like Vite's dev server). `php artisan fusion:build` is the production build, like `vite build`:
-every component compiled and minified with esbuild (`npm install --save-dev esbuild`), as
-`app-<version>.min.js`. It is a step of its own: `optimize` does not run it, and `APP_DEBUG` has no
-say in it. `php artisan fusion:clear` removes it.
+Components compile to `/_fusion/app.js`, written to `storage/framework/fusion`, with each
+`Route::fusion()` page in a chunk of its own (`/_fusion/app/<page>.js`) loaded when the page is
+first visited. When a component changes, the next request compiles them again, minified with
+esbuild (`npm install --save-dev esbuild`); without esbuild, or with
+`FUSION_MINIFY_ON_CHANGE=false`, the output is readable. `php artisan fusion:build` builds
+everything ahead of time, like `vite build`: run it when deploying so no visitor waits for the
+compile. `optimize` does not run it, and `APP_DEBUG` has no say in it. `php artisan fusion:clear`
+removes the compiled files.
 
 ## Components
 
@@ -247,7 +258,13 @@ CSRF). See [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Testing
 
 ```bash
+composer install
+npm install
 composer test     # PHP and Node: parity, rendering, security, the runtime in a browser
 composer analyse  # PHPStan
 npm run build     # rebuild dist/fusion.js after changing js/src
 ```
+
+The feature tests run on Laravel, and on Nitro too when `nitro/framework` is installed. It is a
+development dependency loaded from `../nitro-framework`; without that checkout, remove it from
+`require-dev` to install, and the Nitro cases are skipped.

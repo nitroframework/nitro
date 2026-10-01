@@ -26,6 +26,9 @@ abstract class TestCase extends BaseTestCase
 {
     public const APP = __DIR__.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'app';
 
+    /** The fixture app's storage directories (git-ignored: a fresh clone has none). */
+    private const STORAGE = ['app/private', 'framework/cache', 'framework/fusion', 'framework/sessions', 'framework/views', 'logs'];
+
     protected ?Application $app = null;
 
     /** @var array<string, string> cookies carried between requests, as a browser would */
@@ -42,6 +45,10 @@ abstract class TestCase extends BaseTestCase
         foreach (glob(self::APP.'/bootstrap/cache/*.php') ?: [] as $file) {
             @unlink($file);
         }
+
+        foreach (self::STORAGE as $directory) {
+            @mkdir(self::APP.'/storage/'.$directory, 0777, true);
+        }
     }
 
     protected function tearDown(): void
@@ -55,9 +62,12 @@ abstract class TestCase extends BaseTestCase
         parent::tearDown();
     }
 
+    /** Laravel always; Nitro when it is installed (it is a development dependency). */
     public static function frameworks(): array
     {
-        return ['laravel' => ['laravel'], 'nitro' => ['nitro']];
+        return class_exists(\Nitro\Foundation\Application::class)
+            ? ['laravel' => ['laravel'], 'nitro' => ['nitro']]
+            : ['laravel' => ['laravel']];
     }
 
     protected function boot(string $framework): Application

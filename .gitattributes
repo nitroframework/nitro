@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+# Not installed with the package. js/functions (the PHP function ports compiled into the
+# bundle), dist/fusion.js and resources/minify.cjs are used at runtime and stay.
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/ARCHITECTURE.md export-ignore
+/CHANGELOG.md export-ignore
+/composer.lock export-ignore
+/js/build.mjs export-ignore
+/js/src export-ignore
+/js/test export-ignore
+/js/tools export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/phpstan.neon export-ignore
+/phpunit.xml export-ignore
+/tests export-ignore
