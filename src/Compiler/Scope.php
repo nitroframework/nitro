@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler;
 
 use Closure;
+use Nitro\Fusion\Build\Obfuscator;
 
 /**
  * What a piece of code may refer to while it is compiled.
@@ -34,13 +35,47 @@ final class Scope
         public readonly array $computed = [],
         /** @var (Closure(string): ?string)|null a component class to its name (dispatch()->to(Card::class)) */
         public readonly ?Closure $componentName = null,
+        /** The names the browser sees, in an obfuscated build (null: the names themselves) */
+        public readonly ?Obfuscator $names = null,
     ) {
+    }
+
+    /** The same scope, writing the browser's names of methods and components (an obfuscated build). */
+    public function withNames(?Obfuscator $names): self
+    {
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $names);
+    }
+
+    /** A method's name in the browser. */
+    public function browserMethod(string $name): string
+    {
+        return $this->names?->method($name) ?? $name;
+    }
+
+    /** A property's name in the browser. */
+    public function browserProperty(string $name): string
+    {
+        return $this->names?->property($name) ?? $name;
+    }
+
+    /** A property path ("form.email") in the browser: its property by the browser's name. */
+    public function browserPath(string $path): string
+    {
+        $root = explode('.', $path, 2)[0];
+
+        return $this->names !== null && $this->isProperty($root) ? $this->names->path($path) : $path;
+    }
+
+    /** A component's or page's name in the browser. */
+    public function browserComponent(string $name): string
+    {
+        return $this->names?->component($name) ?? $name;
     }
 
     /** The same scope, knowing the application's components by class. */
     public function withComponentNames(Closure $componentName): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName, $this->names);
     }
 
     /** A component's name from its class, null when the class is not a component. */
@@ -51,13 +86,13 @@ final class Scope
 
     public function withVariables(Closure $variable, ?string $file = null, int $lineOffset = 0): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names);
     }
 
     /** The same members, for a method in $file (no template variables). */
     public function forFile(string $file): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names);
     }
 
     public function isComputed(string $name): bool

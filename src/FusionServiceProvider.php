@@ -58,6 +58,8 @@ class FusionServiceProvider extends ServiceProvider
             (array) $app->make('config')->get('fusion.esbuild', []),
             $app->make('router'),
             (bool) $app->make('config')->get('fusion.minify_on_change', true),
+            ...self::staticDirectory($app),
+            obfuscate: (bool) $app->make('config')->get('fusion.build.obfuscate', true),
         ));
 
         $this->app->bind(PersistentMiddleware::class, fn (Application $app) => new PersistentMiddleware(
@@ -65,6 +67,20 @@ class FusionServiceProvider extends ServiceProvider
             $app->make('router'),
             $app->make('config')->get('fusion.persistent_middleware', []),
         ));
+    }
+
+    /**
+     * fusion.static: the directory fusion:build publishes to, and its path under public/.
+     *
+     * @return array{staticDirectory: ?string, staticPath: string}
+     */
+    private static function staticDirectory(Application $app): array
+    {
+        $path = $app->make('config')->get('fusion.static', 'fusion');
+
+        return is_string($path) && trim($path, '/') !== ''
+            ? ['staticDirectory' => $app->publicPath(trim($path, '/')), 'staticPath' => trim($path, '/')]
+            : ['staticDirectory' => null, 'staticPath' => 'fusion'];
     }
 
     public function boot(): void

@@ -27,6 +27,10 @@ return [
     ],
     'public_config' => ['app.name'],
     'compiled' => dirname(__DIR__).'/storage/framework/fusion',
+    /** Real names, unless a test turns obfuscation on (FUSION_OBFUSCATE: the browser tests' obfuscated run). */
+    'build' => [
+        'obfuscate' => (bool) getenv('FUSION_OBFUSCATE'),
+    ],
     /** Readable on first use, so tests can read it (BuildTest turns it on). */
     'minify_on_change' => false,
     /** esbuild from the package's own node_modules (the fixture app has none). */

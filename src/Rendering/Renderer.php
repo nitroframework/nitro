@@ -64,8 +64,10 @@ final class Renderer
     {
         $this->rendered[$meta->name] = true;
 
-        $html = $this->view($component, $meta);
-        $envelope = Snapshot::capture($component, $meta, $memo)->toJson($key);
+        $fusion = app(\Nitro\Fusion\Fusion::class);
+        $name = $fusion->browserName($meta->name);
+        $html = $fusion->obscure($this->view($component, $meta), [...$meta->browserMethods, ...$meta->serverMethods], array_keys($meta->properties));
+        $envelope = Snapshot::capture($component, $meta, $memo)->toJson($key, $name, $fusion->names());
 
         if ($this->collected !== null && $this->stack !== [] && $meta->hasMount) {
             $this->collected[$component->getId()] = json_decode($envelope, true);
@@ -73,7 +75,7 @@ final class Renderer
 
         return RootElement::mark($html, [
             'fusion:id' => $component->getId(),
-            'fusion:name' => $meta->name,
+            'fusion:name' => $name,
             'fusion:snapshot' => $envelope,
             ...$attributes,
         ], $meta->name);

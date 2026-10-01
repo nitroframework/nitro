@@ -9,6 +9,7 @@ import { Component, readState } from './component.js';
 import { ErrorBag } from './errors.js';
 import { Events } from './events.js';
 import { Hooks } from './hooks.js';
+import { Broadcasts } from './echo.js';
 import { applyLoading, STYLE } from './loading.js';
 import { Model } from './model.js';
 import { Navigator } from './navigate.js';
@@ -32,6 +33,8 @@ export class Runtime {
         this.onceShared = new Map();
         this.events = new Events(this, this.document);
         this.hooks = new Hooks(this, window);
+        /** #[On('echo:...')]: broadcast events, through the application's Laravel Echo. */
+        this.broadcasts = new Broadcasts(this, window);
         this.model = new Model(this, this.document);
         this.network = new Network(this, config);
         this.navigator = new Navigator(this, window);
@@ -52,12 +55,18 @@ export class Runtime {
         this.lazyRoutes = routes.map(([pattern, group]) => [new RegExp(pattern), group]);
     }
 
-    /** A chunk's components: loaded once (app/<group>.js, the bundle's version). */
+    /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
     load(group) {
+        /** Its components are here already (the page loaded the chunk with its own script tag). */
+        const inGroup = [...this.lazyComponents].filter(([, chunk]) => chunk === group).map(([name]) => name);
+        if (!this.chunks.has(group) && inGroup.length > 0 && inGroup.every((name) => this.definitions.has(name))) {
+            this.chunks.set(group, Promise.resolve());
+        }
         if (!this.chunks.has(group)) {
             this.chunks.set(group, new Promise((resolve, reject) => {
                 const script = this.document.createElement('script');
-                script.src = `${this.config.endpoint}/app/${encodeURIComponent(group)}.js?v=${encodeURIComponent(this.config.bundle ?? '')}`;
+                const pattern = this.config.chunks ?? `${this.config.endpoint}/app/{id}.js?v=${encodeURIComponent(this.config.bundle ?? '')}`;
+                script.src = pattern.replace('{id}', encodeURIComponent(group));
                 script.onload = () => resolve();
                 script.onerror = () => {
                     this.chunks.delete(group);
@@ -100,6 +109,7 @@ export class Runtime {
             created.forEach((component) => component.hydrate());
             /** mounted() once they are all live (a child's is there for its parent's). */
             created.forEach((component) => component.hook('mounted'));
+            created.forEach((component) => this.broadcasts.subscribe(component));
             created.forEach((component) => this.loadDeferred(component));
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
@@ -286,6 +296,7 @@ export class Runtime {
         });
         if (!made) return null;
         component.hook('mounted');
+        this.broadcasts.subscribe(component);
         this.loadDeferred(component);
         return component;
     }
@@ -334,7 +345,7 @@ export class Runtime {
 
     /** $reload / $this->reload(): a page's properties, from its route or controller (all of them when none are named). */
     reload(component, only = []) {
-        if (!component.name.startsWith('pages::')) {
+        if (!component.definition.page) {
             const error = new Error(`Fusion: [${component.name}] is a component; only pages reload their properties`);
             this.report(component, error);
             return Promise.reject(error);
@@ -444,7 +455,7 @@ export class Runtime {
      * reload of the page's URL with the paginator's page in the query). Nothing when it has no next.
      */
     loadMore(component, name) {
-        if (!component.name.startsWith('pages::')) {
+        if (!component.definition.page) {
             const error = new Error(`Fusion: [${component.name}] is a component; only pages load more of their properties`);
             this.report(component, error);
             return Promise.reject(error);

@@ -46,6 +46,7 @@ final class UploadController
         }
 
         $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion()->key());
+        $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
 
         if (! $this->fusion()->has($snapshot->name)) {
             throw new HttpException(404, 'Unknown component.');
@@ -54,7 +55,10 @@ final class UploadController
         $this->persistent->check($snapshot->memo['route'] ?? [], $request);
 
         $name = $request->input('property');
-        $property = is_string($name) ? $this->fusion()->meta($snapshot->name)->property($name) : null;
+        $meta = $this->fusion()->meta($snapshot->name);
+        /** By the browser's name for it (an obfuscated build). */
+        $name = is_string($name) ? ($this->fusion()->names()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
+        $property = is_string($name) ? $meta->property($name) : null;
         $multiple = $property !== null && in_array('array', $property->types, true);
 
         if ($property === null || $property->locked || ! ($property->kind === PropertyMeta::UPLOAD || $multiple)) {
@@ -73,7 +77,10 @@ final class UploadController
         $validator = Validator::make(['files' => $files], ['files.*' => $rules], [], ['files.*' => $name]);
 
         if ($validator->fails()) {
-            return new JsonResponse(['message' => $validator->errors()->first(), 'errors' => [$name => array_values(array_unique($validator->errors()->all()))]], 422);
+            /** Keyed by the browser's name for the property (an obfuscated build). */
+            $field = $this->fusion()->names()?->property($name) ?? $name;
+
+            return new JsonResponse(['message' => $validator->errors()->first(), 'errors' => [$field => array_values(array_unique($validator->errors()->all()))]], 422);
         }
 
         Upload::prune();

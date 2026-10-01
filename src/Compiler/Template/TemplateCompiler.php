@@ -293,7 +293,7 @@ final class TemplateCompiler
                 return Globals::TEMPLATE_VARIABLES[$name];
             }
 
-            return $this->scope->isProperty($name) ? '$this.'.$name : null;
+            return $this->scope->isProperty($name) ? '$this.'.$this->scope->browserProperty($name) : null;
         };
     }
 
@@ -586,7 +586,7 @@ final class TemplateCompiler
 
         preg_match_all('/\w+/', $args, $names);
 
-        return json_encode($names[0], JSON_THROW_ON_ERROR);
+        return json_encode(array_map($this->scope->browserProperty(...), $names[0]), JSON_THROW_ON_ERROR);
     }
 
     private function required(string $name, ?string $args): string
@@ -963,6 +963,14 @@ final class TemplateCompiler
     /** Blade's @error('field'): the component's validation message for the field, as $message. */
     private function errorBlock(string $args): void
     {
+        /**
+         * A field written out, or one built from a start written out ('items.'.$i.'.price'): its
+         * property by the browser's name (an obfuscated build).
+         */
+        if (preg_match('/^(\s*)([\'"])([\w.*\-]+)\2/', $args, $literal) === 1) {
+            $args = $literal[1].var_export($this->scope->browserPath($literal[3]), true).substr($args, strlen($literal[0]));
+        }
+
         $field = $this->expression($this->expr('['.$args.'][0]'));
         $node = $this->openBlock('error', []);
         $node->fields['i'] = [['c' => 'error', 'code' => $field, 'message' => $this->declareFrom('message', [$field, '$errors'])]];
@@ -1191,7 +1199,25 @@ final class TemplateCompiler
         $static = $end === false ? substr($text, $i) : substr($text, $i, $end - $i);
 
         if ($static !== '') {
-            $this->attributePart(['c' => html_entity_decode($static, ENT_QUOTES | ENT_HTML5, 'UTF-8')]);
+            $decoded = html_entity_decode($static, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            /** fusion:model's property by the browser's name for it: the path's start (an obfuscated build). */
+            $attribute = $this->tag->attributes[$this->attribute];
+
+            if ($this->scope->names !== null && ($attribute['c'] === 'fusion:model' || str_starts_with($attribute['c'], 'fusion:model.')) && $attribute['h'] === []) {
+                $decoded = $this->scope->browserPath($decoded);
+            }
+
+            /** fusion:target's methods, and properties (an upload's), by the browser's names for them (an obfuscated build). */
+            if ($this->scope->names !== null && $this->tag->attributes[$this->attribute]['c'] === 'fusion:target') {
+                $decoded = implode(',', array_map(fn (string $target) => match (true) {
+                    $this->scope->isClientMethod(trim($target)) || $this->scope->isServerMethod(trim($target)) => $this->scope->browserMethod(trim($target)),
+                    $this->scope->isProperty(trim($target)) => $this->scope->browserProperty(trim($target)),
+                    default => trim($target),
+                }, explode(',', $decoded)));
+            }
+
+            $this->attributePart(['c' => $decoded]);
         }
 
         if ($end === false) {
@@ -1369,7 +1395,8 @@ final class TemplateCompiler
         $decoded = html_entity_decode($code, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $this->tag->attributes[] = [
             'c' => 'fusion:'.$spec,
-            'h' => [['c' => $decoded]],
+            /** An obfuscated build leaves the handler's text out of the page: the compiled code is what runs. */
+            'h' => $this->scope->names === null ? [['c' => $decoded]] : [],
             'on' => ['e' => $name, 'm' => $parts, 'code' => $this->handler($decoded)],
         ];
 
@@ -1470,17 +1497,18 @@ final class TemplateCompiler
                 continue;
             }
 
-            $props[] = json_encode($name).': '.$this->expr($expression);
+            /** The child's properties by the browser's names for them (an obfuscated build); "$model" is the runtime's. */
+            $props[] = json_encode($name === '$model' || $dynamic ? $name : $this->scope->names?->property($name) ?? $name).': '.$this->expr($expression);
         }
 
         $node = new TemplateNode(array_filter([
             't' => 'c',
-            'c' => $dynamic ? null : $tag->name,
+            'c' => $dynamic ? null : $this->scope->browserComponent($tag->name),
             'is' => $dynamic ? $this->expression('P.toStr('.$this->expr($tag->props['is']).')') : null,
             'n' => $tag->number,
             'key' => $tag->key !== null ? $this->expression('P.toStr('.$this->expr($tag->key).')') : null,
             'props' => $this->expression('{'.implode(', ', $props).'}'),
-            'model' => $tag->model,
+            'model' => $tag->model === null ? null : $this->scope->browserPath($tag->model),
         ], fn ($v) => $v !== null));
         $this->append($node);
 

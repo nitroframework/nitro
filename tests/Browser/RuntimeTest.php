@@ -34,6 +34,28 @@ class RuntimeTest extends TestCase
         $this->assertSame([], $failures);
     }
 
+    /**
+     * The same, against an obfuscated build (fusion.build.obfuscate): methods, #[Server] methods
+     * and components under aliases, handlers' text left out of the page, the build's static files
+     * served without PHP.
+     */
+    #[DataProvider('frameworks')]
+    public function test_components_come_alive_in_an_obfuscated_build(string $framework): void
+    {
+        putenv('FUSION_OBFUSCATE=1');
+
+        try {
+            $this->boot($framework);
+            $this->assertSame(0, $this->console()->call('fusion:build'), $this->console()->output());
+            $this->assertNotNull($this->app->make(\Nitro\Fusion\Build\Bundle::class)->obfuscator(), 'the build is obfuscated');
+
+            $this->test_components_come_alive_in_the_browser($framework);
+        } finally {
+            putenv('FUSION_OBFUSCATE');
+            $this->console()->call('fusion:clear');
+        }
+    }
+
     private function seed(string $database): void
     {
         $pdo = new \PDO('sqlite:'.$database);

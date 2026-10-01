@@ -9,6 +9,8 @@ use JsonException;
 use LogicException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\PropertyMeta;
+use Closure;
+use Nitro\Fusion\Build\Obfuscator;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Merge;
 use Nitro\Fusion\State;
@@ -110,16 +112,77 @@ final class Snapshot
         ]));
     }
 
+    /**
+     * The snapshot the browser sent back, by the component's own property names (an obfuscated
+     * build's aliases resolved).
+     *
+     * @param  list<string>  $properties  the component's
+     */
+    public function fromBrowser(?Obfuscator $names, array $properties): self
+    {
+        if ($names === null) {
+            return $this;
+        }
+
+        [$data, $memo] = $this->renamed(
+            fn (string $name) => $names->propertyName($name, $properties) ?? $name,
+            fn (string $path) => $names->propertyPath($path, $properties),
+        );
+
+        return new self($this->name, $this->id, $data, $memo);
+    }
+
+    /**
+     * Its data and memo with the properties renamed: keys of the data, models and merge rules,
+     * error fields (paths), deferred properties.
+     *
+     * @param  Closure(string): string  $property
+     * @param  Closure(string): string  $path
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function renamed(Closure $property, Closure $path): array
+    {
+        $keys = fn (array $values, Closure $rename) => array_combine(array_map(fn ($key) => $rename((string) $key), array_keys($values)), $values);
+        $memo = $this->memo;
+
+        foreach (['models', 'merge'] as $entry) {
+            if (isset($memo[$entry]) && is_array($memo[$entry])) {
+                $memo[$entry] = $keys($memo[$entry], $property);
+            }
+        }
+
+        if (isset($memo['errors']) && is_array($memo['errors'])) {
+            $memo['errors'] = $keys($memo['errors'], $path);
+        }
+
+        if (isset($memo['deferred']) && is_array($memo['deferred'])) {
+            $memo['deferred'] = array_map(fn ($name) => $property((string) $name), $memo['deferred']);
+        }
+
+        return [$keys($this->data, $property), $memo];
+    }
+
+    /** The same snapshot, for the component by this name (a browser's alias resolved). */
+    public function withName(string $name): self
+    {
+        return new self($name, $this->id, $this->data, $this->memo);
+    }
+
     /** Whether it holds some properties only (only()). */
     public function isPartial(): bool
     {
         return ($this->memo['partial'] ?? false) === true;
     }
 
-    /** The envelope sent to the browser. */
-    public function toJson(string $key): string
+    /**
+     * The envelope sent to the browser, naming the component as the browser knows it ($name), and
+     * with an obfuscated build's names ($names), its properties by theirs: in its state, and where
+     * its memo names them (models, errors, deferred properties, merge rules).
+     */
+    public function toJson(string $key, ?string $name = null, ?Obfuscator $names = null): string
     {
-        $state = Wire::json(['name' => $this->name, 'id' => $this->id, 'data' => $this->data, 'memo' => $this->memo]);
+        [$data, $memo] = $names === null ? [$this->data, $this->memo] : $this->renamed($names->property(...), $names->path(...));
+        $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo]);
 
         return json_encode(['state' => $state, 'checksum' => self::sign($state, $key)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }

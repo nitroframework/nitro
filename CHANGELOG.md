@@ -4,6 +4,19 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Broadcasts: `#[On('echo:channel,Event')]`, `echo-private:`, `echo-presence:` (`here`, `joining`,
+  `leaving`) and `echo-notification:`, through the application's Laravel Echo; `{property}` in a
+  channel reads the component's state.
+
+- Obfuscated builds (`fusion.build.obfuscate`, on by default): methods, `#[Server]` methods,
+  properties, pages and components under aliases derived from `APP_KEY`, in the bundle, the page
+  and what the browser sends; handlers' text left out of the page. The server translates them back.
+
+- `fusion:build` publishes the build to `public/fusion` (`fusion.static`), served by the web
+  server without PHP; `@fusionScripts` points at it, and falls back to the `/_fusion` routes
+  until the next build after a change. Built chunks are named by a hash (`7f3a9c21-<version>.js`).
+- A chunk the page already loaded is not fetched again on a visit.
+
 - Merge props: `Fusion::merge()` (`->prepend()`, `->matchOn()`), `Fusion::deepMerge()` and
   `Fusion::scroll()` with `$loadMore('prop')`, merged on partial reloads in the browser and on
   the server.

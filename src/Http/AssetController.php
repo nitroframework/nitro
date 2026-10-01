@@ -26,7 +26,7 @@ final class AssetController
         return $this->compiled($request, $bundle, fn () => $bundle->path());
     }
 
-    /** A #[LazyLoad] group's chunk (app/<group>.js). */
+    /** A chunk (app/<id>.js): a page's or a #[LazyLoad] group's, by its name (Bundle::chunkId()). */
     public function chunk(Request $request, Bundle $bundle, string $group): Response
     {
         return $this->compiled($request, $bundle, fn () => $bundle->chunkPath($group) ?? abort(404));

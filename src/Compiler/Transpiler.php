@@ -159,10 +159,15 @@ final class Transpiler
     /**
      * A component method, as `function (...) { ... }` called with the component as `this`.
      */
+    /** Compiling updated(): its string literals that name a property are the browser's names (an obfuscated build). */
+    private bool $updatedHook = false;
+
     public function method(Stmt\ClassMethod $method, Scope $scope): string
     {
         $this->scope = $scope;
         $this->tempCounter = 0;
+        /** updated($property, $value): the runtime passes the property by the browser's name (an obfuscated build), so a property named in it is too. */
+        $this->updatedHook = $scope->names !== null && $method->name->toString() === 'updated';
 
         return $this->functionLike($method->params, $method->stmts ?? [], $method->name->toString(), isMethod: true);
     }
@@ -609,7 +614,7 @@ final class Transpiler
     private function expr(Expr $e): string
     {
         return match (true) {
-            $e instanceof Scalar\String_ => $this->string($e->value),
+            $e instanceof Scalar\String_ => $this->string($this->updatedHook ? $this->scope->browserPath($e->value) : $e->value),
             $e instanceof Scalar\Int_ => (string) $e->value,
             $e instanceof Scalar\Float_ => $this->float($e->value),
             $e instanceof Scalar\InterpolatedString => $this->interpolated($e),
@@ -813,14 +818,14 @@ final class Transpiler
             if ($this->scope->isComputed($name)) {
                 $this->calledMethods[] = $name;
 
-                return '$this.$computed('.$this->string($name).')';
+                return '$this.$computed('.$this->string($this->scope->browserMethod($name)).')';
             }
 
             if (! $this->scope->isProperty($name)) {
                 throw $this->error("\$this->{$name} is not a public property of the component", $e);
             }
 
-            return '$this.'.$name;
+            return '$this.'.$this->scope->browserProperty($name);
         }
 
         return 'P.prop('.$this->expr($e->var).', '.$this->string($name).')';
@@ -862,7 +867,25 @@ final class Transpiler
                 throw $this->error('$errors supports '.implode('(), ', Globals::ERROR_METHODS).'()', $e);
             }
 
-            return Globals::TEMPLATE_VARIABLES['errors'].'.'.$method.'('.implode(', ', $this->args($e->args)).')';
+            /**
+             * A field written out ('form.email'), or built from a start written out ('items.'.$i):
+             * its property by the browser's name (an obfuscated build).
+             */
+            $args = $this->args($e->args);
+            $field = isset($e->args[0]) && $e->args[0] instanceof Arg ? $e->args[0]->value : null;
+
+            while ($field instanceof Expr\BinaryOp\Concat) {
+                $field = $field->left;
+            }
+
+            if ($field instanceof Scalar\String_ && $this->scope->names !== null) {
+                $start = $field->value;
+                $field->value = $this->scope->browserPath($start);
+                $args = $this->args($e->args);
+                $field->value = $start;
+            }
+
+            return Globals::TEMPLATE_VARIABLES['errors'].'.'.$method.'('.implode(', ', $args).')';
         }
 
         /** $photo->temporaryUrl(), ->getClientOriginalName(), ...: an Upload's, checked at run time as PHP would. */
@@ -889,7 +912,7 @@ final class Transpiler
         if ($this->scope->isClientMethod($name)) {
             $this->calledMethods[] = $name;
 
-            return '$this.'.$name.'('.implode(', ', $this->args($e->args)).')';
+            return '$this.'.$this->scope->browserMethod($name).'('.implode(', ', $this->args($e->args)).')';
         }
 
         /** Globals::COMPONENT_METHODS */
@@ -898,7 +921,7 @@ final class Transpiler
             'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reset()'), $e->args)).'])',
             'reload' => '$this.$reload(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reload()'), $e->args)).'])',
             'redirect' => '$this.$redirect('.implode(', ', $this->args($e->args)).')',
-            'js' => '$this.$js('.implode(', ', $this->args($e->args)).')',
+            'js' => '$this.$js('.implode(', ', $this->jsArgs($e->args)).')',
             'shared' => 'B.shared('.implode(', ', $this->args($e->args)).')',
             'flashed' => 'B.flashed('.implode(', ', $this->args($e->args)).')',
             default => throw $this->error("\$this->{$name}() is not a method of the component that can run in the browser", $e),
@@ -923,18 +946,19 @@ final class Transpiler
             default => null,
         };
 
+        /** A name written out is the browser's name for it (an obfuscated build); one worked out as it runs is not. */
         if ($class === null) {
-            return $this->expr($value);
+            return $value instanceof Scalar\String_ ? $this->string($this->scope->browserComponent($value->value)) : $this->expr($value);
         }
 
         $name = $this->scope->componentName($class) ?? throw $this->error("{$class} is not a Fusion component", $node);
 
-        return $this->string($name);
+        return $this->string($this->scope->browserComponent($name));
     }
 
     private function serverCall(Expr\MethodCall $e): string
     {
-        return '$this.$call('.$this->string($e->name->toString()).', ['.implode(', ', $this->args($e->args)).'])';
+        return '$this.$call('.$this->string($this->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->args($e->args)).'])';
     }
 
     /**
@@ -1011,7 +1035,25 @@ final class Transpiler
             throw $this->error("{$method} takes the names of public properties", $node);
         }
 
-        return $this->string($arg->value->value);
+        return $this->string($this->scope->browserProperty($arg->value->value));
+    }
+
+    /**
+     * $this->js('...')'s code: written out, it reads $fusion.<name> by the browser's names (an
+     * obfuscated build).
+     *
+     * @param  list<Arg|Node\VariadicPlaceholder>  $args
+     * @return list<string>
+     */
+    private function jsArgs(array $args): array
+    {
+        $compiled = $this->args($args);
+
+        if ($this->scope->names !== null && isset($args[0]) && $args[0] instanceof Arg && $args[0]->value instanceof Scalar\String_) {
+            $compiled[0] = $this->string($this->scope->names->script($args[0]->value->value, $this->scope->properties, [...$this->scope->clientMethods, ...$this->scope->serverMethods]));
+        }
+
+        return $compiled;
     }
 
     /** @param  list<Arg|Node\VariadicPlaceholder>  $args */
@@ -1213,7 +1255,7 @@ final class Transpiler
                 throw $this->error("\$this->{$name} is #[Locked]: only the server (mount() or a #[Server] method) can change it", $e);
             }
 
-            return ['$this.'.$name, []];
+            return ['$this.'.$this->scope->browserProperty($name), []];
         }
 
         if ($e instanceof Expr\ArrayDimFetch) {
@@ -1635,7 +1677,7 @@ final class Transpiler
                 throw $this->error('$parent takes a method name', $e);
             }
 
-            return '$this.$parent('.$this->string($e->name->toString()).', ['.implode(', ', $this->args($e->args)).'])';
+            return '$this.$parent('.$this->string($this->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->args($e->args)).'])';
         }
 
         if ($e instanceof Expr\Variable && $e->name === 'refresh') {
@@ -1712,7 +1754,7 @@ final class Transpiler
             throw $this->error("{$root} is not a public property of the component", $node);
         }
 
-        return $this->string($arg->value->value);
+        return $this->string($this->scope->browserPath($arg->value->value));
     }
 
     // ------------------------------------------------------------ helpers

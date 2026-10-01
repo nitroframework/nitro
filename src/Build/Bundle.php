@@ -30,10 +30,18 @@ use Throwable;
  * is compiled on first use (and again whenever a component changes): built as fusion:build does
  * with fusion.minify_on_change, else (or when esbuild cannot run) readable. APP_DEBUG plays no
  * part in either. Each version's files replace the last version's: they do not accumulate.
+ *
+ * fusion:build also publishes the build as static files (fusion.static, public/fusion), as
+ * `vite build` writes public/build: the web server (or a CDN) serves them without PHP, and
+ * @fusionScripts points at them. Their names carry the version, and a chunk is named by a hash
+ * of its group, as Vite names its chunks. Without them (a change since the build, or none), the
+ * Fusion routes serve the files.
  */
 final class Bundle
 {
     private ?string $version = null;
+
+    private ?Obfuscator $obfuscator = null;
 
     /** @var array<string, string>|null the components in chunks (name => group): lazy() */
     private ?array $lazy = null;
@@ -54,7 +62,43 @@ final class Bundle
         private readonly array $esbuild = [],
         private readonly ?Router $router = null,
         private readonly bool $minifyOnChange = false,
+        /** fusion:build's static files: the directory (public/fusion), and its path under public/ for asset(); null: none */
+        private readonly ?string $staticDirectory = null,
+        private readonly string $staticPath = 'fusion',
+        /** fusion.build.obfuscate: a build names methods and components by aliases (Obfuscator) */
+        private readonly bool $obfuscate = false,
     ) {
+    }
+
+    /**
+     * The names the browser has for methods and components, when the bundle it is served is an
+     * obfuscated build; null when it has their own names.
+     */
+    public function obfuscator(?bool $built = null): ?Obfuscator
+    {
+        if (! $this->obfuscate || ! ($built ?? $this->built())) {
+            return null;
+        }
+
+        return $this->obfuscator ??= new Obfuscator(
+            $this->fusion->key(),
+            array_keys($this->fusion->registry()->all()),
+            aliasComponents: ! $this->usesDynamicComponents(),
+        );
+    }
+
+    /** Whether a view has <fusion:dynamic-component>: it names components as it runs, so they keep their names. */
+    private function usesDynamicComponents(): bool
+    {
+        foreach (array_keys($this->fusion->registry()->all()) as $name) {
+            $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);
+
+            if (str_contains((string) $this->files->get($view), '<fusion:dynamic-component')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function version(): string
@@ -62,7 +106,9 @@ final class Bundle
         return $this->version ??= substr(hash('sha256', implode("\n", array_map(
             fn (string $file) => $file.':'.@filemtime($file),
             $this->sources()
-        )).$this->fusion->runtimeVersion().json_encode($this->routes())), 0, 16);
+        )).$this->fusion->runtimeVersion().json_encode($this->routes())
+            /** Obfuscated names come from the key: either changing makes another build. */
+            .($this->obfuscate ? 'obfuscate:'.hash('sha256', $this->fusion->key()) : '')), 0, 16);
     }
 
     /**
@@ -80,35 +126,133 @@ final class Bundle
         return $this->ensure()[''];
     }
 
-    /** A #[LazyLoad] group's chunk, as path() gives the bundle; null for a group there is not. */
-    public function chunkPath(string $group): ?string
+    /** A chunk, by the name the browser asks for it (chunkId()), as path() gives the bundle; null for none. */
+    public function chunkPath(string $id): ?string
     {
-        if (! in_array($group, $this->groups(), true)) {
+        $group = $this->groupFor($id);
+
+        return $group === null ? null : ($this->ensure()[$group] ?? null);
+    }
+
+    /**
+     * A chunk's name in the browser: in a build, a short hash of its group (as Vite names chunks);
+     * otherwise the group itself, readable while developing.
+     */
+    public function chunkId(string $group, ?bool $built = null): string
+    {
+        return ($built ?? $this->built()) ? substr(hash('sha256', 'fusion-chunk:'.$group), 0, 8) : $group;
+    }
+
+    /** The group a chunk name (chunkId()) stands for: by its hash, or by its group's own name. */
+    public function groupFor(string $id): ?string
+    {
+        foreach ($this->groups() as $group) {
+            if ($id === $group || $id === $this->chunkId($group, true)) {
+                return $group;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Where the build's static copy of the bundle ('') or a group's chunk is, under public/
+     * (fusion/app-<version>.js, fusion/<chunk id>-<version>.js); null when there is none for the
+     * components as they are (no build, a change since, fusion.static off).
+     */
+    public function staticFile(string $group = ''): ?string
+    {
+        if ($this->staticDirectory === null || ! $this->built()) {
             return null;
         }
 
-        return $this->ensure()[$group] ?? null;
+        $name = $this->staticName($group);
+
+        return $this->files->exists($this->staticDirectory.DIRECTORY_SEPARATOR.$name) ? $this->staticPath.'/'.$name : null;
     }
 
-    /** fusion:build: the production bundle and its chunks, minified with esbuild. */
-    public function build(): string
+    /** The chunks' static files as the runtime asks for them: {id} stands for the chunk's name; null when there are none. */
+    public function staticChunkPattern(): ?string
+    {
+        return $this->staticFile() === null ? null : $this->staticPath.'/{id}-'.$this->version().'.js';
+    }
+
+    /** The runtime's static copy under public/ (fusion/fusion-<version>.js), null when there is none. */
+    public function staticRuntime(): ?string
+    {
+        if ($this->staticDirectory === null) {
+            return null;
+        }
+
+        $name = 'fusion-'.$this->fusion->runtimeVersion().'.js';
+
+        return $this->files->exists($this->staticDirectory.DIRECTORY_SEPARATOR.$name) ? $this->staticPath.'/'.$name : null;
+    }
+
+    private function staticName(string $group): string
+    {
+        return ($group === '' ? 'app' : $this->chunkId($group, true)).'-'.$this->version().'.js';
+    }
+
+    /**
+     * The production bundle and its chunks, minified with esbuild; with $static (fusion:build),
+     * published to fusion.static as well, with the runtime.
+     */
+    public function build(bool $static = false): string
     {
         $this->version = null;
         $files = [];
+        $published = [];
 
         foreach ($this->compileAll(true) as $group => $code) {
-            $files[$this->pathFor($this->version(), $group, true)] = $this->minify($code);
+            $files[$this->pathFor($this->version(), $group, true)] = $minified = $this->minify($code);
+            $published[$this->staticName($group)] = $minified;
         }
         $files[$this->usesPath()] = $this->usesJson();
 
         $this->write($files);
 
+        if ($static && $this->staticDirectory !== null) {
+            $published['fusion-'.$this->fusion->runtimeVersion().'.js'] = (string) file_get_contents($this->fusion->runtimePath());
+            $this->publish($published);
+        }
+
         return $this->pathFor($this->version(), '', true);
     }
 
+    /** Remove the compiled files, and the published ones. */
     public function clear(): void
     {
         $this->files->deleteDirectory($this->directory, preserve: true);
+        $this->publish([]);
+    }
+
+    /**
+     * Write the static files (name => contents) to fusion.static, and remove the ones of other
+     * builds: only files named as Fusion names them, so the directory may hold others.
+     *
+     * @param  array<string, string>  $files
+     */
+    private function publish(array $files): void
+    {
+        if ($this->staticDirectory === null) {
+            return;
+        }
+
+        foreach ($files as $name => $contents) {
+            $path = $this->staticDirectory.DIRECTORY_SEPARATOR.$name;
+            $this->files->ensureDirectoryExists($this->staticDirectory);
+            $this->files->put($path.'.tmp', $contents);
+            $this->files->move($path.'.tmp', $path);
+        }
+
+        foreach ($this->files->glob($this->staticDirectory.DIRECTORY_SEPARATOR.'*.js') as $old) {
+            $name = basename($old);
+
+            if (! isset($files[$name]) && preg_match('/^(app|fusion|[0-9a-f]{8})-[0-9a-f]{12,16}\.js$/', $name) === 1) {
+                $this->files->delete($old);
+            }
+        }
     }
 
     /** The main bundle, readable. */
@@ -131,10 +275,13 @@ final class Bundle
     public function compileAll(bool $build = false): array
     {
         $registry = $this->fusion->registry();
+        $names = $this->obfuscator($build);
+        $names?->assertDistinct(array_keys($registry->all()), 'component');
         $compiler = new ComponentCompiler(
             $this->isBladeDirective(...),
             parseTemplates: $build,
             componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null,
+            names: $names,
         );
         $main = [];
         $chunks = [];
@@ -153,9 +300,17 @@ final class Bundle
         }
 
         if ($lazy !== []) {
+            /** The chunks by the names the browser asks for them: hashed in a build (chunkId()). */
+            $ids = [];
+
+            foreach ($lazy as $name => $group) {
+                $ids[$names?->component($name) ?? $name] = $this->chunkId($group, $build);
+            }
+            $routes = array_map(fn (array $route) => [$route[0], $this->chunkId($route[1], $build)], $this->routes());
+
             $main[] = '// #[LazyLoad]: component => chunk, and the pages that render them'."\n"
-                .'Fusion.lazy('.json_encode((object) $lazy, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).', '
-                .json_encode($this->routes(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
+                .'Fusion.lazy('.json_encode((object) $ids, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).', '
+                .json_encode($routes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
 
         /** Viewi's: the PHP functions the components call (and those they use), in the main bundle. */

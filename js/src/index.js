@@ -14,6 +14,8 @@ const config = {
     csrf: script?.dataset.csrf ?? '',
     /** app.js's version: the #[LazyLoad] chunks load with it */
     bundle: script?.dataset.bundle ?? '',
+    /** Where a chunk is: {id} stands for its name (the static build's files, or Fusion's route) */
+    chunks: script?.dataset.chunks ?? null,
     /** config/nprogress.php, absent when the bar is off */
     progress: script?.dataset.progress ? JSON.parse(script.dataset.progress) : null,
 };

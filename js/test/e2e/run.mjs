@@ -76,6 +76,37 @@ async function open(path) {
                 unobserve(el) { this.elements.delete(el); }
                 disconnect() { this.elements.clear(); }
             };
+            /** A stand-in Laravel Echo: channels record their listeners; echoFire(type, channel, event, payload) delivers. */
+            const channels = new Map();
+            const channel = (type, name) => {
+                const key = `${type}:${name}`;
+                if (!channels.has(key)) {
+                    channels.set(key, {
+                        listeners: new Map(),
+                        members: {},
+                        notifications: [],
+                        listen(event, callback) { this.listeners.set(event, [...(this.listeners.get(event) ?? []), callback]); return this; },
+                        stopListening(event, callback) { this.listeners.set(event, (this.listeners.get(event) ?? []).filter((c) => c !== callback)); return this; },
+                        here(callback) { this.members.here = callback; return this; },
+                        joining(callback) { this.members.joining = callback; return this; },
+                        leaving(callback) { this.members.leaving = callback; return this; },
+                        notification(callback) { this.notifications.push(callback); return this; },
+                        stopListeningForNotification(callback) { this.notifications = this.notifications.filter((c) => c !== callback); return this; },
+                    });
+                }
+                return channels.get(key);
+            };
+            window.Echo = { channel: (name) => channel('public', name), private: (name) => channel('private', name), join: (name) => channel('presence', name), socketId: () => null };
+            window.echoChannels = channels;
+            window.echoFire = (type, name, event, payload) => {
+                const found = channels.get(`${type}:${name}`);
+                if (!found) return 0;
+                if (event === 'notification') return found.notifications.forEach((c) => c(payload)) ?? found.notifications.length;
+                if (type === 'presence' && ['here', 'joining', 'leaving'].includes(event)) return found.members[event]?.(payload) ?? 1;
+                const listeners = found.listeners.get(event) ?? [];
+                listeners.forEach((c) => c(payload));
+                return listeners.length;
+            };
             window.observe = (el, inView) => {
                 for (const observer of observers) {
                     if (observer.elements.has(el)) observer.callback([{ target: el, isIntersecting: inView }], observer);
@@ -104,6 +135,14 @@ function change(window, el) {
     el.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
 
+/** The browser's names for components and chunks: an obfuscated build aliases them (/_test/names). */
+let names = { components: {}, chunks: {}, methods: {}, properties: {} };
+const P_ = (property) => names.properties[property] ?? property;
+const N = (name) => names.components[name] ?? name;
+const M = (method) => names.methods[method] ?? method;
+const chunkId = (group) => names.chunks[group] ?? group;
+const byName = (root, name) => root.querySelector(`[fusion\:name="${N(name)}"]`);
+
 async function scenario(name, run) {
     try {
         await run();
@@ -115,10 +154,12 @@ async function scenario(name, run) {
 const text = (el) => el?.textContent.replace(/\s+/g, ' ').trim();
 
 // ------------------------------------------------------------------ counter and todos (/embed)
+names = await fetch(url + '/_test/names').then((response) => response.json());
+
 await scenario('embed', async () => {
     const window = await open('/embed');
     const { document } = window;
-    const counter = document.querySelector('[fusion\\:name="counter"]');
+    const counter = byName(document, 'counter');
     const $ = (selector, root = counter) => root.querySelector(selector);
 
     check('hydrated: handlers attached', $('button').hasAttribute('fusion:h-click'));
@@ -216,7 +257,7 @@ await scenario('embed', async () => {
     check('the nodes kept their identity through the @if above them', sets[0].textContent === '1' && counter.querySelectorAll('button.set')[0] === sets[0]);
 
     // ---------------------------------------------------------------- todos: children, events, validation
-    const list = document.querySelector('[fusion\\:name="todo-list"]');
+    const list = byName(document, 'todo-list');
     const q = (selector) => list.querySelector(selector);
     check('two server-rendered children', list.querySelectorAll('li.todo').length === 2);
     check('remaining', text(q('.remaining')) === '1 item left', text(q('.remaining')));
@@ -247,7 +288,7 @@ await scenario('embed', async () => {
     const removeButton = [...list.querySelectorAll('li.todo')].at(-1).querySelector('.remove');
     click(window, removeButton);
     await until('child removed itself through the parent', () => list.querySelectorAll('li.todo').length === 2);
-    check('removed child component forgotten', window.Fusion.components().filter((c) => c.name === 'todo-item').length === 2);
+    check('removed child component forgotten', window.Fusion.components().filter((c) => c.name === N('todo-item')).length === 2);
 
     type(window, q('input[type=text]'), 'This title is much too long to keep');
     q('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
@@ -265,11 +306,12 @@ await scenario('navigation', async () => {
     const window = await open('/students/1');
     const { document } = window;
     const page = document.querySelector('[fusion\\:page]');
-    const chunk = (group) => document.querySelector(`script[src*="/_fusion/app/${group}.js?v="]`);
+    /** A chunk's script: by the route (/_fusion/app/<id>.js) or the build's static file (<id>-<version>.js). */
+    const chunk = (group) => document.querySelector(`script[src*="/app/${chunkId(group)}.js"], script[src*="/${chunkId(group)}-"]`);
 
     /** #[LazyLoad]: the page's chunk came with the page; the others wait until a page needs them. */
-    check('the page\'s chunk is listed by @fusionScripts', chunk('pages') !== null && window.Fusion.definitions.has('pages::student-page'));
-    check('other chunks are not loaded', chunk('board') === null && !window.Fusion.definitions.has('pages::board') && !window.Fusion.definitions.has('todo-item'));
+    check('the page\'s chunk is listed by @fusionScripts', chunk('pages') !== null && window.Fusion.definitions.has(N('pages::student-page')));
+    check('other chunks are not loaded', chunk('board') === null && !window.Fusion.definitions.has(N('pages::board')) && !window.Fusion.definitions.has(N('todo-item')));
 
     type(window, page.querySelector('input'), 'hello');
     await until('model re-renders the page', () => text(page.querySelector('.note')) === 'Note: hello');
@@ -282,17 +324,17 @@ await scenario('navigation', async () => {
     const link = document.querySelector('a[fusion\\:navigate]');
     check('fusion:current off elsewhere', !link.classList.contains('active'));
     click(window, link);
-    await until('navigated without reloading', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null);
+    await until('navigated without reloading', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
     check('title followed', document.title === 'Fusion', document.title);
     check('fusion:current on', link.classList.contains('active'));
-    check('the old page\'s component is gone', !window.Fusion.components().some((c) => c.name === 'pages::student-page'));
+    check('the old page\'s component is gone', !window.Fusion.components().some((c) => c.name === N('pages::student-page')));
 
-    const counter = document.querySelector('[fusion\\:name="pages::counter"]');
+    const counter = byName(document, 'pages::counter');
     click(window, counter.querySelectorAll('button')[1]);
     await until('the new page is live', () => text(counter.querySelector('.count')) === '1');
 
     window.history.back();
-    await until('back button', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="pages::student-page"]') !== null);
+    await until('back button', () => window.location.pathname === '/students/1' && byName(document, 'pages::student-page') !== null);
 
     /** The visit fetches the page's data, not its HTML: the browser renders it. */
     const answers = [];
@@ -313,13 +355,13 @@ await scenario('navigation', async () => {
     check('board title followed', document.title === 'Board', document.title);
 
     const board = document.querySelector('[fusion\\:page]');
-    check('the page element is the board', board.getAttribute('fusion:name') === 'pages::board' && text(board.querySelector('h2')) === 'Board');
+    check('the page element is the board', board.getAttribute('fusion:name') === N('pages::board') && text(board.querySelector('h2')) === 'Board');
     check('the page element names its layout', board.getAttribute('fusion:page') === 'components.layouts.app');
-    const list = board.querySelector('[fusion\\:name="todo-list"]');
+    const list = byName(board, 'todo-list');
     check('the child with mount() came from the server', list !== null && window.Fusion.find(list.getAttribute('fusion:id'))?.snapshot !== null);
     check('its own children were made in the browser', list.querySelectorAll('li.todo').length === 2, String(list.querySelectorAll('li.todo').length));
     check('no placeholders left', board.querySelector('[fusion\\:placeholder]') === null);
-    check('the children made in the browser loaded their chunk', chunk('todos') !== null && window.Fusion.definitions.has('todo-item'));
+    check('the children made in the browser loaded their chunk', chunk('todos') !== null && window.Fusion.definitions.has(N('todo-item')));
 
     click(window, [...list.querySelectorAll('nav button')].find((b) => text(b) === 'Done'));
     await until('the server-made child is live in the browser', () => list.querySelectorAll('li.todo').length === 1);
@@ -335,10 +377,10 @@ await scenario('navigation', async () => {
     check('and its signed state was accepted', calls[0] === 200 && list.querySelector('.error') === null, String(calls[0]));
 
     window.history.back();
-    await until('back from the board', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="pages::student-page"]') !== null);
+    await until('back from the board', () => window.location.pathname === '/students/1' && byName(document, 'pages::student-page') !== null);
     window.history.forward();
-    await until('forward to the board', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="todo-list"]') !== null);
-    check('only the board\'s components are alive', window.Fusion.components().every((c) => ['pages::board', 'todo-list', 'todo-item'].includes(c.name)), window.Fusion.components().map((c) => c.name).join(','));
+    await until('forward to the board', () => window.location.pathname === '/board' && byName(document, 'todo-list') !== null);
+    check('only the board\'s components are alive', window.Fusion.components().every((c) => ['pages::board', 'todo-list', 'todo-item'].map(N).includes(c.name)), window.Fusion.components().map((c) => c.name).join(','));
 
     /** fusion:navigate.keypress: the visit starts as the button goes down; its click is the same visit. */
     const pointer = (type, el, pointerType) => {
@@ -357,7 +399,7 @@ await scenario('navigation', async () => {
     check('a mouse press starts the visit before the button comes up', visits === 1, String(visits));
     pointer('pointerup', pressLink, 'mouse');
     click(window, pressLink);
-    await until('the pressed visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null);
+    await until('the pressed visit lands', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
     await wait(20);
     check('the click after the press did not visit again', visits === 1, String(visits));
     check('one history entry for it', window.history.length === historyBefore + 1, `${window.history.length} vs ${historyBefore + 1}`);
@@ -376,7 +418,7 @@ await scenario('navigation', async () => {
      * the slow visit barless and a lone first step to show up after it landed.)
      */
     click(window, document.querySelector('a.board-link'));
-    await until('a fast visit', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="pages::board"]') !== null);
+    await until('a fast visit', () => window.location.pathname === '/board' && byName(document, 'pages::board') !== null);
     const fastFetch = window.fetch;
     window.fetch = async (...args) => {
         await wait(1200);
@@ -386,7 +428,7 @@ await scenario('navigation', async () => {
     await wait(1000);
     const barWhileLoading = document.querySelector('#nprogress .bar');
     check('the slow visit shows its own bar while it loads', barWhileLoading !== null && barWhileLoading.isConnected);
-    await until('the slow visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null, 3000);
+    await until('the slow visit lands', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null, 3000);
     window.fetch = fastFetch;
     await until('and its bar completes and goes', () => document.querySelector('#nprogress') === null, 3000);
 
@@ -397,7 +439,7 @@ await scenario('navigation', async () => {
 await scenario('clock', async () => {
     const window = await open('/clock');
     const { document } = window;
-    const clock = document.querySelector('[fusion\\:name="clock"]');
+    const clock = byName(document, 'clock');
     const $ = (selector) => clock.querySelector(selector);
     const ticks = () => parseInt(text($('.label')), 10);
 
@@ -414,9 +456,9 @@ await scenario('clock', async () => {
 
     /** #[Computed]: worked out once until the state changes. */
     const component = window.Fusion.find(clock.getAttribute('fusion:id'));
-    const label = component.ctx.label;
+    const label = component.ctx[M('label')];
     let calls = 0;
-    component.ctx.label = function () {
+    component.ctx[M('label')] = function () {
         calls++;
         return label.call(this);
     };
@@ -445,7 +487,7 @@ await scenario('clock', async () => {
     await until('a confirmed handler runs', () => ticks() === 0);
 
     /** WithSorting, WithPagination and updated($property), as a Livewire table is written. */
-    const roster = document.querySelector('[fusion\\:name="roster"]');
+    const roster = byName(document, 'roster');
     const r = (selector) => roster.querySelector(selector);
     const names = () => [...roster.querySelectorAll('li')].map(text).join(',');
     check('rows keep their order until a column is sorted', names() === 'Eva,Bea,Gus' && text(r('.where')) === '1-3 of 7, page 1 of 3', `${names()} ${text(r('.where'))}`);
@@ -480,7 +522,7 @@ await scenario('clock', async () => {
 await scenario('helpers', async () => {
     const window = await open('/links');
     const { document } = window;
-    const links = document.querySelector('[fusion\\:name="pages::links"]');
+    const links = byName(document, 'pages::links');
     const href = (cls) => links.querySelector(`a.${cls}`).getAttribute('href');
 
     check('the page ships what the helpers name', window.Fusion.B.globals.routes['students.show']?.uri === 'students/{student}' && window.Fusion.B.globals.config['app.name'] !== undefined);
@@ -500,7 +542,7 @@ await scenario('helpers', async () => {
 await scenario('lifecycle', async () => {
     const window = await open('/journal');
     const { document } = window;
-    const journal = document.querySelector('[fusion\\:name="pages::journal"]');
+    const journal = byName(document, 'pages::journal');
     const note = journal.querySelector('input');
 
     /** @teleport: the server rendered the content at its @portal (Viewi's portals); the browser hydrated it there. */
@@ -556,7 +598,7 @@ await scenario('slots', async () => {
     type(window, stock.querySelector('input.label'), 'Maps');
     await until('the parent\'s field in the card', () => count() === 'Maps: 2');
     await until('the slot\'s own child took the parent\'s value', () => text(stock.querySelector('li.todo span')) === 'Maps');
-    check('the parent\'s state, not the card\'s', window.Fusion.components().find((c) => c.name === 'pages::shelf').data.get('label') === 'Maps');
+    check('the parent\'s state, not the card\'s', window.Fusion.components().find((c) => c.name === N('pages::shelf')).data.get(P_('label')) === 'Maps');
 
     click(window, stock.querySelector('.toggle'));
     await until('the card hid its body (its own state)', () => stock.querySelector('.body') === null);
@@ -573,8 +615,8 @@ await scenario('slots', async () => {
 await scenario('events', async () => {
     const window = await open('/shelf');
     const { document } = window;
-    const shelf = document.querySelector('[fusion\\:name="pages::shelf"]');
-    const box = shelf.querySelector('[fusion\\:name="search-box"]');
+    const shelf = byName(document, 'pages::shelf');
+    const box = byName(shelf, 'search-box');
     const input = box.querySelector('input.search');
     const notes = () => [...shelf.querySelectorAll('.notes li')].map(text).join(',');
     const heard = () => [...shelf.querySelectorAll('.card .heard')].map(text).join(',');
@@ -585,7 +627,7 @@ await scenario('events', async () => {
     type(window, input, 'atlas');
     await until('the child\'s field writes the parent\'s property', () => text(shelf.querySelector('.query')) === 'atlas');
     click(window, shelf.querySelector('.reset-query'));
-    await until('the parent\'s change reaches the child', () => input.value === 'reset' && window.Fusion.find(box.getAttribute('fusion:id')).data.get('value') === 'reset');
+    await until('the parent\'s change reaches the child', () => input.value === 'reset' && window.Fusion.find(box.getAttribute('fusion:id')).data.get(P_('value')) === 'reset');
     click(window, box.querySelector('.clear'));
     await until('a child method changing it: the parent follows', () => text(shelf.querySelector('.query')) === '');
 
@@ -614,12 +656,12 @@ await scenario('events', async () => {
 await scenario('dynamic components', async () => {
     const window = await open('/panels');
     const { document } = window;
-    const panels = document.querySelector('[fusion\:name="pages::panels"]');
+    const panels = byName(document, 'pages::panels');
     const current = () => panels.querySelector('.current [fusion\:name]');
     const ids = () => window.Fusion.components().map((c) => c.id);
 
-    check('<fusion:dynamic-component> renders the component :is names', current()?.getAttribute('fusion:name') === 'card', panels.innerHTML);
-    check('in a loop, each its own', [...panels.querySelectorAll('li > [fusion\:name]')].map((el) => el.getAttribute('fusion:name')).join(',') === 'card,search-box', panels.innerHTML);
+    check('<fusion:dynamic-component> renders the component :is names', current()?.getAttribute('fusion:name') === N('card'), panels.innerHTML);
+    check('in a loop, each its own', [...panels.querySelectorAll('li > [fusion\:name]')].map((el) => el.getAttribute('fusion:name')).join(',') === ['card', 'search-box'].map(N).join(','), panels.innerHTML);
     const card = current();
     const cardId = card.getAttribute('fusion:id');
     check('keyed with its name', cardId.endsWith('.c0:card'), cardId);
@@ -628,14 +670,14 @@ await scenario('dynamic components', async () => {
     await until('the card has state', () => text(current().querySelector('.toggle')) === 'Show');
 
     click(window, panels.querySelector('.to-search'));
-    await until('another name renders that component instead', () => current()?.getAttribute('fusion:name') === 'search-box');
+    await until('another name renders that component instead', () => current()?.getAttribute('fusion:name') === N('search-box'));
     check('the one before left the page, and the runtime', !card.isConnected && !ids().includes(cardId), ids().join(' '));
 
     click(window, panels.querySelector('.to-none'));
     await until('"" renders none', () => current() === null && panels.querySelector('.current').children.length === 0);
 
     click(window, panels.querySelector('.to-card'));
-    await until('back to the card: a new one', () => current()?.getAttribute('fusion:name') === 'card');
+    await until('back to the card: a new one', () => current()?.getAttribute('fusion:name') === N('card'));
     check('with its own state (not the old one\'s)', text(current().querySelector('.toggle')) === 'Hide', current().outerHTML);
 
     window.close();
@@ -647,7 +689,7 @@ await scenario('livewire', async () => {
     const { document } = window;
     await until('Livewire started', () => window.Livewire !== undefined && document.querySelector('.ticker') !== null);
 
-    const counter = document.querySelector('[fusion\\:name="counter"]');
+    const counter = byName(document, 'counter');
     click(window, counter.querySelectorAll('button')[1]);
     await until('the Fusion component works next to Livewire', () => text(counter.querySelector('.count')) === '1');
 
@@ -975,6 +1017,32 @@ await scenario('once, flash and merge', async () => {
     await until('a #[Server] call after them', () => text(doc.querySelector('.touch')) === '1');
     check('the server merged them too (locked properties)', posts() === 23 && text(doc.querySelector('.settings')) === 'teal/large' && text(doc.querySelector('.tags')) === 'php,js', `${posts()} ${text(doc.querySelector('.settings'))} ${text(doc.querySelector('.tags'))}`);
     timeline.close();
+});
+
+await scenario('broadcasts', async () => {
+    const window = await open('/live');
+    const { document } = window;
+    const shown = (selector) => text(document.querySelector(selector));
+
+    check('it subscribed to each channel (the private one named by the state)', ['public:orders', 'private:orders.7', 'presence:room', 'private:users.7'].every((key) => window.echoChannels.has(key)), [...window.echoChannels.keys()].join(' '));
+
+    window.echoFire('public', 'orders', 'OrderPlaced', { number: 'A1' });
+    await until('a public broadcast runs a browser method', () => shown('.placed') === 'A1');
+
+    window.echoFire('private', 'orders.7', 'OrderShipped', { number: 'B2' });
+    await until('a private broadcast calls a #[Server] method with the event', () => shown('.shipped') === 'B2 (server)');
+
+    window.echoFire('presence', 'room', 'here', [{ name: 'Ada' }, { name: 'Lin' }]);
+    window.echoFire('presence', 'room', 'joining', { name: 'Max' });
+    await until('a presence channel\'s members', () => shown('.members') === 'Ada,Lin,Max');
+
+    window.echoFire('private', 'users.7', 'notification', { message: 'Paid' });
+    await until('a notification', () => shown('.note') === 'Paid');
+
+    click(window, document.querySelector('.away'));
+    await until('away from the page', () => window.location.pathname === '/greeting');
+    check('its listeners stopped with it', window.echoFire('public', 'orders', 'OrderPlaced', { number: 'A2' }) === 0 && window.echoFire('private', 'users.7', 'notification', { message: 'x' }) === 0);
+    window.close();
 });
 
 for (const line of log) {

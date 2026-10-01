@@ -9,6 +9,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Gallery;
 use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
 use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
 use Nitro\Fusion\Tests\Fixtures\Pages\Links;
+use Nitro\Fusion\Tests\Fixtures\Pages\Live;
 use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
 use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
@@ -29,6 +30,7 @@ Route::fusion('/showcase', Showcase::class)->name('showcase');
 Route::fusion('/greeting', Greeting::class)->name('greeting');
 Route::fusion('/report', Report::class)->name('report');
 Route::fusion('/feed', Feed::class)->name('feed');
+Route::fusion('/live', Live::class)->name('live');
 
 /** Pages from a controller: Fusion::render(). */
 Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');
@@ -39,6 +41,23 @@ Route::get('/rendered/deferred-counter', [RenderController::class, 'deferredCoun
 Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
 
 Route::get('/embed', fn () => view('embed'));
+
+/** For the browser tests: the names the browser has for components and chunks (an obfuscated build's aliases). */
+Route::get('/_test/names', function () {
+    $fusion = app(\Nitro\Fusion\Fusion::class);
+    $bundle = app(\Nitro\Fusion\Build\Bundle::class);
+
+    return [
+        'components' => collect($fusion->registry()->all())->keys()->mapWithKeys(fn (string $name) => [$name => $fusion->browserName($name)]),
+        'chunks' => collect($bundle->groups())->mapWithKeys(fn (string $group) => [$group => $bundle->chunkId($group)]),
+        'methods' => collect($fusion->registry()->all())->keys()
+            ->flatMap(fn (string $name) => [...$fusion->meta($name)->browserMethods, ...$fusion->meta($name)->serverMethods])
+            ->unique()->mapWithKeys(fn (string $method) => [$method => $fusion->names()?->method($method) ?? $method]),
+        'properties' => collect($fusion->registry()->all())->keys()
+            ->flatMap(fn (string $name) => array_keys($fusion->meta($name)->properties))
+            ->unique()->mapWithKeys(fn (string $property) => [$property => $fusion->names()?->property($property) ?? $property]),
+    ];
+});
 Route::get('/portals', fn () => view('portals'));
 Route::get('/clock', fn () => view('clock'));
 Route::middleware('auth')->get('/secure', fn () => view('secure'));

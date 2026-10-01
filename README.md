@@ -4,6 +4,8 @@ Livewire-style components (a PHP class and a Blade view) that run **in the brows
 renders the page with Blade as usual; Fusion compiles the same class and view to JavaScript, so
 clicks, typing and re-rendering happen in the page without a request. Methods that need the server
 (the database, mail, ...) are marked `#[Server]` and called with the component's signed state.
+Rendering is fine-grained: a change updates only the DOM nodes that show what changed (see
+Rendering).
 
 Fusion works on **Laravel 13** and on **Nitro** (it only uses Laravel's public APIs), and it can
 share a page with Livewire: its tags, attributes, scripts and endpoints are all `fusion:`.
@@ -88,6 +90,36 @@ everything ahead of time, like `vite build`: run it when deploying so no visitor
 compile. `optimize` does not run it, and `APP_DEBUG` has no say in it. `php artisan fusion:clear`
 removes the compiled files.
 
+`fusion:build` also publishes the build to `public/fusion` (`fusion.static`), as `vite build` writes
+`public/build`, and `@fusionScripts` points at those files (through `asset()`, so `ASSET_URL` and a
+CDN apply): the web server sends them without starting PHP. Their names carry the version
+(`app-<version>.js`), and a chunk is named by a hash of its page or group
+(`7f3a9c21-<version>.js`), as Vite names its chunks. Until the next build after a change, the
+`/_fusion` routes serve the files. Add `/public/fusion` to `.gitignore`, and let the web server
+cache it for long (`Cache-Control: public, max-age=31536000, immutable`): a new build has new names.
+
+A build is obfuscated (`fusion.build.obfuscate`, `FUSION_OBFUSCATE`, on by default). Methods,
+`#[Server]` methods, properties, pages and components go by aliases derived from `APP_KEY`, in the
+bundle, in the page and in what the browser sends: `fusion:name="c8bb6ebd64"`,
+`fusion:model="p3f31055.email"`, a `#[Server]` call's method `"md165461"` and its updates, `$errors`
+keys, `#[Remember]` keys, `updatedEmail()` as `updatedP3f31055()`. Handlers' text is left out of
+the page (`fusion:click=""`; the compiled code is what runs). The server translates every alias
+back: your PHP, your views and `assertFusion()` use the real names.
+
+Kept by their names: the keys inside an array property (`p3f31055.email`: data, as JSON field names
+are), `mounted()`, `destroyed()` and `updated()`, `#[Url]` query keys, text on the page, URLs, and
+components when a view has a `<fusion:dynamic-component>` (it names them as it runs; pages are
+aliased either way). Names built as code runs cannot be aliased: write a property or field out
+(`$errors->has('form.email')`, `'items.'.$i.'.price'`, `$fusion.note` in `$this->js()`), not put
+together from variables. In `updated($property, $value)`, a string naming a property is its alias.
+A readable bundle (no build) is never obfuscated; changing `APP_KEY` or the setting makes another
+build.
+
+The compiled files hold component templates and the methods that run in the browser, never data:
+state, shared data and flash data travel with each page and answer, through Laravel's middleware.
+They are public, as any application's JavaScript is, so keep secrets out of views and browser
+methods.
+
 ## Components
 
 - **Public properties** are the state: `null`, `bool`, `int`, `float`, `string`, `array`, an
@@ -113,6 +145,29 @@ removes the compiled files.
   `->to(Other::class)` (or `->to('other')`) sends it to those components only, `->self()` to this
   one. In a view: `$dispatchTo('other', 'event')`, `$dispatchSelf('event')`, and `$parent->save()`
   calls the parent's method.
+- **Broadcasts:** `#[On('echo:...')]` listens to Laravel broadcasting through the application's
+  Laravel Echo (`window.Echo`, with Reverb or Pusher), as Livewire's does. The component subscribes
+  when it appears and stops listening when it leaves the page; the method gets the event's data
+  (a `#[Server]` method, as a call).
+
+  ```php
+  #[On('echo:orders,OrderPlaced')]                          // a public channel
+  public function orderPlaced(array $event): void { $this->orders[] = $event['order']; }
+
+  #[On('echo-private:orders.{order.id},OrderShipped')]      // private; {order.id}: the component's state
+  #[Server]
+  public function orderShipped(array $event): void { $this->order = Order::find($this->order['id'])->toArray(); }
+
+  #[On('echo-presence:chat,here')]                           // a presence channel: here, joining, leaving
+  public function here(array $users): void { $this->online = $users; }
+
+  #[On('echo-notification:App.Models.User.{userId}')]        // notifications
+  public function notified(array $notification): void { $this->unread++; }
+  ```
+
+  A `{property}` in the channel is read when the component subscribes, and must name a public
+  property (the build says so otherwise). A custom event name (`broadcastAs()`) is written with a
+  leading dot, as Echo has it: `echo:orders,.order.placed`.
 - **Hooks:** `boot()` (every request), `mount()`, `hydrate()` and `dehydrate()` run on the server
   as Livewire's do; `mounted()` runs in the browser once the component is live, `destroyed()` when
   it leaves the page. `$this->js('...')` runs JavaScript after the render, with `$fusion` (the
@@ -146,8 +201,50 @@ and in the browser through its compiled form, so it uses what both can do:
 | PHP | Operators, casts and PHP's functions as PHP does them (tested against PHP): strings and mbstring, arrays, math, ctype, URLs, HTML entities, `preg_*`, `sprintf`, `json_encode`, ... A bundle has those its components call |
 | Str | Laravel's `Str::` helpers (`slug`, `limit`, `title`, `headline`, `camel`, `snake`, `mask`, `is`, `replace`, `squish`, ... 54 of them), tested against Laravel's own |
 
-Anything else (`@include`, `@php`, `<x-...>`, custom directives) cannot render in the browser and
-fails the build with the file and line.
+`@include` and anonymous Blade components (`<x-panel>`) are inlined into the view when it is
+compiled. Anything else (`@php`, class-based Blade components, custom directives) cannot render in
+the browser and fails the build with the file and line.
+
+## Rendering
+
+Fusion's rendering is fine-grained. When a view is compiled, every dynamic part of it (an echo,
+an attribute, an `@if`, a `@foreach`, a child's props) records which properties it reads. When a
+property changes, the runtime runs only the parts that read it and changes only their DOM nodes:
+
+```blade
+<div>
+    <button fusion:click="increment">+</button>
+    <p>Clicked {{ $count }} times</p>         {{-- reads $count: renders again when it changes --}}
+    <p>Hello, {{ $name }}</p>                  {{-- reads $name: untouched by a click --}}
+
+    @foreach ($students as $student)           {{-- reads $students: untouched by both --}}
+        <li>{{ $student['name'] }}</li>
+    @endforeach
+</div>
+```
+
+A click on `+` changes one text node. The component is not rendered again as a whole, and there is
+no virtual DOM to compare:
+
+| | What a change runs | What it compares |
+| --- | --- | --- |
+| Livewire | the component's view, on the server, then a request | the new HTML against the page (morphing) |
+| React, Vue | the component's render function | the new virtual DOM against the last one |
+| Fusion | the expressions that read the changed property | nothing: each expression updates its own node |
+
+What a part reads is worked out at compile time, through what it calls:
+
+- `{{ $this->total() }}` reads what `total()` reads; a `#[Computed]` method's value is worked out
+  once and kept until the component's state changes.
+- `$errors`, `$this->shared()` and `$this->flashed()` are read as such: a part that shows a
+  validation message renders again when the messages change, and only then.
+- A `#[Server]` call's answer changes the properties the server changed; only what reads those
+  renders again. The same goes for `$reload`, deferred properties and a parent's new props.
+- Keyed lists (`fusion:key`, `:key` on children) keep their rows: a list that changes moves, adds
+  and removes rows, and leaves the others as they are.
+
+Reading more than needed only renders more; what a part reads is never missed. A method the
+browser does not have (a `#[Server]` method's value) counts as reading everything.
 
 ## Directives
 
@@ -337,6 +434,9 @@ return Fusion::render(Feed::class, [
     <div fusion:visible="$loadMore('posts')">Loading…</div>
 @endif
 ```
+
+When rows can be added while the list is open, page offsets shift and a page can repeat the last
+row of the one before: `Fusion::scroll(...)->matchOn('id')` keeps each row once.
 
 The signed partial reload carries the merge rule: the next `#[Server]` call merges it into the
 server's state the same way, so a `#[Locked]` list keeps what was loaded.

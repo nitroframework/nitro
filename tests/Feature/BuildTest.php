@@ -15,7 +15,7 @@ class BuildTest extends TestCase
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
-    private const CHUNKS = ['board', 'counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos'];
+    private const CHUNKS = ['board', 'counter', 'feed', 'gallery', 'greeting', 'journal', 'live', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos'];
 
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
@@ -30,10 +30,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('9 Fusion components and 14 pages built', $output);
+        $this->assertStringContainsString('9 Fusion components and 15 pages built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
+            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -67,11 +67,37 @@ class BuildTest extends TestCase
         $tag = $bundle->tag();
         $this->assertStringEndsWith('.min', $tag);
         $this->assertSame($built, $this->get('/_fusion/app.js?v='.$tag)->getContent());
-        $this->assertStringContainsString('/_fusion/app.js?v='.$tag.'"', (string) $this->get('/counter')->getContent());
+
+        /**
+         * Published under public/ (fusion.static), as `vite build` writes public/build: the page
+         * points at those files, served without PHP. The names carry the version; chunks are
+         * named by a hash, and app.js maps the pages to those names.
+         */
+        $counterChunk = $bundle->chunkId('counter');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{8}$/', $counterChunk);
+        $this->assertSame('counter', $bundle->groupFor($counterChunk));
+        $this->assertStringContainsString('"pages::counter":"'.$counterChunk.'"', $built);
+        $this->assertStringNotContainsString('"pages::counter":"counter"', $built);
+        $this->assertFileEquals(self::COMPILED."/app-{$version}.min.js", self::APP."/public/fusion/app-{$version}.js");
+        $this->assertFileEquals(self::COMPILED."/app-{$version}.counter.chunk.min.js", self::APP."/public/fusion/{$counterChunk}-{$version}.js");
+        $this->assertFileExists(self::APP.'/public/fusion/fusion-'.$this->fusion()->runtimeVersion().'.js');
+        $this->assertStringContainsString('Published to public/fusion', $output);
+
+        $page = (string) $this->get('/counter')->getContent();
+        $this->assertStringContainsString('<script src="http://localhost/fusion/fusion-'.$this->fusion()->runtimeVersion().'.js" ', $page);
+        $this->assertStringContainsString('<script src="http://localhost/fusion/app-'.$version.'.js" defer></script>', $page);
+        $this->assertStringContainsString('<script src="http://localhost/fusion/'.$counterChunk.'-'.$version.'.js" defer></script>', $page);
+        $this->assertStringContainsString('data-chunks="http://localhost/fusion/{id}-'.$version.'.js"', $page);
+        $this->assertStringNotContainsString('/_fusion/app', $page);
+
+        /** The routes still serve them by those names (the fallback until the next build). */
+        $this->app->forgetScopedInstances();
+        $this->assertSame((string) file_get_contents(self::COMPILED."/app-{$version}.counter.chunk.min.js"), $this->get('/_fusion/app/'.$counterChunk.'.js?v='.$tag)->getContent());
 
         $this->assertSame(0, $this->console()->call('fusion:clear'));
         $this->assertFileDoesNotExist($manifest);
         $this->assertCount(0, glob(self::COMPILED.'/app-*.js'));
+        $this->assertCount(0, glob(self::APP.'/public/fusion/*.js'), 'and the published files');
     }
 
     /**
@@ -106,6 +132,7 @@ class BuildTest extends TestCase
             'pages::gallery' => 'gallery',
             'pages::greeting' => 'greeting',
             'pages::journal' => 'journal',
+            'pages::live' => 'live',
             'pages::orders' => 'orders',
             'pages::panels' => 'panels',
             'pages::report' => 'report',
@@ -180,7 +207,7 @@ class BuildTest extends TestCase
         $this->assertStringContainsString('<script src="/_fusion/app/pages.js?v='.$tag.'" defer></script>', $student);
         $this->assertStringNotContainsString('/_fusion/app/todos.js', $student);
         $this->assertStringContainsString('<script src="/_fusion/app/todos.js?v='.$tag.'" defer></script>', $page('/embed'));
-        $this->assertStringNotContainsString('/_fusion/app/', $page('/links'), '#[LazyLoad(false)]: in app.js');
+        $this->assertStringNotContainsString('<script src="/_fusion/app/', $page('/links'), '#[LazyLoad(false)]: in app.js, no chunk loaded');
     }
 
     /**
@@ -195,7 +222,7 @@ class BuildTest extends TestCase
         $bundle = $this->app->make(Bundle::class);
         $files = $bundle->compileAll();
 
-        foreach (['counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'panels', 'report', 'shelf', 'showcase', 'timeline'] as $page) {
+        foreach (['counter', 'feed', 'gallery', 'greeting', 'journal', 'live', 'orders', 'panels', 'report', 'shelf', 'showcase', 'timeline'] as $page) {
             $this->assertStringNotContainsString('Fusion.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
             $this->assertStringContainsString('Fusion.define("pages::'.$page.'", {', $files[$page]);
         }
@@ -213,7 +240,7 @@ class BuildTest extends TestCase
 
         $page = fn (string $uri) => tap((string) $this->get($uri)->getContent(), fn () => $this->app->forgetScopedInstances());
         $this->assertStringContainsString('<script src="/_fusion/app/counter.js?v='.$tag.'" defer></script>', $page('/counter'));
-        $this->assertStringNotContainsString('/_fusion/app/', $page('/links'));
+        $this->assertStringNotContainsString('<script src="/_fusion/app/', $page('/links'));
     }
 
     #[DataProvider('frameworks')]

@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler;
 
 use Closure;
+use Nitro\Fusion\Build\Obfuscator;
 use Nitro\Fusion\Compiler\Template\TemplateCompiler;
 use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Wire;
@@ -41,6 +42,8 @@ final class ComponentCompiler
         private readonly Closure $isBladeDirective,
         private readonly bool $parseTemplates = false,
         private readonly ?Closure $componentName = null,
+        /** An obfuscated build's names for methods and components (null: their own) */
+        private readonly ?Obfuscator $names = null,
     ) {
     }
 
@@ -55,6 +58,7 @@ final class ComponentCompiler
     public function compile(ComponentMeta $meta, string $viewSource, string $viewFile): string
     {
         $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
+        $scope = $scope->withNames($this->names);
         $templates = new TemplateCompiler($this->isBladeDirective);
         $templates->compile($viewSource, $scope, $viewFile);
         $this->use($templates->uses());
@@ -70,12 +74,18 @@ final class ComponentCompiler
             ...$hooks,
         ]);
 
+        /** The browser's names for the methods (an obfuscated build: aliases, but for the hooks it calls by name). */
+        $this->names?->assertDistinct([...$meta->browserMethods, ...$meta->serverMethods], 'method');
+        $this->names?->assertDistinct(array_keys($meta->properties), 'property');
+        $methods = array_combine(array_map($scope->browserMethod(...), array_keys($methods)), $methods);
+
         $definition = [
-            'props' => $this->props($meta),
-            'server' => $meta->serverMethods,
-            'listeners' => (object) $meta->listeners,
+            'page' => $meta->page,
+            'props' => $this->props($meta, $scope),
+            'server' => array_map($scope->browserMethod(...), $meta->serverMethods),
+            'listeners' => (object) $this->listenersFor($meta, $scope),
             'mount' => $meta->hasMount,
-            'modelable' => $meta->modelable,
+            'modelable' => $meta->modelable === null ? null : $scope->browserProperty($meta->modelable),
             'hooks' => $hooks,
         ];
 
@@ -87,7 +97,7 @@ final class ComponentCompiler
 
         $methodList = implode(",\n", array_map(fn ($name, $js) => json_encode($name).': '.$js, array_keys($methods), $methods));
 
-        $subscriptions = new Subscriptions($methods, array_keys($meta->properties));
+        $subscriptions = new Subscriptions($methods, array_map($scope->browserProperty(...), array_keys($meta->properties)));
         $subs = [];
 
         foreach ($subscriptions->ofTemplate($templates->expressions(), $templates->expressionSources()) as $index => $keys) {
@@ -95,7 +105,7 @@ final class ComponentCompiler
         }
 
         return '// '.$meta->class.' · view '.$meta->view."\n"
-            .'Fusion.define('.json_encode($meta->name).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n},\n{$template},\nsubs: [\n".implode(",\n", $subs)."\n]\n});";
+            .'Fusion.define('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n},\n{$template},\nsubs: [\n".implode(",\n", $subs)."\n]\n});";
     }
 
     /** @param  array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>}  $uses */
@@ -107,21 +117,23 @@ final class ComponentCompiler
     }
 
     /** @return array<string, array{locked: bool, default?: mixed, url?: array<string, mixed>, remember?: true}> */
-    private function props(ComponentMeta $meta): array
+    private function props(ComponentMeta $meta, Scope $scope): array
     {
         $props = [];
 
-        foreach ($meta->properties as $name => $property) {
+        foreach ($meta->properties as $real => $property) {
+            /** By the browser's name for it (an obfuscated build). */
+            $name = $scope->browserProperty($real);
             $props[$name] = ['locked' => $property->locked];
 
             if ($property->hasDefault && $property->kind === PropertyMeta::VALUE) {
                 $props[$name]['default'] = Wire::encode($property->default);
             }
 
-            /** #[Url]: the query key, and when the value is left out of the URL. */
+            /** #[Url]: the query key (the property's own name: the URL shows it anyway), and when the value is left out of the URL. */
             if ($property->url !== null) {
                 $props[$name]['url'] = array_filter([
-                    'as' => $property->url->as ?? $name,
+                    'as' => $property->url->as ?? $real,
                     'history' => $property->url->history ?: null,
                     'keep' => $property->url->keep ?: null,
                 ], fn ($v) => $v !== null) + ($property->url->hasExcept() ? ['except' => Wire::encode($property->url->except)] : []);
@@ -133,6 +145,34 @@ final class ComponentCompiler
         }
 
         return $props;
+    }
+
+    /**
+     * #[On] listeners as the browser has them: event => methods, by the browser's names. A
+     * broadcast's channel ("echo-private:orders.{order.id},OrderShipped") reads properties: by
+     * the browser's names too, and each must be one.
+     *
+     * @return array<string, list<string>>
+     */
+    private function listenersFor(ComponentMeta $meta, Scope $scope): array
+    {
+        $listeners = [];
+
+        foreach ($meta->listeners as $event => $methods) {
+            if (str_starts_with($event, 'echo')) {
+                $event = (string) preg_replace_callback('/\{([\w.]+)\}/', function (array $m) use ($meta, $scope, $event) {
+                    if (! $scope->isProperty(explode('.', $m[1])[0])) {
+                        throw new CompileException("#[On('{$event}')] on {$meta->class}: {{$m[1]}} names no public property: the channel reads the component's state.");
+                    }
+
+                    return '{'.$scope->browserPath($m[1]).'}';
+                }, $event);
+            }
+
+            $listeners[$event] = array_map($scope->browserMethod(...), $methods);
+        }
+
+        return $listeners;
     }
 
     /** @return list<string> */

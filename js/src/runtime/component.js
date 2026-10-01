@@ -489,6 +489,7 @@ export class Component {
         if (this.destroyed) return;
         if (!this.definition.server.includes('destroyed')) this.hook('destroyed');
         this.destroyed = true;
+        this.runtime.broadcasts.unsubscribe(this);
         this.view.dispose();
     }
 }

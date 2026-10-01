@@ -72,6 +72,10 @@ final class Fusion
     /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
     private array $shared = [];
 
+    private ?Build\Obfuscator $names = null;
+
+    private bool $namesResolved = false;
+
     /** Whether the layout is being rendered for its title only (layoutTitle()). */
     private bool $renderingTitle = false;
 
@@ -91,6 +95,80 @@ final class Fusion
     public function registry(): Registry
     {
         return $this->registry;
+    }
+
+    // ------------------------------------------------------------ obfuscated builds
+
+    /** An obfuscated build's names (fusion.build.obfuscate), when the bundle the browser gets is one; else null. */
+    public function names(): ?Build\Obfuscator
+    {
+        if (! $this->namesResolved) {
+            $this->names = $this->app->make(Build\Bundle::class)->obfuscator();
+            $this->namesResolved = true;
+        }
+
+        return $this->names;
+    }
+
+    /** A component's or page's name in the browser. */
+    public function browserName(string $name): string
+    {
+        return $this->names()?->component($name) ?? $name;
+    }
+
+    /** The component a name from the browser stands for. */
+    public function componentName(string $browserName): string
+    {
+        return $this->names()?->componentName($browserName) ?? $browserName;
+    }
+
+    /**
+     * The method a name from the browser stands for, among the component's #[Server] methods.
+     *
+     * @param  list<string>  $methods
+     */
+    public function methodName(string $browserName, array $methods): string
+    {
+        return $this->names()?->methodName($browserName, $methods) ?? $browserName;
+    }
+
+    /**
+     * A component's rendered HTML as an obfuscated build's page has it: handlers' text left out
+     * (fusion:click="save" becomes fusion:click=""; the compiled code is what runs), and
+     * fusion:target naming the component's methods by their aliases (a property's, as an upload's,
+     * too), and fusion:model's path starting with its property's alias. Unchanged otherwise.
+     *
+     * @param  list<string>  $methods  the component's methods
+     * @param  list<string>  $properties  the component's properties
+     */
+    public function obscure(string $html, array $methods = [], array $properties = []): string
+    {
+        $names = $this->names();
+
+        if ($names === null || ! str_contains($html, 'fusion:')) {
+            return $html;
+        }
+
+        $handlers = implode('|', array_map(fn (string $name) => preg_quote($name, '/'), [...Compiler\Globals::EVENTS, ...array_keys(Compiler\Globals::HOOKS)]));
+
+        /** Each start tag (quoted values may hold ">"), then its fusion attributes. */
+        $target = fn (string $name) => match (true) {
+            in_array(trim($name), $methods, true) => $names->method(trim($name)),
+            in_array(trim($name), $properties, true) => $names->property(trim($name)),
+            default => trim($name),
+        };
+        $path = fn (string $path) => in_array(explode('.', $path, 2)[0], $properties, true) ? $names->path($path) : $path;
+
+        return (string) preg_replace_callback('/<[a-zA-Z][^\s\/>]*(?:\s+[^\s"\'>\/=]+(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*\/?>/', function (array $tag) use ($handlers, $target, $path) {
+            if (! str_contains($tag[0], 'fusion:')) {
+                return $tag[0];
+            }
+
+            $tag = (string) preg_replace('/(\sfusion:(?:'.$handlers.')(?:\.[\w\-.]+)?)\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '$1=""', $tag[0]);
+            $tag = (string) preg_replace_callback('/(\sfusion:model(?:\.[\w\-.]+)?\s*=\s*)(["\'])(.*?)\2/', fn (array $m) => $m[1].$m[2].$path($m[3]).$m[2], $tag);
+
+            return (string) preg_replace_callback('/(\sfusion:target\s*=\s*)(["\'])(.*?)\2/', fn (array $m) => $m[1].$m[2].implode(',', array_map($target, explode(',', $m[3]))).$m[2], $tag);
+        }, $html);
     }
 
     public function renderer(): Renderer
@@ -559,7 +637,22 @@ final class Fusion
     {
         $only = $this->partial();
 
-        return $only === null || $only === [] || in_array($property, $only, true);
+        return $only === null || $only === [] || in_array($property, $only, true)
+            || ($this->names() !== null && in_array($this->names()->property($property), $only, true));
+    }
+
+    /**
+     * A partial reload's properties by the component's own names (the browser names them by
+     * an obfuscated build's aliases).
+     *
+     * @param  list<string>  $only
+     * @return list<string>
+     */
+    private function partialProperties(array $only, ComponentMeta $meta): array
+    {
+        $names = $this->names();
+
+        return $names === null ? $only : array_map(fn (string $name) => $names->propertyName($name, array_keys($meta->properties)) ?? $name, $only);
     }
 
     /** A new page's id; on a partial reload, the one it has in the browser. */
@@ -617,9 +710,9 @@ final class Fusion
 
         return new JsonResponse([
             'fusion' => 1,
-            'snapshot' => json_decode($snapshot->toJson($key), true),
+            'snapshot' => json_decode($snapshot->toJson($key, $this->browserName($meta->name), $this->names()), true),
             /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
-            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($only, $component->fusion()->merges)->toJson($key), true),
+            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->merges)->toJson($key, $this->browserName($meta->name), $this->names()), true),
             'children' => (object) $children,
             'title' => $this->layoutTitle($layout, $layoutData),
             'layout' => $this->layoutKey($layout, $layoutData),
@@ -718,10 +811,15 @@ final class Fusion
         }
 
         $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
-        $runtime = e($this->endpoint('fusion.js')).'?v='.e($this->runtimeVersion());
         $built = $this->app->make(Build\Bundle::class);
         $tag = $built->tag();
-        $bundle = e($this->endpoint('app.js')).'?v='.e($tag);
+        $urls = $this->app->make('url');
+
+        /** fusion:build's static files when it has them for these components (served without PHP), else Fusion's routes. */
+        $static = fn (?string $file) => $file === null ? null : $urls->asset($file);
+        $runtime = e($static($built->staticRuntime()) ?? $this->endpoint('fusion.js').'?v='.$this->runtimeVersion());
+        $bundle = e($static($built->staticFile()) ?? $this->endpoint('app.js').'?v='.$tag);
+        $chunkUrl = $static($built->staticChunkPattern()) ?? $this->endpoint('app/{id}.js').'?v='.$tag;
 
         $progress = $this->progress();
         $progress = $progress === null ? '' : ' data-progress="'.e(json_encode($progress, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)).'"';
@@ -730,7 +828,7 @@ final class Fusion
         $inChunks = $built->uses()['chunks'] ?? [];
         $groups = array_unique(array_filter(array_map(fn (string $name) => $inChunks[$name] ?? null, $this->renderer->rendered())));
         $chunks = array_map(
-            fn (string $group) => "\n".'<script src="'.e($this->endpoint('app/'.$group.'.js')).'?v='.e($tag).'" defer></script>',
+            fn (string $group) => "\n".'<script src="'.e(str_replace('{id}', rawurlencode($built->chunkId($group)), $chunkUrl)).'" defer></script>',
             $groups,
         );
 
@@ -738,7 +836,7 @@ final class Fusion
 
         return new HtmlString(
             '<script type="application/json" data-fusion-globals>'.$globals.'</script>'."\n"
-            .'<script src="'.$runtime.'" data-endpoint="'.e($this->endpoint()).'" data-bundle="'.e($tag).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
+            .'<script src="'.$runtime.'" data-endpoint="'.e($this->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
         );
     }

@@ -26,7 +26,7 @@
         <input class="entry" type="number" fusion:model.number="history.{{ $i }}">
     @endforeach
     </p>
-    <button fusion:click="save" fusion:loading.attr="disabled">Save</button>
+    <button fusion:click="save" fusion:loading.attr="disabled" fusion:target="save">Save</button>
     @for ($n = 1; $n <= 3; $n++)
         <button class="set" fusion:click="$set('count', $n * 10)">{{ $n }}</button>
     @endfor

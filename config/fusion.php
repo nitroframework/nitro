@@ -142,6 +142,41 @@ return [
 
     'compiled' => storage_path('framework/fusion'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Static files
+    |--------------------------------------------------------------------------
+    |
+    | `php artisan fusion:build` also publishes the build here, under public/
+    | (as `vite build` writes public/build), and @fusionScripts points at it:
+    | the web server or a CDN serves it without PHP (asset() applies, so does
+    | ASSET_URL). Names carry the version; chunks are named by a hash. Until
+    | the next build after a change, the Fusion routes serve the files. Set
+    | to false to always serve them through the routes.
+    |
+    */
+
+    'static' => 'fusion',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Obfuscation
+    |--------------------------------------------------------------------------
+    |
+    | A build (fusion:build, minify_on_change) names methods, #[Server]
+    | methods and pages by aliases derived from APP_KEY, in the bundle and in
+    | what the page carries (fusion:name, a #[Server] call's method), and
+    | leaves handlers' text (fusion:click="...") out of the page. Components
+    | are aliased too, unless a view has <fusion:dynamic-component>. Lifecycle
+    | hooks, property names, text on the page and URLs keep their names. A
+    | readable bundle (no build) is never obfuscated.
+    |
+    */
+
+    'build' => [
+        'obfuscate' => env('FUSION_OBFUSCATE', true),
+    ],
+
     'minify_on_change' => env('FUSION_MINIFY_ON_CHANGE', true),
 
     'esbuild' => [

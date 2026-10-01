@@ -12,8 +12,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * `php artisan fusion:build`: the production build. Every component compiled for the browser and
- * minified with esbuild (as `vite build` does), and the component list cached. A component that
- * cannot run in the browser fails the build, naming the file and line.
+ * minified with esbuild (as `vite build` does), published under public/ (fusion.static), and the
+ * component list cached. A component that cannot run in the browser fails the build, naming the
+ * file and line.
  */
 #[AsCommand(name: 'fusion:build')]
 class BuildCommand extends Command
@@ -28,7 +29,7 @@ class BuildCommand extends Command
         $files->delete($manifest);
 
         try {
-            $path = $bundle->build();
+            $path = $bundle->build(static: true);
         } catch (RuntimeException $e) {
             $this->components->error($e->getMessage());
 
@@ -47,6 +48,10 @@ class BuildCommand extends Command
             basename($path),
             number_format($files->size($path) / 1024, 1),
         ));
+
+        if ($bundle->staticFile() !== null) {
+            $this->components->info('Published to public/'.dirname((string) $bundle->staticFile()).': served without PHP.');
+        }
 
         return self::SUCCESS;
     }

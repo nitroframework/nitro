@@ -51,7 +51,13 @@ final class AssertableFusion
         $state = Wire::fromJson((string) ($envelope['state'] ?? ''));
         PHPUnit::assertIsArray($state, 'The Fusion page\'s snapshot cannot be read.');
 
-        return new self((string) $state['name'], (array) ($state['data'] ?? []), array_values((array) ($state['memo']['deferred'] ?? [])));
+        /** An obfuscated build names the page and its properties by aliases: the page and the properties they stand for. */
+        $fusion = app(\Nitro\Fusion\Fusion::class);
+        $name = $fusion->componentName((string) $state['name']);
+        $snapshot = (new \Nitro\Fusion\Rendering\Snapshot($name, (string) ($state['id'] ?? ''), (array) ($state['data'] ?? []), (array) ($state['memo'] ?? [])))
+            ->fromBrowser($fusion->names(), $fusion->has($name) ? array_keys($fusion->meta($name)->properties) : []);
+
+        return new self($name, $snapshot->data, array_values((array) ($snapshot->memo['deferred'] ?? [])));
     }
 
     /** The page is the given one (its name, such as "pages::orders.index"). */

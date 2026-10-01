@@ -63,6 +63,9 @@ final class UpdateController
             throw new HttpException(403, 'A partial reload is not a component\'s state.');
         }
 
+        /** An obfuscated build's alias: the component it stands for. */
+        $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+
         if (! $this->fusion()->has($snapshot->name)) {
             throw new HttpException(404, 'Unknown component.');
         }
@@ -73,6 +76,7 @@ final class UpdateController
 
         /** @var Component $component */
         $component = $this->container->make($meta->class);
+        $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($meta->properties));
         $snapshot->restore($component, $meta);
         $this->applyPartials($component, $meta, $snapshot, $payload['partials'] ?? []);
         Hooks::call($component, 'boot');
@@ -92,7 +96,7 @@ final class UpdateController
         $context = $component->fusion();
 
         return new JsonResponse([
-            'snapshot' => json_decode($next->toJson($this->fusion()->key()), true),
+            'snapshot' => json_decode($next->toJson($this->fusion()->key(), $this->fusion()->browserName($meta->name), $this->fusion()->names()), true),
             /** Fusion::share()'s data as it is now (a #[Server] call may have changed it: a flash message). */
             'shared' => $this->fusion()->sharedForBrowser(),
             'once' => (object) $this->fusion()->onceForBrowser(),
@@ -102,13 +106,14 @@ final class UpdateController
                 'dispatches' => array_map(fn ($d) => array_filter([
                     'event' => $d['event'],
                     'params' => Wire::encode($d['params']),
-                    'to' => $d['to'] ?? null,
+                    'to' => isset($d['to']) ? $this->fusion()->browserName($d['to']) : null,
                     'self' => ($d['self'] ?? false) ?: null,
                 ], fn ($v) => $v !== null), $context->dispatches),
                 'redirect' => $context->redirect,
-                'js' => $context->js,
+                /** Reading $fusion.<name> by the browser's names (an obfuscated build). */
+                'js' => array_map(fn (string $code) => $this->fusion()->names()?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code, $context->js),
                 /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
-                'reload' => $context->reload === null ? null : ['only' => $context->reload],
+                'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->fusion()->names()?->property($property) ?? $property, $context->reload)],
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($v) => $v !== null && $v !== []),
         ]);
@@ -127,11 +132,11 @@ final class UpdateController
         foreach ($partials as $envelope) {
             $partial = Snapshot::fromEnvelope($envelope, $this->fusion()->key());
 
-            if (! $partial->isPartial() || $partial->id !== $snapshot->id || $partial->name !== $snapshot->name) {
+            if (! $partial->isPartial() || $partial->id !== $snapshot->id || $this->fusion()->componentName($partial->name) !== $snapshot->name) {
                 throw new HttpException(403, 'This partial reload belongs to another component.');
             }
 
-            $partial->restore($component, $meta);
+            $partial->fromBrowser($this->fusion()->names(), array_keys($meta->properties))->restore($component, $meta);
         }
     }
 
@@ -142,6 +147,8 @@ final class UpdateController
         }
 
         foreach ($updates as $name => $encoded) {
+            /** By the browser's name for it (an obfuscated build). */
+            $name = is_string($name) ? ($this->fusion()->names()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
             $property = is_string($name) ? $meta->property($name) : null;
 
             try {
@@ -162,6 +169,11 @@ final class UpdateController
     {
         $method = is_array($call) ? ($call['method'] ?? null) : null;
         $params = is_array($call) ? ($call['params'] ?? []) : null;
+
+        /** An obfuscated build's alias: the #[Server] method it stands for. */
+        if (is_string($method)) {
+            $method = $this->fusion()->methodName($method, $meta->serverMethods);
+        }
 
         if (! is_string($method) || ! $meta->isServerMethod($method) || ! is_array($params) || ! array_is_list($params)) {
             throw new HttpException(403, 'This method cannot be called from the browser.');
