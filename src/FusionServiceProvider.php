@@ -52,6 +52,7 @@ class FusionServiceProvider extends ServiceProvider
             (string) $app->make('config')->get('fusion.compiled'),
             (array) $app->make('config')->get('fusion.esbuild', []),
             $app->make('router'),
+            (bool) $app->make('config')->get('fusion.minify_on_change', true),
         ));
 
         $this->app->bind(PersistentMiddleware::class, fn (Application $app) => new PersistentMiddleware(

@@ -21,6 +21,10 @@ return [
     ],
     'public_config' => ['app.name'],
     'compiled' => dirname(__DIR__).'/storage/framework/fusion',
+    /** Readable on first use, so tests can read it (BuildTest turns it on). */
+    'minify_on_change' => false,
+    /** Off, so the tests' #[LazyLoad] chunks are the only ones (BuildTest and the browser tests turn it on). */
+    'split_pages' => (bool) env('FUSION_SPLIT_PAGES', false),
     /** esbuild from the package's own node_modules (the fixture app has none). */
     'esbuild' => [
         'node' => 'node',

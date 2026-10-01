@@ -116,7 +116,16 @@ return [
     | writes the production bundle, minified with esbuild as `vite build`
     | does (npm install --save-dev esbuild); it is a step of its own, not
     | part of `optimize`, and APP_DEBUG has no say in it. Without a build,
-    | components are compiled on first use, readable.
+    | components are compiled on first use: built as fusion:build does when
+    | minify_on_change is on (readable if esbuild cannot run), readable when
+    | it is off. Only the current version's files are kept.
+    |
+    | split_pages: each Route::fusion() page is a chunk of its own, loaded
+    | when the page is first visited (as Next.js and Nuxt split by page), so
+    | app.js stays small however many pages there are: it keeps the runtime
+    | glue, the shared (non-page) components and the PHP functions they use.
+    | #[LazyLoad(false)] keeps a page in app.js; #[LazyLoad('group')] puts
+    | pages that go together in one chunk.
     |
     | esbuild: the Node binary, and the directory whose node_modules has
     | esbuild (the application's own, normally).
@@ -124,6 +133,10 @@ return [
     */
 
     'compiled' => storage_path('framework/fusion'),
+
+    'minify_on_change' => env('FUSION_MINIFY_ON_CHANGE', true),
+
+    'split_pages' => env('FUSION_SPLIT_PAGES', true),
 
     'esbuild' => [
         'node' => env('FUSION_NODE', 'node'),

@@ -91,6 +91,8 @@ class BuildTest extends TestCase
             'config' => ['app.name'],
             /** Viewi's: the PHP functions the components call, from js/functions (their bundle has them). */
             'functions' => ['Str_camel', 'Str_headline', 'Str_limit', 'Str_mask', 'Str_padLeft', 'Str_slug', 'Str_title', 'html_entity_decode', 'levenshtein', 'preg_match', 'preg_match_all', 'preg_replace', 'preg_split', 'str_word_count', 'strtr'],
+            /** The components in chunks (#[LazyLoad] here: split_pages is off in the fixture). */
+            'chunks' => ['board' => 'board', 'student-page' => 'pages', 'todo-item' => 'todos'],
         ], $bundle->uses());
         $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_fusion/app.js')->getContent());
         $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());
@@ -159,6 +161,45 @@ class BuildTest extends TestCase
         $this->assertStringNotContainsString('/_fusion/app/', $page('/counter'));
     }
 
+    /**
+     * split_pages: every Route::fusion() page is a chunk of its own, as Next.js and Nuxt split by
+     * page; #[LazyLoad('group')] still groups, #[LazyLoad(false)] keeps a page in app.js, and
+     * components that are not pages stay in app.js.
+     */
+    #[DataProvider('frameworks')]
+    public function test_with_split_pages_each_page_is_a_chunk_of_its_own(string $framework): void
+    {
+        $this->boot($framework);
+        $this->app->make('config')->set('fusion.split_pages', true);
+        $this->app->forgetScopedInstances();
+        $bundle = $this->app->make(Bundle::class);
+        $files = $bundle->compileAll();
+
+        $groups = array_keys($files);
+        $this->assertSame('', array_shift($groups));
+        sort($groups);
+        $this->assertSame(['board', 'counter', 'gallery', 'journal', 'pages', 'panels', 'shelf', 'showcase', 'todos'], $groups);
+
+        foreach (['counter', 'gallery', 'journal', 'panels', 'shelf', 'showcase'] as $page) {
+            $this->assertStringNotContainsString('Fusion.define("'.$page.'"', $files[''], "{$page} is a page: not in app.js");
+            $this->assertStringContainsString('Fusion.define("'.$page.'", {', $files[$page]);
+        }
+
+        $this->assertStringContainsString('Fusion.define("links", {', $files[''], '#[LazyLoad(false)]');
+        $this->assertStringContainsString('Fusion.define("student-page", {', $files['pages'], "#[LazyLoad('pages')]");
+        $this->assertStringContainsString('Fusion.define("todo-list", {', $files[''], 'not a page');
+        $this->assertStringContainsString('["^/counter/?$","counter"]', $files['']);
+        $this->assertStringContainsString('["^/private/?$","counter"]', $files['']);
+        $this->assertSame('counter', $bundle->uses()['chunks']['counter']);
+
+        $tag = $bundle->tag();
+        $this->assertSame($files['counter'], $this->get('/_fusion/app/counter.js?v='.$tag)->getContent());
+
+        $page = fn (string $uri) => tap((string) $this->get($uri)->getContent(), fn () => $this->app->forgetScopedInstances());
+        $this->assertStringContainsString('<script src="/_fusion/app/counter.js?v='.$tag.'" defer></script>', $page('/counter'));
+        $this->assertStringNotContainsString('/_fusion/app/', $page('/links'));
+    }
+
     #[DataProvider('frameworks')]
     public function test_without_a_build_the_bundle_is_compiled_on_first_use_readable(string $framework): void
     {
@@ -169,6 +210,55 @@ class BuildTest extends TestCase
 
         $this->assertStringContainsString("Fusion.define(\"counter\", {\n", $bundle);
         $this->assertGreaterThan(100, substr_count($bundle, "\n"));
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_with_minify_on_change_a_changed_component_is_built_minified_and_replaces_the_last_build(string $framework): void
+    {
+        $this->boot($framework);
+        $this->app->make('config')->set('fusion.minify_on_change', true);
+        $this->console()->call('fusion:build');
+        $this->app->forgetScopedInstances();
+        $before = $this->app->make(Bundle::class)->version();
+
+        $source = self::APP.'/resources/views/fusion/counter.blade.php';
+        $time = filemtime($source);
+        touch($source, $time + 10);
+        clearstatcache();
+
+        try {
+            $this->app->forgetScopedInstances();
+            $bundle = $this->app->make(Bundle::class);
+            $version = $bundle->version();
+            $this->assertNotSame($before, $version);
+
+            $script = (string) $this->get('/_fusion/app.js?v='.$version.'.min')->getContent();
+
+            $this->assertSame($version.'.min', $bundle->tag());
+            $this->assertMatchesRegularExpression('/\w\.define\("counter",\{/', $script, 'minified');
+            $this->assertSame($script, file_get_contents(self::COMPILED."/app-{$version}.min.js"));
+            $files = array_map('basename', glob(self::COMPILED.'/app-*'));
+            $this->assertSame([], array_filter($files, fn (string $file) => ! str_contains($file, $version)), 'only this version is kept');
+        } finally {
+            touch($source, $time);
+        }
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_with_minify_on_change_and_no_esbuild_the_bundle_is_compiled_readable(string $framework): void
+    {
+        $this->boot($framework);
+        $this->app->make('config')->set('fusion.minify_on_change', true);
+        $this->app->make('config')->set('fusion.esbuild.root', sys_get_temp_dir());
+        $this->app->make('config')->set('fusion.esbuild.node', 'no-such-node-binary');
+        $this->console()->call('fusion:clear');
+        $this->app->forgetScopedInstances();
+
+        $bundle = (string) $this->get('/_fusion/app.js')->getContent();
+
+        $this->assertStringContainsString("Fusion.define(\"counter\", {\n", $bundle);
+        $bundle = $this->app->make(Bundle::class);
+        $this->assertSame($bundle->version(), $bundle->tag(), 'not built');
     }
 
     #[DataProvider('frameworks')]

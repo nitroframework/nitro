@@ -27,18 +27,19 @@ use Throwable;
  *
  * Two ways to have them, as with Vite: `fusion:build` writes the production bundle, minified with
  * the application's esbuild (templates as JSON the browser parses); without a build, the bundle
- * is compiled on first use, readable (and again whenever a component changes). APP_DEBUG plays
- * no part in either.
+ * is compiled on first use (and again whenever a component changes): built as fusion:build does
+ * with fusion.minify_on_change, else (or when esbuild cannot run) readable. APP_DEBUG plays no
+ * part in either. Each version's files replace the last version's: they do not accumulate.
  */
 final class Bundle
 {
     private ?string $version = null;
 
-    /** @var array<string, string>|null the #[LazyLoad] components (name => group) */
+    /** @var array<string, string>|null the components in chunks (name => group): lazy() */
     private ?array $lazy = null;
 
-    /** @var array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>} what the last compile's helpers named */
-    private array $lastUses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => []];
+    /** @var array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, chunks: array<string, string>} what the last compile's helpers named */
+    private array $lastUses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'chunks' => []];
 
     /**
      * @param  array{node?: string, root?: string}  $esbuild  the node binary, and the directory
@@ -52,6 +53,7 @@ final class Bundle
         private readonly string $directory,
         private readonly array $esbuild = [],
         private readonly ?Router $router = null,
+        private readonly bool $minifyOnChange = false,
     ) {
     }
 
@@ -136,20 +138,19 @@ final class Bundle
         );
         $main = [];
         $chunks = [];
+        $lazy = $this->lazy();
 
         foreach (array_keys($this->fusion->registry()->all()) as $name) {
             $meta = $this->fusion->meta($name);
             $viewFile = $this->views->getFinder()->find($meta->view);
             $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
 
-            if ($meta->lazy === null) {
-                $main[] = $definition;
+            if (isset($lazy[$name])) {
+                $chunks[$lazy[$name]][] = $definition;
             } else {
-                $chunks[$meta->lazy][] = $definition;
+                $main[] = $definition;
             }
         }
-
-        $lazy = $this->lazy();
 
         if ($lazy !== []) {
             $main[] = '// #[LazyLoad]: component => chunk, and the pages that render them'."\n"
@@ -168,7 +169,7 @@ final class Bundle
             $files[$group] = $this->wrap($definitions);
         }
 
-        $this->lastUses = $this->checked($compiler->uses);
+        $this->lastUses = $this->checked($compiler->uses) + ['chunks' => $lazy];
 
         return $files;
     }
@@ -177,7 +178,7 @@ final class Bundle
      * What the compiled code's Laravel helpers name (route names, translation keys, config keys):
      * @fusionScripts ships their values with the page.
      *
-     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>}
+     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, chunks: array<string, string>} (chunks: component => the chunk it is in)
      */
     public function uses(): array
     {
@@ -237,22 +238,47 @@ final class Bundle
             ."\n})(window.Fusion, window.Fusion.P, window.Fusion.B);\n";
     }
 
-    /** @return array<string, string> the #[LazyLoad] components: name => group */
+    /**
+     * The components that are not in app.js, name => chunk: those with #[LazyLoad('group')], and
+     * (fusion.split_pages) each Route::fusion() page in a chunk of its own, as Next.js and Nuxt
+     * split by page. Components that are not pages (the children pages share) stay in app.js.
+     *
+     * @return array<string, string>
+     */
     private function lazy(): array
     {
         if ($this->lazy === null) {
             $this->lazy = [];
+            $pages = $this->fusion->config('split_pages', true) ? $this->pages() : [];
 
-            foreach (array_keys($this->fusion->registry()->all()) as $name) {
+            foreach ($this->fusion->registry()->all() as $name => $class) {
                 $group = $this->fusion->meta($name)->lazy;
 
-                if ($group !== null) {
+                if (is_string($group)) {
                     $this->lazy[$name] = $group;
+                } elseif ($group === null && isset($pages[ltrim($class, '\\')])) {
+                    $this->lazy[$name] = $name;
                 }
             }
         }
 
         return $this->lazy;
+    }
+
+    /** @return array<string, true> the component classes Route::fusion() pages render */
+    private function pages(): array
+    {
+        $pages = [];
+
+        foreach ($this->router?->getRoutes()->getRoutes() ?? [] as $route) {
+            $controller = $route->getAction('controller');
+
+            if (is_string($controller) && in_array('GET', $route->methods(), true)) {
+                $pages[ltrim(explode('@', $controller)[0], '\\')] = true;
+            }
+        }
+
+        return $pages;
     }
 
     /**
@@ -313,14 +339,25 @@ final class Bundle
     }
 
     /**
-     * The files for this version, written if they are not there yet: the build's, else readable
-     * ones compiled now.
+     * The files for this version, written if they are not there yet: the build's, else built now
+     * (minify_on_change), else readable ones compiled now. A build that fails (no node, no esbuild)
+     * leaves the readable files, so it is tried once per version, not on every request.
      *
      * @return array<string, string> '' and each group => path
      */
     private function ensure(): array
     {
         $built = $this->built();
+
+        if (! $built && $this->minifyOnChange && ! $this->files->exists($this->pathFor($this->version()))) {
+            try {
+                $this->build();
+                $built = true;
+            } catch (RuntimeException $e) {
+                report($e);
+            }
+        }
+
         $paths = ['' => $this->pathFor($this->version(), '', $built)];
 
         foreach ($this->groups() as $group) {

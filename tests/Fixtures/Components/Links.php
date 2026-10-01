@@ -3,14 +3,16 @@
 namespace Nitro\Fusion\Tests\Fixtures\Components;
 
 use Illuminate\Support\Str;
+use Nitro\Fusion\Attributes\LazyLoad;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Tests\Fixtures\Models\Student;
 
 /**
  * Laravel's helpers in a component: route() (named, positional, optional, a binding field, a
  * model, the query string, relative), url(), asset(), __() with replacements, config(). The
- * browser must print what Laravel prints.
+ * browser must print what Laravel prints. In app.js although it is a page (BuildTest).
  */
+#[LazyLoad(false)]
 class Links extends Component
 {
     public int $studentId = 1;

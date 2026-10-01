@@ -494,16 +494,19 @@ final class Fusion
     {
         $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
         $runtime = e($this->endpoint('fusion.js')).'?v='.e($this->runtimeVersion());
-        $tag = $this->app->make(Build\Bundle::class)->tag();
+        $built = $this->app->make(Build\Bundle::class);
+        $tag = $built->tag();
         $bundle = e($this->endpoint('app.js')).'?v='.e($tag);
 
         $progress = $this->progress();
         $progress = $progress === null ? '' : ' data-progress="'.e(json_encode($progress, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)).'"';
 
-        /** The #[LazyLoad] chunks of the components on this page, loaded with the bundle. */
+        /** The chunks of the components on this page (pages and #[LazyLoad]), loaded with the bundle. */
+        $inChunks = $built->uses()['chunks'] ?? [];
+        $groups = array_unique(array_filter(array_map(fn (string $name) => $inChunks[$name] ?? null, $this->renderer->rendered())));
         $chunks = array_map(
             fn (string $group) => "\n".'<script src="'.e($this->endpoint('app/'.$group.'.js')).'?v='.e($tag).'" defer></script>',
-            $this->renderer->chunks(),
+            $groups,
         );
 
         $globals = json_encode($this->globals(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);

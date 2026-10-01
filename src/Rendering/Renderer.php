@@ -30,8 +30,8 @@ final class Renderer
     /** @var array<string, array>|null the children with mount() rendered while collecting, by id */
     private ?array $collected = null;
 
-    /** @var array<string, true> the #[LazyLoad] chunks of the components rendered (@fusionScripts loads them) */
-    private array $chunks = [];
+    /** @var array<string, true> the names of the components rendered (@fusionScripts loads their chunks) */
+    private array $rendered = [];
 
     public function __construct(private readonly ViewFactory $views)
     {
@@ -48,10 +48,10 @@ final class Renderer
         return $this->orders === [] ? $this->started : $this->orders[count($this->orders) - 1];
     }
 
-    /** @return list<string> the chunks the components rendered so far are compiled into */
-    public function chunks(): array
+    /** @return list<string> the components rendered so far, by name (the bundle knows their chunks) */
+    public function rendered(): array
     {
-        return array_keys($this->chunks);
+        return array_map('strval', array_keys($this->rendered));
     }
 
     /**
@@ -62,9 +62,7 @@ final class Renderer
      */
     public function render(Component $component, ComponentMeta $meta, string $key, array $memo = [], array $attributes = []): string
     {
-        if ($meta->lazy !== null) {
-            $this->chunks[$meta->lazy] = true;
-        }
+        $this->rendered[$meta->name] = true;
 
         $html = $this->view($component, $meta);
         $envelope = Snapshot::capture($component, $meta, $memo)->toJson($key);

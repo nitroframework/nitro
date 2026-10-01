@@ -33,7 +33,8 @@ final class ComponentMeta
      * @param  array<string, list<string>>  $listeners  event => methods
      * @param  array<string, list<array{name: string, type: ?string, nullable: bool, optional: bool, variadic: bool}>>  $serverParameters
      * @param  list<string>  $computed  #[Computed] methods, read as $this->name
-     * @param  string|null  $lazy  the chunk it is compiled into (#[LazyLoad]), null for the main bundle
+     * @param  string|false|null  $lazy  its #[LazyLoad] chunk; false for #[LazyLoad(false)] (in the main
+     *                                   bundle, even as a page); null when it has none (Bundle decides)
      */
     public function __construct(
         public readonly string $class,
@@ -50,7 +51,7 @@ final class ComponentMeta
         public readonly array $constants,
         public readonly array $serverParameters,
         public readonly array $computed = [],
-        public readonly ?string $lazy = null,
+        public readonly string|false|null $lazy = null,
         /** The #[Modelable] property: what fusion:model on its tag binds. */
         public readonly ?string $modelable = null,
     ) {
@@ -127,10 +128,14 @@ final class ComponentMeta
         $view = $reflection->getAttributes(View::class)[0] ?? null;
         $layout = $reflection->getAttributes(Layout::class)[0] ?? null;
         $title = $reflection->getAttributes(Title::class)[0] ?? null;
-        $lazy = $reflection->getAttributes(LazyLoad::class)[0] ?? null;
-        $group = $lazy === null ? null : ($lazy->newInstance()->group ?: $name);
+        $lazy = ($reflection->getAttributes(LazyLoad::class)[0] ?? null)?->newInstance();
+        $group = match (true) {
+            $lazy === null => null,
+            $lazy->group === false => false,
+            default => $lazy->group ?: $name,
+        };
 
-        if ($group !== null && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $group) !== 1) {
+        if (is_string($group) && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $group) !== 1) {
             throw new CompileException("#[LazyLoad] group [{$group}] of {$class} is not a valid chunk name (letters, digits, dots, dashes and underscores)", $file);
         }
 
