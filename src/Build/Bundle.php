@@ -239,9 +239,10 @@ final class Bundle
     }
 
     /**
-     * The components that are not in app.js, name => chunk: those with #[LazyLoad('group')], and
-     * (fusion.split_pages) each Route::fusion() page in a chunk of its own, as Next.js and Nuxt
-     * split by page. Components that are not pages (the children pages share) stay in app.js.
+     * What is not in app.js, name => chunk: every page, in a chunk of its own (or its #[LazyLoad]
+     * group), however it is reached (Route::fusion() or a controller's Fusion::render()), as
+     * Next.js and Nuxt split by page; and components with #[LazyLoad]. The components pages share
+     * stay in app.js.
      *
      * @return array<string, string>
      */
@@ -249,36 +250,17 @@ final class Bundle
     {
         if ($this->lazy === null) {
             $this->lazy = [];
-            $pages = $this->fusion->config('split_pages', true) ? $this->pages() : [];
 
-            foreach ($this->fusion->registry()->all() as $name => $class) {
+            foreach (array_keys($this->fusion->registry()->all()) as $name) {
                 $group = $this->fusion->meta($name)->lazy;
 
-                if (is_string($group)) {
+                if ($group !== null) {
                     $this->lazy[$name] = $group;
-                } elseif ($group === null && isset($pages[ltrim($class, '\\')])) {
-                    $this->lazy[$name] = $name;
                 }
             }
         }
 
         return $this->lazy;
-    }
-
-    /** @return array<string, true> the component classes Route::fusion() pages render */
-    private function pages(): array
-    {
-        $pages = [];
-
-        foreach ($this->router?->getRoutes()->getRoutes() ?? [] as $route) {
-            $controller = $route->getAction('controller');
-
-            if (is_string($controller) && in_array('GET', $route->methods(), true)) {
-                $pages[ltrim(explode('@', $controller)[0], '\\')] = true;
-            }
-        }
-
-        return $pages;
     }
 
     /**

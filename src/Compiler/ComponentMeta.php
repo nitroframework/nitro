@@ -14,6 +14,7 @@ use Nitro\Fusion\Attributes\Url;
 use Nitro\Fusion\Attributes\View;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\State;
+use Nitro\Fusion\Support\Naming;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -33,8 +34,9 @@ final class ComponentMeta
      * @param  array<string, list<string>>  $listeners  event => methods
      * @param  array<string, list<array{name: string, type: ?string, nullable: bool, optional: bool, variadic: bool}>>  $serverParameters
      * @param  list<string>  $computed  #[Computed] methods, read as $this->name
-     * @param  string|false|null  $lazy  its #[LazyLoad] chunk; false for #[LazyLoad(false)] (in the main
-     *                                   bundle, even as a page); null when it has none (Bundle decides)
+     * @param  string|null  $lazy  the chunk it is compiled into: a page's own (or its #[LazyLoad] group),
+     *                             a component's #[LazyLoad] group; null for the main bundle
+     * @param  bool  $page  a page (routed or rendered by a controller) rather than a component
      */
     public function __construct(
         public readonly string $class,
@@ -51,13 +53,14 @@ final class ComponentMeta
         public readonly array $constants,
         public readonly array $serverParameters,
         public readonly array $computed = [],
-        public readonly string|false|null $lazy = null,
+        public readonly ?string $lazy = null,
         /** The #[Modelable] property: what fusion:model on its tag binds. */
         public readonly ?string $modelable = null,
+        public readonly bool $page = false,
     ) {
     }
 
-    public static function read(string $class, string $name, string $defaultView): self
+    public static function read(string $class, string $name, string $defaultView, bool $page = false): self
     {
         $reflection = new ReflectionClass($class);
         $file = (string) $reflection->getFileName();
@@ -129,10 +132,16 @@ final class ComponentMeta
         $layout = $reflection->getAttributes(Layout::class)[0] ?? null;
         $title = $reflection->getAttributes(Title::class)[0] ?? null;
         $lazy = ($reflection->getAttributes(LazyLoad::class)[0] ?? null)?->newInstance();
+
+        if (! $page && ($layout !== null || $title !== null)) {
+            throw new CompileException("#[Layout] and #[Title] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
+        }
+
+        /** A page is a chunk of its own unless it names a group or #[LazyLoad(false)]; a component only with #[LazyLoad]. */
         $group = match (true) {
-            $lazy === null => null,
-            $lazy->group === false => false,
-            default => $lazy->group ?: $name,
+            $lazy === null => $page ? Naming::bare($name) : null,
+            $lazy->group === false => null,
+            default => $lazy->group ?: Naming::bare($name),
         };
 
         if (is_string($group) && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $group) !== 1) {
@@ -156,6 +165,7 @@ final class ComponentMeta
             $computed,
             $group,
             $modelable,
+            $page,
         );
     }
 

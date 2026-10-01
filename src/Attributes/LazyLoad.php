@@ -5,12 +5,12 @@ namespace Nitro\Fusion\Attributes;
 use Attribute;
 
 /**
- * Leave the component out of the main bundle (app.js), as Viewi's #[LazyLoad]: the browser loads
+ * Leave a component out of the main bundle (app.js), as Viewi's #[LazyLoad]: the browser loads
  * its compiled code, a chunk of its own, when a page first needs it. Components that share a
  * group share a chunk; the default group is the component's name.
  *
- * Route::fusion() pages are chunks of their own without it (fusion.split_pages): #[LazyLoad('group')]
- * puts a page in a group's chunk instead, #[LazyLoad(false)] keeps it in app.js.
+ * Pages are chunks of their own without it: #[LazyLoad('group')] puts a page in a group's chunk
+ * instead, #[LazyLoad(false)] keeps it in app.js.
  *
  * A routed page's chunk loads while a fusion:navigate visit fetches the page's data, and a page
  * rendered on the server lists the chunks it uses in @fusionScripts: neither waits for the other.

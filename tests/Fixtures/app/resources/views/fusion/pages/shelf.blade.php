@@ -14,7 +14,7 @@
     <fusion:search-box fusion:model="query" />
     <p class="query">{{ $query }}</p>
     <button type="button" class="reset-query" fusion:click="$set('query', 'reset')">Reset</button>
-    <button type="button" class="dispatch-to" fusion:click="$dispatchTo('shelf', 'noted', 'via action')">Note</button>
+    <button type="button" class="dispatch-to" fusion:click="$dispatchTo('pages::shelf', 'noted', 'via action')">Note</button>
     <ul class="notes">
         @foreach ($notes as $note)
             <li>{{ $note }}</li>

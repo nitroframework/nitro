@@ -5,6 +5,7 @@ namespace Nitro\Fusion\Tests\Feature;
 use InvalidArgumentException;
 use Nitro\Fusion\Support\Wire;
 use Nitro\Fusion\Tests\Fixtures\Components\Counter;
+use Nitro\Fusion\Tests\Fixtures\Pages\Counter as CounterPage;
 use Nitro\Fusion\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
@@ -57,7 +58,7 @@ class RenderTest extends TestCase
         $state = Wire::fromJson($page['snapshot']['state']);
 
         $this->assertSame(1, $page['fusion']);
-        $this->assertSame('counter', $state['name']);
+        $this->assertSame('pages::counter', $state['name']);
         $this->assertSame(7, $state['data']['count']);
 
         /** Signed: #[Server] calls accept it. */
@@ -65,14 +66,25 @@ class RenderTest extends TestCase
     }
 
     #[DataProvider('frameworks')]
-    public function test_props_must_match_the_components_properties(string $framework): void
+    public function test_props_must_match_the_pages_properties(string $framework): void
     {
         $this->boot($framework);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('has no public property $missing');
 
-        $this->fusion()->render(Counter::class, ['missing' => 1]);
+        $this->fusion()->render(CounterPage::class, ['missing' => 1]);
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_only_pages_can_be_rendered(string $framework): void
+    {
+        $this->boot($framework);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Fusion::render() renders pages: [counter] is a component');
+
+        $this->fusion()->render(Counter::class);
     }
 
     #[DataProvider('frameworks')]
@@ -112,8 +124,9 @@ class RenderTest extends TestCase
     {
         $this->boot($framework);
 
-        $bundle = (string) $this->get('/_fusion/app.js')->getContent();
+        /** Greeting is a page: its chunk. */
+        $chunk = (string) $this->get('/_fusion/app/greeting.js')->getContent();
 
-        $this->assertStringContainsString('B.shared("user.name", "guest")', $bundle);
+        $this->assertStringContainsString('B.shared("user.name", "guest")', $chunk);
     }
 }

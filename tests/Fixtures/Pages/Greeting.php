@@ -1,9 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Fusion\Tests\Fixtures\Pages;
 
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Component;
+use Nitro\Fusion\Tests\Fixtures\Components\Store;
 
 /**
  * Fusion::share()'s data (FixtureServiceProvider shares the user): in the view, in a browser

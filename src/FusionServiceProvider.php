@@ -8,6 +8,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
 use Nitro\Fusion\Blade\FusionTags;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Console\BuildCommand;
@@ -33,7 +34,8 @@ class FusionServiceProvider extends ServiceProvider
         $this->app->scoped(Renderer::class, fn (Application $app) => new Renderer($app->make('view')));
 
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
-            $app->make('config')->get('fusion.components', []),
+            (array) $app->make('config')->get('fusion.components'),
+            (array) $app->make('config')->get('fusion.pages'),
             $app->bootstrapPath('cache/fusion.php'),
         ));
 
@@ -70,11 +72,21 @@ class FusionServiceProvider extends ServiceProvider
         /** The @portal placeholders in any web response get the content teleported to them. */
         $this->app->make('router')->pushMiddlewareToGroup('web', FillPortals::class);
 
-        /** Route::fusion('/students/{student}', StudentPage::class): mount() is the action, so its parameters bind like a controller's. */
-        Router::macro('fusion', fn (string $uri, string $component) => Route::get(
-            $uri,
-            method_exists($component, 'mount') ? [$component, 'mount'] : [$component, 'callAction'],
-        ));
+        /**
+         * Route::fusion('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':
+         * a page; mount() is the action, so its parameters bind like a controller's.
+         */
+        $app = $this->app;
+        Router::macro('fusion', function (string $uri, string $page) use ($app) {
+            $registry = $app->make(Registry::class);
+            $class = class_exists($page) ? ltrim($page, '\\') : ($registry->class($page) ?? throw new InvalidArgumentException("Route::fusion(): there is no page [{$page}]."));
+
+            if (! $registry->isPageClass($class)) {
+                throw new InvalidArgumentException("Route::fusion() routes pages: {$class} is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");
+            }
+
+            return Route::get($uri, method_exists($class, 'mount') ? [$class, 'mount'] : [$class, 'callAction']);
+        });
 
         if ($this->app->runningInConsole()) {
             /** fusion:build is its own step (as `vite build` is), not part of `optimize`. */

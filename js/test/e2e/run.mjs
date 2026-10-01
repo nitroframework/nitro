@@ -249,8 +249,8 @@ await scenario('navigation', async () => {
     const chunk = (group) => document.querySelector(`script[src*="/_fusion/app/${group}.js?v="]`);
 
     /** #[LazyLoad]: the page's chunk came with the page; the others wait until a page needs them. */
-    check('the page\'s chunk is listed by @fusionScripts', chunk('pages') !== null && window.Fusion.definitions.has('student-page'));
-    check('other chunks are not loaded', chunk('board') === null && !window.Fusion.definitions.has('board') && !window.Fusion.definitions.has('todo-item'));
+    check('the page\'s chunk is listed by @fusionScripts', chunk('pages') !== null && window.Fusion.definitions.has('pages::student-page'));
+    check('other chunks are not loaded', chunk('board') === null && !window.Fusion.definitions.has('pages::board') && !window.Fusion.definitions.has('todo-item'));
 
     type(window, page.querySelector('input'), 'hello');
     await until('model re-renders the page', () => text(page.querySelector('.note')) === 'Note: hello');
@@ -263,17 +263,17 @@ await scenario('navigation', async () => {
     const link = document.querySelector('a[fusion\\:navigate]');
     check('fusion:current off elsewhere', !link.classList.contains('active'));
     click(window, link);
-    await until('navigated without reloading', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="counter"]') !== null);
+    await until('navigated without reloading', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null);
     check('title followed', document.title === 'Fusion', document.title);
     check('fusion:current on', link.classList.contains('active'));
-    check('the old page\'s component is gone', !window.Fusion.components().some((c) => c.name === 'student-page'));
+    check('the old page\'s component is gone', !window.Fusion.components().some((c) => c.name === 'pages::student-page'));
 
-    const counter = document.querySelector('[fusion\\:name="counter"]');
+    const counter = document.querySelector('[fusion\\:name="pages::counter"]');
     click(window, counter.querySelectorAll('button')[1]);
     await until('the new page is live', () => text(counter.querySelector('.count')) === '1');
 
     window.history.back();
-    await until('back button', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="student-page"]') !== null);
+    await until('back button', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="pages::student-page"]') !== null);
 
     /** The visit fetches the page's data, not its HTML: the browser renders it. */
     const answers = [];
@@ -294,7 +294,7 @@ await scenario('navigation', async () => {
     check('board title followed', document.title === 'Board', document.title);
 
     const board = document.querySelector('[fusion\\:page]');
-    check('the page element is the board', board.getAttribute('fusion:name') === 'board' && text(board.querySelector('h2')) === 'Board');
+    check('the page element is the board', board.getAttribute('fusion:name') === 'pages::board' && text(board.querySelector('h2')) === 'Board');
     check('the page element names its layout', board.getAttribute('fusion:page') === 'components.layouts.app');
     const list = board.querySelector('[fusion\\:name="todo-list"]');
     check('the child with mount() came from the server', list !== null && window.Fusion.find(list.getAttribute('fusion:id'))?.snapshot !== null);
@@ -316,10 +316,10 @@ await scenario('navigation', async () => {
     check('and its signed state was accepted', calls[0] === 200 && list.querySelector('.error') === null, String(calls[0]));
 
     window.history.back();
-    await until('back from the board', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="student-page"]') !== null);
+    await until('back from the board', () => window.location.pathname === '/students/1' && document.querySelector('[fusion\\:name="pages::student-page"]') !== null);
     window.history.forward();
     await until('forward to the board', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="todo-list"]') !== null);
-    check('only the board\'s components are alive', window.Fusion.components().every((c) => ['board', 'todo-list', 'todo-item'].includes(c.name)), window.Fusion.components().map((c) => c.name).join(','));
+    check('only the board\'s components are alive', window.Fusion.components().every((c) => ['pages::board', 'todo-list', 'todo-item'].includes(c.name)), window.Fusion.components().map((c) => c.name).join(','));
 
     /** fusion:navigate.keypress: the visit starts as the button goes down; its click is the same visit. */
     const pointer = (type, el, pointerType) => {
@@ -338,7 +338,7 @@ await scenario('navigation', async () => {
     check('a mouse press starts the visit before the button comes up', visits === 1, String(visits));
     pointer('pointerup', pressLink, 'mouse');
     click(window, pressLink);
-    await until('the pressed visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="counter"]') !== null);
+    await until('the pressed visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null);
     await wait(20);
     check('the click after the press did not visit again', visits === 1, String(visits));
     check('one history entry for it', window.history.length === historyBefore + 1, `${window.history.length} vs ${historyBefore + 1}`);
@@ -357,7 +357,7 @@ await scenario('navigation', async () => {
      * the slow visit barless and a lone first step to show up after it landed.)
      */
     click(window, document.querySelector('a.board-link'));
-    await until('a fast visit', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="board"]') !== null);
+    await until('a fast visit', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="pages::board"]') !== null);
     const fastFetch = window.fetch;
     window.fetch = async (...args) => {
         await wait(1200);
@@ -367,7 +367,7 @@ await scenario('navigation', async () => {
     await wait(1000);
     const barWhileLoading = document.querySelector('#nprogress .bar');
     check('the slow visit shows its own bar while it loads', barWhileLoading !== null && barWhileLoading.isConnected);
-    await until('the slow visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="counter"]') !== null, 3000);
+    await until('the slow visit lands', () => window.location.pathname === '/counter' && document.querySelector('[fusion\\:name="pages::counter"]') !== null, 3000);
     window.fetch = fastFetch;
     await until('and its bar completes and goes', () => document.querySelector('#nprogress') === null, 3000);
 
@@ -461,7 +461,7 @@ await scenario('clock', async () => {
 await scenario('helpers', async () => {
     const window = await open('/links');
     const { document } = window;
-    const links = document.querySelector('[fusion\\:name="links"]');
+    const links = document.querySelector('[fusion\\:name="pages::links"]');
     const href = (cls) => links.querySelector(`a.${cls}`).getAttribute('href');
 
     check('the page ships what the helpers name', window.Fusion.B.globals.routes['students.show']?.uri === 'students/{student}' && window.Fusion.B.globals.config['app.name'] !== undefined);
@@ -481,7 +481,7 @@ await scenario('helpers', async () => {
 await scenario('lifecycle', async () => {
     const window = await open('/journal');
     const { document } = window;
-    const journal = document.querySelector('[fusion\\:name="journal"]');
+    const journal = document.querySelector('[fusion\\:name="pages::journal"]');
     const note = journal.querySelector('input');
 
     /** @teleport: the server rendered the content at its @portal (Viewi's portals); the browser hydrated it there. */
@@ -537,7 +537,7 @@ await scenario('slots', async () => {
     type(window, stock.querySelector('input.label'), 'Maps');
     await until('the parent\'s field in the card', () => count() === 'Maps: 2');
     await until('the slot\'s own child took the parent\'s value', () => text(stock.querySelector('li.todo span')) === 'Maps');
-    check('the parent\'s state, not the card\'s', window.Fusion.components().find((c) => c.name === 'shelf').data.get('label') === 'Maps');
+    check('the parent\'s state, not the card\'s', window.Fusion.components().find((c) => c.name === 'pages::shelf').data.get('label') === 'Maps');
 
     click(window, stock.querySelector('.toggle'));
     await until('the card hid its body (its own state)', () => stock.querySelector('.body') === null);
@@ -554,7 +554,7 @@ await scenario('slots', async () => {
 await scenario('events', async () => {
     const window = await open('/shelf');
     const { document } = window;
-    const shelf = document.querySelector('[fusion\\:name="shelf"]');
+    const shelf = document.querySelector('[fusion\\:name="pages::shelf"]');
     const box = shelf.querySelector('[fusion\\:name="search-box"]');
     const input = box.querySelector('input.search');
     const notes = () => [...shelf.querySelectorAll('.notes li')].map(text).join(',');
@@ -595,7 +595,7 @@ await scenario('events', async () => {
 await scenario('dynamic components', async () => {
     const window = await open('/panels');
     const { document } = window;
-    const panels = document.querySelector('[fusion\:name="panels"]');
+    const panels = document.querySelector('[fusion\:name="pages::panels"]');
     const current = () => panels.querySelector('.current [fusion\:name]');
     const ids = () => window.Fusion.components().map((c) => c.id);
 

@@ -9,7 +9,7 @@ Fusion works on **Laravel 13** and on **Nitro** (it only uses Laravel's public A
 share a page with Livewire: its tags, attributes, scripts and endpoints are all `fusion:`.
 
 ```php
-// app/Fusion/Counter.php
+// app/Fusion/Components/Counter.php
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Component;
 
@@ -32,7 +32,7 @@ class Counter extends Component
 ```
 
 ```blade
-{{-- resources/views/fusion/counter.blade.php --}}
+{{-- resources/views/fusion/components/counter.blade.php --}}
 <div>
     <button fusion:click="increment">+</button>
     <span>{{ $count }}</span>
@@ -62,13 +62,26 @@ composer require nitro/fusion
 php artisan vendor:publish --tag=fusion-config   # optional
 ```
 
-Put `@fusionScripts` before `</body>` in your layout. Components live in `app/Fusion`
-(`App\Fusion\Students\StudentForm` is `<fusion:students.student-form />` and renders
-`resources/views/fusion/students/student-form.blade.php`).
+Put `@fusionScripts` before `</body>` in your layout.
 
-Components compile to `/_fusion/app.js`, written to `storage/framework/fusion`, with each
-`Route::fusion()` page in a chunk of its own (`/_fusion/app/<page>.js`) loaded when the page is
-first visited. When a component changes, the next request compiles them again, minified with
+Fusion separates **components** from **pages**, as Livewire 4 does:
+
+| | Components | Pages |
+| --- | --- | --- |
+| Class | `app/Fusion/Components` | `app/Fusion/Pages` |
+| View | `resources/views/fusion/components` | `resources/views/fusion/pages` |
+| Name | `students.table` (`App\Fusion\Components\Students\Table`) | `pages::students.index` (`App\Fusion\Pages\Students\Index`) |
+| Used | placed in views: `<fusion:students.table />` | routed with `Route::fusion()` or returned by a controller with `Fusion::render()` |
+| Layout and title | no | `#[Layout]`, `#[Title]` |
+
+A page cannot be placed in a view, a component cannot be routed or rendered by a controller, and
+`#[Layout]` or `#[Title]` on a component fails: each says what to do instead. The directories,
+namespaces and view paths are set in `config/fusion.php`.
+
+Components compile to `/_fusion/app.js`, written to `storage/framework/fusion`. Each page is a
+chunk of its own (`/_fusion/app/<page>.js`) loaded when the page is first visited, however it is
+reached; `#[LazyLoad(false)]` keeps a page in `app.js`, and `#[LazyLoad('group')]` puts pages (or
+components) that go together in one chunk. When a component changes, the next request compiles them again, minified with
 esbuild (`npm install --save-dev esbuild`); without esbuild, or with
 `FUSION_MINIFY_ON_CHANGE=false`, the output is readable. `php artisan fusion:build` builds
 everything ahead of time, like `vite build`: run it when deploying so no visitor waits for the
@@ -188,12 +201,61 @@ removed after a day.
 
 ## Pages
 
+A page is routed by its class or its name:
+
 ```php
-Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
+use App\Fusion\Pages\Students\Show;
+
+Route::fusion('/students/{student}', Show::class)->name('students.show');
+Route::fusion('/students', 'pages::students.index')->name('students.index');
 ```
 
-The page's `mount(Student $student)` binds like a controller method; the component renders in
+The page's `mount(Student $student)` binds like a controller method; the page renders in
 `components.layouts.app` (or `#[Layout('...')]`) as its `$slot`, with `#[Title('...')]` as `$title`.
+
+### Pages from controllers
+
+A controller returns a page with `Fusion::render()`, as it would return `Inertia::render()`:
+
+```php
+use App\Fusion\Pages\Students\Index;
+use Nitro\Fusion\Facades\Fusion;
+
+class StudentController extends Controller
+{
+    public function index()
+    {
+        return Fusion::render(Index::class, [
+            'students' => Student::orderBy('name')->get(),
+        ]);
+    }
+}
+```
+
+The props are the arguments of the page's `mount()`, by name (with other parameters still resolved
+from the container), or, when it has no `mount()`, its public properties. The page then answers
+exactly as a `Route::fusion()` page: in its layout on the first visit, as page data for
+`fusion:navigate` visits.
+
+### Shared data
+
+`Fusion::share()` gives every component and page the same data, as Inertia's shared props:
+
+```php
+// in a middleware, so it is set on every request
+Fusion::share('user', fn () => $request->user()?->only('id', 'name'));
+Fusion::share('flash', fn () => session('status'));
+```
+
+```blade
+<span>{{ $this->shared('user.name', 'Guest') }}</span>
+```
+
+`$this->shared()` reads it with dot notation and a default, in views and in browser methods. The
+data is sent with the page, with each `fusion:navigate` visit and with each `#[Server]` call's
+answer; what reads it renders again when it changes. Closures are called when the data is read.
+Everything shared is sent to the browser: share nothing secret. Set it per request (in a
+middleware): under Octane, Fusion is created for each request.
 
 The first visit is rendered by the server. After that, a `fusion:navigate` link asks the same URL
 for the page's data (`X-Fusion-Navigate`): Laravel routes it as usual (middleware, bindings,

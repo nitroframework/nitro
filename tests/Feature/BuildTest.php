@@ -14,6 +14,9 @@ class BuildTest extends TestCase
 {
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
+    /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
+    private const CHUNKS = ['board', 'counter', 'gallery', 'greeting', 'journal', 'pages', 'panels', 'shelf', 'showcase', 'todos'];
+
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
     {
@@ -27,10 +30,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('17 Fusion components built', $output);
+        $this->assertStringContainsString('9 Fusion components and 10 pages built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['board', 'card', 'clock', 'counter', 'gallery', 'greeting', 'journal', 'links', 'panels', 'roster', 'search-box', 'shelf', 'showcase', 'student-page', 'todo-item', 'todo-list', 'wallet'],
+            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::panels', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -38,12 +41,9 @@ class BuildTest extends TestCase
         $version = $bundle->version();
         $files = array_map('basename', glob(self::COMPILED.'/app-*.js'));
         sort($files);
-        $this->assertSame([
-            "app-{$version}.board.chunk.min.js",
-            "app-{$version}.min.js",
-            "app-{$version}.pages.chunk.min.js",
-            "app-{$version}.todos.chunk.min.js",
-        ], $files, 'the bundle and a chunk for each #[LazyLoad] group; the old bundle is removed');
+        $expected = ["app-{$version}.min.js", ...array_map(fn (string $group) => "app-{$version}.{$group}.chunk.min.js", self::CHUNKS)];
+        sort($expected);
+        $this->assertSame($expected, $files, 'the bundle and a chunk for each page and #[LazyLoad] group; the old bundle is removed');
         $built = (string) file_get_contents(self::COMPILED."/app-{$version}.min.js");
         $readable = $bundle->compile();
 
@@ -58,9 +58,9 @@ class BuildTest extends TestCase
         $this->assertMatchesRegularExpression('/template:JSON\.parse\(\'\{"t":"r","h":\[/', $built);
         $this->assertStringNotContainsString("\n})(window.Fusion", $built);
 
-        /** The #[LazyLoad] components are in their chunks, not the bundle. */
-        $this->assertDoesNotMatchRegularExpression('/define\("(board|student-page|todo-item)"/', $built);
-        $this->assertMatchesRegularExpression('/\w\.define\("board",\{/', (string) file_get_contents(self::COMPILED."/app-{$version}.board.chunk.min.js"));
+        /** Pages and #[LazyLoad] components are in their chunks, not the bundle. */
+        $this->assertDoesNotMatchRegularExpression('/define\("(pages::board|pages::student-page|todo-item)"/', $built);
+        $this->assertMatchesRegularExpression('/\w\.define\("pages::board",\{/', (string) file_get_contents(self::COMPILED."/app-{$version}.board.chunk.min.js"));
         $this->assertMatchesRegularExpression('/\w\.define\("todo-item",\{/', (string) file_get_contents(self::COMPILED."/app-{$version}.todos.chunk.min.js"));
 
         /** The build is app-<version>.min.js, and pages ask for it by a version of its own. */
@@ -85,15 +85,32 @@ class BuildTest extends TestCase
         $this->boot($framework);
         $bundle = $this->app->make(Bundle::class);
 
+        $uses = $bundle->uses();
+        $chunks = $uses['chunks'];
+        unset($uses['chunks']);
+        ksort($chunks);
+
         $this->assertSame([
             'routes' => ['archive', 'counter', 'posts.show', 'students.show'],
             'lang' => ['Nothing to translate', 'Open :name', 'messages.welcome'],
             'config' => ['app.name'],
             /** Viewi's: the PHP functions the components call, from js/functions (their bundle has them). */
             'functions' => ['Str_camel', 'Str_headline', 'Str_limit', 'Str_mask', 'Str_padLeft', 'Str_slug', 'Str_title', 'html_entity_decode', 'levenshtein', 'preg_match', 'preg_match_all', 'preg_replace', 'preg_split', 'str_word_count', 'strtr'],
-            /** The components in chunks (#[LazyLoad] here: split_pages is off in the fixture). */
-            'chunks' => ['board' => 'board', 'student-page' => 'pages', 'todo-item' => 'todos'],
-        ], $bundle->uses());
+        ], $uses);
+
+        /** What is in chunks: every page (but pages::links, #[LazyLoad(false)]), and todo-item (#[LazyLoad]). */
+        $this->assertSame([
+            'pages::board' => 'board',
+            'pages::counter' => 'counter',
+            'pages::gallery' => 'gallery',
+            'pages::greeting' => 'greeting',
+            'pages::journal' => 'journal',
+            'pages::panels' => 'panels',
+            'pages::shelf' => 'shelf',
+            'pages::showcase' => 'showcase',
+            'pages::student-page' => 'pages',
+            'todo-item' => 'todos',
+        ], $chunks);
         $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_fusion/app.js')->getContent());
         $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());
 
@@ -135,14 +152,15 @@ class BuildTest extends TestCase
         $groups = array_keys($files);
         $this->assertSame('', array_shift($groups), 'the bundle first');
         sort($groups);
-        $this->assertSame(['board', 'pages', 'todos'], $groups, 'then a chunk per group');
-        $this->assertStringContainsString(
-            'Fusion.lazy({"board":"board","student-page":"pages","todo-item":"todos"}, [["^/students/[^/]+/?$","pages"],["^/board/?$","board"]]);',
-            $files[''],
-        );
+        $this->assertSame(self::CHUNKS, $groups, 'then a chunk per page and group');
+
+        /** app.js maps what is in which chunk, and the paths of the routed pages to their chunks. */
+        foreach (['"todo-item":"todos"', '"pages::student-page":"pages"', '"pages::board":"board"', '["^/students/[^/]+/?$","pages"]', '["^/board/?$","board"]'] as $entry) {
+            $this->assertStringContainsString($entry, $files['']);
+        }
         $this->assertStringNotContainsString('Fusion.define("todo-item"', $files['']);
         $this->assertStringContainsString('Fusion.define("todo-item", {', $files['todos']);
-        $this->assertStringContainsString('Fusion.define("student-page", {', $files['pages']);
+        $this->assertStringContainsString('Fusion.define("pages::student-page", {', $files['pages']);
 
         $tag = $bundle->tag();
         $chunk = $this->get('/_fusion/app/todos.js?v='.$tag);
@@ -158,39 +176,33 @@ class BuildTest extends TestCase
         $this->assertStringContainsString('<script src="/_fusion/app/pages.js?v='.$tag.'" defer></script>', $student);
         $this->assertStringNotContainsString('/_fusion/app/todos.js', $student);
         $this->assertStringContainsString('<script src="/_fusion/app/todos.js?v='.$tag.'" defer></script>', $page('/embed'));
-        $this->assertStringNotContainsString('/_fusion/app/', $page('/counter'));
+        $this->assertStringNotContainsString('/_fusion/app/', $page('/links'), '#[LazyLoad(false)]: in app.js');
     }
 
     /**
-     * split_pages: every Route::fusion() page is a chunk of its own, as Next.js and Nuxt split by
-     * page; #[LazyLoad('group')] still groups, #[LazyLoad(false)] keeps a page in app.js, and
-     * components that are not pages stay in app.js.
+     * Every page is a chunk of its own, as Next.js and Nuxt split by page, however it is reached;
+     * #[LazyLoad('group')] still groups pages, #[LazyLoad(false)] keeps one in app.js, and the
+     * components pages place stay in app.js.
      */
     #[DataProvider('frameworks')]
-    public function test_with_split_pages_each_page_is_a_chunk_of_its_own(string $framework): void
+    public function test_each_page_is_a_chunk_of_its_own(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.split_pages', true);
-        $this->app->forgetScopedInstances();
         $bundle = $this->app->make(Bundle::class);
         $files = $bundle->compileAll();
 
-        $groups = array_keys($files);
-        $this->assertSame('', array_shift($groups));
-        sort($groups);
-        $this->assertSame(['board', 'counter', 'gallery', 'greeting', 'journal', 'pages', 'panels', 'shelf', 'showcase', 'todos'], $groups);
-
         foreach (['counter', 'gallery', 'greeting', 'journal', 'panels', 'shelf', 'showcase'] as $page) {
-            $this->assertStringNotContainsString('Fusion.define("'.$page.'"', $files[''], "{$page} is a page: not in app.js");
-            $this->assertStringContainsString('Fusion.define("'.$page.'", {', $files[$page]);
+            $this->assertStringNotContainsString('Fusion.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
+            $this->assertStringContainsString('Fusion.define("pages::'.$page.'", {', $files[$page]);
         }
 
-        $this->assertStringContainsString('Fusion.define("links", {', $files[''], '#[LazyLoad(false)]');
-        $this->assertStringContainsString('Fusion.define("student-page", {', $files['pages'], "#[LazyLoad('pages')]");
-        $this->assertStringContainsString('Fusion.define("todo-list", {', $files[''], 'not a page');
+        $this->assertStringContainsString('Fusion.define("pages::links", {', $files[''], '#[LazyLoad(false)]');
+        $this->assertStringContainsString('Fusion.define("pages::student-page", {', $files['pages'], "#[LazyLoad('pages')]");
+        $this->assertStringContainsString('Fusion.define("counter", {', $files[''], 'the component a page extends: in app.js');
+        $this->assertStringContainsString('Fusion.define("todo-list", {', $files[''], 'a component');
         $this->assertStringContainsString('["^/counter/?$","counter"]', $files['']);
         $this->assertStringContainsString('["^/private/?$","counter"]', $files['']);
-        $this->assertSame('counter', $bundle->uses()['chunks']['counter']);
+        $this->assertSame('counter', $bundle->uses()['chunks']['pages::counter']);
 
         $tag = $bundle->tag();
         $this->assertSame($files['counter'], $this->get('/_fusion/app/counter.js?v='.$tag)->getContent());
@@ -221,7 +233,7 @@ class BuildTest extends TestCase
         $this->app->forgetScopedInstances();
         $before = $this->app->make(Bundle::class)->version();
 
-        $source = self::APP.'/resources/views/fusion/counter.blade.php';
+        $source = self::APP.'/resources/views/fusion/components/counter.blade.php';
         $time = filemtime($source);
         touch($source, $time + 10);
         clearstatcache();
@@ -323,7 +335,7 @@ class BuildTest extends TestCase
             $this->assertSame(0, $this->console()->call('fusion:build'), $this->console()->output());
             $this->assertSame(0, $this->console()->call('optimize:clear'), $this->console()->output());
             $this->assertFileExists($manifest, 'optimize:clear does not clear Fusion');
-            $this->assertCount(4, glob(self::COMPILED.'/app-*.js'), 'the bundle and its three chunks');
+            $this->assertCount(1 + count(self::CHUNKS), glob(self::COMPILED.'/app-*.js'), 'the bundle and its chunks');
         } finally {
             $this->console()->call('fusion:clear');
             putenv('FUSION_FRAMEWORK');

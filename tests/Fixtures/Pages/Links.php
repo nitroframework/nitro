@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Fusion\Tests\Fixtures\Pages;
 
 use Illuminate\Support\Str;
 use Nitro\Fusion\Attributes\LazyLoad;

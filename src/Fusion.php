@@ -114,7 +114,7 @@ final class Fusion
 
         $name = $this->registry->name($class);
 
-        return $this->metas[$class] = ComponentMeta::read($class, $name, Naming::view($name, (string) $this->config('view_prefix', 'fusion')));
+        return $this->metas[$class] = ComponentMeta::read($class, $name, $this->registry->view($name), Naming::isPage($name));
     }
 
     /** Whether a component with this name exists. */
@@ -277,7 +277,7 @@ final class Fusion
      */
     public function mount(string $name, array $props = [], array $slots = []): string
     {
-        $meta = $this->meta($name);
+        $meta = $this->placeable($name);
         $component = $this->create($meta, 'f'.Str::lower(Str::random(10)), $props);
         $component->fusion()->slots = $slots;
 
@@ -287,11 +287,23 @@ final class Fusion
     /** @param  array<string, string>  $slots */
     private function mountChild(string $name, array $props, Component $parent, string $key, array $slots = []): string
     {
-        $meta = $this->meta($name);
+        $meta = $this->placeable($name);
         $component = $this->create($meta, $parent->getId().'.'.$key, $props);
         $component->fusion()->slots = $slots;
 
         return $this->renderer->render($component, $meta, $this->key(), $this->pageMemo());
+    }
+
+    /** A component placed in a view (<fusion:...>, @fusion, a dynamic component): not a page. */
+    private function placeable(string $name): ComponentMeta
+    {
+        $meta = $this->meta($name);
+
+        if ($meta->page) {
+            throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::fusion()) or rendered by controllers (Fusion::render()), not placed in views. Place a component instead.");
+        }
+
+        return $meta;
     }
 
     /**
@@ -397,6 +409,10 @@ final class Fusion
     public function render(string $component, array $props = []): Response
     {
         $meta = $this->meta($component);
+
+        if (! $meta->page) {
+            throw new InvalidArgumentException("Fusion::render() renders pages: [{$meta->name}] is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");
+        }
 
         return $this->respond($this->create($meta, 'f'.Str::lower(Str::random(10)), $props), $meta);
     }

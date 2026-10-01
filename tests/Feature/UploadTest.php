@@ -124,7 +124,7 @@ class UploadTest extends TestCase
         $envelope = $this->gallery();
 
         /** A changed or made-up snapshot. */
-        $renamed = ['state' => str_replace('"gallery"', '"wallet"', $envelope['state']), 'checksum' => $envelope['checksum']];
+        $renamed = ['state' => str_replace('"pages::gallery"', '"wallet"', $envelope['state']), 'checksum' => $envelope['checksum']];
         $this->assertNotSame($envelope['state'], $renamed['state']);
         $this->assertSame(419, $this->upload($renamed, 'photo', [$this->jpeg()])->getStatusCode());
         $this->assertSame(419, $this->upload(['state' => $envelope['state'], 'checksum' => str_repeat('0', 64)], 'photo', [$this->jpeg()])->getStatusCode());

@@ -9,8 +9,9 @@ use RecursiveIteratorIterator;
 use ReflectionClass;
 
 /**
- * Component names and classes: discovered in the configured directories (App\Fusion by
- * default), or registered by hand. `fusion:build` caches the list.
+ * Component and page names and classes: discovered in the configured directories
+ * (App\Fusion\Components and App\Fusion\Pages by default), or registered by hand. Pages are
+ * named "pages::...". `fusion:build` caches the list.
  */
 final class Registry
 {
@@ -20,13 +21,21 @@ final class Registry
     private bool $discovered = false;
 
     /**
-     * @param  list<array{namespace: string, path: string}>  $locations
+     * @param  array{namespace: string, path: string, views: string}  $componentsAt  where components are
+     * @param  array{namespace: string, path: string, views: string}  $pagesAt  where pages are
      */
-    public function __construct(private readonly array $locations, private readonly ?string $cache = null)
-    {
+    public function __construct(
+        private readonly array $componentsAt,
+        private readonly array $pagesAt,
+        private readonly ?string $cache = null,
+    ) {
     }
 
-    /** @param  class-string<Component>  $class */
+    /**
+     * A component or page by hand: a page's name starts with "pages::".
+     *
+     * @param  class-string<Component>  $class
+     */
     public function register(string $name, string $class): void
     {
         $this->components[$name] = $class;
@@ -54,13 +63,31 @@ final class Registry
             return $name;
         }
 
-        foreach ($this->locations as $location) {
+        foreach ([[$this->pagesAt, true], [$this->componentsAt, false]] as [$location, $page]) {
             if (str_starts_with($class, trim($location['namespace'], '\\').'\\')) {
-                return Naming::name($class, $location['namespace']);
+                return Naming::name($class, $location['namespace'], $page);
             }
         }
 
         return Naming::name($class, substr($class, 0, (int) strrpos($class, '\\')));
+    }
+
+    /** Whether a class is a page, from its namespace (no discovery: Route::fusion() asks while routes load). */
+    public function isPageClass(string $class): bool
+    {
+        $class = ltrim($class, '\\');
+
+        if (in_array($class, $this->components, true)) {
+            return Naming::isPage((string) array_search($class, $this->components, true));
+        }
+
+        return str_starts_with($class, trim($this->pagesAt['namespace'], '\\').'\\');
+    }
+
+    /** The view a component or page renders, from its name. */
+    public function view(string $name): string
+    {
+        return Naming::view($name, (Naming::isPage($name) ? $this->pagesAt : $this->componentsAt)['views']);
     }
 
     private function discover(): void
@@ -77,7 +104,7 @@ final class Registry
             return;
         }
 
-        foreach ($this->locations as $location) {
+        foreach ([[$this->componentsAt, false], [$this->pagesAt, true]] as [$location, $page]) {
             if (! is_dir($location['path'])) {
                 continue;
             }
@@ -93,7 +120,7 @@ final class Registry
                 $class = trim($location['namespace'], '\\').'\\'.str_replace(['/', '\\'], '\\', $relative);
 
                 if (class_exists($class) && is_subclass_of($class, Component::class) && (new ReflectionClass($class))->isInstantiable()) {
-                    $this->components[Naming::name($class, $location['namespace'])] ??= $class;
+                    $this->components[Naming::name($class, $location['namespace'], $page)] ??= $class;
                 }
             }
         }

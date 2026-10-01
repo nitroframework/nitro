@@ -156,7 +156,8 @@ class RenderingTest extends TestCase
             $this->assertStringNotContainsString('PORTAL_', $html, $url);
             $this->assertMatchesRegularExpression('#<aside id="dock"><i id="portal_dock" style="display: none !important;"></i>\s*<aside class="journal-dock">\s*<span class="dock-note">first entry</span>\s*</aside>\s*<i id="portal_dock_end"#', $html, $url);
             $this->assertMatchesRegularExpression('#<i id="portal_toasts"[^>]*></i><i id="portal_toasts_end"#', $html, $url);
-            $this->assertStringNotContainsString('journal-dock', explode('</section>', explode('fusion:name="journal"', $html)[1])[0], $url);
+            /** The component on /portals, the page on /journal. */
+            $this->assertStringNotContainsString('journal-dock', explode('</section>', preg_split('/fusion:name="(?:pages::)?journal"/', $html)[1])[0], $url);
         }
     }
 
@@ -188,8 +189,8 @@ class RenderingTest extends TestCase
             $this->assertStringContainsString('Fusion.define("'.$name.'"', $js);
         }
 
-        /** The #[LazyLoad] ones come in their chunks. */
-        foreach (['pages' => 'student-page', 'todos' => 'todo-item', 'board' => 'board'] as $group => $name) {
+        /** Pages and #[LazyLoad] components come in their chunks. */
+        foreach (['pages' => 'pages::student-page', 'todos' => 'todo-item', 'board' => 'pages::board'] as $group => $name) {
             $chunk = $this->get('/_fusion/app/'.$group.'.js');
             $this->assertSame(200, $chunk->getStatusCode());
             $this->assertStringContainsString('Fusion.define("'.$name.'"', (string) $chunk->getContent());

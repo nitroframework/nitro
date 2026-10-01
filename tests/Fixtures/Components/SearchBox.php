@@ -6,6 +6,7 @@ use Nitro\Fusion\Attributes\Modelable;
 use Nitro\Fusion\Attributes\On;
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Component;
+use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
 
 /**
  * A child bound with fusion:model (#[Modelable]), dispatching the Livewire ways: ->to() a
@@ -42,6 +43,6 @@ class SearchBox extends Component
     #[Server]
     public function announceFromServer(): void
     {
-        $this->dispatch('noted', 'from the server')->to('shelf');
+        $this->dispatch('noted', 'from the server')->to('pages::shelf');
     }
 }

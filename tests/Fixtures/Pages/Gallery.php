@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Fusion\Tests\Fixtures\Pages;
 
 use Nitro\Fusion\Attributes\Locked;
 use Nitro\Fusion\Attributes\Server;

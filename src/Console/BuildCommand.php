@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Support\Naming;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -36,9 +37,13 @@ class BuildCommand extends Command
 
         $files->put($manifest, $fusion->registry()->export());
 
+        $names = array_keys($fusion->registry()->all());
+        $pages = count(array_filter($names, Naming::isPage(...)));
+
         $this->components->info(sprintf(
-            '%d Fusion components built: %s (%s KB).',
-            count($fusion->registry()->all()),
+            '%d Fusion components and %d pages built: %s (%s KB).',
+            count($names) - $pages,
+            $pages,
             basename($path),
             number_format($files->size($path) / 1024, 1),
         ));

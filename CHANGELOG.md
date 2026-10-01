@@ -4,8 +4,17 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
-- Each `Route::fusion()` page is compiled into a chunk of its own (`split_pages`, on by default).
-  `#[LazyLoad(false)]` keeps a page in the main bundle.
+- Pages and components are separate, as in Livewire 4: pages (`App\Fusion\Pages`,
+  `fusion.pages` views, named `pages::...`) are routed or rendered by controllers and have
+  `#[Layout]` and `#[Title]`; components (`App\Fusion\Components`, `fusion.components` views) are
+  placed in views. The `components` and `pages` config entries replace `components` and
+  `view_prefix`.
+- `Fusion::render()` returns a page with props from a Laravel controller, as `Inertia::render()`.
+- `Fusion::share()` data for every component, read with `$this->shared()` on the server and in the
+  browser, and sent with pages, `fusion:navigate` visits and `#[Server]` calls.
+- A `Fusion` facade.
+- Each page is compiled into a chunk of its own, however it is reached. `#[LazyLoad(false)]`
+  keeps a page in the main bundle.
 - Changed components are rebuilt minified when esbuild is available (`minify_on_change`).
 - File uploads: `Nitro\Fusion\Upload` properties, upload progress, previews and validation errors.
 - Anonymous Blade components and `@include` in component views, compiled for the browser.

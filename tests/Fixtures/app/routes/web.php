@@ -1,17 +1,17 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Nitro\Fusion\Tests\Fixtures\Components\Board;
-use Nitro\Fusion\Tests\Fixtures\Components\Counter;
-use Nitro\Fusion\Tests\Fixtures\Components\Gallery;
-use Nitro\Fusion\Tests\Fixtures\Components\Greeting;
-use Nitro\Fusion\Tests\Fixtures\Components\Journal;
-use Nitro\Fusion\Tests\Fixtures\Components\Links;
-use Nitro\Fusion\Tests\Fixtures\Components\Panels;
-use Nitro\Fusion\Tests\Fixtures\Components\Shelf;
-use Nitro\Fusion\Tests\Fixtures\Components\Showcase;
-use Nitro\Fusion\Tests\Fixtures\Components\StudentPage;
 use Nitro\Fusion\Tests\Fixtures\Http\RenderController;
+use Nitro\Fusion\Tests\Fixtures\Pages\Board;
+use Nitro\Fusion\Tests\Fixtures\Pages\Counter;
+use Nitro\Fusion\Tests\Fixtures\Pages\Gallery;
+use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
+use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
+use Nitro\Fusion\Tests\Fixtures\Pages\Links;
+use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
+use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
+use Nitro\Fusion\Tests\Fixtures\Pages\Showcase;
+use Nitro\Fusion\Tests\Fixtures\Pages\StudentPage;
 
 Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
 Route::fusion('/counter', Counter::class)->name('counter');

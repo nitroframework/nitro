@@ -43,7 +43,7 @@ class NavigationTest extends TestCase
         $this->assertSame([], $page['children']);
 
         $state = $this->state($page['snapshot']);
-        $this->assertSame('student-page', $state['name']);
+        $this->assertSame('pages::student-page', $state['name']);
         $this->assertSame('Ada Lovelace', $state['data']['student']['name']);
         $this->assertSame(['method' => 'GET', 'uri' => '/students/1'], $state['memo']['route']);
 

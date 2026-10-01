@@ -20,20 +20,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Components
+    | Components and Pages
     |--------------------------------------------------------------------------
     |
-    | Where components are discovered. App\Fusion\Students\StudentForm is named
-    | "students.student-form" and renders the view
-    | "{view_prefix}.students.student-form".
+    | Components are placed in views: App\Fusion\Components\Students\Table is
+    | <fusion:students.table /> and renders "fusion.components.students.table".
+    |
+    | Pages are whole screens, routed with Route::fusion() or returned by a
+    | controller with Fusion::render(): App\Fusion\Pages\Students\Index is
+    | "pages::students.index" and renders "fusion.pages.students.index".
     |
     */
 
     'components' => [
-        ['namespace' => 'App\\Fusion', 'path' => app_path('Fusion')],
+        'namespace' => 'App\\Fusion\\Components',
+        'path' => app_path('Fusion/Components'),
+        'views' => 'fusion.components',
     ],
 
-    'view_prefix' => 'fusion',
+    'pages' => [
+        'namespace' => 'App\\Fusion\\Pages',
+        'path' => app_path('Fusion/Pages'),
+        'views' => 'fusion.pages',
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -120,12 +129,11 @@ return [
     | minify_on_change is on (readable if esbuild cannot run), readable when
     | it is off. Only the current version's files are kept.
     |
-    | split_pages: each Route::fusion() page is a chunk of its own, loaded
-    | when the page is first visited (as Next.js and Nuxt split by page), so
-    | app.js stays small however many pages there are: it keeps the runtime
-    | glue, the shared (non-page) components and the PHP functions they use.
-    | #[LazyLoad(false)] keeps a page in app.js; #[LazyLoad('group')] puts
-    | pages that go together in one chunk.
+    | Each page is a chunk of its own, loaded when the page is first visited
+    | (as Next.js and Nuxt split by page), so app.js stays small however many
+    | pages there are: it keeps the components pages share and the PHP
+    | functions they use. #[LazyLoad(false)] keeps a page in app.js;
+    | #[LazyLoad('group')] puts pages that go together in one chunk.
     |
     | esbuild: the Node binary, and the directory whose node_modules has
     | esbuild (the application's own, normally).
@@ -135,8 +143,6 @@ return [
     'compiled' => storage_path('framework/fusion'),
 
     'minify_on_change' => env('FUSION_MINIFY_ON_CHANGE', true),
-
-    'split_pages' => env('FUSION_SPLIT_PAGES', true),
 
     'esbuild' => [
         'node' => env('FUSION_NODE', 'node'),
