@@ -4,6 +4,23 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- `fusion:visible="method"` calls a method when its element comes into view (`.once`, `.200px`).
+
+- `#[Remember]` properties: kept in the history entry, brought back by back, forward and reload.
+
+- Partial reloads: `$this->reload('orders')` and `$reload('orders')` reload page properties from
+  the page's route or controller. Closure props of `Fusion::render()` are called only when
+  needed. Deferred properties load as a partial reload.
+
+- Deferred page properties: `$this->defer()` in `mount()` and `Fusion::defer()` props, loaded
+  after the page is shown, with `@deferred` / `@placeholder` in views.
+
+- A `fusion:navigate` visit from an older build is answered with `409` and `X-Fusion-Location`,
+  and the browser loads the page in full with the new assets.
+- Back and forward restore each page's scroll position; `fusion:navigate.preserve-scroll` keeps
+  the current one.
+- `assertFusion()` and `fusionState()` on test responses, as `assertInertia()`.
+
 - Pages and components are separate, as in Livewire 4: pages (`App\Fusion\Pages`,
   `fusion.pages` views, named `pages::...`) are routed or rendered by controllers and have
   `#[Layout]` and `#[Title]`; components (`App\Fusion\Components`, `fusion.components` views) are

@@ -895,7 +895,8 @@ final class Transpiler
         /** Globals::COMPONENT_METHODS */
         return match ($name) {
             'dispatch' => '$this.$dispatch('.$this->dispatchArgs($e->args, $e).')',
-            'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e), $e->args)).'])',
+            'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reset()'), $e->args)).'])',
+            'reload' => '$this.$reload(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reload()'), $e->args)).'])',
             'redirect' => '$this.$redirect('.implode(', ', $this->args($e->args)).')',
             'js' => '$this.$js('.implode(', ', $this->args($e->args)).')',
             'shared' => 'B.shared('.implode(', ', $this->args($e->args)).')',
@@ -1003,10 +1004,10 @@ final class Transpiler
         return $name.', '.($named !== [] ? 'P.arrayLiteral(['.implode(', ', $named).'])' : '['.implode(', ', $positional).']');
     }
 
-    private function propertyName(Arg $arg, Node $node): string
+    private function propertyName(Arg $arg, Node $node, string $method): string
     {
         if (! $arg->value instanceof Scalar\String_ || ! $this->scope->isProperty($arg->value->value)) {
-            throw $this->error('reset() takes the names of public properties', $node);
+            throw $this->error("{$method} takes the names of public properties", $node);
         }
 
         return $this->string($arg->value->value);
@@ -1640,6 +1641,10 @@ final class Transpiler
             return '$this.$refresh()';
         }
 
+        if ($e instanceof Expr\Variable && $e->name === 'reload') {
+            return '$this.$reload([])';
+        }
+
         if ($e instanceof Expr\FuncCall && $e->name instanceof Name && ! str_contains($e->name->toString(), '\\')) {
             $e = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($e->name->toString()), $e->args, $e->getAttributes());
         }
@@ -1657,7 +1662,7 @@ final class Transpiler
         return $this->methodCall($e);
     }
 
-    /** $set, $toggle, $refresh, $dispatch (Globals::ACTIONS). */
+    /** $set, $toggle, $refresh, $reload, $dispatch (Globals::ACTIONS). */
     private function magicAction(string $name, Expr\FuncCall $e): string
     {
         if (! array_key_exists($name, Globals::ACTIONS)) {
@@ -1684,6 +1689,7 @@ final class Transpiler
         $args = match ($name) {
             'set' => [$this->propertyPath($e->args[0], $e), $this->expr($e->args[1]->value)],
             'toggle' => [$this->propertyPath($e->args[0], $e)],
+            'reload' => ['['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, '$reload'), $e->args)).']'],
             'dispatch' => [$this->dispatchArgs($e->args, $e)],
             default => [],
         };

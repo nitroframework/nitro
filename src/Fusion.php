@@ -7,6 +7,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -28,6 +29,15 @@ final class Fusion
 {
     /** Sent by the browser's fusion:navigate visits: the page answers with data, not HTML. */
     public const NAVIGATE_HEADER = 'X-Fusion-Navigate';
+
+    /** Sent with fusion:navigate visits: the version of the components the browser runs. */
+    public const VERSION_HEADER = 'X-Fusion-Version';
+
+    /** Sent when a page reloads its properties (deferred ones, $this->reload()): the id it has in the browser. */
+    public const PARTIAL_HEADER = 'X-Fusion-Partial';
+
+    /** With a partial reload: the properties it wants, comma-separated (all of them when absent). */
+    public const ONLY_HEADER = 'X-Fusion-Only';
 
     /** @var array<class-string, ComponentMeta> */
     private array $metas = [];
@@ -385,7 +395,7 @@ final class Fusion
     public function page(Component $component, array $parameters): Response
     {
         $meta = $this->meta($component::class);
-        $component->fusion()->id = 'f'.Str::lower(Str::random(10));
+        $component->fusion()->id = $this->pageId();
         $component->fusion()->name = $meta->name;
         Hooks::call($component, 'boot');
         $this->applyUrl($component, $meta);
@@ -401,7 +411,8 @@ final class Fusion
     /**
      * A page from a controller, as Inertia::render() returns one: the component created with the
      * props (mount()'s arguments by name, or its public properties when it has no mount()), then
-     * answered as a Route::fusion() page is, fusion:navigate visits included.
+     * answered as a Route::fusion() page is, fusion:navigate visits included. A Fusion::defer()
+     * prop sets its public property after the page is shown.
      *
      * @param  string  $component  the component's class or name
      * @param  array<string, mixed>  $props
@@ -414,7 +425,97 @@ final class Fusion
             throw new InvalidArgumentException("Fusion::render() renders pages: [{$meta->name}] is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");
         }
 
-        return $this->respond($this->create($meta, 'f'.Str::lower(Str::random(10)), $props), $meta);
+        $deferred = array_filter($props, fn (mixed $value) => $value instanceof Deferred);
+        $props = array_diff_key($props, $deferred);
+
+        /** A closure prop is called when the page needs it: a partial reload skips those it does not want (pages without mount()). */
+        foreach ($props as $prop => $value) {
+            if ($value instanceof Closure) {
+                if (! $meta->hasMount && ! $this->wants((string) $prop)) {
+                    unset($props[$prop]);
+                } else {
+                    $props[$prop] = $this->app->call($value);
+                }
+            }
+        }
+
+        $page = $this->create($meta, $this->pageId(), $props);
+
+        foreach ($deferred as $property => $value) {
+            $this->deferProperty($page, (string) $property, $value->value);
+        }
+
+        return $this->respond($page, $meta);
+    }
+
+    /**
+     * A prop for Fusion::render() loaded after the page is shown, as Inertia::defer(): the browser
+     * asks for it right away, and @deferred / @placeholder show something meanwhile.
+     */
+    public function defer(Closure $value): Deferred
+    {
+        return new Deferred($value);
+    }
+
+    /**
+     * A page property loaded after the page is shown ($this->defer(), Fusion::defer()): set when
+     * a partial reload wants it; left as it is otherwise, and named in the snapshot for the
+     * browser to ask for (a partial reload that does not want it leaves it alone).
+     *
+     * @internal
+     */
+    public function deferProperty(Component $page, string $property, Closure $value): void
+    {
+        $meta = $this->meta($page::class);
+
+        if (! $meta->page) {
+            throw new InvalidArgumentException("Only pages defer properties: [{$meta->name}] is a component.");
+        }
+
+        if ($meta->property($property) === null) {
+            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to defer.");
+        }
+
+        if ($this->partial() === null) {
+            $page->fusion()->deferred[] = $property;
+        } elseif ($this->wants($property)) {
+            $page->{$property} = $this->app->call($value);
+        }
+    }
+
+    /**
+     * A page reloading its properties in the browser (X-Fusion-Partial): the ones it wants, an
+     * empty list for all of them. Null for any other request.
+     *
+     * @return list<string>|null
+     */
+    public function partial(): ?array
+    {
+        $request = $this->app->bound('request') ? $this->app->make('request') : null;
+
+        if (! $request instanceof Request || ! $request->headers->has(self::NAVIGATE_HEADER) || ! $request->headers->has(self::PARTIAL_HEADER)) {
+            return null;
+        }
+
+        $only = array_map('trim', explode(',', (string) $request->headers->get(self::ONLY_HEADER, '')));
+
+        return array_values(array_filter($only, fn (string $name) => preg_match('/^\w+$/', $name) === 1));
+    }
+
+    /** Whether the request needs the page property: any request but a partial reload of others. */
+    public function wants(string $property): bool
+    {
+        $only = $this->partial();
+
+        return $only === null || $only === [] || in_array($property, $only, true);
+    }
+
+    /** A new page's id; on a partial reload, the one it has in the browser. */
+    private function pageId(): string
+    {
+        $id = $this->partial() !== null ? (string) $this->app->make('request')->headers->get(self::PARTIAL_HEADER) : '';
+
+        return preg_match('/^f[a-z0-9]{10}$/', $id) === 1 ? $id : 'f'.Str::lower(Str::random(10));
     }
 
     /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
@@ -424,7 +525,16 @@ final class Fusion
         $layoutData = [...($meta->layout->data ?? []), 'title' => $meta->title];
 
         /** The same URL answers with HTML or with page data: caches must keep them apart. */
-        if ($this->app->make('request')->headers->has(self::NAVIGATE_HEADER)) {
+        $request = $this->app->make('request');
+
+        if ($request->headers->has(self::NAVIGATE_HEADER)) {
+            /** The browser runs another build's components (a deploy since it loaded): load the page in full. */
+            $version = $request->headers->get(self::VERSION_HEADER);
+
+            if ($version !== null && $version !== $this->app->make(Build\Bundle::class)->tag()) {
+                return (new HttpResponse('', 409, ['X-Fusion-Location' => $request->fullUrl()]))->setVary(self::NAVIGATE_HEADER, false);
+            }
+
             return $this->pageData($component, $meta, $layout, $layoutData)->setVary(self::NAVIGATE_HEADER, false);
         }
 

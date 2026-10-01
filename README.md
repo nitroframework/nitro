@@ -119,6 +119,10 @@ removes the compiled files.
   component), `$refs` (its `fusion:ref` elements) and `$el`.
 - **`#[Url]`** keeps a property in the query string (`as`, `history`, `keep`, `except`): it is
   read before `mount()` and follows the property in the browser.
+- **`#[Remember]`** keeps a property in the browser's history entry, as Inertia's `useRemember`:
+  back, forward and a reload bring back the value it had there, such as a half-filled form,
+  instead of the one the page starts with. Components are told apart by name and position on the
+  page. Not for `#[Locked]` properties, models or uploads.
 - **`#[Modelable]`** on one property lets a parent bind it: `<fusion:search-box fusion:model="query" />`.
 - `$this->reset('prop')`, `$this->redirect($url)` and, on the server, `$this->validate([...])`
   (failures show up as `$errors`).
@@ -137,6 +141,7 @@ and in the browser through its compiled form, so it uses what both can do:
 | Children | `<fusion:task-item :task="$task" :key="$task['id']" />`; `<fusion:dynamic-component :is="$name" />` renders the component `$name` names (another one when it changes, none for `''`) |
 | Slots | `<fusion:card>...<fusion:slot name="footer">...</fusion:slot></fusion:card>`; the card's view puts `{{ $slot }}`, `{{ $slots['footer'] }}` (`$slots->has('footer')`, `$slot->isEmpty()`). The content is the parent's: its state, variables and handlers |
 | Teleport | `@teleport('modals') ... @endteleport` renders at `@portal('modals')` in the layout (Viewi's portals), on the server and in the browser |
+| Deferred | `@deferred('stats') ... @placeholder ... @enddeferred` in a page: its content once the deferred properties are loaded, the placeholder meanwhile (see Pages) |
 | Laravel | `route()`, `url()`, `asset()`, `__()` / `trans()`, `config()` (keys listed in `fusion.public_config`): the page ships what they name |
 | PHP | Operators, casts and PHP's functions as PHP does them (tested against PHP): strings and mbstring, arrays, math, ctype, URLs, HTML entities, `preg_*`, `sprintf`, `json_encode`, ... A bundle has those its components call |
 | Str | Laravel's `Str::` helpers (`slug`, `limit`, `title`, `headline`, `camel`, `snake`, `mask`, `is`, `replace`, `squish`, ... 54 of them), tested against Laravel's own |
@@ -148,16 +153,17 @@ fails the build with the file and line.
 
 | Attribute | |
 | --- | --- |
-| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$dispatch('event')`). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
+| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` in a page, `$dispatch('event')`). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
 | `fusion:model="email"` | Two-way binding (`.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`); a dotted path binds a key: `fusion:model="form.email"` |
 | `fusion:loading` | Shown while a `#[Server]` call runs (`.remove`, `.class="..."`, `.attr="disabled"`, with `fusion:target="save"`) |
 | `fusion:key` | Keeps an element's identity in lists |
-| `fusion:navigate` | A link to another page, rendered in the browser (see Pages). `.keypress` starts the visit as the mouse button goes down rather than on the click (touch and keyboard keep the click) |
+| `fusion:navigate` | A link to another page, rendered in the browser (see Pages). `.keypress` starts the visit as the mouse button goes down rather than on the click (touch and keyboard keep the click); `.preserve-scroll` keeps the scroll position |
 | `fusion:current="active"` | A class while the link points at the current page |
 | `fusion:ignore` | Leave this element as it is on re-render |
 | `fusion:confirm="Delete it?"` | Ask (the browser's dialog) before the element's handlers run; `.prompt="Type DELETE to confirm\|DELETE"` asks for the word after the last `\|` |
 | `fusion:poll.30s="refresh"` | Call a method (browser or `#[Server]`) every interval, 2.5s by default; a bare `fusion:poll` refreshes. It waits while the tab is hidden (`.keep-alive`: it does not), `.visible` polls only while the element is on screen, and it stops when the element leaves the page |
 | `fusion:init="load"` | Call a method once, when the element appears |
+| `fusion:visible="loadMore"` | Call a method (browser or `#[Server]`) when the element comes into view: `.once` the first time only, `.200px` that far before. While it stays in view, it is called again after each call that changed something, so a "load more" at the end of a list loads until the list fills the screen; wrap it in `@if ($hasMore)` to stop |
 | `fusion:ref="name"` | The element as `$refs.name` in `$this->js()` |
 
 ## Uploads
@@ -237,6 +243,71 @@ from the container), or, when it has no `mount()`, its public properties. The pa
 exactly as a `Route::fusion()` page: in its layout on the first visit, as page data for
 `fusion:navigate` visits.
 
+### Deferred properties
+
+A page can show first and load slow data right after, as Inertia's deferred props. In `mount()`:
+
+```php
+public ?array $stats = null;
+
+public function mount(): void
+{
+    $this->defer('stats', fn () => Order::stats());
+}
+```
+
+From a controller, the prop names a public property of the page:
+
+```php
+return Fusion::render(Overview::class, [
+    'orders' => $orders,
+    'stats' => Fusion::defer(fn () => Order::stats()),
+]);
+```
+
+The page is rendered without them, then asks its own URL for them (a partial reload, below): the
+route runs again and the closures are called. In the view, `@deferred` shows its content once the
+properties are loaded, and `@placeholder` meanwhile. Without names, it waits for all of them.
+
+```blade
+@deferred('stats')
+    <x-stats :stats="$stats" />
+@placeholder
+    <p>Loading…</p>
+@enddeferred
+```
+
+The page can be used while they load; what changes meanwhile is kept. Only pages defer properties.
+
+### Partial reloads
+
+A page can reload some of its properties from its route or controller, as Inertia's partial
+reloads: `$this->reload('orders')` in a browser method or after a `#[Server]` call, or
+`$reload('orders')` in a handler.
+
+```php
+#[Server]
+public function add(string $item): void
+{
+    Order::create(['item' => $item]);
+    $this->reload('orders');
+}
+```
+
+The page asks its URL again (`X-Fusion-Partial`, `X-Fusion-Only: orders`) and takes the named
+properties from the answer; the others keep their values in the browser. Without names, every
+property takes the value the route gives it, including what was typed.
+
+A closure prop of `Fusion::render()` is called only when it is needed: on a partial reload, only
+the props it names (for pages without `mount()`, whose props set their properties).
+
+```php
+return Fusion::render(Orders::class, [
+    'orders' => fn () => Order::latest()->get()->toArray(),
+    'total' => fn () => Order::sum('amount'),
+]);
+```
+
 ### Shared data
 
 `Fusion::share()` gives every component and page the same data, as Inertia's shared props:
@@ -263,11 +334,40 @@ redirects), the page runs `mount()` and answers with its signed state and title,
 renders the compiled component in place of the current page. The layout, and the components in
 it, stay. A page in another layout, or a URL that is not a Fusion page, loads normally.
 
+A visit scrolls to the top, or to the URL's `#fragment`; `fusion:navigate.preserve-scroll` keeps
+the current position. Back and forward return to where each page was left.
+
+Each visit sends the bundle's version (`X-Fusion-Version`). When the application has been
+deployed with a new build since the page was loaded, the server answers `409` with
+`X-Fusion-Location`, and the browser loads that URL in full, with the new assets.
+
 While a visit loads, an [NProgress](https://ricostacruz.com/nprogress) bar runs at the top of the
 window. `php artisan vendor:publish --tag=nprogress-config` gives `config/nprogress.php`: `show`,
 `color`, `height`, `position`, the glow and spinner and their sizes, `delay` (ms before it
 appears), NProgress's motion options, and `server_calls` to show it during `#[Server]` calls too.
 The runtime also emits `fusion:request` and `fusion:response` around each `#[Server]` call.
+
+### Testing pages
+
+`assertFusion()` reads the page from a response, whether rendered in full or answered to a
+`fusion:navigate` visit, and asserts on its name and state (its public properties, as the browser
+receives them). Keys use dot notation.
+
+```php
+use Nitro\Fusion\Testing\AssertableFusion;
+
+$this->get('/orders')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+    ->page('pages::orders.index')
+    ->has('orders', 12)
+    ->where('orders.0.status', 'new')
+    ->where('total', fn ($total) => $total > 0)
+    ->missing('secret')
+    ->deferred('stats'));
+
+$orders = $this->get('/orders')->fusionState('orders');
+```
+
+`deferred()` asserts the page leaves the properties for later; `notDeferred()`, that it does not.
 
 ## Caveats
 

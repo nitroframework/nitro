@@ -98,7 +98,10 @@ export class Runtime {
             created.forEach((component) => component.hydrate());
             /** mounted() once they are all live (a child's is there for its parent's). */
             created.forEach((component) => component.hook('mounted'));
+            created.forEach((component) => this.loadDeferred(component));
             this.navigator.current();
+            /** A reload: what #[Remember] properties had in this history entry. */
+            this.restoreRemembered(this.window.history.state?.fusionRemember);
         };
 
         /** @fusionScripts loads the chunks of the page it renders; this is for any it could not know of. */
@@ -137,6 +140,7 @@ export class Runtime {
         }
 
         const component = new Component(this, definition, el, state.id, state.name, state.data, envelope, state.errors);
+        component.deferred = new Set(state.deferred);
         this.instances.set(state.id, component);
         return component;
     }
@@ -267,6 +271,7 @@ export class Runtime {
         component.slots = slots ?? {};
         component.parent = links.parent ?? null;
         component.model = links.model ?? null;
+        component.deferred = new Set(state.deferred ?? []);
         const made = component.create((root) => {
             root.setAttribute('fusion:id', state.id);
             root.setAttribute('fusion:name', state.name);
@@ -276,7 +281,60 @@ export class Runtime {
         });
         if (!made) return null;
         component.hook('mounted');
+        this.loadDeferred(component);
         return component;
+    }
+
+    /**
+     * #[Remember]: the remembered properties of the components on the page, by component (its
+     * name and its place among those of that name); null when there are none.
+     */
+    remembered() {
+        const saved = {};
+        for (const [key, component] of this.rememberKeys()) {
+            const values = {};
+            for (const [name, prop] of Object.entries(component.definition.props)) {
+                if (prop.remember) values[name] = P.encode(component.data.get(name) ?? null);
+            }
+            if (Object.keys(values).length > 0) saved[key] = values;
+        }
+        return Object.keys(saved).length > 0 ? saved : null;
+    }
+
+    /** #[Remember]: the values the history entry kept, back in the components they belong to. */
+    restoreRemembered(saved) {
+        if (!saved || typeof saved !== 'object') return;
+        for (const [key, component] of this.rememberKeys()) {
+            for (const [name, value] of Object.entries(saved[key] ?? {})) {
+                const prop = component.definition.props[name];
+                if (prop?.remember) component.write(name, P.decode(value), prop);
+            }
+        }
+    }
+
+    /** @returns {Array<[string, Component]>} each component on the page with its key: "name#n" */
+    rememberKeys() {
+        const seen = new Map();
+        return this.components().filter((component) => !component.destroyed).map((component) => {
+            const n = seen.get(component.name) ?? 0;
+            seen.set(component.name, n + 1);
+            return [`${component.name}#${n}`, component];
+        });
+    }
+
+    /** A page with deferred properties asks for them once it is shown. */
+    loadDeferred(component) {
+        if (component.deferred.size > 0) this.network.reload(component, [...component.deferred], true).catch(() => {});
+    }
+
+    /** $reload / $this->reload(): a page's properties, from its route or controller (all of them when none are named). */
+    reload(component, only = []) {
+        if (!component.name.startsWith('pages::')) {
+            const error = new Error(`Fusion: [${component.name}] is a component; only pages reload their properties`);
+            this.report(component, error);
+            return Promise.reject(error);
+        }
+        return this.network.reload(component, only.map(P.toStr));
     }
 
     /**
@@ -338,6 +396,7 @@ export class Runtime {
         for (const code of effects.js ?? []) {
             component.js(code);
         }
+        if (effects.reload) this.reload(component, effects.reload.only).catch(() => {});
         if (effects.redirect) {
             effects.redirect.navigate ? this.navigator.visit(effects.redirect.url) : (this.window.location.href = effects.redirect.url);
         }

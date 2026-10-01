@@ -24,7 +24,14 @@ export function readState(envelope) {
         id: get('id'),
         data: data instanceof Map ? data : new Map(),
         errors: new ErrorBag(memo instanceof Map ? memo.get('errors') ?? null : null),
+        /** A page's properties loaded after it is shown ($this->defer()). */
+        deferred: memo instanceof Map ? P.entries(memo.get('deferred') ?? []).map(([, name]) => name) : [],
     };
+}
+
+/** Two PHP values are the same (as encoded: types count). */
+function sameValue(a, b) {
+    return a === b || JSON.stringify(P.encode(a ?? null)) === JSON.stringify(P.encode(b ?? null));
 }
 
 export class Component {
@@ -45,6 +52,8 @@ export class Component {
         this.snapshot = snapshot;
         this.serverData = new Map(data);
         this.errors = errors ?? new ErrorBag();
+        /** Its deferred properties not loaded yet (a page's: Network::deferred()). */
+        this.deferred = new Set();
         /** element => (event => {event, modifiers, fn}): its fusion:<event> handlers */
         this.handlers = new WeakMap();
         /** The event types it has handlers for. */
@@ -64,6 +73,8 @@ export class Component {
         this.model = null;
         this.scheduled = false;
         this.destroyed = false;
+        /** Renders of what changed so far (fusion:visible: whether a call changed anything). */
+        this.renders = 0;
         this.ctx = this.context();
         this.view = this.createView();
     }
@@ -97,6 +108,9 @@ export class Component {
             $toggle: (path) => self.setPath(path, !P.bool(self.getPath(path))),
             $refresh: () => self.definition.server.length ? self.runtime.network.call(self, null, []) : self.render(),
             $js: (code) => self.js(code),
+            $reload: (names) => self.runtime.reload(self, names),
+            /** @deferred: whether any of the properties (any, when none are named) is still loading. */
+            $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
         });
         Object.defineProperty(ctx, '$errors', { get: () => self.errors });
         /** $slots->has('footer') and $slot->isEmpty() in its view. */
@@ -244,11 +258,17 @@ export class Component {
         const dirty = this.dirty;
         if (dirty.size > 0) {
             this.dirty = new Set();
+            this.renders++;
             this.rendering(() => this.view.update(dirty) || this.rebuild());
 
             /** #[Url] properties that changed go to the query string. */
             if ([...dirty].some((name) => this.definition.props[name]?.url)) {
                 this.runtime.navigator.syncUrl(this, dirty);
+            }
+
+            /** #[Remember] properties that changed go to the history entry. */
+            if ([...dirty].some((name) => this.definition.props[name]?.remember)) {
+                this.runtime.navigator.remember();
             }
         }
         this.runJs();
@@ -367,14 +387,13 @@ export class Component {
      */
     applySnapshot(envelope, sent) {
         const { data, errors } = readState(envelope);
-        const same = (a, b) => a === b || JSON.stringify(P.encode(a ?? null)) === JSON.stringify(P.encode(b ?? null));
         const fresh = new Map();
 
         for (const [name, value] of data) {
             const current = this.data.get(name);
             if (this.data.has(name) && sent.get(name) !== current) {
                 fresh.set(name, current);
-            } else if (same(current, value)) {
+            } else if (sameValue(current, value)) {
                 fresh.set(name, current);
             } else {
                 fresh.set(name, value);
@@ -393,6 +412,35 @@ export class Component {
         const modelChanged = modelable && this.dirty.has(modelable);
         this.update();
         /** The server changed what fusion:model binds: the parent follows. */
+        if (modelChanged) this.modelChanged(modelable);
+    }
+
+    /**
+     * The state after a partial reload ($reload): the named properties (all, when none are named)
+     * and the locked ones take the server's values, unless changed here while it ran; the others
+     * keep the values here, which the next #[Server] call sends as updates.
+     */
+    applyReload(envelope, only, sent) {
+        const { data } = readState(envelope);
+        const fresh = new Map(this.data);
+
+        for (const [name, value] of data) {
+            const current = this.data.get(name);
+            const wanted = only.length === 0 || only.includes(name) || this.definition.props[name]?.locked;
+            const changedHere = this.data.has(name) && sent.get(name) !== current;
+            if (wanted && !changedHere && !sameValue(current, value)) {
+                fresh.set(name, value);
+                this.dirty.add(name);
+            }
+        }
+
+        this.snapshot = envelope;
+        this.serverData = new Map(data);
+        this.data = fresh;
+        this.memo.clear();
+        const modelable = this.definition.modelable;
+        const modelChanged = modelable && this.dirty.has(modelable);
+        this.update();
         if (modelChanged) this.modelChanged(modelable);
     }
 

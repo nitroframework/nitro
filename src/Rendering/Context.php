@@ -36,8 +36,27 @@ final class Context
     /** @var list<string> JavaScript for the browser to run once it has the state ($this->js()) */
     public array $js = [];
 
+    /** @var list<string>|null the page properties for the browser to reload after a #[Server] call (all of them: []) */
+    public ?array $reload = null;
+
+    /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
+    public array $deferred = [];
+
     public function __construct()
     {
         $this->errors = new MessageBag;
+    }
+
+    /**
+     * Whether any of the properties is still to be loaded (any deferred property, when none are
+     * given): @deferred's condition.
+     *
+     * @param  list<string>  $properties
+     */
+    public function deferring(array $properties = []): bool
+    {
+        return $properties === []
+            ? $this->deferred !== []
+            : array_intersect($properties, $this->deferred) !== [];
     }
 }

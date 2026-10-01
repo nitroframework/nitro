@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Facade;
 
 /**
  * @method static \Symfony\Component\HttpFoundation\Response render(string $component, array $props = [])
+ * @method static \Nitro\Fusion\Deferred defer(\Closure $value)
  * @method static void share(string|array $key, mixed $value = null)
  * @method static mixed shared(?string $key = null, mixed $default = null)
  * @method static string mount(string $name, array $props = [], array $slots = [])

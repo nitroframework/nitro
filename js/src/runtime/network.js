@@ -24,6 +24,75 @@ export class Network {
         return next;
     }
 
+    /**
+     * Reload a page's properties from its route or controller, as Inertia's partial reloads ($reload,
+     * $this->reload(), and its deferred properties once it is shown): the page's URL asked again
+     * for its data (X-Fusion-Partial: its id; X-Fusion-Only: the properties, all when none), then
+     * the named properties taken from it. In the component's queue, after the calls before it.
+     */
+    reload(component, only = [], deferred = false) {
+        const previous = this.queues.get(component) ?? Promise.resolve();
+        const next = previous.catch(() => {}).then(() => this.load(component, only, deferred));
+        next.catch((error) => this.runtime.report(component, error));
+        this.queues.set(component, next);
+        return next;
+    }
+
+    async load(component, only, deferred) {
+        if (component.destroyed) return;
+        const window = this.runtime.window;
+        const sent = new Map(component.data);
+        const headers = {
+            Accept: 'application/json',
+            'X-Fusion-Navigate': '1',
+            'X-Fusion-Partial': component.id,
+            'X-Fusion-Version': this.config.bundle ?? '',
+        };
+        if (only.length > 0) headers['X-Fusion-Only'] = only.join(',');
+
+        if (!deferred) this.runtime.loading(component, '$reload', true);
+        let response;
+        try {
+            response = await fetch(window.location.href, { credentials: 'same-origin', headers });
+        } catch (error) {
+            throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
+        } finally {
+            if (!deferred) this.runtime.loading(component, '$reload', false);
+        }
+        if (component.destroyed) return;
+
+        /** Deployed since the page loaded: load it in full, with the new components. */
+        if (response.status === 409) {
+            window.location.href = response.headers.get('X-Fusion-Location') || window.location.href;
+            return;
+        }
+
+        const text = await response.text();
+        let page = null;
+        try {
+            page = JSON.parse(text);
+        } catch {
+            // reported below
+        }
+        if (!response.ok || page?.fusion !== 1) {
+            throw new ServerCallError(`$reload: the server answered ${response.status}`, response.status, text);
+        }
+        if (component.destroyed) return;
+
+        if (page.shared !== undefined) this.runtime.setShared(page.shared, component);
+        if (deferred) {
+            only.forEach((name) => component.deferred.delete(name));
+            component.dirty.add('$deferred');
+        }
+        /** Children with mount() the reloaded data places: made by the server, with the page. */
+        this.runtime.provided = new Map(Object.entries(page.children ?? {}));
+        try {
+            component.applyReload(page.snapshot, only, sent);
+        } finally {
+            this.runtime.provided.clear();
+        }
+    }
+
     async send(component, method, args) {
         if (component.destroyed) return null;
         const sent = new Map(component.data);

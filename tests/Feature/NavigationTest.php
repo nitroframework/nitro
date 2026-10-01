@@ -131,4 +131,30 @@ class NavigationTest extends TestCase
 
         $this->assertSame(404, $this->visit('/students/99')->getStatusCode());
     }
+
+    /** After a deploy, a browser running the earlier build's components loads the page in full. */
+    #[DataProvider('frameworks')]
+    public function test_a_visit_from_another_build_is_answered_with_a_full_load(string $framework): void
+    {
+        $this->boot($framework);
+        $tag = $this->app->make(\Nitro\Fusion\Build\Bundle::class)->tag();
+        /** Each request its own, as in production. */
+        $visit = fn (string $version) => tap($this->request('GET', '/students/1?tab=info', [
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_X_FUSION_NAVIGATE' => '1',
+            'HTTP_X_FUSION_VERSION' => $version,
+        ]), fn () => $this->app->forgetScopedInstances());
+
+        $current = $visit($tag);
+        $this->assertSame(200, $current->getStatusCode());
+        $this->assertSame(1, $this->json($current)['fusion']);
+
+        $stale = $visit('an-earlier-build');
+        $this->assertSame(409, $stale->getStatusCode());
+        $this->assertSame('http://localhost/students/1?tab=info', $stale->headers->get('X-Fusion-Location'));
+        $this->assertContains('X-Fusion-Navigate', $stale->getVary());
+
+        /** Without the header (not the runtime's visit) there is nothing to compare. */
+        $this->assertSame(200, $this->visit('/students/1')->getStatusCode());
+    }
 }

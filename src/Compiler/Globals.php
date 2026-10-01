@@ -36,12 +36,13 @@ final class Globals
 
     /**
      * Actions a handler can call without a method on the component, and their arity.
-     *   $set('prop', value)  $toggle('prop')  $refresh  $dispatch('event', ...)
+     *   $set('prop', value)  $toggle('prop')  $refresh  $reload('prop', ...)  $dispatch('event', ...)
      */
     public const ACTIONS = [
         'set' => 2,
         'toggle' => 1,
         'refresh' => 0,
+        'reload' => null,
         'dispatch' => null,
         'dispatchTo' => null,
         'dispatchSelf' => null,
@@ -50,20 +51,21 @@ final class Globals
     /**
      * Methods Fusion gives every component, usable from browser code:
      *   $this->dispatch('event', ...$params)  $this->reset('prop', ...)  $this->redirect($url)
-     *   $this->js('$refs.search.focus()')  $this->shared('auth.user.name', $default)
+     *   $this->js('$refs.search.focus()')  $this->shared('auth.user.name', $default)  $this->reload('orders')
      */
-    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared'];
+    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'reload'];
 
     /** fusion: attributes that are not events (the runtime reads them from the DOM). */
     public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref'];
 
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
-     * fusion:navigate.keypress starts the visit on mouse down, fusion:current.exact matches the
-     * path only, fusion:confirm.prompt asks for a word to be typed.
+     * fusion:navigate.keypress starts the visit on mouse down, fusion:navigate.preserve-scroll
+     * keeps the scroll position, fusion:current.exact matches the path only,
+     * fusion:confirm.prompt asks for a word to be typed.
      */
     public const ATTRIBUTE_MODIFIERS = [
-        'navigate' => ['keypress'],
+        'navigate' => ['keypress', 'preserve-scroll'],
         'current' => ['exact'],
         'confirm' => ['prompt'],
     ];
@@ -71,11 +73,13 @@ final class Globals
     /**
      * Handlers that no DOM event starts, compiled like fusion:<event> (with the modifiers each
      * takes): fusion:poll.5s="refreshStats" calls it every interval (a bare fusion:poll
-     * refreshes), fusion:init="load" once when its element appears.
+     * refreshes), fusion:init="load" once when its element appears, fusion:visible="loadMore"
+     * when it comes into view (.once: the first time only; .200px: that far before).
      */
     public const HOOKS = [
         'poll' => ['visible', 'keep-alive'],
         'init' => [],
+        'visible' => ['once'],
     ];
 
     /** DOM events usable as fusion:<event>. */

@@ -76,6 +76,7 @@ final class Snapshot
             ...$memo,
             'models' => $models,
             'errors' => $context->errors->toArray(),
+            'deferred' => $context->deferred,
         ], fn ($v) => $v !== [] && $v !== null));
     }
 

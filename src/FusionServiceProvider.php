@@ -2,12 +2,14 @@
 
 namespace Nitro\Fusion;
 
+use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
 use Nitro\Fusion\Blade\FusionTags;
 use Nitro\Fusion\Build\Bundle;
@@ -19,6 +21,7 @@ use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Testing\AssertableFusion;
 
 /**
  * Fusion in a Laravel application (and so in Nitro, which is built on Laravel): only public
@@ -68,6 +71,7 @@ class FusionServiceProvider extends ServiceProvider
     {
         $this->routes();
         $this->blade();
+        $this->testing();
 
         /** The @portal placeholders in any web response get the content teleported to them. */
         $this->app->make('router')->pushMiddlewareToGroup('web', FillPortals::class);
@@ -122,6 +126,30 @@ class FusionServiceProvider extends ServiceProvider
         Route::get($endpoint.'/app/{group}.js', [AssetController::class, 'chunk'])->where('group', '[A-Za-z0-9][A-Za-z0-9._-]*')->name('fusion.chunk');
     }
 
+    /** $response->assertFusion(...) and $response->fusionState(...) in tests, as Inertia's assertInertia(). */
+    private function testing(): void
+    {
+        if (! class_exists(TestResponse::class)) {
+            return;
+        }
+
+        TestResponse::macro('assertFusion', function (?Closure $callback = null) {
+            /** @var TestResponse<\Symfony\Component\HttpFoundation\Response> $this */
+            $page = AssertableFusion::fromResponse($this);
+
+            if ($callback !== null) {
+                $callback($page);
+            }
+
+            return $this;
+        });
+
+        TestResponse::macro('fusionState', function (?string $key = null) {
+            /** @var TestResponse<\Symfony\Component\HttpFoundation\Response> $this */
+            return AssertableFusion::fromResponse($this)->state($key);
+        });
+    }
+
     private function blade(): void
     {
         Blade::precompiler(FusionTags::compile(...));
@@ -133,5 +161,10 @@ class FusionServiceProvider extends ServiceProvider
         Blade::directive('portal', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->portal({$expression}); ?>");
         Blade::directive('teleport', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->startTeleport({$expression}); ?>");
         Blade::directive('endteleport', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->endTeleport(); ?>');
+
+        /** @deferred('stats') ... @placeholder ... @enddeferred: what a page shows once its deferred properties are loaded, and meanwhile. */
+        Blade::directive('deferred', fn (string $expression) => "<?php if (! \$this->fusion()->deferring([{$expression}])): ?>");
+        Blade::directive('placeholder', fn () => '<?php else: ?>');
+        Blade::directive('enddeferred', fn () => '<?php endif; ?>');
     }
 }

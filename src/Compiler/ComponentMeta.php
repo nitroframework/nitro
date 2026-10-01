@@ -8,6 +8,7 @@ use Nitro\Fusion\Attributes\LazyLoad;
 use Nitro\Fusion\Attributes\Locked;
 use Nitro\Fusion\Attributes\Modelable;
 use Nitro\Fusion\Attributes\On;
+use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Attributes\Title;
 use Nitro\Fusion\Attributes\Url;
@@ -74,7 +75,7 @@ final class ComponentMeta
 
         foreach (State::properties($class) as $property) {
             $url = ($property->getAttributes(Url::class)[0] ?? null)?->newInstance();
-            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url);
+            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== []);
 
             if ($property->getAttributes(Modelable::class) !== []) {
                 if ($modelable !== null || $properties[$property->getName()]->locked) {

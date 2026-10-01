@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion;
 
+use Closure;
 use Illuminate\Support\Facades\Validator;
 use Nitro\Fusion\Rendering\Context;
 use Nitro\Fusion\Support\PendingDispatch;
@@ -147,6 +148,43 @@ abstract class Component
     final public function shared(?string $key = null, mixed $default = null): mixed
     {
         return app(Fusion::class)->shared($key, $default);
+    }
+
+    /**
+     * Load a page property after the page is shown: the browser asks for it right away, and
+     * @deferred / @placeholder show something meanwhile. Called in a page's mount().
+     *
+     *   $this->defer('stats', fn () => Order::stats());
+     */
+    final protected function defer(string $property, Closure $value): void
+    {
+        app(Fusion::class)->deferProperty($this, $property, $value);
+    }
+
+    /**
+     * Reload page properties from the page's route or controller, as Inertia's partial reloads:
+     * the page asks its URL again and takes the named properties (all of them when none are
+     * named) from the answer. In the browser, or after a #[Server] call.
+     *
+     *   $this->reload('orders');
+     */
+    final protected function reload(string ...$properties): void
+    {
+        $meta = app(Fusion::class)->meta(static::class);
+
+        if (! $meta->page) {
+            throw new \InvalidArgumentException("Only pages reload properties: [{$meta->name}] is a component.");
+        }
+
+        foreach ($properties as $property) {
+            if ($meta->property($property) === null) {
+                throw new \InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to reload.");
+            }
+        }
+
+        /** Reloading all of them ([]) takes in any reload of some. */
+        $current = $this->fusion()->reload;
+        $this->fusion()->reload = $properties === [] || $current === [] ? [] : array_values(array_unique([...($current ?? []), ...$properties]));
     }
 
     /**

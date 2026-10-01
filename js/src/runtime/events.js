@@ -23,7 +23,7 @@ export class Events {
     /** Listen for the event types a component uses. */
     watch(component) {
         for (const event of component.events) {
-            if (this.listening.has(event) || event === 'poll' || event === 'init') continue; // Hooks runs those
+            if (this.listening.has(event) || event === 'poll' || event === 'init' || event === 'visible') continue; // Hooks runs those
             this.listening.add(event);
             this.document.addEventListener(event, (e) => this.dispatch(event, e), { capture: NON_BUBBLING.has(event) });
             if (event === 'scroll' || event === 'resize') {

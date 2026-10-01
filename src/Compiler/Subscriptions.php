@@ -80,6 +80,11 @@ final class Subscriptions
             $keys['$shared'] = true;
         }
 
+        /** @deferred: the page's deferred properties, which the runtime marks "$deferred" once loaded. */
+        if (str_contains($js, '$this.$deferring(')) {
+            $keys['$deferred'] = true;
+        }
+
         preg_match_all('/\$this\.(?:\$computed\("(\w+)"\)|([A-Za-z_]\w*)(\s*\()?)/', $js, $matches, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
 
         foreach ($matches as $match) {

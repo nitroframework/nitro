@@ -38,7 +38,7 @@ final class TemplateCompiler
         'foreach', 'endforeach', 'forelse', 'endforelse', 'for', 'endfor', 'while', 'endwhile',
         'break', 'continue', 'switch', 'case', 'default', 'endswitch', 'error', 'enderror',
         'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json',
-        'teleport', 'endteleport',
+        'teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred',
         /** BladeInliner's, around an inlined @include or <x-component> (not written in views). */
         'fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot', 'fusionFrame', 'endfusionFrame', 'fusionAttr',
     ];
@@ -563,6 +563,9 @@ final class TemplateCompiler
             'endswitch' => $this->closeBlock(['switch']),
             'error' => $this->errorBlock($this->required($name, $args)),
             'enderror' => $this->closeBlock(['error']),
+            'deferred' => $this->openBlock('deferred', ['c' => 'if', 'code' => $this->expression('!$this.$deferring('.$this->deferredProperties($args).')')]),
+            'placeholder' => $this->branch(['deferred'], 'placeholder', fn () => ['c' => 'else']),
+            'enddeferred' => $this->closeBlock(['deferred']),
             'teleport' => $this->teleport($this->required($name, $args)),
             'endteleport' => $this->closeBlock(['teleport']),
             'csrf' => $this->append($this->hiddenInput('_token', $this->expression('B.session.token'), ['autocomplete' => 'off'])),
@@ -570,6 +573,20 @@ final class TemplateCompiler
             'json' => $this->append(new TemplateNode(['t' => 'x', 'e' => 1, 'code' => $this->expression('P.fns.json_encode('.$this->expr($this->required($name, $args)).', 15)')])),
             default => throw $this->error("@{$name} belongs inside a tag, such as <div @{$name}(...)>"),
         };
+    }
+
+    /** @deferred's properties, by name ('stats', 'chart'): a JSON list, empty for any. */
+    private function deferredProperties(?string $args): string
+    {
+        $args = trim((string) $args);
+
+        if ($args !== '' && ! preg_match('/^([\'"])\w+\1(\s*,\s*([\'"])\w+\3)*$/', $args)) {
+            throw $this->error("@deferred names properties as strings: @deferred('stats') or @deferred('stats', 'chart')");
+        }
+
+        preg_match_all('/\w+/', $args, $names);
+
+        return json_encode($names[0], JSON_THROW_ON_ERROR);
     }
 
     private function required(string $name, ?string $args): string
@@ -1314,13 +1331,15 @@ final class TemplateCompiler
         $hook = Globals::HOOKS[$name] ?? null;
 
         if ($hook === null && ! Globals::isEvent($name)) {
-            throw $this->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init or one of fusion:".implode(', fusion:', Globals::ATTRIBUTES));
+            throw $this->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible or one of fusion:".implode(', fusion:', Globals::ATTRIBUTES));
         }
 
         foreach ($parts as $modifier) {
             $known = $hook === null
                 ? in_array($modifier, Globals::MODIFIERS, true) || preg_match('/^\d+m?s$/', $modifier) === 1
-                : in_array($modifier, $hook, true) || ($name === 'poll' && preg_match('/^\d+m?s$/', $modifier) === 1);
+                : in_array($modifier, $hook, true)
+                    || ($name === 'poll' && preg_match('/^\d+m?s$/', $modifier) === 1)
+                    || ($name === 'visible' && preg_match('/^\d+px$/', $modifier) === 1);
 
             if (! $known) {
                 throw $this->error("Unknown modifier .{$modifier} on fusion:{$name}");

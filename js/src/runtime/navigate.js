@@ -14,6 +14,14 @@
  * fusion:current="active" on a link adds the class while the link points at the current page
  * (fusion:current.exact: the same path only).
  *
+ * The scroll position is kept in each history entry: back and forward restore it, and
+ * fusion:navigate.preserve-scroll keeps the current one (filters, tabs). Each visit sends the
+ * bundle's version (X-Fusion-Version): after a deploy the server answers 409 and the page loads in
+ * full, with the new components.
+ *
+ * #[Remember] properties are kept in the history entry (saveRemembered()): back, forward and a
+ * reload bring back the values they had there, in place of those the page starts with.
+ *
  * #[Url] properties are kept in the query string (syncUrl()); the server reads them back when it
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
@@ -31,26 +39,43 @@ export class Navigator {
         this.document.addEventListener('pointerdown', (e) => this.press(e));
         this.document.addEventListener('pointerup', () => this.window.setTimeout(() => (this.pressed = null)));
         this.document.addEventListener('click', (e) => this.click(e));
-        window.addEventListener('popstate', () => this.visit(window.location.href, false));
+        window.addEventListener('popstate', (e) => {
+            /** The entry left is no longer the current one: a #[Remember] save waiting to retry would land on this one. */
+            window.clearTimeout(this.rememberTimer);
+            this.visit(window.location.href, false, { scroll: e.state?.fusionScroll ?? null });
+        });
+
+        /** Fusion restores the scroll position of visited pages itself; the browser keeps the current one. */
+        if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+        this.scrollTimer = null;
+        window.addEventListener('scroll', () => {
+            window.clearTimeout(this.scrollTimer);
+            this.scrollTimer = window.setTimeout(() => this.rememberScroll(), 150);
+        }, { passive: true });
     }
 
-    /** The fusion:navigate link an event is on, and where it goes; null when the browser should handle it. */
+    /**
+     * The fusion:navigate link an event is on, where it goes and its modifiers (keypress,
+     * preserve-scroll); null when the browser should handle it.
+     */
     target(event) {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
         const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
-        if (!link || !(link.hasAttribute('fusion:navigate') || link.hasAttribute('fusion:navigate.keypress'))) return null;
+        const attribute = link ? [...link.attributes].find((a) => a.name === 'fusion:navigate' || a.name.startsWith('fusion:navigate.')) : null;
+        if (!attribute) return null;
         if (link.target && link.target !== '_self') return null;
         const url = new URL(link.href, this.window.location.href);
-        return url.origin === this.window.location.origin ? { link, url } : null;
+        const modifiers = attribute.name.split('.').slice(1);
+        return url.origin === this.window.location.origin ? { link, url, modifiers } : null;
     }
 
     press(event) {
         this.pressed = null;
         if (event.pointerType === 'touch') return;
         const found = this.target(event);
-        if (!found || !found.link.hasAttribute('fusion:navigate.keypress')) return;
+        if (!found || !found.modifiers.includes('keypress')) return;
         this.pressed = found.link;
-        this.visit(found.url.href);
+        this.visit(found.url.href, true, { preserveScroll: found.modifiers.includes('preserve-scroll') });
     }
 
     click(event) {
@@ -61,10 +86,47 @@ export class Navigator {
             this.pressed = null;
             return;
         }
-        this.visit(found.url.href);
+        this.visit(found.url.href, true, { preserveScroll: found.modifiers.includes('preserve-scroll') });
     }
 
-    async visit(href, push = true) {
+    /**
+     * #[Remember]: the remembered properties saved to the current history entry as they change
+     * (once per render), so that leaving it at once (back, forward) keeps the latest values.
+     */
+    remember() {
+        this.saveRemembered();
+    }
+
+    saveRemembered() {
+        this.window.clearTimeout(this.rememberTimer);
+        const remembered = this.runtime.remembered();
+        const state = { ...(this.window.history.state ?? {}) };
+        if (remembered === null && !state.fusionRemember) return;
+        remembered === null ? delete state.fusionRemember : (state.fusionRemember = remembered);
+        try {
+            this.window.history.replaceState(state, '', this.window.location.href);
+        } catch {
+            /** Too many history updates (Safari's limit): again in a moment. */
+            this.rememberTimer = this.window.setTimeout(() => this.saveRemembered(), 1000);
+        }
+    }
+
+    /** The current scroll position, kept in the current history entry. */
+    rememberScroll() {
+        const state = { ...(this.window.history.state ?? {}), fusionScroll: { x: this.window.scrollX, y: this.window.scrollY } };
+        try {
+            this.window.history.replaceState(state, '', this.window.location.href);
+        } catch {
+            // too many history updates (Safari's limit): the next scroll keeps it
+        }
+    }
+
+    /**
+     * Visit a URL: push a history entry (or not, for back and forward), then restore a remembered
+     * scroll position (options.scroll), keep the current one (options.preserveScroll), or go to the
+     * #hash or the top.
+     */
+    async visit(href, push = true, options = {}) {
         const url = new URL(href, this.window.location.href);
         const current = this.document.querySelector('[fusion\\:page]');
         if (!current || url.origin !== this.window.location.origin) {
@@ -80,7 +142,10 @@ export class Navigator {
         let response = null;
         let page = null;
         try {
-            response = await fetch(url.href, { headers: { Accept: 'application/json', 'X-Fusion-Navigate': '1' }, credentials: 'same-origin' });
+            response = await fetch(url.href, {
+                headers: { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '' },
+                credentials: 'same-origin',
+            });
             if (response.ok && (response.headers.get('Content-Type') ?? '').includes('application/json')) {
                 page = await response.json();
             }
@@ -110,7 +175,12 @@ export class Navigator {
             if (visit !== this.visiting) return;
         }
 
-        if (push) this.window.history.pushState({}, '', target.href);
+        if (push) {
+            /** Where this page was scrolled to, and its #[Remember] values, for the back button. */
+            this.saveRemembered();
+            this.rememberScroll();
+            this.window.history.pushState({}, '', target.href);
+        }
         /** Fusion::share()'s data for this page, before it renders (components outside it follow). */
         if (page.shared !== undefined) this.runtime.setShared(page.shared);
         if (!this.runtime.mountPage(current, page)) {
@@ -118,7 +188,13 @@ export class Navigator {
             return;
         }
         if (page.title !== null) this.document.title = page.title;
-        this.scroll(target);
+        /** Back or forward: what #[Remember] properties had in that entry. */
+        if (!push) this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
+        if (options.scroll) {
+            this.window.scrollTo(options.scroll.x, options.scroll.y);
+        } else if (!options.preserveScroll) {
+            this.scroll(target);
+        }
         this.current();
         this.runtime.emit('fusion:navigated', { url: this.window.location.href });
     }

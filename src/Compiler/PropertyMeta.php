@@ -43,10 +43,12 @@ final class PropertyMeta
         public readonly mixed $default,
         /** Kept in the query string (#[Url]), or null. */
         public readonly ?Url $url = null,
+        /** Kept in the browser's history entry (#[Remember]). */
+        public readonly bool $remember = false,
     ) {
     }
 
-    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null): self
+    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null, bool $remember = false): self
     {
         $type = $property->getType();
         $types = [];
@@ -93,6 +95,10 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Url]: the URL sets it, so it is a plain value the browser can change (not #[Locked], not a model)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
+        if ($remember && ($kind !== self::VALUE || $locked)) {
+            throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
+        }
+
         return new self(
             $property->getName(),
             $kind,
@@ -102,6 +108,7 @@ final class PropertyMeta
             $property->hasDefaultValue(),
             $property->hasDefaultValue() ? $property->getDefaultValue() : null,
             $url,
+            $remember,
         );
     }
 

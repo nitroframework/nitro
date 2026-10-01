@@ -106,7 +106,7 @@ final class ComponentCompiler
         }
     }
 
-    /** @return array<string, array{locked: bool, default?: mixed, url?: array<string, mixed>}> */
+    /** @return array<string, array{locked: bool, default?: mixed, url?: array<string, mixed>, remember?: true}> */
     private function props(ComponentMeta $meta): array
     {
         $props = [];
@@ -125,6 +125,10 @@ final class ComponentCompiler
                     'history' => $property->url->history ?: null,
                     'keep' => $property->url->keep ?: null,
                 ], fn ($v) => $v !== null) + ($property->url->hasExcept() ? ['except' => Wire::encode($property->url->except)] : []);
+            }
+
+            if ($property->remember) {
+                $props[$name]['remember'] = true;
             }
         }
 

@@ -63,6 +63,25 @@ async function open(path) {
             /** Browsers have these; jsdom does not. */
             window.TextEncoder = TextEncoder;
             window.TextDecoder = TextDecoder;
+            /** jsdom has no layout: an IntersectionObserver the test drives (window.observe(el, inView)). */
+            const observers = [];
+            window.IntersectionObserver = class {
+                constructor(callback, options) {
+                    this.callback = callback;
+                    this.options = options;
+                    this.elements = new Set();
+                    observers.push(this);
+                }
+                observe(el) { this.elements.add(el); }
+                unobserve(el) { this.elements.delete(el); }
+                disconnect() { this.elements.clear(); }
+            };
+            window.observe = (el, inView) => {
+                for (const observer of observers) {
+                    if (observer.elements.has(el)) observer.callback([{ target: el, isIntersecting: inView }], observer);
+                }
+            };
+            window.observers = observers;
         },
     });
     const { window } = dom;
@@ -743,6 +762,165 @@ await scenario('render and shared', async () => {
     await until('the rendered page is shown in place', () => window.location.pathname === '/rendered/counter' && text(document.querySelector('.count')) === '7');
     check('the greeting is gone', greeting() === null);
     check('the page was not reloaded', window.Fusion !== undefined);
+    window.close();
+});
+
+await scenario('scroll and builds', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    /** jsdom does not scroll: the position is set by hand and scrollTo() is recorded. */
+    const scrolls = [];
+    window.scrollTo = (x, y) => scrolls.push(`${x},${y}`);
+    const scrollTo = (y) => {
+        Object.defineProperty(window, 'scrollY', { value: y, configurable: true });
+        window.dispatchEvent(new window.Event('scroll'));
+    };
+
+    scrollTo(420);
+    await until('the scroll position is kept in the history entry', () => window.history.state?.fusionScroll?.y === 420);
+
+    click(window, document.querySelector('.to-counter'));
+    await until('a visit goes to the top', () => window.location.pathname === '/rendered/counter' && scrolls.at(-1) === '0,0');
+
+    window.history.back();
+    await until('back restores the position', () => window.location.pathname === '/greeting' && document.querySelector('.greeting') !== null && scrolls.at(-1) === '0,420');
+
+    const before = scrolls.length;
+    click(window, document.querySelector('.to-counter-kept'));
+    await until('a preserve-scroll visit lands', () => window.location.pathname === '/rendered/counter');
+    check('fusion:navigate.preserve-scroll keeps the position', scrolls.length === before, scrolls.join(' '));
+    window.close();
+
+    /** A browser running another build's components: the server answers 409, the page is not rendered in place. */
+    const stale = await open('/greeting');
+    const statuses = [];
+    const fetch = stale.fetch;
+    stale.fetch = async (...args) => {
+        const response = await fetch(...args);
+        statuses.push(response.status);
+        return response;
+    };
+    stale.Fusion.config.bundle = 'an-earlier-build';
+    click(stale, stale.document.querySelector('.to-counter'));
+    await until('the visit is answered 409', () => statuses.includes(409));
+    await wait(100);
+    check('the stale page is not rendered in place', stale.document.querySelector('.greeting') !== null && stale.document.querySelector('.count') === null);
+    stale.close();
+});
+
+await scenario('deferred', async () => {
+    /** A page loaded in full: it shows, then asks for its deferred properties. */
+    const window = await open('/report');
+    const { document } = window;
+    await until('the deferred properties load', () => text(document.querySelector('.stats')) === '12 orders, 340');
+    check('the placeholder is gone', document.querySelector('.loading') === null);
+    check('@deferred without names waits for all of them', text(document.querySelector('.all')) === 'Chart: 3 points', text(document.querySelector('.all')));
+    click(window, document.querySelector('.click'));
+    await until('the page works after the load', () => text(document.querySelector('.click')) === '1');
+    window.close();
+
+    /** A visit: the placeholder shows until they are here. */
+    const visiting = await open('/greeting');
+    const fetch = visiting.fetch;
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    visiting.fetch = async (input, init = {}) => {
+        if (new Headers(init.headers ?? {}).has('X-Fusion-Partial')) await held;
+        return fetch(input, init);
+    };
+    click(visiting, visiting.document.querySelector('.to-report'));
+    await until('the page shows with its placeholder', () => text(visiting.document.querySelector('.loading')) === 'Loading stats');
+    check('nothing deferred is shown yet', visiting.document.querySelector('.stats') === null && visiting.document.querySelector('.all') === null);
+    click(visiting, visiting.document.querySelector('.click'));
+    await until('it can be used meanwhile', () => text(visiting.document.querySelector('.click')) === '1');
+    release();
+    await until('then they load', () => text(visiting.document.querySelector('.stats')) === '12 orders, 340');
+    check('what changed meanwhile stays', text(visiting.document.querySelector('.click')) === '1', text(visiting.document.querySelector('.click')));
+    visiting.close();
+});
+
+await scenario('partial reloads', async () => {
+    const window = await open('/rendered/orders');
+    const { document } = window;
+    const list = () => [...document.querySelectorAll('.list li')].map(text).join(' ');
+    const total = () => text(document.querySelector('.total'));
+
+    type(window, document.querySelector('.note'), 'hello');
+    await until('the note is typed', () => text(document.querySelector('.note-shown')) === 'hello');
+
+    click(window, document.querySelector('.add'));
+    await until('$this->reload(\'orders\') after a #[Server] call reloads the orders', () => list() === 'tea');
+    check('a property it does not name keeps its value', total() === '0', total());
+    check('so does what was typed', text(document.querySelector('.note-shown')) === 'hello');
+
+    click(window, document.querySelector('.reload-total'));
+    await until('$reload(\'total\') in a handler', () => total() === '1');
+
+    click(window, document.querySelector('.add'));
+    await until('another order', () => list() === 'tea tea');
+    click(window, document.querySelector('.refresh-total'));
+    await until('$this->reload() in a browser method', () => total() === '2');
+
+    click(window, document.querySelector('.add-all'));
+    await until('$this->reload() without names: all of them', () => list() === 'tea tea cake' && total() === '3');
+    check('every property takes the page\'s value', text(document.querySelector('.note-shown')) === '' && document.querySelector('.note').value === '');
+
+    click(window, document.querySelector('.add'));
+    await until('the page keeps working after a reload', () => list() === 'tea tea cake tea');
+    window.close();
+});
+
+await scenario('remember', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    const draft = () => [document.querySelector('.draft')?.value, text(document.querySelector('.draft-shown'))];
+
+    type(window, document.querySelector('.draft'), 'half done');
+    click(window, document.querySelector('.shout'));
+    await until('typed and shouted', () => draft()[1] === 'half done' && text(document.querySelector('.shouted')) !== '');
+
+    click(window, document.querySelector('.to-counter'));
+    await until('another page', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+
+    window.history.back();
+    await until('back brings the #[Remember] property back', () => window.location.pathname === '/greeting' && draft().join('|') === 'half done|half done');
+    check('a property that is not remembered starts afresh', text(document.querySelector('.shouted')) === '', text(document.querySelector('.shouted')));
+
+    type(window, document.querySelector('.draft'), 'changed');
+    await until('a later change', () => draft()[1] === 'changed');
+    window.history.forward();
+    await until('forward', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+    check('the counter page has nothing remembered', document.querySelector('.draft') === null);
+    window.history.back();
+    await until('the entry keeps the latest value', () => window.location.pathname === '/greeting' && draft().join('|') === 'changed|changed');
+    window.close();
+});
+
+await scenario('visible', async () => {
+    const window = await open('/feed');
+    const { document } = window;
+    const items = () => document.querySelectorAll('.items li').length;
+    const watched = (el) => window.observers.some((o) => o.elements.has(el));
+
+    check('fusion:visible.200px observes with its margin', window.observers.some((o) => o.options.rootMargin === '200px' && o.elements.has(document.querySelector('.more'))));
+    window.observe(document.querySelector('.more'), true);
+    await until('in view, it loads until the list is full', () => items() === 20 && document.querySelector('.more') === null);
+
+    const seen = document.querySelector('.seen');
+    window.observe(seen, true);
+    await until('.once: called', () => text(document.querySelector('.seen')) === '1');
+    window.observe(document.querySelector('.seen'), false);
+    window.observe(document.querySelector('.seen'), true);
+    await wait(100);
+    check('.once: the first time only', text(document.querySelector('.seen')) === '1' && !watched(document.querySelector('.seen')));
+
+    window.observe(document.querySelector('.idle'), true);
+    await wait(300);
+    window.observe(document.querySelector('.idle'), false);
+    window.observe(document.querySelector('.idle'), true);
+    await wait(300);
+    click(window, document.querySelector('.count-pings'));
+    await until('a call that changes nothing runs once each time it comes into view', () => text(document.querySelector('.count-pings')) === '2', 3000);
     window.close();
 });
 

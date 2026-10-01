@@ -97,6 +97,8 @@ final class UpdateController
                 ], fn ($v) => $v !== null), $context->dispatches),
                 'redirect' => $context->redirect,
                 'js' => $context->js,
+                /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
+                'reload' => $context->reload === null ? null : ['only' => $context->reload],
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($v) => $v !== null && $v !== []),
         ]);

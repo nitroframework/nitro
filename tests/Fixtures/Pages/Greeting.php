@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Tests\Fixtures\Pages;
 
+use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Tests\Fixtures\Components\Store;
@@ -13,6 +14,10 @@ use Nitro\Fusion\Tests\Fixtures\Components\Store;
 class Greeting extends Component
 {
     public string $shouted = '';
+
+    /** Kept in the history entry: back brings it back. */
+    #[Remember]
+    public string $draft = '';
 
     public function shout(): void
     {
