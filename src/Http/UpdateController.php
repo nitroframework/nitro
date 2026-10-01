@@ -86,6 +86,8 @@ final class UpdateController
 
         return new JsonResponse([
             'snapshot' => json_decode($next->toJson($this->fusion->key()), true),
+            /** Fusion::share()'s data as it is now (a #[Server] call may have changed it: a flash message). */
+            'shared' => $this->fusion->sharedForBrowser(),
             'effects' => array_filter([
                 'dispatches' => array_map(fn ($d) => array_filter([
                     'event' => $d['event'],

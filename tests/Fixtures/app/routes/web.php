@@ -4,12 +4,14 @@ use Illuminate\Support\Facades\Route;
 use Nitro\Fusion\Tests\Fixtures\Components\Board;
 use Nitro\Fusion\Tests\Fixtures\Components\Counter;
 use Nitro\Fusion\Tests\Fixtures\Components\Gallery;
+use Nitro\Fusion\Tests\Fixtures\Components\Greeting;
 use Nitro\Fusion\Tests\Fixtures\Components\Journal;
 use Nitro\Fusion\Tests\Fixtures\Components\Links;
 use Nitro\Fusion\Tests\Fixtures\Components\Panels;
 use Nitro\Fusion\Tests\Fixtures\Components\Shelf;
 use Nitro\Fusion\Tests\Fixtures\Components\Showcase;
 use Nitro\Fusion\Tests\Fixtures\Components\StudentPage;
+use Nitro\Fusion\Tests\Fixtures\Http\RenderController;
 
 Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
 Route::fusion('/counter', Counter::class)->name('counter');
@@ -22,6 +24,11 @@ Route::fusion('/private', Counter::class)->middleware('auth');
 Route::fusion('/gallery', Gallery::class)->name('gallery');
 Route::fusion('/private-gallery', Gallery::class)->middleware('auth');
 Route::fusion('/showcase', Showcase::class)->name('showcase');
+Route::fusion('/greeting', Greeting::class)->name('greeting');
+
+/** Pages from a controller: Fusion::render(). */
+Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');
+Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
 
 Route::get('/embed', fn () => view('embed'));
 Route::get('/portals', fn () => view('portals'));

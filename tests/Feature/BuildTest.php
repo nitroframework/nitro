@@ -27,10 +27,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('16 Fusion components built', $output);
+        $this->assertStringContainsString('17 Fusion components built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['board', 'card', 'clock', 'counter', 'gallery', 'journal', 'links', 'panels', 'roster', 'search-box', 'shelf', 'showcase', 'student-page', 'todo-item', 'todo-list', 'wallet'],
+            ['board', 'card', 'clock', 'counter', 'gallery', 'greeting', 'journal', 'links', 'panels', 'roster', 'search-box', 'shelf', 'showcase', 'student-page', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -98,7 +98,7 @@ class BuildTest extends TestCase
         $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());
 
         $page = (string) $this->get('/embed')->getContent();
-        $this->assertMatchesRegularExpression('#<script type="application/json" data-fusion-globals>\{"url":"http://localhost".*"app\.name":"Fusion Tests"\}\}</script>#', $page);
+        $this->assertMatchesRegularExpression('#<script type="application/json" data-fusion-globals>\{"url":"http://localhost".*"app\.name":"Fusion Tests"\},"shared":\{"\$m":\[\["user",\{"\$m":\[\["name","Ada"\]\]\}\]\]\}\}</script>#', $page);
 
         $globals = $this->fusion()->globals();
         $this->assertSame('http://localhost', $globals['url']);
@@ -178,9 +178,9 @@ class BuildTest extends TestCase
         $groups = array_keys($files);
         $this->assertSame('', array_shift($groups));
         sort($groups);
-        $this->assertSame(['board', 'counter', 'gallery', 'journal', 'pages', 'panels', 'shelf', 'showcase', 'todos'], $groups);
+        $this->assertSame(['board', 'counter', 'gallery', 'greeting', 'journal', 'pages', 'panels', 'shelf', 'showcase', 'todos'], $groups);
 
-        foreach (['counter', 'gallery', 'journal', 'panels', 'shelf', 'showcase'] as $page) {
+        foreach (['counter', 'gallery', 'greeting', 'journal', 'panels', 'shelf', 'showcase'] as $page) {
             $this->assertStringNotContainsString('Fusion.define("'.$page.'"', $files[''], "{$page} is a page: not in app.js");
             $this->assertStringContainsString('Fusion.define("'.$page.'", {', $files[$page]);
         }

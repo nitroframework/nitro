@@ -141,6 +141,15 @@ abstract class Component
     }
 
     /**
+     * Data shared with every component (Fusion::share()), or one value of it in dot notation.
+     * In the browser it reads the data the last page, visit or #[Server] call brought.
+     */
+    final public function shared(?string $key = null, mixed $default = null): mixed
+    {
+        return app(Fusion::class)->shared($key, $default);
+    }
+
+    /**
      * A routed page (Route::fusion()) is dispatched as a controller: Laravel (and Nitro) resolve
      * mount()'s route parameters, bindings included, and call this.
      *

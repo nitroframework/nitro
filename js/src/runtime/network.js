@@ -72,7 +72,8 @@ export class Network {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server's answer is not JSON`, response.status, text);
         }
 
-        const { snapshot, effects = {} } = answer;
+        const { snapshot, effects = {}, shared } = answer;
+        if (shared !== undefined) this.runtime.setShared(shared, component);
         component.applySnapshot(snapshot, sent);
         this.runtime.effects(component, effects);
 

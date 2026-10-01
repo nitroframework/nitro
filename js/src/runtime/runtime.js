@@ -3,6 +3,7 @@
  * chunks it loads when a page needs them), the components currently on the page, and the
  * services they share (events, models, network, navigation).
  */
+import { globals } from '../laravel.js';
 import * as P from '../php.js';
 import { Component, readState } from './component.js';
 import { ErrorBag } from './errors.js';
@@ -314,6 +315,19 @@ export class Runtime {
         on ? methods.add(name) : methods.delete(name);
         this.inflight.set(component, methods);
         applyLoading(component, methods);
+    }
+
+    /**
+     * Fusion::share()'s data from the server (a #[Server] call's answer, a visited page). When it
+     * changed, what reads it ("$shared") renders again; `except` renders with its own update.
+     */
+    setShared(shared, except = null) {
+        if (JSON.stringify(shared) === JSON.stringify(globals.shared)) return;
+        globals.shared = shared;
+        for (const component of this.components()) {
+            component.dirty.add('$shared');
+            if (component !== except) component.update();
+        }
     }
 
     /** What a #[Server] call asked for besides the new state. */

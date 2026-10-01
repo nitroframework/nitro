@@ -2,12 +2,16 @@
 
 namespace Nitro\Fusion;
 
+use Closure;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use JsonSerializable;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Template\ChildTag;
 use Nitro\Fusion\Rendering\Renderer;
@@ -48,6 +52,9 @@ final class Fusion
 
     /** @var list<string> the @teleport blocks being rendered, innermost last: their portal names */
     private array $teleporting = [];
+
+    /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
+    private array $shared = [];
 
     public function __construct(
         private readonly Container $app,
@@ -376,6 +383,27 @@ final class Fusion
             [$component, 'mount'](...array_values($parameters));
         }
 
+        return $this->respond($component, $meta);
+    }
+
+    /**
+     * A page from a controller, as Inertia::render() returns one: the component created with the
+     * props (mount()'s arguments by name, or its public properties when it has no mount()), then
+     * answered as a Route::fusion() page is, fusion:navigate visits included.
+     *
+     * @param  string  $component  the component's class or name
+     * @param  array<string, mixed>  $props
+     */
+    public function render(string $component, array $props = []): Response
+    {
+        $meta = $this->meta($component);
+
+        return $this->respond($this->create($meta, 'f'.Str::lower(Str::random(10)), $props), $meta);
+    }
+
+    /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
+    private function respond(Component $component, ComponentMeta $meta): Response
+    {
         $layout = $meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app');
         $layoutData = [...($meta->layout->data ?? []), 'title' => $meta->title];
 
@@ -412,6 +440,7 @@ final class Fusion
             'children' => (object) $children,
             'title' => $this->layoutTitle($layout, $layoutData),
             'layout' => $this->layoutKey($layout, $layoutData),
+            'shared' => $this->sharedForBrowser(),
         ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
@@ -566,7 +595,62 @@ final class Fusion
             'routes' => (object) $routes,
             'lang' => (object) $lang,
             'config' => (object) $config,
+            'shared' => $this->sharedForBrowser(),
         ];
+    }
+
+    // ------------------------------------------------------------ shared data
+
+    /**
+     * Data every component can read with $this->shared(), on the server and in the browser, as
+     * Inertia's shared props: the signed-in user, flash messages. A value can be a closure,
+     * called when the data is read. Keys use dot notation. The data is sent to the browser
+     * with every page, fusion:navigate visit and #[Server] call: nothing secret.
+     *
+     * @param  string|array<string, mixed>  $key
+     */
+    public function share(string|array $key, mixed $value = null): void
+    {
+        foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
+            Arr::set($this->shared, (string) $name, $item);
+        }
+    }
+
+    /** The shared data, or one value of it (dot notation), with the closures called. */
+    public function shared(?string $key = null, mixed $default = null): mixed
+    {
+        $data = $this->resolveShared($this->shared);
+
+        return $key === null ? $data : data_get($data, $key, $default);
+    }
+
+    /** The shared data as the browser reads it (B.shared()). */
+    public function sharedForBrowser(): mixed
+    {
+        return Support\Wire::encode($this->shared());
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $values
+     * @return array<array-key, mixed>
+     */
+    private function resolveShared(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if ($value instanceof Closure) {
+                $value = $this->app->call($value);
+            }
+
+            if ($value instanceof Arrayable) {
+                $value = $value->toArray();
+            } elseif ($value instanceof JsonSerializable) {
+                $value = $value->jsonSerialize();
+            }
+
+            $values[$key] = is_array($value) ? $this->resolveShared($value) : $value;
+        }
+
+        return $values;
     }
 
     /**

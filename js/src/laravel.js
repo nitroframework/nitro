@@ -6,9 +6,9 @@
  * What they need comes with the page (@fusionScripts, Fusion::globals()), and only for what the
  * compiled code names: those route definitions, those translations, that public config.
  */
-import { decode, entries, isArray, toStr } from './php.js';
+import { decode, entries, isArray, key as phpKey, toStr } from './php.js';
 
-export const globals = { url: '', asset: '', locale: 'en', routes: {}, lang: {}, config: {} };
+export const globals = { url: '', asset: '', locale: 'en', routes: {}, lang: {}, config: {}, shared: [] };
 
 /** RouteUrlGenerator::$dontEncode */
 const DONT_ENCODE = {
@@ -192,6 +192,29 @@ export function trans(key, replace = []) {
     }
     const tokens = [...map.keys()].sort((a, b) => b.length - a.length).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     return line.replace(new RegExp(tokens.join('|'), 'g'), (m) => map.get(m));
+}
+
+/**
+ * $this->shared($key, $default): Fusion::share()'s data, as the last page, fusion:navigate visit
+ * or #[Server] call brought it, read as data_get() reads it (dot notation, the default when a
+ * key is missing).
+ */
+export function shared(key = null, fallback = null) {
+    let value = decode(globals.shared);
+    if (key === null || key === undefined) return value;
+
+    for (const segment of toStr(key).split('.')) {
+        const k = phpKey(segment);
+        if (value instanceof Map && value.has(k)) {
+            value = value.get(k);
+        } else if (Array.isArray(value) && typeof k === 'number' && k >= 0 && k < value.length) {
+            value = value[k];
+        } else {
+            return fallback;
+        }
+    }
+
+    return value;
 }
 
 /** config($key, $default): a key the application made public (fusion.public_config). */

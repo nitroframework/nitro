@@ -898,6 +898,7 @@ final class Transpiler
             'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e), $e->args)).'])',
             'redirect' => '$this.$redirect('.implode(', ', $this->args($e->args)).')',
             'js' => '$this.$js('.implode(', ', $this->args($e->args)).')',
+            'shared' => 'B.shared('.implode(', ', $this->args($e->args)).')',
             default => throw $this->error("\$this->{$name}() is not a method of the component that can run in the browser", $e),
         };
     }

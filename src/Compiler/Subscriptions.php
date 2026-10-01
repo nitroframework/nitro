@@ -8,8 +8,9 @@ namespace Nitro\Fusion\Compiler;
  *
  * Read from the compiled JavaScript, where the component is only ever reached as $this.name
  * ($this alone, dynamic names and variable variables do not compile): $this.count reads count,
- * $this.total() and $this.$computed("total") read what total() reads, and $this.$errors reads
- * the validation messages ("$errors"). A method the browser does not have reads anything ("*").
+ * $this.total() and $this.$computed("total") read what total() reads, $this.$errors reads the
+ * validation messages ("$errors") and B.shared() the shared data ("$shared"). A method the
+ * browser does not have reads anything ("*").
  * Reading too much only renders more; nothing that is read is missed.
  */
 final class Subscriptions
@@ -72,6 +73,11 @@ final class Subscriptions
 
         if (str_contains($js, '$this.$errors')) {
             $keys['$errors'] = true;
+        }
+
+        /** $this->shared(): Fusion::share()'s data, which the runtime marks "$shared" when it changes. */
+        if (str_contains($js, 'B.shared(')) {
+            $keys['$shared'] = true;
         }
 
         preg_match_all('/\$this\.(?:\$computed\("(\w+)"\)|([A-Za-z_]\w*)(\s*\()?)/', $js, $matches, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);

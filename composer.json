@@ -45,7 +45,10 @@
         "laravel": {
             "providers": [
                 "Nitro\\Fusion\\FusionServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Fusion": "Nitro\\Fusion\\Facades\\Fusion"
+            }
         }
     },
     "scripts": {

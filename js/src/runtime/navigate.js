@@ -111,6 +111,8 @@ export class Navigator {
         }
 
         if (push) this.window.history.pushState({}, '', target.href);
+        /** Fusion::share()'s data for this page, before it renders (components outside it follow). */
+        if (page.shared !== undefined) this.runtime.setShared(page.shared);
         if (!this.runtime.mountPage(current, page)) {
             this.window.location.reload();
             return;

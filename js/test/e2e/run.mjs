@@ -721,6 +721,31 @@ await scenario('inlined views', async () => {
     window.close();
 });
 
+await scenario('render and shared', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    const greeting = () => document.querySelector('.greeting');
+
+    /** Fusion::share()'s data, rendered in the browser as on the server. */
+    check('the shared name after hydration', text(greeting().querySelector('.hello')) === 'Hello Ada', text(greeting().querySelector('.hello')));
+    check('a missing key gives the default', text(greeting().querySelector('.missing')) === 'fallback');
+
+    /** $this->shared() in a browser method. */
+    click(window, greeting().querySelector('.shout'));
+    await until('the browser method reads the shared data', () => text(greeting().querySelector('.shouted')) === 'ADA');
+
+    /** A #[Server] call that changes the shared data: its answer re-renders with the new data. */
+    click(window, greeting().querySelector('.rename'));
+    await until('the shared name follows the call', () => text(greeting().querySelector('.hello')) === 'Hello Grace');
+
+    /** fusion:navigate to a page a controller returned with Fusion::render(). */
+    click(window, greeting().querySelector('.to-counter'));
+    await until('the rendered page is shown in place', () => window.location.pathname === '/rendered/counter' && text(document.querySelector('.count')) === '7');
+    check('the greeting is gone', greeting() === null);
+    check('the page was not reloaded', window.Fusion !== undefined);
+    window.close();
+});
+
 for (const line of log) {
     if (!/fusion:error|Not implemented/.test(line) && !expectedErrors.some((pattern) => pattern.test(line))) failures.push(`console.error: ${line}`);
 }
