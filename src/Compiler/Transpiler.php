@@ -900,6 +900,7 @@ final class Transpiler
             'redirect' => '$this.$redirect('.implode(', ', $this->args($e->args)).')',
             'js' => '$this.$js('.implode(', ', $this->args($e->args)).')',
             'shared' => 'B.shared('.implode(', ', $this->args($e->args)).')',
+            'flashed' => 'B.flashed('.implode(', ', $this->args($e->args)).')',
             default => throw $this->error("\$this->{$name}() is not a method of the component that can run in the browser", $e),
         };
     }
@@ -1662,7 +1663,7 @@ final class Transpiler
         return $this->methodCall($e);
     }
 
-    /** $set, $toggle, $refresh, $reload, $dispatch (Globals::ACTIONS). */
+    /** $set, $toggle, $refresh, $reload, $loadMore, $dispatch (Globals::ACTIONS). */
     private function magicAction(string $name, Expr\FuncCall $e): string
     {
         if (! array_key_exists($name, Globals::ACTIONS)) {
@@ -1690,6 +1691,7 @@ final class Transpiler
             'set' => [$this->propertyPath($e->args[0], $e), $this->expr($e->args[1]->value)],
             'toggle' => [$this->propertyPath($e->args[0], $e)],
             'reload' => ['['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, '$reload'), $e->args)).']'],
+            'loadMore' => [$this->propertyName($e->args[0], $e, '$loadMore')],
             'dispatch' => [$this->dispatchArgs($e->args, $e)],
             default => [],
         };

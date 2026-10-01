@@ -89,6 +89,62 @@ class PartialReloadTest extends TestCase
     }
 
     #[DataProvider('frameworks')]
+    public function test_a_partial_reload_answers_the_properties_signed_on_their_own(string $framework): void
+    {
+        $this->boot($framework);
+        $this->addOrder('add');
+
+        $partial = $this->page('orders')->json('partial');
+        $state = Wire::fromJson($partial['state']);
+
+        $this->assertSame(['orders' => ['tea']], $state['data']);
+        $this->assertSame('fabcdefghij', $state['id']);
+        $this->assertTrue($state['memo']['partial']);
+        $this->assertNull($this->page()->json('partial'), 'a reload of all of them: the snapshot is the state');
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_the_next_server_call_lays_the_partial_reloads_over_the_snapshot(string $framework): void
+    {
+        $this->boot($framework);
+        $this->addOrder('add');
+        $this->addOrder('add');
+
+        /** The page as the browser has it: its snapshot, then a reload of the (locked) total. */
+        $html = (string) $this->page(partial: false)->getContent();
+        $snapshot = $this->snapshots($html)[0]['envelope'];
+        $id = Wire::fromJson($snapshot['state'])['id'];
+        $this->addOrder('add');
+        $this->app->forgetScopedInstances();
+        $partial = json_decode((string) $this->request('GET', '/rendered/orders', [
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_X_FUSION_PARTIAL' => $id, 'HTTP_X_FUSION_ONLY' => 'total',
+        ])->getContent(), true)['partial'];
+
+        $this->app->forgetScopedInstances();
+        $response = $this->update(['snapshot' => $snapshot, 'partials' => [$partial], 'updates' => [], 'call' => null]);
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $data = Wire::fromJson($this->json($response)['snapshot']['state'])['data'];
+
+        $this->assertSame(3, $data['total'], 'the reloaded total');
+        $this->assertSame(['tea', 'tea'], $data['orders'], 'the rest from the snapshot');
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_a_partial_reload_is_not_a_components_state(string $framework): void
+    {
+        $this->boot($framework);
+        $partial = $this->page('total')->json('partial');
+
+        $this->app->forgetScopedInstances();
+        $this->assertSame(403, $this->update(['snapshot' => $partial, 'updates' => [], 'call' => null])->getStatusCode());
+
+        /** Nor does it go with another component's snapshot. */
+        $snapshot = $this->snapshots((string) $this->page(partial: false)->getContent())[0]['envelope'];
+        $this->app->forgetScopedInstances();
+        $this->assertSame(403, $this->update(['snapshot' => $snapshot, 'partials' => [$partial], 'updates' => [], 'call' => null])->getStatusCode());
+    }
+
+    #[DataProvider('frameworks')]
     public function test_reload_names_public_properties(string $framework): void
     {
         $this->boot($framework);

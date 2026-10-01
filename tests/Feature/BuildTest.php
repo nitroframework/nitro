@@ -15,7 +15,7 @@ class BuildTest extends TestCase
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
-    private const CHUNKS = ['board', 'counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'todos'];
+    private const CHUNKS = ['board', 'counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos'];
 
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
@@ -30,10 +30,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('9 Fusion components and 13 pages built', $output);
+        $this->assertStringContainsString('9 Fusion components and 14 pages built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
+            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -112,13 +112,14 @@ class BuildTest extends TestCase
             'pages::shelf' => 'shelf',
             'pages::showcase' => 'showcase',
             'pages::student-page' => 'pages',
+            'pages::timeline' => 'timeline',
             'todo-item' => 'todos',
         ], $chunks);
         $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_fusion/app.js')->getContent());
         $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());
 
         $page = (string) $this->get('/embed')->getContent();
-        $this->assertMatchesRegularExpression('#<script type="application/json" data-fusion-globals>\{"url":"http://localhost".*"app\.name":"Fusion Tests"\},"shared":\{"\$m":\[\["user",\{"\$m":\[\["name","Ada"\]\]\}\]\]\}\}</script>#', $page);
+        $this->assertMatchesRegularExpression('#<script type="application/json" data-fusion-globals>\{"url":"http://localhost".*"app\.name":"Fusion Tests"\},"shared":\{"\$m":\[\["user",\{"\$m":\[\["name","Ada"\]\]\}\],\["countries",\["PK","US"\]\]\]\},"once":\{"countries":null\},"flash":\[\]\}</script>#', $page);
 
         $globals = $this->fusion()->globals();
         $this->assertSame('http://localhost', $globals['url']);
@@ -194,7 +195,7 @@ class BuildTest extends TestCase
         $bundle = $this->app->make(Bundle::class);
         $files = $bundle->compileAll();
 
-        foreach (['counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'panels', 'report', 'shelf', 'showcase'] as $page) {
+        foreach (['counter', 'feed', 'gallery', 'greeting', 'journal', 'orders', 'panels', 'report', 'shelf', 'showcase', 'timeline'] as $page) {
             $this->assertStringNotContainsString('Fusion.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
             $this->assertStringContainsString('Fusion.define("pages::'.$page.'", {', $files[$page]);
         }

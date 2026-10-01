@@ -858,6 +858,7 @@ await scenario('partial reloads', async () => {
 
     click(window, document.querySelector('.add'));
     await until('another order', () => list() === 'tea tea');
+    check('a reloaded #[Locked] property survives the next #[Server] call', total() === '1', total());
     click(window, document.querySelector('.refresh-total'));
     await until('$this->reload() in a browser method', () => total() === '2');
 
@@ -922,6 +923,58 @@ await scenario('visible', async () => {
     click(window, document.querySelector('.count-pings'));
     await until('a call that changes nothing runs once each time it comes into view', () => text(document.querySelector('.count-pings')) === '2', 3000);
     window.close();
+});
+
+await scenario('once, flash and merge', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    const sentOnce = [];
+    const fetch = window.fetch;
+    window.fetch = (input, init = {}) => {
+        sentOnce.push(new Headers(init.headers ?? {}).get('X-Fusion-Once'));
+        return fetch(input, init);
+    };
+    const flashes = [];
+    window.addEventListener('fusion:flash', (e) => flashes.push(e.detail.flash));
+
+    check('once data on the page', text(document.querySelector('.countries')) === '2 countries', text(document.querySelector('.countries')));
+    click(window, document.querySelector('.celebrate'));
+    await until('flash data from a #[Server] call', () => text(document.querySelector('.toast')) === 'Well done');
+    check('fusion:flash announces it', flashes.some((flash) => flash.toast === 'Well done'), JSON.stringify(flashes));
+    check('a #[Server] call says the browser has the once data', sentOnce.at(-1) === 'countries', String(sentOnce));
+
+    click(window, document.querySelector('.to-counter'));
+    await until('a visit', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+    check('so does a visit', sentOnce.at(-1) === 'countries', String(sentOnce));
+
+    window.history.back();
+    await until('back', () => window.location.pathname === '/greeting' && document.querySelector('.greeting') !== null);
+    check('the once data is kept though the server left it out', text(document.querySelector('.countries')) === '2 countries', text(document.querySelector('.countries')));
+    check('flash data belongs to the page it came with', text(document.querySelector('.toast')) === 'no toast', text(document.querySelector('.toast')));
+
+    click(window, document.querySelector('.celebrate-elsewhere'));
+    await until('a call that redirects: its flash data comes with the page it goes to', () => window.location.pathname === '/rendered/counter' && window.Fusion.B.flashed('toast') === 'Over here');
+    window.close();
+
+    const timeline = await open('/rendered/timeline');
+    const doc = timeline.document;
+    const posts = () => doc.querySelectorAll('.posts li').length;
+    check('the first page', posts() === 10, String(posts()));
+    click(timeline, doc.querySelector('.more'));
+    await until('$loadMore: the next page, appended', () => posts() === 20);
+    check('in order', text(doc.querySelectorAll('.posts li')[10]) === 'Post 11', text(doc.querySelectorAll('.posts li')[10]));
+    click(timeline, doc.querySelector('.more'));
+    await until('until there is no next page', () => posts() === 23 && doc.querySelector('.more') === null);
+
+    click(timeline, doc.querySelector('.reload-tags'));
+    click(timeline, doc.querySelector('.reload-settings'));
+    await until('merged key by key', () => text(doc.querySelector('.settings')) === 'teal/large');
+    check('matched on their id: not doubled', text(doc.querySelector('.tags')) === 'php,js', text(doc.querySelector('.tags')));
+
+    click(timeline, doc.querySelector('.touch'));
+    await until('a #[Server] call after them', () => text(doc.querySelector('.touch')) === '1');
+    check('the server merged them too (locked properties)', posts() === 23 && text(doc.querySelector('.settings')) === 'teal/large' && text(doc.querySelector('.tags')) === 'php,js', `${posts()} ${text(doc.querySelector('.settings'))} ${text(doc.querySelector('.tags'))}`);
+    timeline.close();
 });
 
 for (const line of log) {

@@ -151,6 +151,15 @@ abstract class Component
     }
 
     /**
+     * Fusion::flash()'s data for this response, or one value of it in dot notation. In the browser
+     * it reads what the last page, visit or #[Server] call brought.
+     */
+    final public function flashed(?string $key = null, mixed $default = null): mixed
+    {
+        return app(Fusion::class)->flashed($key, $default);
+    }
+
+    /**
      * Load a page property after the page is shown: the browser asks for it right away, and
      * @deferred / @placeholder show something meanwhile. Called in a page's mount().
      *

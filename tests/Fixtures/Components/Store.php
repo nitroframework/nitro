@@ -12,4 +12,7 @@ final class Store
 
     /** The Journal fixture's lifecycle hooks, in the order they ran. */
     public static array $log = [];
+
+    /** How many times the shared countries were resolved (ShareFixtureData: sent once). */
+    public static int $onceCalls = 0;
 }

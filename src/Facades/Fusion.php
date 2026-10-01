@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @method static \Symfony\Component\HttpFoundation\Response render(string $component, array $props = [])
  * @method static \Nitro\Fusion\Deferred defer(\Closure $value)
+ * @method static \Nitro\Fusion\Merge merge(mixed $value)
+ * @method static \Nitro\Fusion\Merge deepMerge(mixed $value)
+ * @method static \Nitro\Fusion\Merge scroll(mixed $paginator)
+ * @method static \Nitro\Fusion\Once once(\Closure $value)
+ * @method static \Nitro\Fusion\Once shareOnce(string $key, \Closure $value)
+ * @method static void flash(string|array $key, mixed $value = null)
+ * @method static mixed flashed(?string $key = null, mixed $default = null)
  * @method static void share(string|array $key, mixed $value = null)
  * @method static mixed shared(?string $key = null, mixed $default = null)
  * @method static string mount(string $name, array $props = [], array $slots = [])

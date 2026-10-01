@@ -153,7 +153,7 @@ fails the build with the file and line.
 
 | Attribute | |
 | --- | --- |
-| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` in a page, `$dispatch('event')`). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
+| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` and `$loadMore('prop')` in a page, `$dispatch('event')`). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
 | `fusion:model="email"` | Two-way binding (`.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`); a dotted path binds a key: `fusion:model="form.email"` |
 | `fusion:loading` | Shown while a `#[Server]` call runs (`.remove`, `.class="..."`, `.attr="disabled"`, with `fusion:target="save"`) |
 | `fusion:key` | Keeps an element's identity in lists |
@@ -296,7 +296,9 @@ public function add(string $item): void
 
 The page asks its URL again (`X-Fusion-Partial`, `X-Fusion-Only: orders`) and takes the named
 properties from the answer; the others keep their values in the browser. Without names, every
-property takes the value the route gives it, including what was typed.
+property takes the value the route gives it, including what was typed. The answer signs the named
+properties on their own; the next `#[Server]` call sends them with the snapshot, so reloaded
+`#[Locked]` properties reach the server as the server gave them.
 
 A closure prop of `Fusion::render()` is called only when it is needed: on a partial reload, only
 the props it names (for pages without `mount()`, whose props set their properties).
@@ -308,6 +310,37 @@ return Fusion::render(Orders::class, [
 ]);
 ```
 
+### Merge props
+
+A prop can be merged into the page's value on a partial reload instead of replacing it, as
+Inertia's merge props. A first render or a visit sets it as usual.
+
+```php
+return Fusion::render(Feed::class, [
+    'posts' => Fusion::scroll(fn () => Post::latest()->paginate(20)),
+    'tags' => Fusion::merge(fn () => Tag::popular()->get()->toArray())->matchOn('id'),
+    'filters' => Fusion::deepMerge(fn () => $this->filters()),
+]);
+```
+
+- `Fusion::merge()` appends the new items (`->prepend()` puts them first; `->append('data')`
+  merges the list at a key). `->matchOn('id')`: an item with the same id replaces the one there.
+- `Fusion::deepMerge()` merges arrays key by key, all the way down; lists are appended.
+- `Fusion::scroll($paginator)` holds `['data' => items, 'scroll' => [...]]`: the page name and the
+  pages around it. `$loadMore('posts')` asks for the next page and appends it, nothing once
+  there is none:
+
+```blade
+@foreach ($posts['data'] as $post) ... @endforeach
+
+@if ($posts['scroll']['nextPage'] !== null)
+    <div fusion:visible="$loadMore('posts')">Loading…</div>
+@endif
+```
+
+The signed partial reload carries the merge rule: the next `#[Server]` call merges it into the
+server's state the same way, so a `#[Locked]` list keeps what was loaded.
+
 ### Shared data
 
 `Fusion::share()` gives every component and page the same data, as Inertia's shared props:
@@ -315,7 +348,7 @@ return Fusion::render(Orders::class, [
 ```php
 // in a middleware, so it is set on every request
 Fusion::share('user', fn () => $request->user()?->only('id', 'name'));
-Fusion::share('flash', fn () => session('status'));
+Fusion::share('locale', app()->getLocale());
 ```
 
 ```blade
@@ -327,6 +360,42 @@ data is sent with the page, with each `fusion:navigate` visit and with each `#[S
 answer; what reads it renders again when it changes. Closures are called when the data is read.
 Everything shared is sent to the browser: share nothing secret. Set it per request (in a
 middleware): under Octane, Fusion is created for each request.
+
+Data that rarely changes can be sent once, as Inertia's once props:
+
+```php
+Fusion::shareOnce('countries', fn () => Country::pluck('name', 'code'));
+Fusion::share('permissions', Fusion::once(fn () => $user->permissions())->until(3600));
+```
+
+The browser keeps it across visits and `#[Server]` calls and says it has it (`X-Fusion-Once`):
+the server neither calls the closure for the browser nor sends it again, until it expires
+(`->until()`: seconds, an interval or a date) or is sent `->fresh()`. On the server,
+`$this->shared('countries')` still calls the closure. Once data is shared at the top level (a key
+without dots).
+
+### Flash data
+
+`Fusion::flash()` sends data with the next response only, as Inertia's flash data: a toast after
+a save.
+
+```php
+Fusion::flash('toast', 'Invoice saved');
+
+return redirect()->route('invoices.index');
+```
+
+```blade
+@if ($this->flashed('toast'))
+    <div class="toast">{{ $this->flashed('toast') }}</div>
+@endif
+```
+
+It goes with the next page, visit or `#[Server]` answer: this request's, or, after a redirect
+(a controller's, or `$this->redirect()` in a `#[Server]` method), the page it goes to. Then it is
+gone. It belongs to the page it came with: a visit to another page replaces it, and back does not
+bring it again. The browser emits `fusion:flash` with it (`event.detail.flash`). It needs the
+session (the `web` middleware).
 
 The first visit is rendered by the server. After that, a `fusion:navigate` link asks the same URL
 for the page's data (`X-Fusion-Navigate`): Laravel routes it as usual (middleware, bindings,

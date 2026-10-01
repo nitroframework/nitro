@@ -39,6 +39,9 @@ final class Context
     /** @var list<string>|null the page properties for the browser to reload after a #[Server] call (all of them: []) */
     public ?array $reload = null;
 
+    /** @var array<string, array{mode: string, path: ?string, match: list<string>}> merge props a partial reload sends, with their rule */
+    public array $merges = [];
+
     /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
     public array $deferred = [];
 

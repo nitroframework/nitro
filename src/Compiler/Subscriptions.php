@@ -80,6 +80,11 @@ final class Subscriptions
             $keys['$shared'] = true;
         }
 
+        /** $this->flashed(): Fusion::flash()'s data, which the runtime marks "$flash" with each response. */
+        if (str_contains($js, 'B.flashed(')) {
+            $keys['$flash'] = true;
+        }
+
         /** @deferred: the page's deferred properties, which the runtime marks "$deferred" once loaded. */
         if (str_contains($js, '$this.$deferring(')) {
             $keys['$deferred'] = true;

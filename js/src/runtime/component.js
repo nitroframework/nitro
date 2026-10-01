@@ -8,6 +8,7 @@
  * A new snapshot from the server renders all of it.
  */
 import * as P from '../php.js';
+import { merge as mergeValues } from './merge.js';
 import { ErrorBag } from './errors.js';
 import { RUNTIME_ATTRIBUTES } from './view/renderAttributeValue.js';
 import { View } from './render.js';
@@ -26,7 +27,14 @@ export function readState(envelope) {
         errors: new ErrorBag(memo instanceof Map ? memo.get('errors') ?? null : null),
         /** A page's properties loaded after it is shown ($this->defer()). */
         deferred: memo instanceof Map ? P.entries(memo.get('deferred') ?? []).map(([, name]) => name) : [],
+        /** A partial reload's merge props: property => its rule (Merge). */
+        merge: memo instanceof Map && memo.get('merge') instanceof Map ? memo.get('merge') : new Map(),
     };
+}
+
+/** A merge rule as it came (a Map): {mode, path, match}. */
+function readRule(rule) {
+    return { mode: rule.get('mode'), path: rule.get('path') ?? null, match: rule.get('match') ?? [] };
 }
 
 /** Two PHP values are the same (as encoded: types count). */
@@ -51,6 +59,8 @@ export class Component {
         this.data = new Map(data);
         this.snapshot = snapshot;
         this.serverData = new Map(data);
+        /** Partial reloads since the snapshot: signed envelopes of some properties, sent with the next #[Server] call. */
+        this.partials = [];
         this.errors = errors ?? new ErrorBag();
         /** Its deferred properties not loaded yet (a page's: Network::deferred()). */
         this.deferred = new Set();
@@ -109,6 +119,7 @@ export class Component {
             $refresh: () => self.definition.server.length ? self.runtime.network.call(self, null, []) : self.render(),
             $js: (code) => self.js(code),
             $reload: (names) => self.runtime.reload(self, names),
+            $loadMore: (name) => self.runtime.loadMore(self, P.toStr(name)),
             /** @deferred: whether any of the properties (any, when none are named) is still loading. */
             $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
         });
@@ -416,27 +427,46 @@ export class Component {
     }
 
     /**
-     * The state after a partial reload ($reload): the named properties (all, when none are named)
-     * and the locked ones take the server's values, unless changed here while it ran; the others
-     * keep the values here, which the next #[Server] call sends as updates.
+     * The state after a reload ($reload, deferred properties). Of some properties: their signed
+     * values (partial) are taken, unless changed here while it ran, and the envelope is kept for
+     * the next #[Server] call, which lays it over the snapshot. Of all of them: the new snapshot
+     * is the state, again keeping what changed here meanwhile.
      */
-    applyReload(envelope, only, sent) {
-        const { data } = readState(envelope);
-        const fresh = new Map(this.data);
-
-        for (const [name, value] of data) {
-            const current = this.data.get(name);
-            const wanted = only.length === 0 || only.includes(name) || this.definition.props[name]?.locked;
-            const changedHere = this.data.has(name) && sent.get(name) !== current;
-            if (wanted && !changedHere && !sameValue(current, value)) {
-                fresh.set(name, value);
-                this.dirty.add(name);
+    applyReload(envelope, only, sent, partial = null) {
+        if (only.length > 0 && partial) {
+            const { data, merge: rules } = readState(partial);
+            for (const [name, value] of data) {
+                if (!only.includes(name)) continue;
+                const current = this.data.get(name);
+                const changedHere = this.data.has(name) && sent.get(name) !== current;
+                /** A merge prop: merged into the value here, as the server merges it into its own (Merge::apply()). */
+                const rule = rules.get(name);
+                const into = (base) => (rule ? mergeValues(base ?? null, value, readRule(rule)) : value);
+                this.serverData.set(name, into(this.serverData.get(name)));
+                const next = into(current);
+                if (!changedHere && !sameValue(current, next)) {
+                    this.data.set(name, next);
+                    this.dirty.add(name);
+                }
             }
+            this.partials.push(partial);
+        } else {
+            const { data } = readState(envelope);
+            const fresh = new Map(this.data);
+            for (const [name, value] of data) {
+                const current = this.data.get(name);
+                const changedHere = this.data.has(name) && sent.get(name) !== current;
+                if (!changedHere && !sameValue(current, value)) {
+                    fresh.set(name, value);
+                    this.dirty.add(name);
+                }
+            }
+            this.snapshot = envelope;
+            this.serverData = new Map(data);
+            this.partials = [];
+            this.data = fresh;
         }
 
-        this.snapshot = envelope;
-        this.serverData = new Map(data);
-        this.data = fresh;
         this.memo.clear();
         const modelable = this.definition.modelable;
         const modelChanged = modelable && this.dirty.has(modelable);

@@ -33,6 +33,8 @@ Route::fusion('/feed', Feed::class)->name('feed');
 /** Pages from a controller: Fusion::render(). */
 Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');
 Route::get('/rendered/orders', [RenderController::class, 'orders'])->name('rendered.orders');
+Route::get('/rendered/timeline', [RenderController::class, 'timeline'])->name('rendered.timeline');
+Route::get('/flash-and-redirect', [RenderController::class, 'flashAndRedirect']);
 Route::get('/rendered/deferred-counter', [RenderController::class, 'deferredCounter'])->name('rendered.deferred-counter');
 Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
 

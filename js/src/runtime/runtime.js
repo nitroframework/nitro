@@ -28,6 +28,8 @@ export class Runtime {
         this.inflight = new WeakMap();
         /** Signed state of the children with mount() the server created for the page being rendered, by id. */
         this.provided = new Map();
+        /** Fusion::once() shared data the browser keeps between responses: key => {value, expires (ms or null)}. */
+        this.onceShared = new Map();
         this.events = new Events(this, this.document);
         this.hooks = new Hooks(this, window);
         this.model = new Model(this, this.document);
@@ -102,6 +104,9 @@ export class Runtime {
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
             this.restoreRemembered(this.window.history.state?.fusionRemember);
+            /** The page's once data, kept for the responses after it; its flash data, announced. */
+            this.withOnce(globals.shared, globals.once ?? {});
+            this.announceFlash(globals.flash);
         };
 
         /** @fusionScripts loads the chunks of the page it renders; this is for any it could not know of. */
@@ -379,6 +384,82 @@ export class Runtime {
      * Fusion::share()'s data from the server (a #[Server] call's answer, a visited page). When it
      * changed, what reads it ("$shared") renders again; `except` renders with its own update.
      */
+    /**
+     * What a response brings besides state: Fusion::share()'s data (with the once data kept
+     * from earlier responses) and Fusion::flash()'s. Flash data belongs to the page it came with:
+     * a visit replaces it; a reload or a #[Server] call only when it brings some.
+     */
+    receive(answer, except = null, visit = false) {
+        if (answer.shared !== undefined) this.setShared(this.withOnce(answer.shared, answer.once ?? {}), except);
+        if (answer.flash === undefined || answer.flash === null) return;
+        const flash = P.decode(answer.flash);
+        if (visit || (flash instanceof Map && flash.size > 0)) this.setFlash(answer.flash, except);
+    }
+
+    /**
+     * Fusion::once(): the once data a response sent is kept; what it left out (the browser said it
+     * has it) is put back. Keys the response does not name as once are let go.
+     */
+    withOnce(shared, once) {
+        const decoded = P.decode(shared);
+        const data = decoded instanceof Map ? new Map(decoded) : new Map();
+        for (const [key, expires] of Object.entries(once)) {
+            if (data.has(key)) {
+                this.onceShared.set(key, { value: data.get(key), expires: expires === null ? null : expires * 1000 });
+            } else if (this.onceShared.has(key)) {
+                data.set(key, this.onceShared.get(key).value);
+            }
+        }
+        for (const key of [...this.onceShared.keys()]) {
+            if (!(key in once)) this.onceShared.delete(key);
+        }
+        return data.size === 0 && !(decoded instanceof Map) ? shared : P.encode(data);
+    }
+
+    /** The once data the browser has and that has not expired: sent as X-Fusion-Once. */
+    onceHeader() {
+        const now = Date.now();
+        return [...this.onceShared].filter(([, kept]) => kept.expires === null || kept.expires > now).map(([key]) => key).join(',');
+    }
+
+    /** Fusion::flash()'s data from a response: what reads it ("$flash") renders again, and fusion:flash announces it. */
+    setFlash(flash, except = null) {
+        if (JSON.stringify(flash) !== JSON.stringify(globals.flash)) {
+            globals.flash = flash;
+            for (const component of this.components()) {
+                component.dirty.add('$flash');
+                if (component !== except) component.update();
+            }
+        }
+        this.announceFlash(flash);
+    }
+
+    announceFlash(flash) {
+        const data = P.decode(flash ?? []);
+        if (data instanceof Map && data.size > 0) this.emit('fusion:flash', { flash: plain(data) });
+    }
+
+    /**
+     * $loadMore('payments'): the next page of a Fusion::scroll() prop, merged into it (a partial
+     * reload of the page's URL with the paginator's page in the query). Nothing when it has no next.
+     */
+    loadMore(component, name) {
+        if (!component.name.startsWith('pages::')) {
+            const error = new Error(`Fusion: [${component.name}] is a component; only pages load more of their properties`);
+            this.report(component, error);
+            return Promise.reject(error);
+        }
+        return this.network.reload(component, [name], false, () => {
+            const value = component.data.get(name);
+            const scroll = value instanceof Map ? value.get('scroll') : null;
+            const next = scroll instanceof Map ? scroll.get('nextPage') : null;
+            if (next === null || next === undefined) return null;
+            const url = new URL(this.window.location.href);
+            url.searchParams.set(P.toStr(scroll.get('pageName') ?? 'page'), P.toStr(next));
+            return url.href;
+        });
+    }
+
     setShared(shared, except = null) {
         if (JSON.stringify(shared) === JSON.stringify(globals.shared)) return;
         globals.shared = shared;
@@ -447,4 +528,11 @@ function nameIn(envelope) {
     } catch {
         return null;
     }
+}
+
+/** A PHP value as plain JavaScript (Maps as objects), for event listeners. */
+function plain(value) {
+    if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [key, plain(item)]));
+    if (Array.isArray(value)) return value.map(plain);
+    return value;
 }

@@ -97,7 +97,8 @@ class RenderTest extends TestCase
 
         $this->assertStringContainsString('<p class="hello">Hello Ada</p>', $html);
         $this->assertStringContainsString('<p class="missing">fallback</p>', $html);
-        $this->assertSame(['user' => ['name' => 'Ada'], 'team' => ['name' => 'Analytical'], 'flags' => ['beta' => true]], $this->fusion()->shared());
+        /** The fixture's middleware shares the user and the countries for each request, after what was shared before it. */
+        $this->assertSame(['team' => ['name' => 'Analytical'], 'flags' => ['beta' => true], 'user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], $this->fusion()->shared());
         $this->assertSame('Analytical', $this->fusion()->shared('team.name'));
         $this->assertSame('none', $this->fusion()->shared('team.missing', 'none'));
     }
@@ -109,14 +110,14 @@ class RenderTest extends TestCase
 
         $html = (string) $this->get('/greeting')->getContent();
         preg_match('#<script type="application/json" data-fusion-globals>(.*?)</script>#', $html, $globals);
-        $this->assertSame(['user' => ['name' => 'Ada']], Wire::decode(json_decode($globals[1], true)['shared']));
+        $this->assertSame(['user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], Wire::decode(json_decode($globals[1], true)['shared']));
 
         $page = $this->json($this->visit('/greeting'));
-        $this->assertSame(['user' => ['name' => 'Ada']], Wire::decode($page['shared']));
+        $this->assertSame(['user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], Wire::decode($page['shared']));
 
         /** The call changes what is shared: its answer carries the new data. */
         $answer = $this->json($this->update(['snapshot' => $page['snapshot'], 'updates' => [], 'call' => ['method' => 'rename', 'params' => ['Grace']]]));
-        $this->assertSame(['user' => ['name' => 'Grace']], Wire::decode($answer['shared']));
+        $this->assertSame(['user' => ['name' => 'Grace'], 'countries' => ['PK', 'US']], Wire::decode($answer['shared']));
     }
 
     #[DataProvider('frameworks')]

@@ -4,6 +4,18 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Merge props: `Fusion::merge()` (`->prepend()`, `->matchOn()`), `Fusion::deepMerge()` and
+  `Fusion::scroll()` with `$loadMore('prop')`, merged on partial reloads in the browser and on
+  the server.
+- Once shared data: `Fusion::once()`, `Fusion::shareOnce()` (`->until()`, `->fresh()`).
+- Flash data: `Fusion::flash()`, read with `$this->flashed()`, announced with `fusion:flash`.
+- A partial reload signs the properties it reloads on their own; the next `#[Server]` call lays
+  them over the snapshot, so reloaded `#[Locked]` properties keep their values.
+- Fusion's controllers resolve Fusion for each request (a controller kept by the router no longer
+  holds an earlier request's Fusion).
+- A visit renders its layout for the title without `@fusionScripts` (shared data is no longer
+  resolved twice).
+
 - `fusion:visible="method"` calls a method when its element comes into view (`.once`, `.200px`).
 
 - `#[Remember]` properties: kept in the history entry, brought back by back, forward and reload.

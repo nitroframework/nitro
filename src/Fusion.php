@@ -39,6 +39,12 @@ final class Fusion
     /** With a partial reload: the properties it wants, comma-separated (all of them when absent). */
     public const ONLY_HEADER = 'X-Fusion-Only';
 
+    /** Sent by the browser: the once shared data it has (Fusion::once()), comma-separated. */
+    public const ONCE_HEADER = 'X-Fusion-Once';
+
+    /** Where Fusion::flash()'s data waits in the session for the response that delivers it. */
+    public const FLASH_KEY = 'fusion.flash';
+
     /** @var array<class-string, ComponentMeta> */
     private array $metas = [];
 
@@ -65,6 +71,9 @@ final class Fusion
 
     /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
     private array $shared = [];
+
+    /** Whether the layout is being rendered for its title only (layoutTitle()). */
+    private bool $renderingTitle = false;
 
     public function __construct(
         private readonly Container $app,
@@ -428,24 +437,67 @@ final class Fusion
         $deferred = array_filter($props, fn (mixed $value) => $value instanceof Deferred);
         $props = array_diff_key($props, $deferred);
 
-        /** A closure prop is called when the page needs it: a partial reload skips those it does not want (pages without mount()). */
+        /**
+         * A closure prop (or a merge prop's closure) is called when the page needs it: a partial
+         * reload skips those it does not want (pages without mount()).
+         */
+        $merges = [];
+
         foreach ($props as $prop => $value) {
-            if ($value instanceof Closure) {
-                if (! $meta->hasMount && ! $this->wants((string) $prop)) {
-                    unset($props[$prop]);
-                } else {
-                    $props[$prop] = $this->app->call($value);
-                }
+            if (! $value instanceof Closure && ! $value instanceof Merge) {
+                continue;
             }
+
+            if (! $meta->hasMount && ! $this->wants((string) $prop)) {
+                unset($props[$prop]);
+
+                continue;
+            }
+
+            if ($value instanceof Merge) {
+                $merges[$prop] = $value->rule();
+            }
+
+            $props[$prop] = $value instanceof Merge ? $value->resolve($this->app->call(...)) : $this->app->call($value);
         }
 
         $page = $this->create($meta, $this->pageId(), $props);
+
+        /** On a partial reload, the merge props it reloads go with their rule (Snapshot::only()). */
+        if ($this->partial() !== null) {
+            $page->fusion()->merges = $merges;
+        }
 
         foreach ($deferred as $property => $value) {
             $this->deferProperty($page, (string) $property, $value->value);
         }
 
         return $this->respond($page, $meta);
+    }
+
+    /**
+     * A prop for Fusion::render() merged into the page's value on a partial reload, instead of
+     * replacing it, as Inertia::merge(): appended by default (->prepend(), ->matchOn('id')).
+     */
+    public function merge(mixed $value): Merge
+    {
+        return new Merge($value);
+    }
+
+    /** A merge prop merged key by key, all the way down, as Inertia::deepMerge(). */
+    public function deepMerge(mixed $value): Merge
+    {
+        return (new Merge($value))->deep();
+    }
+
+    /**
+     * A paginator for a list that loads as it scrolls, as Inertia::scroll(): the page holds
+     * ['data' => items, 'scroll' => where it is], and $loadMore('prop') reloads the next page
+     * into it.
+     */
+    public function scroll(mixed $paginator): Merge
+    {
+        return (new Merge($paginator))->asScroll();
     }
 
     /**
@@ -560,13 +612,20 @@ final class Fusion
             ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $key, $memo))
             : [];
 
+        $snapshot = Snapshot::capture($component, $meta, $memo);
+        $only = $this->partial();
+
         return new JsonResponse([
             'fusion' => 1,
-            'snapshot' => json_decode(Snapshot::capture($component, $meta, $memo)->toJson($key), true),
+            'snapshot' => json_decode($snapshot->toJson($key), true),
+            /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
+            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($only, $component->fusion()->merges)->toJson($key), true),
             'children' => (object) $children,
             'title' => $this->layoutTitle($layout, $layoutData),
             'layout' => $this->layoutKey($layout, $layoutData),
             'shared' => $this->sharedForBrowser(),
+            'once' => (object) $this->onceForBrowser(),
+            'flash' => $this->flashForBrowser(),
         ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
@@ -581,7 +640,14 @@ final class Fusion
     /** The document title as the layout writes it (the layout owns its format). */
     private function layoutTitle(string $layout, array $layoutData): ?string
     {
-        $html = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString('')])->render();
+        /** For its title only: @fusionScripts writes nothing (no shared data resolved, no globals built). */
+        $this->renderingTitle = true;
+
+        try {
+            $html = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString('')])->render();
+        } finally {
+            $this->renderingTitle = false;
+        }
 
         return preg_match('/<title\b[^>]*>(.*?)<\/title>/is', $html, $m)
             ? html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')
@@ -647,6 +713,10 @@ final class Fusion
     /** @fusionScripts: the runtime and the application's compiled components. */
     public function scripts(): HtmlString
     {
+        if ($this->renderingTitle) {
+            return new HtmlString('');
+        }
+
         $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
         $runtime = e($this->endpoint('fusion.js')).'?v='.e($this->runtimeVersion());
         $built = $this->app->make(Build\Bundle::class);
@@ -722,6 +792,8 @@ final class Fusion
             'lang' => (object) $lang,
             'config' => (object) $config,
             'shared' => $this->sharedForBrowser(),
+            'once' => (object) $this->onceForBrowser(),
+            'flash' => $this->flashForBrowser(),
         ];
     }
 
@@ -750,10 +822,127 @@ final class Fusion
         return $key === null ? $data : data_get($data, $key, $default);
     }
 
-    /** The shared data as the browser reads it (B.shared()). */
+    /**
+     * Shared data sent once (Fusion::once()), as Inertia's once props: the browser keeps it, and
+     * a response neither calls the closure for the browser nor sends it while the browser has it.
+     * Reading it on the server ($this->shared()) calls the closure as usual.
+     */
+    public function once(Closure $value): Once
+    {
+        return new Once($value);
+    }
+
+    /** Share data sent once: Fusion::share($key, Fusion::once($value)). */
+    public function shareOnce(string $key, Closure $value): Once
+    {
+        $once = new Once($value);
+        $this->share($key, $once);
+
+        return $once;
+    }
+
+    /**
+     * The shared data as the browser reads it (B.shared()), without the once data the browser
+     * says it has (X-Fusion-Once), unless it is fresh.
+     */
     public function sharedForBrowser(): mixed
     {
-        return Support\Wire::encode($this->shared());
+        $held = $this->heldOnce();
+        $shared = array_filter($this->shared, fn (mixed $value, string|int $key) => ! ($value instanceof Once && in_array((string) $key, $held, true) && ! $value->isFresh()), ARRAY_FILTER_USE_BOTH);
+
+        return Support\Wire::encode($this->resolveShared($shared));
+    }
+
+    /**
+     * The once data's keys, and when the browser asks for each again (Unix time in seconds, null
+     * for never): what it keeps.
+     *
+     * @return array<string, int|null>
+     */
+    public function onceForBrowser(): array
+    {
+        $once = [];
+
+        foreach ($this->shared as $key => $value) {
+            if ($value instanceof Once) {
+                $once[(string) $key] = $value->expiresAt();
+            }
+        }
+
+        return $once;
+    }
+
+    /** @return list<string> the once data the browser has (X-Fusion-Once) */
+    private function heldOnce(): array
+    {
+        $request = $this->app->bound('request') ? $this->app->make('request') : null;
+        $header = $request instanceof Request ? (string) $request->headers->get(self::ONCE_HEADER, '') : '';
+
+        return array_values(array_filter(array_map('trim', explode(',', $header)), fn (string $key) => $key !== ''));
+    }
+
+    // ------------------------------------------------------------ flash data
+
+    /**
+     * Data for the next response only, as Inertia::flash(): a toast after a save. It goes with the
+     * next page, visit or #[Server] answer (this request's, or the next one's after a redirect),
+     * then it is gone, and the browser keeps it out of history. Read with $this->flashed().
+     *
+     * @param  string|array<string, mixed>  $key
+     */
+    public function flash(string|array $key, mixed $value = null): void
+    {
+        $session = $this->session() ?? throw new \RuntimeException('Fusion::flash() keeps its data in the session: the request has none (the web middleware starts it).');
+        $data = $this->flashData();
+
+        foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
+            Arr::set($data, (string) $name, $item);
+        }
+
+        $session->flash(self::FLASH_KEY, $data);
+    }
+
+    /** The flash data, or one value of it (dot notation). */
+    public function flashed(?string $key = null, mixed $default = null): mixed
+    {
+        return $key === null ? $this->flashData() : data_get($this->flashData(), $key, $default);
+    }
+
+    /**
+     * The flash data for the browser (B.flashed()). Delivered, it is this request's only (the
+     * session's now()): read again within it (the layout rendered for the title), gone after.
+     */
+    public function flashForBrowser(): mixed
+    {
+        $data = $this->flashData();
+
+        $session = $this->session();
+
+        if ($data !== [] && $session !== null) {
+            /** The session's now(): kept for this request, dropped when it ends. */
+            $session->put(self::FLASH_KEY, $data);
+            $session->put('_flash.old', array_values(array_unique([...(array) $session->get('_flash.old', []), self::FLASH_KEY])));
+        }
+
+        return Support\Wire::encode($this->resolveShared($data));
+    }
+
+    /**
+     * The flash data waiting in the session: the last request's, and this one's. Only there, not
+     * on this object: a Fusion kept past its request (a facade, Octane) carries none of it over.
+     *
+     * @return array<string, mixed>
+     */
+    private function flashData(): array
+    {
+        return (array) ($this->session()?->get(self::FLASH_KEY, []) ?? []);
+    }
+
+    private function session(): ?\Illuminate\Contracts\Session\Session
+    {
+        $request = $this->app->bound('request') ? $this->app->make('request') : null;
+
+        return $request instanceof Request && $request->hasSession() ? $request->session() : null;
     }
 
     /**
@@ -763,6 +952,10 @@ final class Fusion
     private function resolveShared(array $values): array
     {
         foreach ($values as $key => $value) {
+            if ($value instanceof Once) {
+                $value = $value->value;
+            }
+
             if ($value instanceof Closure) {
                 $value = $this->app->call($value);
             }

@@ -8,7 +8,7 @@
  */
 import { decode, entries, isArray, key as phpKey, toStr } from './php.js';
 
-export const globals = { url: '', asset: '', locale: 'en', routes: {}, lang: {}, config: {}, shared: [] };
+export const globals = { url: '', asset: '', locale: 'en', routes: {}, lang: {}, config: {}, shared: [], once: {}, flash: [] };
 
 /** RouteUrlGenerator::$dontEncode */
 const DONT_ENCODE = {
@@ -200,7 +200,16 @@ export function trans(key, replace = []) {
  * key is missing).
  */
 export function shared(key = null, fallback = null) {
-    let value = decode(globals.shared);
+    return dataGet(decode(globals.shared), key, fallback);
+}
+
+/** $this->flashed($key, $default): Fusion::flash()'s data, as the last page, visit or #[Server] call brought it. */
+export function flashed(key = null, fallback = null) {
+    return dataGet(decode(globals.flash), key, fallback);
+}
+
+/** data_get(): a value by key in dot notation, the default when a key is missing. */
+function dataGet(value, key, fallback) {
     if (key === null || key === undefined) return value;
 
     for (const segment of toStr(key).split('.')) {

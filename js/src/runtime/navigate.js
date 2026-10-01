@@ -143,7 +143,7 @@ export class Navigator {
         let page = null;
         try {
             response = await fetch(url.href, {
-                headers: { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '' },
+                headers: { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '', 'X-Fusion-Once': this.runtime.onceHeader() },
                 credentials: 'same-origin',
             });
             if (response.ok && (response.headers.get('Content-Type') ?? '').includes('application/json')) {
@@ -182,7 +182,7 @@ export class Navigator {
             this.window.history.pushState({}, '', target.href);
         }
         /** Fusion::share()'s data for this page, before it renders (components outside it follow). */
-        if (page.shared !== undefined) this.runtime.setShared(page.shared);
+        this.runtime.receive(page, null, true);
         if (!this.runtime.mountPage(current, page)) {
             this.window.location.reload();
             return;

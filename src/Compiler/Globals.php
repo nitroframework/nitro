@@ -36,13 +36,14 @@ final class Globals
 
     /**
      * Actions a handler can call without a method on the component, and their arity.
-     *   $set('prop', value)  $toggle('prop')  $refresh  $reload('prop', ...)  $dispatch('event', ...)
+     *   $set('prop', value)  $toggle('prop')  $refresh  $reload('prop', ...)  $loadMore('prop')  $dispatch('event', ...)
      */
     public const ACTIONS = [
         'set' => 2,
         'toggle' => 1,
         'refresh' => 0,
         'reload' => null,
+        'loadMore' => 1,
         'dispatch' => null,
         'dispatchTo' => null,
         'dispatchSelf' => null,
@@ -52,8 +53,9 @@ final class Globals
      * Methods Fusion gives every component, usable from browser code:
      *   $this->dispatch('event', ...$params)  $this->reset('prop', ...)  $this->redirect($url)
      *   $this->js('$refs.search.focus()')  $this->shared('auth.user.name', $default)  $this->reload('orders')
+     *   $this->flashed('toast')
      */
-    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'reload'];
+    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload'];
 
     /** fusion: attributes that are not events (the runtime reads them from the DOM). */
     public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref'];

@@ -30,30 +30,34 @@ export class Network {
      * for its data (X-Fusion-Partial: its id; X-Fusion-Only: the properties, all when none), then
      * the named properties taken from it. In the component's queue, after the calls before it.
      */
-    reload(component, only = [], deferred = false) {
+    reload(component, only = [], deferred = false, url = null) {
         const previous = this.queues.get(component) ?? Promise.resolve();
-        const next = previous.catch(() => {}).then(() => this.load(component, only, deferred));
+        const next = previous.catch(() => {}).then(() => this.load(component, only, deferred, url));
         next.catch((error) => this.runtime.report(component, error));
         this.queues.set(component, next);
         return next;
     }
 
-    async load(component, only, deferred) {
+    /** url: a function giving the URL to ask ($loadMore: the next page; null: nothing to load), else the page's. */
+    async load(component, only, deferred, url = null) {
         if (component.destroyed) return;
         const window = this.runtime.window;
+        const href = url ? url() : window.location.href;
+        if (href === null) return;
         const sent = new Map(component.data);
         const headers = {
             Accept: 'application/json',
             'X-Fusion-Navigate': '1',
             'X-Fusion-Partial': component.id,
             'X-Fusion-Version': this.config.bundle ?? '',
+            'X-Fusion-Once': this.runtime.onceHeader(),
         };
         if (only.length > 0) headers['X-Fusion-Only'] = only.join(',');
 
         if (!deferred) this.runtime.loading(component, '$reload', true);
         let response;
         try {
-            response = await fetch(window.location.href, { credentials: 'same-origin', headers });
+            response = await fetch(href, { credentials: 'same-origin', headers });
         } catch (error) {
             throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
         } finally {
@@ -79,7 +83,7 @@ export class Network {
         }
         if (component.destroyed) return;
 
-        if (page.shared !== undefined) this.runtime.setShared(page.shared, component);
+        this.runtime.receive(page, component);
         if (deferred) {
             only.forEach((name) => component.deferred.delete(name));
             component.dirty.add('$deferred');
@@ -87,7 +91,7 @@ export class Network {
         /** Children with mount() the reloaded data places: made by the server, with the page. */
         this.runtime.provided = new Map(Object.entries(page.children ?? {}));
         try {
-            component.applyReload(page.snapshot, only, sent);
+            component.applyReload(page.snapshot, only, sent, page.partial ?? null);
         } finally {
             this.runtime.provided.clear();
         }
@@ -96,8 +100,10 @@ export class Network {
     async send(component, method, args) {
         if (component.destroyed) return null;
         const sent = new Map(component.data);
+        const partials = component.partials;
         const body = {
             snapshot: component.snapshot,
+            partials: partials.length > 0 ? partials : undefined,
             updates: component.updates(),
             call: method === null ? null : { method, params: args.map(P.encode) },
         };
@@ -115,6 +121,7 @@ export class Network {
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': this.config.csrf,
                     'X-Fusion': '1',
+                    'X-Fusion-Once': this.runtime.onceHeader(),
                 },
                 body: JSON.stringify(body),
             });
@@ -141,8 +148,10 @@ export class Network {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server's answer is not JSON`, response.status, text);
         }
 
-        const { snapshot, effects = {}, shared } = answer;
-        if (shared !== undefined) this.runtime.setShared(shared, component);
+        const { snapshot, effects = {} } = answer;
+        this.runtime.receive(answer, component);
+        /** The new snapshot has the partial reloads sent with the call. */
+        component.partials = component.partials.filter((partial) => !partials.includes(partial));
         component.applySnapshot(snapshot, sent);
         this.runtime.effects(component, effects);
 

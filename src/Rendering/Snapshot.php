@@ -10,6 +10,7 @@ use LogicException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Component;
+use Nitro\Fusion\Merge;
 use Nitro\Fusion\State;
 use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Wire;
@@ -89,6 +90,32 @@ final class Snapshot
         return ['class' => get_class($model), 'key' => $model->getKey(), 'connection' => $model->getConnectionName()];
     }
 
+    /**
+     * The named properties only, for a partial reload: the browser applies them, and sends the
+     * envelope with its next #[Server] call, which lays it over the component's snapshot. Marked
+     * partial: it never stands for a component's whole state. A merge prop goes with its rule
+     * (Merge): the value is merged into the one the component has, not set.
+     *
+     * @param  list<string>  $properties
+     * @param  array<string, array{mode: string, path: ?string, match: list<string>}>  $merges
+     */
+    public function only(array $properties, array $merges = []): self
+    {
+        $names = array_flip($properties);
+
+        return new self($this->name, $this->id, array_intersect_key($this->data, $names), array_filter([
+            'models' => array_intersect_key($this->memo['models'] ?? [], $names),
+            'merge' => array_intersect_key($merges, $names),
+            'partial' => true,
+        ]));
+    }
+
+    /** Whether it holds some properties only (only()). */
+    public function isPartial(): bool
+    {
+        return ($this->memo['partial'] ?? false) === true;
+    }
+
     /** The envelope sent to the browser. */
     public function toJson(string $key): string
     {
@@ -124,14 +151,17 @@ final class Snapshot
     public function restore(Component $component, ComponentMeta $meta): void
     {
         $models = $this->memo['models'] ?? [];
+        /** A partial reload's merge props: merged into the value the component has (Merge). */
+        $merges = $this->isPartial() ? (array) ($this->memo['merge'] ?? []) : [];
 
         foreach ($meta->properties as $name => $property) {
             if (! array_key_exists($name, $this->data)) {
                 continue;
             }
 
-            $component->{$name} = match ($property->kind) {
-                PropertyMeta::MODEL, PropertyMeta::COLLECTION => isset($models[$name]) ? self::loadModels($models[$name]) : null,
+            $component->{$name} = match (true) {
+                in_array($property->kind, [PropertyMeta::MODEL, PropertyMeta::COLLECTION], true) => isset($models[$name]) ? self::loadModels($models[$name]) : null,
+                isset($merges[$name]) => Merge::apply($component->{$name}, $this->data[$name], $merges[$name]),
                 default => $this->data[$name],
             };
         }

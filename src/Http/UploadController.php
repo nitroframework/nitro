@@ -33,7 +33,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 final class UploadController
 {
     public function __construct(
-        private readonly Fusion $fusion,
         private readonly PersistentMiddleware $persistent,
     ) {
     }
@@ -46,16 +45,16 @@ final class UploadController
             throw new HttpException(400, 'Malformed upload.');
         }
 
-        $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion->key());
+        $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion()->key());
 
-        if (! $this->fusion->has($snapshot->name)) {
+        if (! $this->fusion()->has($snapshot->name)) {
             throw new HttpException(404, 'Unknown component.');
         }
 
         $this->persistent->check($snapshot->memo['route'] ?? [], $request);
 
         $name = $request->input('property');
-        $property = is_string($name) ? $this->fusion->meta($snapshot->name)->property($name) : null;
+        $property = is_string($name) ? $this->fusion()->meta($snapshot->name)->property($name) : null;
         $multiple = $property !== null && in_array('array', $property->types, true);
 
         if ($property === null || $property->locked || ! ($property->kind === PropertyMeta::UPLOAD || $multiple)) {
@@ -64,13 +63,13 @@ final class UploadController
 
         $files = $request->file('files');
         $files = is_array($files) ? array_values($files) : [];
-        $max = $multiple ? (int) $this->fusion->config('uploads.max_files', 20) : 1;
+        $max = $multiple ? (int) $this->fusion()->config('uploads.max_files', 20) : 1;
 
         if ($files === [] || count($files) > $max || array_filter($files, fn ($f) => ! $f instanceof UploadedFile) !== []) {
             throw new HttpException(422, $files === [] ? 'No file was received.' : "Choose up to {$max} ".($max === 1 ? 'file' : 'files').'.');
         }
 
-        $rules = (array) $this->fusion->config('uploads.rules', ['file', 'max:12288']);
+        $rules = (array) $this->fusion()->config('uploads.rules', ['file', 'max:12288']);
         $validator = Validator::make(['files' => $files], ['files.*' => $rules], [], ['files.*' => $name]);
 
         if ($validator->fails()) {
@@ -96,5 +95,14 @@ final class UploadController
             'Content-Security-Policy' => "default-src 'none'; sandbox",
             'Cache-Control' => 'private, max-age=3600',
         ]))->setContentDisposition('inline', 'preview.'.(preg_replace('/[^a-z0-9]/', '', strtolower($upload->getClientOriginalExtension())) ?: 'img'));
+    }
+
+    /**
+     * This request's Fusion. The router keeps a controller between requests (Octane, Nitro's
+     * workers): Fusion, bound per request, is not kept with it.
+     */
+    private function fusion(): Fusion
+    {
+        return app(Fusion::class);
     }
 }
