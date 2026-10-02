@@ -13,6 +13,8 @@ use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use JsonSerializable;
+use Nitro\Fusion\Browser\Browser;
+use Nitro\Fusion\Browser\BrowserOnlyException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Template\ChildTag;
 use Nitro\Fusion\Rendering\Renderer;
@@ -90,6 +92,15 @@ final class Fusion
     public function config(string $key, mixed $default = null): mixed
     {
         return data_get($this->config, $key, $default);
+    }
+
+    /**
+     * The browser's APIs (clipboard, storage, canvas, sockets), in a component's browser methods:
+     * compiled to JavaScript. On the server it throws.
+     */
+    public function browser(): Browser
+    {
+        throw BrowserOnlyException::make();
     }
 
     public function registry(): Registry

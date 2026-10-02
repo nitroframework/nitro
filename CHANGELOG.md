@@ -4,6 +4,10 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Browser APIs: `Fusion::browser()` with `clipboard()`, `storage()`, `session()`, `canvas($ref)`
+  and `socket($url)`, chained from browser methods and event handlers; checked against
+  `src/Browser` at build time, in the bundle only when used, and throwing on the server.
+
 - Transitions: `fusion:transition`, as Vue's `<Transition>`: a built-in fade and scale
   (`.opacity`, `.scale`, `.duration.300ms`, `.origin.top`, `.in`, `.out`, `.appear`) or Vue's
   `name-enter-*` / `name-leave-*` classes; a leaving element stays until its animation ends, and

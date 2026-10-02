@@ -55,7 +55,27 @@ class CompileErrorsTest extends TestCase
             'magic constant' => ['return __LINE__;', 'Magic constants', 3],
             'unknown constant' => ['return SOME_CONSTANT;', 'The constant SOME_CONSTANT', 3],
             'named arguments' => ['return str_pad(string: "x", length: 2);', 'Named arguments', 3],
+            'server-side Fusion' => ['Fusion::flash("saved", true);', 'Fusion:: runs on the server; in the browser, Fusion::browser()', 3],
+            'unknown browser API' => ['Fusion::browser()->camera();', 'Fusion::browser()->camera() does not exist: it has clipboard(), storage(), session(), canvas(), socket()', 3],
+            'unknown browser API method' => ["\$c = Fusion::browser()->canvas('c');\n\$c->drawCircle();", 'Fusion::browser()->canvas()->drawCircle() does not exist', 4],
+            'browser API without its argument' => ['Fusion::browser()->canvas();', 'Fusion::browser()->canvas($ref) takes 1 argument', 3],
+            'browser API with too many' => ['Fusion::browser()->storage()->get("a", 1, 2);', 'Fusion::browser()->storage()->get($key, $default) takes 1 to 2 arguments', 3],
+            'browser API named arguments' => ['Fusion::browser()->storage()->get(key: "a");', 'takes its arguments in order', 3],
         ];
+    }
+
+    public function test_browser_apis_compile_to_their_functions(): void
+    {
+        $source = "<?php class C {\n    public function run() {\n        \$canvas = \\Nitro\\Fusion\\Facades\\Fusion::browser()->canvas('chart')->size(10, 10);\n        \$canvas->arc(1, 2, 3);\n        \$draw = fn () => \$canvas->fill();\n        Fusion::browser()->session()->set('k', \$this->count);\n    }\n}";
+        $method = (new NodeFinder)->findFirstInstanceOf((new ParserFactory)->createForNewestSupportedVersion()->parse($source), Stmt\ClassMethod::class);
+        $transpiler = new Transpiler;
+        $js = $transpiler->method($method, $this->scope());
+
+        $this->assertStringContainsString('($canvas = P.fns._browser_canvas($this.$browser, "chart").size(10, 10))', $js);
+        $this->assertStringContainsString('$canvas.arc(1, 2, 3, 0, 6.283185307179586)', $js, 'arguments left out take the PHP defaults');
+        $this->assertStringContainsString('$canvas.fill()', $js, 'a captured variable keeps its API');
+        $this->assertStringContainsString('P.fns._browser_session($this.$browser).set("k", $this.count)', $js);
+        $this->assertSame(['_browser_canvas', '_browser_session'], array_keys($transpiler->uses['functions']));
     }
 
     #[DataProvider('methods')]

@@ -4,6 +4,7 @@ namespace Nitro\Fusion\Compiler;
 
 use Closure;
 use Illuminate\Support\Str;
+use Nitro\Fusion\Browser\Browser;
 use Nitro\Fusion\Compiler\Template\VariableSubstitution;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -16,6 +17,10 @@ use PhpParser\Node\Scalar;
 use PhpParser\Node\Stmt;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionParameter;
 use Throwable;
 
 /**
@@ -64,6 +69,9 @@ final class Transpiler
     private const UNSUPPORTED_REFS = ['preg_replace' => 4, 'preg_replace_callback' => 4, 'similar_text' => 2];
 
     private const ALIASES = ['join' => 'implode'];
+
+    /** Fusion, as a view (Blade's alias) or a use statement names it: Fusion::browser(). */
+    private const FUSION = ['Fusion', \Nitro\Fusion\Facades\Fusion::class, \Nitro\Fusion\Fusion::class];
 
     private const CONSTANTS = [
         /** The server's value: the page is rendered there too, and both renders must match. */
@@ -135,6 +143,9 @@ final class Transpiler
 
     private int $labelCounter = 0;
 
+    /** @var array<string, class-string> variables holding a Fusion::browser() API: variable => its class */
+    private array $browserVariables = [];
+
     /** @var list<string> component methods the compiled code calls (read and reset by the caller) */
     public array $calledMethods = [];
 
@@ -193,7 +204,8 @@ final class Transpiler
 
     /**
      * An event handler (fusion:click="save", fusion:click="remove($item['id'])"): component method
-     * calls and the magic actions $set, $toggle, $refresh and $dispatch. $event is the DOM event.
+     * calls, the magic actions $set, $toggle, $refresh and $dispatch, and Fusion::browser() calls.
+     * $event is the DOM event.
      *
      * @param  list<string>  $locals
      */
@@ -262,8 +274,9 @@ final class Transpiler
      */
     private function functionLike(array $params, array $stmts, string $name, bool $isMethod = false): string
     {
-        [$savedLocals, $savedTemps, $savedLoops] = [$this->locals, $this->temps, $this->loops];
+        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$this->locals, $this->temps, $this->loops, $this->browserVariables];
         $this->locals = [];
+        $this->browserVariables = [];
         $this->temps = [];
         $this->loops = [];
 
@@ -293,7 +306,7 @@ final class Transpiler
 
         $head .= $this->declareTemps().$coercions;
 
-        [$this->locals, $this->temps, $this->loops] = [$savedLocals, $savedTemps, $savedLoops];
+        [$this->locals, $this->temps, $this->loops, $this->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
 
         return 'function ('.implode(', ', $signature).") {\n{$head}{$body}}";
     }
@@ -588,7 +601,7 @@ final class Transpiler
     private function statementExpr(Expr $expr): string
     {
         if ($expr instanceof Expr\Assign) {
-            return $this->assign($expr->var, $this->expr($expr->expr), false);
+            return $this->assignment($expr, false);
         }
 
         if ($expr instanceof Expr\AssignOp) {
@@ -627,7 +640,7 @@ final class Transpiler
             $e instanceof Expr\PropertyFetch, $e instanceof Expr\NullsafePropertyFetch => $this->propertyFetch($e),
             $e instanceof Expr\MethodCall, $e instanceof Expr\NullsafeMethodCall => $this->methodCall($e),
             $e instanceof Expr\FuncCall => $this->funcCall($e),
-            $e instanceof Expr\Assign => $this->assign($e->var, $this->expr($e->expr), true),
+            $e instanceof Expr\Assign => $this->assignment($e, true),
             $e instanceof Expr\AssignOp => $this->assignOp($e, true),
             $e instanceof Expr\PreInc, $e instanceof Expr\PostInc, $e instanceof Expr\PreDec, $e instanceof Expr\PostDec => $this->increment($e, true),
             $e instanceof Expr\BinaryOp => $this->binary($e),
@@ -713,6 +726,14 @@ final class Transpiler
     private function staticCall(Expr\StaticCall $e): string
     {
         $class = $e->class instanceof Name ? ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\') : null;
+
+        if (in_array($class, self::FUSION, true)) {
+            if (! $e->name instanceof Identifier || $e->name->toString() !== 'browser' || $e->args !== []) {
+                throw $this->error('Fusion:: runs on the server; in the browser, Fusion::browser() has the browser\'s APIs', $e);
+            }
+
+            return '$this.$browser';
+        }
 
         if (! in_array($class, ['Str', Str::class], true) || ! $e->name instanceof Identifier) {
             throw $this->error('Static calls are not supported in the browser (Str:: is): move this code to a #[Server] method', $e);
@@ -833,6 +854,10 @@ final class Transpiler
 
     private function methodCall(Expr\MethodCall|Expr\NullsafeMethodCall $e): string
     {
+        if (($api = $this->browserApi($e->var)) !== null) {
+            return $this->browserCall($e, $api);
+        }
+
         /** $this->dispatch(...)->to(Card::class) / ->self(), as Livewire's. */
         if ($e->var instanceof Expr\MethodCall && $this->isThis($e->var->var) && $e->var->name instanceof Identifier && $e->var->name->toString() === 'dispatch') {
             $dispatch = $this->methodCall($e->var);
@@ -954,6 +979,104 @@ final class Transpiler
         $name = $this->scope->componentName($class) ?? throw $this->error("{$class} is not a Fusion component", $node);
 
         return $this->string($this->scope->browserComponent($name));
+    }
+
+    /**
+     * The Fusion::browser() API an expression holds: Fusion::browser() itself, a call on one that
+     * returns another (or itself: ->fillRect()->stroke()), or a variable assigned one. Null for
+     * anything else.
+     *
+     * @return class-string|null
+     */
+    private function browserApi(Expr $e): ?string
+    {
+        if ($e instanceof Expr\StaticCall && $e->class instanceof Name && $e->name instanceof Identifier && $e->name->toString() === 'browser'
+            && in_array(ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\'), self::FUSION, true)) {
+            return Browser::class;
+        }
+
+        if ($e instanceof Expr\Variable && is_string($e->name)) {
+            return $this->browserVariables[$e->name] ?? null;
+        }
+
+        if (($e instanceof Expr\MethodCall || $e instanceof Expr\NullsafeMethodCall) && $e->name instanceof Identifier
+            && ($api = $this->browserApi($e->var)) !== null && method_exists($api, $e->name->toString())) {
+            $type = (new ReflectionMethod($api, $e->name->toString()))->getReturnType();
+            $name = $type instanceof ReflectionNamedType ? $type->getName() : null;
+
+            return match (true) {
+                $name === 'static', $name === 'self' => $api,
+                $name !== null && str_starts_with($name, 'Nitro\\Fusion\\Browser\\') && class_exists($name) => $name,
+                default => null,
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * A call on a Fusion::browser() API, checked against its PHP class (src/Browser): on the
+     * Browser, one of js/functions/_browser_*.js, in the bundle when called; on what that
+     * returns, its method. Arguments left out get the PHP method's defaults.
+     *
+     * @param  class-string  $api
+     */
+    private function browserCall(Expr\MethodCall|Expr\NullsafeMethodCall $e, string $api): string
+    {
+        $short = 'Fusion::browser()'.($api === Browser::class ? '' : '->'.lcfirst(class_basename($api)).'()');
+        $methods = array_map(fn (ReflectionMethod $m) => $m->getName(), (new ReflectionClass($api))->getMethods(ReflectionMethod::IS_PUBLIC));
+        $name = $e->name instanceof Identifier ? $e->name->toString() : throw $this->error('Dynamic method names are not supported in the browser', $e);
+
+        if (! in_array($name, $methods, true)) {
+            throw $this->error("{$short}->{$name}() does not exist: it has ".implode('(), ', $methods).'()', $e);
+        }
+
+        $method = new ReflectionMethod($api, $name);
+
+        foreach ($e->args as $arg) {
+            if (! $arg instanceof Arg || $arg->name !== null || $arg->unpack) {
+                throw $this->error("{$short}->{$name}() takes its arguments in order", $e);
+            }
+        }
+
+        [$required, $total] = [$method->getNumberOfRequiredParameters(), $method->getNumberOfParameters()];
+
+        if (count($e->args) < $required || count($e->args) > $total) {
+            $params = implode(', ', array_map(fn (ReflectionParameter $p) => '$'.$p->getName(), $method->getParameters()));
+            $count = ($required === $total ? $total : "{$required} to {$total}").($total === 1 ? ' argument' : ' arguments');
+
+            throw $this->error("{$short}->{$name}({$params}) takes {$count}", $e);
+        }
+
+        $args = $this->args($e->args);
+
+        foreach (array_slice($method->getParameters(), count($e->args)) as $param) {
+            $args[] = $this->literal($param->getDefaultValue(), $e);
+        }
+
+        if ($api === Browser::class) {
+            $this->uses['functions']['_browser_'.$name] = true;
+
+            return 'P.fns._browser_'.$name.'('.implode(', ', [$this->expr($e->var), ...$args]).')';
+        }
+
+        return $this->expr($e->var).'.'.$name.'('.implode(', ', $args).')';
+    }
+
+    /** $x = ...: an assignment; a variable given a Fusion::browser() API keeps its class, for the calls on it. */
+    private function assignment(Expr\Assign $e, bool $valueUsed): string
+    {
+        if ($e->var instanceof Expr\Variable && is_string($e->var->name)) {
+            $api = $this->browserApi($e->expr);
+
+            if ($api !== null) {
+                $this->browserVariables[$e->var->name] = $api;
+            } else {
+                unset($this->browserVariables[$e->var->name]);
+            }
+        }
+
+        return $this->assign($e->var, $this->expr($e->expr), $valueUsed);
     }
 
     private function serverCall(Expr\MethodCall $e): string
@@ -1624,8 +1747,10 @@ final class Transpiler
      */
     private function functionWithCaptures(array $params, array $stmts, array $captured): string
     {
-        [$savedLocals, $savedTemps, $savedLoops] = [$this->locals, $this->temps, $this->loops];
+        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$this->locals, $this->temps, $this->loops, $this->browserVariables];
         $this->locals = array_fill_keys($captured, true);
+        /** A captured variable keeps its Fusion::browser() API. */
+        $this->browserVariables = array_intersect_key($this->browserVariables, $this->locals);
         $this->temps = [];
         $this->loops = [];
 
@@ -1653,7 +1778,7 @@ final class Transpiler
         $head = ($declared === [] ? '' : 'let '.implode(', ', array_map(fn ($v) => '$'.$v, array_keys($declared))).";\n")
             .$this->declareTemps().$coercions;
 
-        [$this->locals, $this->temps, $this->loops] = [$savedLocals, $savedTemps, $savedLoops];
+        [$this->locals, $this->temps, $this->loops, $this->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
 
         return 'function ('.implode(', ', $signature).") {\n{$head}{$body}}";
     }
@@ -1678,6 +1803,11 @@ final class Transpiler
             }
 
             return '$this.$parent('.$this->string($this->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->args($e->args)).'])';
+        }
+
+        /** Fusion::browser()->storage()->forget('draft'): a browser API, called from the view. */
+        if (($e instanceof Expr\MethodCall || $e instanceof Expr\NullsafeMethodCall) && $this->browserApi($e->var) !== null) {
+            return $this->expr($e);
         }
 
         if ($e instanceof Expr\Variable && $e->name === 'refresh') {

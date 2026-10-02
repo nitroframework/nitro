@@ -297,6 +297,49 @@ With a name, the classes are Vue's, and the CSS decides what moves and for how l
 
 Rows of a list animate on their own; a removed row leaves where it was, while the others take their places. Nothing animates on the server's HTML, in a hidden tab, or for a visitor who asks for reduced motion.
 
+## Browser APIs
+
+`Fusion::browser()` reaches the browser's APIs from a component's browser methods and its event handlers. Calls are checked against the classes in `src/Browser` when the bundle is built, and compiled to the browser's own calls; the bundle includes only the APIs the application uses. On the server, `Fusion::browser()` throws.
+
+```php
+use Nitro\Fusion\Facades\Fusion;
+
+public function copy(): void
+{
+    Fusion::browser()->clipboard()->write($this->invoice['number'], fn () => $this->copied = true);
+}
+
+public function draw(): void
+{
+    $canvas = Fusion::browser()->canvas('chart')->size(320, 160)->clear()->fillStyle('#4f46e5');
+
+    foreach ($this->totals as $i => $total) {
+        $canvas->fillRect($i * 40, 160 - $total, 30, $total);
+    }
+}
+
+public function connect(): void
+{
+    Fusion::browser()->socket('/ws/orders')
+        ->onMessage(fn (array $order) => $this->orders[] = $order)
+        ->send(['subscribe' => 'orders']);
+}
+```
+
+```blade
+<canvas fusion:ref="chart" fusion:init="draw"></canvas>
+<button fusion:click="Fusion::browser()->storage()->forget('draft')">Discard draft</button>
+```
+
+| API | |
+| --- | --- |
+| `clipboard()` | `write($text, $then)`, `read($then)`: https pages and localhost |
+| `storage()`, `session()` | localStorage and sessionStorage: `get($key, $default)`, `set($key, $value)`, `has($key)`, `forget($key)`. Values are stored as JSON |
+| `canvas($ref)` | The 2D context of `<canvas fusion:ref="...">`, chained with the context's own names (`fillStyle`, `fillRect`, `arc`, `fillText`, ...). The calls run once the component has rendered. `size($width, $height)` sets the size in CSS pixels, scaled for the screen's density |
+| `socket($url)` | A WebSocket, one per URL and component: `onMessage($then)`, `onOpen($then)`, `onClose($then)`, `send($data)`, `close()`. JSON messages arrive as arrays. It reconnects after a drop and closes when the component leaves the page |
+
+Callbacks are closures. A property they change renders as any other change does.
+
 ## Uploads
 
 ```php

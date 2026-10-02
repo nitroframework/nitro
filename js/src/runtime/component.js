@@ -74,8 +74,10 @@ export class Component {
         this.memo = new Map();
         /** Properties changed since the last update ("*": anything). */
         this.dirty = new Set();
-        /** JavaScript from $this->js(), to run after the next render. */
+        /** JavaScript from $this->js() (and functions from Fusion::browser()), to run after the next render. */
         this.pendingJs = [];
+        /** What Fusion::browser() opened (sockets): closed when it leaves the page. */
+        this.cleanups = [];
         /** The slots its parent passed: name => {nodes, instance, scope} (the parent renders them). */
         this.slots = {};
         /** The component whose view placed it ($parent), and fusion:model on its tag: {parent, path}. */
@@ -124,6 +126,8 @@ export class Component {
             $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
         });
         Object.defineProperty(ctx, '$errors', { get: () => self.errors });
+        /** Fusion::browser(): what its APIs (js/functions/_browser_*.js) need of the component. */
+        Object.defineProperty(ctx, '$browser', { get: () => self.browser() });
         /** $slots->has('footer') and $slot->isEmpty() in its view. */
         ctx.$slots = { has: (name) => slotHasContent(self.slots[P.toStr(name)]) };
 
@@ -296,11 +300,30 @@ export class Component {
         this.pendingJs = [];
         for (const code of pending) {
             try {
-                new Function('$fusion', '$refs', '$el', code).call(this.ctx, this.ctx, this.refs(), this.el);
+                if (typeof code === 'function') code();
+                else new Function('$fusion', '$refs', '$el', code).call(this.ctx, this.ctx, this.refs(), this.el);
             } catch (error) {
                 this.runtime.report(this, error);
             }
         }
+    }
+
+    /**
+     * The component, as Fusion::browser()'s APIs see it: its element and refs, work to do once it
+     * has rendered, what to close when it leaves, and a place to keep what they opened.
+     */
+    browser() {
+        return (this.browserHandle ??= {
+            el: this.el,
+            ref: (name) => this.refs()[name] ?? null,
+            after: (fn) => {
+                this.pendingJs.push(fn);
+                this.schedule();
+            },
+            onDestroy: (fn) => this.cleanups.push(fn),
+            cache: new Map(),
+            report: (error) => this.runtime.report(this, error),
+        });
     }
 
     /** The elements matching the selector in its element and its @teleport content (its children's too). */
@@ -490,6 +513,13 @@ export class Component {
         if (!this.definition.server.includes('destroyed')) this.hook('destroyed');
         this.destroyed = true;
         this.runtime.broadcasts.unsubscribe(this);
+        for (const cleanup of this.cleanups.splice(0)) {
+            try {
+                cleanup();
+            } catch (error) {
+                this.runtime.report(this, error);
+            }
+        }
         this.view.dispose();
     }
 }

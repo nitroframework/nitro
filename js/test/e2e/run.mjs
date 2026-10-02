@@ -113,6 +113,47 @@ async function open(path) {
                 }
             };
             window.observers = observers;
+
+            /** Fusion::browser(): a clipboard, a canvas context that records its calls, and an echoing WebSocket. */
+            let clipboardText = '';
+            Object.defineProperty(window.navigator, 'clipboard', {
+                value: { writeText: async (text) => void (clipboardText = text), readText: async () => clipboardText },
+            });
+            window.clipboardText = () => clipboardText;
+            window.HTMLCanvasElement.prototype.getContext = function () {
+                this.drawn ??= [];
+                const drawn = this.drawn;
+                return new Proxy({}, {
+                    get: (target, name) => (name in target ? target[name] : (...args) => drawn.push([name, ...args])),
+                    set: (target, name, value) => {
+                        target[name] = value;
+                        drawn.push([name, value]);
+                        return true;
+                    },
+                });
+            };
+            window.sockets = [];
+            window.WebSocket = class {
+                constructor(url) {
+                    this.url = url;
+                    this.readyState = 0;
+                    this.sent = [];
+                    window.sockets.push(this);
+                    setTimeout(() => {
+                        this.readyState = 1;
+                        this.onopen?.();
+                    }, 5);
+                }
+                send(data) {
+                    this.sent.push(data);
+                    setTimeout(() => this.onmessage?.({ data }), 5);
+                }
+                close() {
+                    if (this.readyState === 3) return;
+                    this.readyState = 3;
+                    setTimeout(() => this.onclose?.(), 0);
+                }
+            };
         },
     });
     const { window } = dom;
@@ -1080,6 +1121,57 @@ await scenario('transitions', async () => {
     await wait(30);
     check('a removed row leaves first', document.querySelectorAll('.items li').length === 4 && text(document.querySelector('.items li')) === '1');
     await until('then goes', () => [...document.querySelectorAll('.items li')].map(text).join(',') === '2,3,4', 1000);
+    window.close();
+});
+
+await scenario('browser APIs', async () => {
+    const window = await open('/devices');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+
+    /** The clipboard: write, then read back. */
+    click(window, $('.copy'));
+    await until('copied, then the callback ran', () => text($('.copied')) === 'copied');
+    check('the clipboard has the text', window.clipboardText() === 'INV-0042', window.clipboardText());
+    click(window, $('.paste'));
+    await until('pasted', () => text($('.pasted')) === 'INV-0042');
+
+    /** Storage: JSON values, kept in localStorage; a handler in the view calls it too. */
+    click(window, $('.save'));
+    await until('stored', () => text($('.stored')) === 'stored');
+    check('as JSON', window.localStorage.getItem('draft') === '{"title":"Draft","at":1}', window.localStorage.getItem('draft'));
+    click(window, $('.load'));
+    await until('read back', () => text($('.loaded')) === 'Draft');
+    check('session storage', window.sessionStorage.getItem('loads') === '1', window.sessionStorage.getItem('loads'));
+    click(window, $('.forget'));
+    await until('forgotten', () => window.localStorage.getItem('draft') === null);
+    click(window, $('.load'));
+    await until('the default when it is not there', () => text($('.loaded')) === 'none');
+    check('session storage counts on', window.sessionStorage.getItem('loads') === '2');
+
+    /** The canvas: drawn after the render, the calls in order, sized for the screen. */
+    const canvas = $('canvas');
+    await until('drawn on fusion:init', () => canvas.drawn?.length > 0);
+    const drawn = () => canvas.drawn.map(([name, ...args]) => `${name}(${args.join(',')})`).join(' ');
+    check('in order', drawn().includes('fillStyle(#4f46e5) fillRect(0,60,30,40) fillRect(40,30,30,70) fillRect(80,75,30,25) beginPath() arc(60,50,10,0,6.283185307179586) stroke()'), drawn());
+    check('its size', canvas.style.width === '120px' && canvas.width === 120, `${canvas.style.width} ${canvas.width}`);
+    canvas.drawn = [];
+    click(window, $('.grow'));
+    await until('drawn again', () => canvas.drawn.length > 0);
+    check('with the new bar', drawn().includes('fillRect(120,10,30,90)'), drawn());
+
+    /** A WebSocket: messages decoded, sends queued until it opens, one connection per URL, closed on leaving. */
+    click(window, $('.connect'));
+    await until('it opens', () => text($('.open')) === 'open');
+    await until('its echo arrives', () => [...document.querySelectorAll('.messages li')].map(text).join(',') === 'hello');
+    check('to the page\'s host, as ws:', window.sockets.length === 1 && window.sockets[0].url.startsWith('ws://') && window.sockets[0].url.endsWith('/echo'), window.sockets[0]?.url);
+    click(window, $('.say'));
+    await until('the same connection', () => [...document.querySelectorAll('.messages li')].map(text).join(',') === 'hello,again');
+    check('one socket', window.sockets.length === 1);
+    click(window, $('.disconnect'));
+    await until('closed', () => text($('.open')) === 'closed');
+    await wait(1100);
+    check('and not reconnected', window.sockets.length === 1);
     window.close();
 });
 

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static mixed shared(?string $key = null, mixed $default = null)
  * @method static string mount(string $name, array $props = [], array $slots = [])
  * @method static mixed config(string $key, mixed $default = null)
+ * @method static \Nitro\Fusion\Browser\Browser browser()
  *
  * @see \Nitro\Fusion\Fusion
  */

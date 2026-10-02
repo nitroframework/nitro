@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Nitro\Fusion\Tests\Fixtures\Http\RenderController;
 use Nitro\Fusion\Tests\Fixtures\Pages\Board;
 use Nitro\Fusion\Tests\Fixtures\Pages\Counter;
+use Nitro\Fusion\Tests\Fixtures\Pages\Devices;
 use Nitro\Fusion\Tests\Fixtures\Pages\Feed;
 use Nitro\Fusion\Tests\Fixtures\Pages\Gallery;
 use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
@@ -33,6 +34,7 @@ Route::fusion('/report', Report::class)->name('report');
 Route::fusion('/feed', Feed::class)->name('feed');
 Route::fusion('/transitions', Transitions::class)->name('transitions');
 Route::fusion('/live', Live::class)->name('live');
+Route::fusion('/devices', Devices::class)->name('devices');
 
 /** Pages from a controller: Fusion::render(). */
 Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');
