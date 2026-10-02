@@ -4,6 +4,10 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- `fusion:navigate` to any page, not only Fusion pages: a Blade view, a controller's view or a page
+  in another layout comes as HTML and replaces the document without reloading (as
+  `wire:navigate`), and links from such pages navigate too.
+
 - The progress bar is now nitro-progress instead of NProgress: it finishes as the new page appears
   rather than trailing after it, and creeps as one CSS animation, so a page busy rendering cannot
   stall it. New settings `maximum` and `fade_speed`; new defaults (starts at

@@ -616,7 +616,14 @@ The first visit is rendered by the server. After that, a `fusion:navigate` link 
 for the page's data (`X-Fusion-Navigate`): Laravel routes it as usual (middleware, bindings,
 redirects), the page runs `mount()` and answers with its signed state and title, and the browser
 renders the compiled component in place of the current page. The layout, and the components in
-it, stay. A page in another layout, or a URL that is not a Fusion page, loads normally.
+it, stay.
+
+Any other page of the application (a Blade view, a view a controller returns, a page in another
+layout) is fetched as HTML and put in place of the current document, as with `wire:navigate`:
+still no reload. New stylesheets load before it shows, its new scripts run (one an earlier page
+loaded is not loaded again), and its components and islands start as on a page load. A link from
+such a page to a Fusion page works the same way. An error, a download, or a page built with
+another version of Fusion (after a deploy) loads normally.
 
 A visit scrolls to the top, or to the URL's `#fragment`; `fusion:navigate.preserve-scroll` keeps
 the current position. Back and forward return to where each page was left.

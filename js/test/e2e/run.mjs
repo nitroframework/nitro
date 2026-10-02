@@ -1238,6 +1238,64 @@ await scenario('islands', async () => {
     window.close();
 });
 
+/** fusion:navigate to a page that is not Fusion's (a Blade view), and from it: its HTML, still without reloading. */
+await scenario('navigate to and from a Blade view', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const live = (section) => window.Fusion.components().filter((c) => $(`.${section}`)?.contains(c.el)).length;
+    const link = (href) => {
+        const a = document.createElement('a');
+        a.href = href;
+        a.setAttribute('fusion:navigate', '');
+        a.textContent = href;
+        document.body.appendChild(a);
+        return a;
+    };
+    const fetched = [];
+    const pageFetch = window.fetch;
+    window.fetch = async (...args) => {
+        const response = await pageFetch(...args);
+        fetched.push(`${new URL(response.url).pathname} ${response.headers.get('Content-Type')?.split(';')[0]}`);
+        return response;
+    };
+    const runtime = window.Fusion;
+
+    click(window, link('/islands'));
+    await until('to the Blade view, without reloading', () => window.location.pathname === '/islands' && live('now') === 1);
+    check('one request, its HTML', fetched.length === 1 && fetched[0] === '/islands text/html', fetched.join(', '));
+    check('the same runtime', window.Fusion === runtime);
+    check('its title', document.title === 'Islands', document.title);
+    check('the old page\'s components are gone', !window.Fusion.components().some((c) => c.name === N('pages::counter')));
+    check('fusion:static stays its HTML', $('.static .counter') !== null && live('static') === 0);
+    await until('its islands start', () => live('idle') === 1, 2000);
+    click(window, $('.now .counter').querySelectorAll('button')[1]);
+    await until('and work', () => text($('.now .count')) === '1');
+    await until('the progress bar completes and goes', () => $('#nprogress') === null);
+
+    fetched.length = 0;
+    click(window, link('/counter'));
+    await until('back to a Fusion page, without reloading', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
+    check('its HTML, as the Blade view has no page to render into', fetched.length === 1 && fetched[0] === '/counter text/html', fetched.join(', '));
+    check('the islands are gone', $('.now') === null && !window.Fusion.components().some((c) => c.name === N('counter')));
+    const counter = byName(document, 'pages::counter');
+    click(window, counter.querySelectorAll('button')[1]);
+    await until('the page is live', () => text(counter.querySelector('.count')) === '1');
+
+    fetched.length = 0;
+    click(window, document.querySelector('a.board-link'));
+    await until('then a Fusion page renders its data as before', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="todo-list"] li.todo') !== null);
+    check('as JSON', fetched.length === 1 && /application\/json/.test(fetched[0]), fetched.join(', '));
+
+    window.history.back();
+    await until('back', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
+    window.history.back();
+    await until('back to the Blade view', () => window.location.pathname === '/islands' && live('now') === 1);
+    check('the same runtime still', window.Fusion === runtime);
+    window.fetch = pageFetch;
+    window.close();
+});
+
 await scenario('browser APIs', async () => {
     const window = await open('/devices');
     const { document } = window;

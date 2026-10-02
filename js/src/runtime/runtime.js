@@ -97,7 +97,9 @@ export class Runtime {
 
     /**
      * Take over the server-rendered components under root (once the chunks they need are here).
-     * Islands with fusion:hydrate, and the components inside them, wait for their moment.
+     * Islands with fusion:hydrate, and the components inside them, wait for their moment (not
+     * once their page is gone: a fusion:navigate visit replaced it). Resolves when the page's
+     * components are live.
      */
     start(root = this.document.body) {
         if (!this.styled) {
@@ -110,7 +112,7 @@ export class Runtime {
         const islands = islandsIn(root);
         const elements = snapshotsIn(root).filter((el) => !islands.some((island) => island.contains(el)));
 
-        this.take(elements).then(() => {
+        const live = this.take(elements).then(() => {
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
             this.restoreRemembered(this.window.history.state?.fusionRemember);
@@ -121,12 +123,14 @@ export class Runtime {
 
         for (const island of islands) {
             whenToStart(island, this.window, () => {
+                if (!island.isConnected) return Promise.resolve();
                 island.removeAttribute('fusion:hydrate');
                 /** Not those of an island inside it that is still waiting. */
                 const waiting = islandsIn(island);
                 return this.take(snapshotsIn(island).filter((el) => !waiting.some((inner) => inner.contains(el))));
             });
         }
+        return live;
     }
 
     /**
