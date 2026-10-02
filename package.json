@@ -10,6 +10,6 @@
         "jsdom": "^26.0.0"
     },
     "dependencies": {
-        "nitro-progress": "file:../nitro-progress"
+        "nitro-progress": "github:ZeeshanX4/nitro-progress"
     }
 }
