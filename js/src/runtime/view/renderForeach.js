@@ -35,12 +35,12 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
 
     const current = [...currentArrayScope.data.values()];
     const usedMap = new Set();
+
+    /** Which iterations stay, and where: worked out before anything moves. */
+    const matches = [];
     let positionIndex = -1;
-    let moveBefore = anchors.anchorBegin.nextSibling;
-    const nextArrayScope = new Map();
     for (const [dataKey, dataItem] of P.iter(data)) {
         positionIndex++;
-        const loop = B.next(state);
         let foundIndex = current.findIndex((item) => !usedMap.has(item) && item.value === dataItem && (noKey || item.key === dataKey));
         /** Fusion: an array at another key (a list reindexed) is the same item: it moves. */
         if (foundIndex === -1 && typeof dataItem === 'object' && dataItem !== null) {
@@ -53,9 +53,29 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
         if (foundIndex !== -1 && directive.positional && current[foundIndex].index !== positionIndex) {
             foundIndex = -1;
         }
+        if (foundIndex !== -1) usedMap.add(current[foundIndex]);
+        matches.push({ dataKey, dataItem, positionIndex, foundIndex });
+    }
+
+    /**
+     * Those gone are removed first: a row that leaves animated (fusion:transition) stays where it
+     * was meanwhile, and the rows are placed around it.
+     */
+    for (const item of current) {
+        if (!usedMap.has(item)) {
+            removeBefore(instance, item.end);
+            item.begin.remove();
+            item.end.remove();
+            dispose(instance, item.scope);
+        }
+    }
+
+    let moveBefore = pastLeaving(anchors.anchorBegin.nextSibling);
+    const nextArrayScope = new Map();
+    for (const { dataKey, dataItem, positionIndex, foundIndex } of matches) {
+        const loop = B.next(state);
         if (foundIndex !== -1) {
             const currentScopeItem = current[foundIndex];
-            usedMap.add(currentScopeItem);
             Object.assign(currentScopeItem.scope.arguments, setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop));
             currentScopeItem.key = dataKey;
             currentScopeItem.value = dataItem;
@@ -72,26 +92,23 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
                 }
                 moveBefore.before(nextToMove);
             }
-            moveBefore = currentScopeItem.end.nextSibling;
+            moveBefore = pastLeaving(currentScopeItem.end.nextSibling);
         } else {
             const nextScope = createScope(scope, 'forItem', setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop));
             nextScope.loops = [...scope.loops, loop.index];
             const itemBeginAnchor = createAnchorNode(instance, moveBefore, true, undefined, 'B' + nextAnchorNodeId()); // begin foreach item
             render(moveBefore, instance, node.h ?? [], nextScope, false, true);
             const itemEndAnchor = createAnchorNode(instance, moveBefore, true, undefined, itemBeginAnchor._anchor); // end foreach item
-            moveBefore = itemEndAnchor.nextSibling;
+            moveBefore = pastLeaving(itemEndAnchor.nextSibling);
             nextArrayScope.set(dataKey, { key: dataKey, value: dataItem, index: positionIndex, begin: itemBeginAnchor, end: itemEndAnchor, scope: nextScope });
-        }
-    }
-    // removing what's missing
-    for (const item of current) {
-        if (!usedMap.has(item)) {
-            removeBefore(instance, item.end);
-            item.begin.remove();
-            item.end.remove();
-            dispose(instance, item.scope);
         }
     }
     currentArrayScope.data = nextArrayScope;
     ifConditions.values[0] = positionIndex > -1;
+}
+
+/** Past the nodes still leaving (fusion:transition): they keep their place until they go. */
+function pastLeaving(node) {
+    while (node?._leaving) node = node.nextSibling;
+    return node;
 }

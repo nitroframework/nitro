@@ -15,6 +15,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
 use Nitro\Fusion\Tests\Fixtures\Pages\Showcase;
 use Nitro\Fusion\Tests\Fixtures\Pages\StudentPage;
+use Nitro\Fusion\Tests\Fixtures\Pages\Transitions;
 
 Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
 Route::fusion('/counter', Counter::class)->name('counter');
@@ -30,6 +31,7 @@ Route::fusion('/showcase', Showcase::class)->name('showcase');
 Route::fusion('/greeting', Greeting::class)->name('greeting');
 Route::fusion('/report', Report::class)->name('report');
 Route::fusion('/feed', Feed::class)->name('feed');
+Route::fusion('/transitions', Transitions::class)->name('transitions');
 Route::fusion('/live', Live::class)->name('live');
 
 /** Pages from a controller: Fusion::render(). */

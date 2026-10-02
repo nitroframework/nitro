@@ -58,7 +58,14 @@ final class Globals
     public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload'];
 
     /** fusion: attributes that are not events (the runtime reads them from the DOM). */
-    public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref'];
+    public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];
+
+    /**
+     * fusion:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
+     * too), .in / .out (entering or leaving only); for the built-in effect, .opacity / .scale (one
+     * of them only), .duration.300ms, .origin.top (bottom, left, right, center).
+     */
+    public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin'];
 
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):

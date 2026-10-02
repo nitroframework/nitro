@@ -1045,6 +1045,44 @@ await scenario('broadcasts', async () => {
     window.close();
 });
 
+await scenario('transitions', async () => {
+    const window = await open('/transitions');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+
+    /** The built-in fade and scale: inline styles while it runs, put back after. */
+    click(window, $('.toggle'));
+    await until('it enters', () => $('.panel') !== null);
+    check('it starts hidden, with a transition', $('.panel').style.transition.includes('opacity 200ms') && $('.panel').style.transform.includes('scale'), $('.panel').getAttribute('style'));
+    await until('it ends as it was', () => $('.panel').getAttribute('style') === null || $('.panel').getAttribute('style') === '', 1000);
+
+    click(window, $('.toggle'));
+    await wait(30);
+    check('leaving, it stays until its animation ends', $('.panel') !== null && $('.panel').style.opacity === '0', String($('.panel')?.getAttribute('style')));
+    await until('then it goes', () => $('.panel') === null, 1000);
+
+    /** A name: Vue's classes. */
+    click(window, $('.toggle-named'));
+    await until('a named one enters', () => $('.named') !== null);
+    check('with Vue\'s enter classes', $('.named').classList.contains('fade-enter-active'), $('.named').className);
+    await until('which go when it is done', () => $('.named').className === 'named', 1000);
+    click(window, $('.toggle-named'));
+    await wait(5);
+    check('and leave classes as it goes', $('.named')?.classList.contains('fade-leave-active') === true, String($('.named')?.className));
+    await until('then it goes', () => $('.named') === null, 1000);
+
+    /** A list: rows enter and leave on their own. */
+    click(window, $('.add'));
+    await until('a new row', () => document.querySelectorAll('.items li').length === 4);
+    check('the new row enters', document.querySelectorAll('.items li')[3].style.transition.includes('opacity 150ms'));
+    check('the rows already there do not', document.querySelectorAll('.items li')[0].getAttribute('style') === null);
+    click(window, $('.remove'));
+    await wait(30);
+    check('a removed row leaves first', document.querySelectorAll('.items li').length === 4 && text(document.querySelector('.items li')) === '1');
+    await until('then goes', () => [...document.querySelectorAll('.items li')].map(text).join(',') === '2,3,4', 1000);
+    window.close();
+});
+
 for (const line of log) {
     if (!/fusion:error|Not implemented/.test(line) && !expectedErrors.some((pattern) => pattern.test(line))) failures.push(`console.error: ${line}`);
 }

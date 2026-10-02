@@ -262,6 +262,40 @@ browser does not have (a `#[Server]` method's value) counts as reading everythin
 | `fusion:init="load"` | Call a method once, when the element appears |
 | `fusion:visible="loadMore"` | Call a method (browser or `#[Server]`) when the element comes into view: `.once` the first time only, `.200px` that far before. While it stays in view, it is called again after each call that changed something, so a "load more" at the end of a list loads until the list fills the screen; wrap it in `@if ($hasMore)` to stop |
 | `fusion:ref="name"` | The element as `$refs.name` in `$this->js()` |
+| `fusion:transition` | Animate the element as it enters and leaves (see Transitions) |
+
+## Transitions
+
+`fusion:transition` animates an element as it enters (an `@if` that becomes true, a new row of a `@foreach`) and as it leaves. A leaving element stays in the page until its animation ends.
+
+Without a name, a built-in fade and scale needs no CSS:
+
+```blade
+@if ($open)
+    <div class="panel" fusion:transition.duration.200ms>...</div>
+@endif
+```
+
+| Modifier | |
+| --- | --- |
+| `.opacity`, `.scale` | Fade only, or scale only (both by default) |
+| `.duration.300ms` | The duration, 150ms by default |
+| `.origin.top` | The transform origin: `top`, `bottom`, `left`, `right`, `center` |
+| `.in`, `.out` | Animate entering only, or leaving only |
+| `.appear` | Animate on the component's first render in the browser too |
+
+With a name, the classes are Vue's, and the CSS decides what moves and for how long:
+
+```blade
+<p fusion:transition="fade">...</p>
+```
+
+```css
+.fade-enter-active, .fade-leave-active { transition: opacity .3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+```
+
+Rows of a list animate on their own; a removed row leaves where it was, while the others take their places. Nothing animates on the server's HTML, in a hidden tab, or for a visitor who asks for reduced motion.
 
 ## Uploads
 

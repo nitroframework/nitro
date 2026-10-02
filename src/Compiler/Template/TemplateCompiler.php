@@ -1336,6 +1336,10 @@ final class TemplateCompiler
                 $this->checkModel($text, $i, $parts);
             }
 
+            if ($name === 'transition') {
+                $this->checkTransition($parts);
+            }
+
             foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $modifier) {
                 if (! in_array($modifier, Globals::ATTRIBUTE_MODIFIERS[$name], true)) {
                     throw $this->error("Unknown modifier .{$modifier} on fusion:{$name} (it takes .".implode(', .', Globals::ATTRIBUTE_MODIFIERS[$name]).')');
@@ -1417,6 +1421,35 @@ final class TemplateCompiler
         $this->track();
 
         return $this->expression($handler);
+    }
+
+    /**
+     * fusion:transition's modifiers: Globals::TRANSITION_MODIFIERS, .duration followed by a time
+     * (300ms, 1s), .origin by a side.
+     *
+     * @param  list<string>  $modifiers
+     */
+    private function checkTransition(array $modifiers): void
+    {
+        for ($i = 0; $i < count($modifiers); $i++) {
+            $modifier = $modifiers[$i];
+
+            if (! in_array($modifier, Globals::TRANSITION_MODIFIERS, true)) {
+                throw $this->error("Unknown modifier .{$modifier} on fusion:transition (it takes .".implode(', .', Globals::TRANSITION_MODIFIERS).')');
+            }
+
+            if ($modifier === 'duration' && preg_match('/^\d+m?s$/', $modifiers[$i + 1] ?? '') !== 1) {
+                throw $this->error('fusion:transition.duration needs a time: .duration.300ms or .duration.1s');
+            }
+
+            if ($modifier === 'origin' && ! in_array($modifiers[$i + 1] ?? '', ['top', 'bottom', 'left', 'right', 'center'], true)) {
+                throw $this->error('fusion:transition.origin needs a side: .origin.top, .bottom, .left, .right or .center');
+            }
+
+            if ($modifier === 'duration' || $modifier === 'origin') {
+                $i++;
+            }
+        }
     }
 
     /** fusion:model="prop" or "prop.key": a public property that is not #[Locked]. */

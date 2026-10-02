@@ -3,6 +3,8 @@
  * (a block's begin and end share a name), and, while the server's HTML is hydrated, how far into
  * each element the render has matched (getAnchor).
  */
+import { leave, motionless, transitionOf } from './transition.js';
+
 let anchorNodeId = 0;
 
 export function nextAnchorNodeId() {
@@ -34,14 +36,26 @@ export function createAnchorNode(instance, target, insert = false, anchor = unde
 
 /** The nodes between a block's begin anchor and its end anchor, removed (Viewi's remove loops). */
 export function removeBefore(instance, anchorNode) {
-    while (anchorNode.previousSibling && anchorNode.previousSibling._anchor !== anchorNode._anchor) {
-        removeNode(instance, anchorNode.previousSibling);
+    /** Gathered first: a node that leaves animated stays in the page meanwhile. */
+    const nodes = [];
+    for (let node = anchorNode.previousSibling; node && node._anchor !== anchorNode._anchor; node = node.previousSibling) {
+        nodes.push(node);
     }
+    nodes.forEach((node) => removeNode(instance, node));
 }
 
 /** Fusion: a node leaving the page takes the components in it along. */
 export function removeNode(instance, node) {
     instance.host.removed?.(node);
+
+    /** fusion:transition: it leaves animated, then goes. */
+    const transition = transitionOf(node);
+    if (transition?.leave && node.isConnected && !motionless(node)) {
+        if (node._leaving) return;
+        node._leaving = true;
+        leave(node, transition).then(() => node.remove(), () => node.remove());
+        return;
+    }
     node.remove();
 }
 

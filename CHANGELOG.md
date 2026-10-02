@@ -4,6 +4,11 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Transitions: `fusion:transition`, as Vue's `<Transition>`: a built-in fade and scale
+  (`.opacity`, `.scale`, `.duration.300ms`, `.origin.top`, `.in`, `.out`, `.appear`) or Vue's
+  `name-enter-*` / `name-leave-*` classes; a leaving element stays until its animation ends, and
+  a removed row of a list leaves in place.
+
 - Broadcasts: `#[On('echo:channel,Event')]`, `echo-private:`, `echo-presence:` (`here`, `joining`,
   `leaving`) and `echo-notification:`, through the application's Laravel Echo; `{property}` in a
   channel reads the component's state.

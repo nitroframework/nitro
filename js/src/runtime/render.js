@@ -58,6 +58,7 @@ export class View {
         try {
             renderTag(null, this.instance, node, scope, true, false, el);
             cleanup(this.instance);
+            this.instance.live = true;
         } finally {
             this.instance.anchors = null;
         }
@@ -67,7 +68,9 @@ export class View {
     create() {
         const [node, scope] = this.root();
         const fragment = this.instance.document.createDocumentFragment();
-        return renderTag(fragment, this.instance, node, scope, false, false);
+        const element = renderTag(fragment, this.instance, node, scope, false, false);
+        this.instance.live = true;
+        return element;
     }
 
     /** The parent passed new slots: the slot regions render them. */
