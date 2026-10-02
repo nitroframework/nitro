@@ -15,7 +15,7 @@ class BuildTest extends TestCase
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
-    private const CHUNKS = ['board', 'counter', 'devices', 'feed', 'gallery', 'greeting', 'journal', 'live', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos', 'transitions'];
+    private const CHUNKS = ['board', 'counter', 'devices', 'feed', 'gallery', 'greeting', 'islands', 'journal', 'live', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos', 'transitions'];
 
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
@@ -30,10 +30,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('9 Fusion components and 17 pages built', $output);
+        $this->assertStringContainsString('10 Fusion components and 17 pages built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::devices', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'pages::transitions', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
+            ['beacon', 'card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::devices', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'pages::transitions', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -124,8 +124,9 @@ class BuildTest extends TestCase
             'functions' => ['Str_camel', 'Str_headline', 'Str_limit', 'Str_mask', 'Str_padLeft', 'Str_slug', 'Str_title', '_browser_canvas', '_browser_clipboard', '_browser_session', '_browser_socket', '_browser_storage', 'html_entity_decode', 'levenshtein', 'preg_match', 'preg_match_all', 'preg_replace', 'preg_split', 'str_word_count', 'strtr'],
         ], $uses);
 
-        /** What is in chunks: every page (but pages::links, #[LazyLoad(false)]), and todo-item (#[LazyLoad]). */
+        /** What is in chunks: every page (but pages::links, #[LazyLoad(false)]), and todo-item and beacon (#[LazyLoad]). */
         $this->assertSame([
+            'beacon' => 'islands',
             'pages::board' => 'board',
             'pages::counter' => 'counter',
             'pages::devices' => 'devices',

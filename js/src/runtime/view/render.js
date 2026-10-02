@@ -272,6 +272,20 @@ function renderSlot(target, instance, node, scope, hydrate, insert) {
 function fillSlot(target, instance, region, hydrate, insert) {
     const provided = instance.host.slot?.(region.name);
     if (!provided) return;
+    /** HTML from a Blade view (a component placed there has no parent in the browser): as raw HTML. */
+    if (provided.html !== undefined) {
+        const vdom = instance.document.createElement(rawParentName(insert ? target.parentNode : target));
+        vdom.innerHTML = provided.html;
+        if (hydrate) {
+            const anchor = getAnchor(instance, target);
+            anchor.current++;
+            hydrateRaw(vdom, anchor, target);
+            anchor.current--;
+        } else {
+            for (const node of [...vdom.childNodes]) append(target, node, insert);
+        }
+        return;
+    }
     const slotScope = createScope(provided.scope, 'slot');
     region.foreign = [provided.instance, slotScope];
     /** Hydrating: the parent's nodes walk this child's HTML, at this child's positions. */
@@ -370,6 +384,7 @@ export function teleported(instance) {
 
 /** Whether the parent passed the slot, with content (not only whitespace). */
 export function slotHasContent(provided) {
+    if (provided?.html !== undefined) return provided.html.trim() !== '';
     return !!provided && provided.nodes.some((n) => n.t !== 'x' || n.e || (n.c ?? '').trim() !== '');
 }
 

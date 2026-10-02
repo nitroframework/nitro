@@ -9,6 +9,7 @@ import { Component, readState } from './component.js';
 import { ErrorBag } from './errors.js';
 import { Events } from './events.js';
 import { Hooks } from './hooks.js';
+import { islandsIn, whenToStart } from './islands.js';
 import { Broadcasts } from './echo.js';
 import { applyLoading, STYLE } from './loading.js';
 import { Model } from './model.js';
@@ -94,7 +95,10 @@ export class Runtime {
         }
     }
 
-    /** Take over the server-rendered components under root (once the chunks they need are here). */
+    /**
+     * Take over the server-rendered components under root (once the chunks they need are here).
+     * Islands with fusion:hydrate, and the components inside them, wait for their moment.
+     */
     start(root = this.document.body) {
         if (!this.styled) {
             const style = this.document.createElement('style');
@@ -103,31 +107,50 @@ export class Runtime {
             this.styled = true;
         }
 
-        const elements = [...(root.matches?.('[fusion\\:snapshot]') ? [root] : []), ...root.querySelectorAll('[fusion\\:snapshot]')];
-        const take = () => {
-            const created = elements.map((el) => this.hydrate(el)).filter(Boolean);
-            created.forEach((component) => component.hydrate());
-            /** mounted() once they are all live (a child's is there for its parent's). */
-            created.forEach((component) => component.hook('mounted'));
-            created.forEach((component) => this.broadcasts.subscribe(component));
-            created.forEach((component) => this.loadDeferred(component));
+        const islands = islandsIn(root);
+        const elements = snapshotsIn(root).filter((el) => !islands.some((island) => island.contains(el)));
+
+        this.take(elements).then(() => {
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
             this.restoreRemembered(this.window.history.state?.fusionRemember);
             /** The page's once data, kept for the responses after it; its flash data, announced. */
             this.withOnce(globals.shared, globals.once ?? {});
             this.announceFlash(globals.flash);
+        });
+
+        for (const island of islands) {
+            whenToStart(island, this.window, () => {
+                island.removeAttribute('fusion:hydrate');
+                /** Not those of an island inside it that is still waiting. */
+                const waiting = islandsIn(island);
+                return this.take(snapshotsIn(island).filter((el) => !waiting.some((inner) => inner.contains(el))));
+            });
+        }
+    }
+
+    /**
+     * Make the elements' components live, once the chunks they need are here: @fusionScripts
+     * loads those of the page it renders; this is for any it could not know of (and islands').
+     */
+    take(elements) {
+        const go = () => {
+            const created = elements.map((el) => this.hydrate(el)).filter(Boolean);
+            created.forEach((component) => component.hydrate());
+            /** mounted() once they are all live (a child's is there for its parent's). */
+            created.forEach((component) => component.hook('mounted'));
+            created.forEach((component) => this.broadcasts.subscribe(component));
+            created.forEach((component) => this.loadDeferred(component));
         };
 
-        /** @fusionScripts loads the chunks of the page it renders; this is for any it could not know of. */
         const waiting = this.require(elements.map((el) => nameIn(el.getAttribute('fusion:snapshot'))));
         if (!waiting) {
-            take();
-            return;
+            go();
+            return Promise.resolve();
         }
-        waiting.then(take, (error) => {
+        return waiting.then(go, (error) => {
             this.report(null, error);
-            take();
+            go();
         });
     }
 
@@ -156,6 +179,7 @@ export class Runtime {
 
         const component = new Component(this, definition, el, state.id, state.name, state.data, envelope, state.errors);
         component.deferred = new Set(state.deferred);
+        if (state.slots) component.slots = Object.fromEntries([...state.slots].map(([name, html]) => [name, { html: P.toStr(html) }]));
         this.instances.set(state.id, component);
         return component;
     }
@@ -539,6 +563,11 @@ function nameIn(envelope) {
     } catch {
         return null;
     }
+}
+
+/** The server-rendered components under root (root included): their elements, with state. */
+function snapshotsIn(root) {
+    return [...(root.matches?.('[fusion\\:snapshot]') ? [root] : []), ...root.querySelectorAll('[fusion\\:snapshot]')];
 }
 
 /** A PHP value as plain JavaScript (Maps as objects), for event listeners. */

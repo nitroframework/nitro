@@ -150,6 +150,7 @@ class CompileErrorsTest extends TestCase
             'teleport to a selector' => ["<div>@teleport('#modals')x@endteleport</div>", '@teleport takes the name of a @portal', 1],
             'teleport in a teleport' => ["<div>@teleport('a')@teleport('b')x@endteleport@endteleport</div>", '@teleport cannot be inside another @teleport', 1],
             'unknown visible modifier' => ['<div><p fusion:visible.twice="helper">x</p></div>', 'Unknown modifier .twice on fusion:visible', 1],
+            'island inside a component' => ["<div>\n<fusion:counter fusion:hydrate.idle /></div>", 'fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:counter> is a child of this component', 2],
             'unknown transition modifier' => ['<div><p fusion:transition.durration.200ms>x</p></div>', 'Unknown modifier .durration on fusion:transition', 1],
             'transition duration without a time' => ['<div><p fusion:transition.duration>x</p></div>', 'fusion:transition.duration needs a time', 1],
             'transition origin without a side' => ['<div><p fusion:transition.scale.origin.middle>x</p></div>', 'fusion:transition.origin needs a side', 1],

@@ -15,6 +15,9 @@ use Nitro\Fusion\Compiler\Template\ChildTag;
  *
  * Children are numbered by ChildTag, as the browser compiler numbers them, so a child has the
  * same key on both sides.
+ *
+ * In a Blade view that is not a component's, a tag is an island: fusion:hydrate.visible (.idle,
+ * .interaction, .media="...") starts it later, fusion:static never.
  */
 final class FusionTags
 {
@@ -62,7 +65,8 @@ final class FusionTags
                 $props[] = var_export($name, true).' => '.$expression;
             }
 
-            $arguments = var_export($tag->name, true).', ['.implode(', ', $props).'], '.($tag->key ?? 'null').', '.$tag->number;
+            $arguments = var_export($tag->name, true).', ['.implode(', ', $props).'], '.($tag->key ?? 'null').', '.$tag->number
+                .($tag->hydrate === null ? '' : ', hydrate: '.var_export($tag->hydrate, true));
 
             $out .= $tag->selfClosing
                 ? '{!! '.self::FUSION.'->tag('.$arguments.') !!}'

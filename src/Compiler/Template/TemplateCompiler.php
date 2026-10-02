@@ -1496,6 +1496,10 @@ final class TemplateCompiler
 
         $tag = ChildTag::parse($text, $at, $this->children++, $this->file, $this->line);
 
+        if ($tag->hydrate !== null) {
+            throw $this->error("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$tag->name}> is a child of this component, and starts with it");
+        }
+
         /**
          * Keyed by the indexes of the loops around it: in those loops an iteration is bound to its
          * position (the runtime renders it again when it moves, rather than moving it).

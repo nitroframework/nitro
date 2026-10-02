@@ -56,7 +56,7 @@ final class Fusion
     /**
      * <fusion:...> tags with content being rendered, innermost last: the slots they collect.
      *
-     * @var list<array{name: string, props: array, key: mixed, number: int, slots: array<string, string>, slot: ?string}>
+     * @var list<array{name: string, props: array, key: mixed, number: int, hydrate: ?string, slots: array<string, string>, slot: ?string}>
      */
     private array $tags = [];
 
@@ -233,9 +233,10 @@ final class Fusion
 
     /**
      * A component placed in a view: <fusion:name /> in a page or layout, or a child in another
-     * component's view (keyed as the browser keys it: ChildTag::key()).
+     * component's view (keyed as the browser keys it: ChildTag::key()). $hydrate: an island's start
+     * (fusion:hydrate, fusion:static), for a component that is not a child.
      */
-    public function tag(string $name, array $props, mixed $key, int $number, array $slots = []): HtmlString
+    public function tag(string $name, array $props, mixed $key, int $number, array $slots = [], ?string $hydrate = null): HtmlString
     {
         $parent = $this->renderer->current();
 
@@ -252,7 +253,11 @@ final class Fusion
         }
 
         if ($parent === null) {
-            return new HtmlString($this->mount($name, $props, $slots));
+            return new HtmlString($this->mount($name, $props, $slots, $hydrate));
+        }
+
+        if ($hydrate !== null) {
+            throw new InvalidArgumentException("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$name}> is a child of [{$parent->fusion()->name}], and starts with it.");
         }
 
         $key = ($key !== null ? (string) $key : ChildTag::key($number, $this->renderer->loopIndexes())).($dynamic ? ':'.$name : '');
@@ -264,11 +269,11 @@ final class Fusion
      * <fusion:name ...> with content: the content renders (here, in this view) into output buffers,
      * one per slot, until </fusion:name> renders the component with them.
      */
-    public function startTag(string $name, array $props, mixed $key, int $number): string
+    public function startTag(string $name, array $props, mixed $key, int $number, ?string $hydrate = null): string
     {
         /** Keyed now: the loops around the tag, not those its content may have. */
         $key = $this->renderer->current() !== null && $key === null ? ChildTag::key($number, $this->renderer->loopIndexes()) : $key;
-        $this->tags[] = ['name' => $name, 'props' => $props, 'key' => $key, 'number' => $number, 'slots' => [], 'slot' => null];
+        $this->tags[] = ['name' => $name, 'props' => $props, 'key' => $key, 'number' => $number, 'hydrate' => $hydrate, 'slots' => [], 'slot' => null];
         ob_start();
 
         return '';
@@ -314,7 +319,7 @@ final class Fusion
 
         $slots = ['default' => (string) ob_get_clean(), ...$tag['slots']];
 
-        return $this->tag($tag['name'], $tag['props'], $tag['key'], $tag['number'], $slots);
+        return $this->tag($tag['name'], $tag['props'], $tag['key'], $tag['number'], $slots, $tag['hydrate']);
     }
 
     /**
@@ -381,15 +386,32 @@ final class Fusion
     /**
      * Render a component that is not inside another (in a page, a layout, @fusion).
      *
+     * An island that starts later ($hydrate: fusion:hydrate) is marked for the browser, and the
+     * chunks of its components are not loaded with the page; a static one (fusion:static) is its
+     * HTML only, without state for the browser.
+     *
      * @param  array<string, string>  $slots  name => its HTML
      */
-    public function mount(string $name, array $props = [], array $slots = []): string
+    public function mount(string $name, array $props = [], array $slots = [], ?string $hydrate = null): string
     {
-        $meta = $this->placeable($name);
-        $component = $this->create($meta, 'f'.Str::lower(Str::random(10)), $props);
-        $component->fusion()->slots = $slots;
+        $render = function () use ($name, $props, $slots, $hydrate): string {
+            $meta = $this->placeable($name);
+            $component = $this->create($meta, 'f'.Str::lower(Str::random(10)), $props);
+            $component->fusion()->slots = $slots;
+            $attributes = $hydrate === null || $hydrate === 'static' ? [] : ['fusion:hydrate' => $hydrate];
+            /** No parent renders its slots in the browser: their HTML goes with its state. */
+            $memo = $this->pageMemo() + (array_filter($slots, fn (string $html) => trim($html) !== '') === [] ? [] : ['slots' => $slots]);
 
-        return $this->renderer->render($component, $meta, $this->key(), $this->pageMemo());
+            return $this->renderer->render($component, $meta, $this->key(), $memo, $attributes);
+        };
+
+        if ($hydrate === null) {
+            return $render();
+        }
+
+        $html = $this->renderer->later($render);
+
+        return $hydrate === 'static' ? (string) preg_replace('/\sfusion:(?:snapshot|id|name)="[^"]*"/', '', $html) : $html;
     }
 
     /** @param  array<string, string>  $slots */

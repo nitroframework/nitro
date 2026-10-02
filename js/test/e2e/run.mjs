@@ -114,6 +114,27 @@ async function open(path) {
             };
             window.observers = observers;
 
+            /** jsdom has no media queries: none match until the test says so (window.setMedia(query, matches)). */
+            const media = new Map();
+            window.matchMedia = (query) => {
+                if (!media.has(query)) {
+                    const listeners = new Set();
+                    media.set(query, {
+                        matches: false,
+                        media: query,
+                        addEventListener: (type, listener) => listeners.add(listener),
+                        removeEventListener: (type, listener) => listeners.delete(listener),
+                        listeners,
+                    });
+                }
+                return media.get(query);
+            };
+            window.setMedia = (query, matches) => {
+                const list = window.matchMedia(query);
+                list.matches = matches;
+                for (const listener of [...list.listeners]) listener({ matches, media: query });
+            };
+
             /** Fusion::browser(): a clipboard, a canvas context that records its calls, and an echoing WebSocket. */
             let clipboardText = '';
             Object.defineProperty(window.navigator, 'clipboard', {
@@ -1121,6 +1142,61 @@ await scenario('transitions', async () => {
     await wait(30);
     check('a removed row leaves first', document.querySelectorAll('.items li').length === 4 && text(document.querySelector('.items li')) === '1');
     await until('then goes', () => [...document.querySelectorAll('.items li')].map(text).join(',') === '2,3,4', 1000);
+    window.close();
+});
+
+await scenario('islands', async () => {
+    const window = await open('/islands');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const live = (section) => window.Fusion.components().filter((c) => $(`.${section}`).contains(c.el)).length;
+    const chunk = () => [...document.querySelectorAll('script[src]')].some((s) => s.src.includes(chunkId('islands')));
+
+    check('a component without fusion:hydrate starts with the page', live('now') === 1);
+    check('islands wait, as the server rendered them', live('media') + live('visible') + live('interaction') + live('typing') === 0 && text($('.media .count')) === '0');
+    check('marked for the browser', $('.visible .beacon')?.getAttribute('fusion:hydrate') === 'visible:100px' && $('.media .counter')?.getAttribute('fusion:hydrate') === 'media:(min-width: 1200px)');
+    check('the chunk of an island that waits is not loaded with the page', !chunk());
+    check('a static island is its HTML, without state', $('.static .counter') !== null && $('.static [fusion\\:snapshot]') === null && !$('.static .counter').hasAttribute('fusion:id') && live('static') === 0);
+
+    /** idle: once the browser has nothing else to do. */
+    await until('idle: it starts', () => live('idle') === 1, 2000);
+    click(window, $('.idle .counter').querySelectorAll('button')[1]);
+    await until('and works', () => text($('.idle .count')) === '1');
+
+    /** Slots from the Blade view: no parent renders them in the browser, so their HTML comes with the state. */
+    await until('a slotted island starts', () => live('slotted') === 1, 2000);
+    check('it keeps its slots', text($('.slotted .from-blade')) === 'From the Blade view' && text($('.slotted .foot')) === 'Its footer' && $('.slotted .blank') === null, $('.slotted')?.innerHTML);
+    click(window, $('.slotted .toggle'));
+    await until('hidden', () => $('.slotted .body') === null);
+    click(window, $('.slotted .toggle'));
+    await until('and rendered again in the browser', () => text($('.slotted .from-blade')) === 'From the Blade view');
+    check('once', $('.slotted').querySelectorAll('.from-blade').length === 1);
+
+    /** media: when the query matches. */
+    await wait(30);
+    check('media: not while the query does not match', live('media') === 0);
+    window.setMedia('(min-width: 1200px)', true);
+    await until('media: when it matches', () => live('media') === 1);
+
+    /** interaction: focus starts it, its chunk loads then, and what is typed meanwhile reaches fusion:model. */
+    type(window, $('.typing .text'), 'hello');
+    check('its chunk is loading', live('typing') === 0);
+    await until('focus starts it', () => live('typing') === 1);
+    await until('and what was typed while it loaded arrives', () => text($('.typing .echo')) === 'hello');
+    check('its chunk loaded when it started', chunk());
+
+    /** The first click starts one, and is not lost. */
+    click(window, $('.interaction .hit'));
+    await until('interaction: the click starts it', () => live('interaction') === 1);
+    await until('and the click counts', () => text($('.interaction .hits')) === '1');
+    check('only those islands started', live('visible') === 0);
+
+    /** visible: in view (or within its margin). */
+    check('the observer has the margin', window.observers.some((o) => o.options?.rootMargin === '100px'));
+    window.observe($('.visible .beacon'), true);
+    await until('visible: in view, it starts', () => live('visible') === 1);
+    click(window, $('.visible .hit'));
+    await until('and works', () => text($('.visible .hits')) === '1');
     window.close();
 });
 

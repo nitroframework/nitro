@@ -33,6 +33,9 @@ final class Renderer
     /** @var array<string, true> the names of the components rendered (@fusionScripts loads their chunks) */
     private array $rendered = [];
 
+    /** Islands being rendered that start later (or never): their components' chunks wait for them. */
+    private int $later = 0;
+
     public function __construct(private readonly ViewFactory $views)
     {
     }
@@ -62,7 +65,9 @@ final class Renderer
      */
     public function render(Component $component, ComponentMeta $meta, string $key, array $memo = [], array $attributes = []): string
     {
-        $this->rendered[$meta->name] = true;
+        if ($this->later === 0) {
+            $this->rendered[$meta->name] = true;
+        }
 
         $fusion = app(\Nitro\Fusion\Fusion::class);
         $name = $fusion->browserName($meta->name);
@@ -79,6 +84,23 @@ final class Renderer
             'fusion:snapshot' => $envelope,
             ...$attributes,
         ], $meta->name);
+    }
+
+    /**
+     * Render an island that starts later (fusion:hydrate) or never (fusion:static): its
+     * components are not among those @fusionScripts loads the chunks of.
+     *
+     * @param  callable(): string  $render
+     */
+    public function later(callable $render): string
+    {
+        $this->later++;
+
+        try {
+            return $render();
+        } finally {
+            $this->later--;
+        }
     }
 
     /**

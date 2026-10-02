@@ -4,6 +4,12 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Islands: `fusion:hydrate.idle`, `.visible` (`.visible.200px`), `.interaction` and
+  `.media="(query)"` start a component placed in a Blade view later than the page, and
+  `fusion:static` renders it without state; a waiting island's chunks load when it starts.
+- A component placed in a Blade view keeps its slots when it renders in the browser (their HTML
+  now goes with its state; they were lost).
+
 - Browser APIs: `Fusion::browser()` with `clipboard()`, `storage()`, `session()`, `canvas($ref)`
   and `socket($url)`, chained from browser methods and event handlers; checked against
   `src/Browser` at build time, in the bundle only when used, and throwing on the server.

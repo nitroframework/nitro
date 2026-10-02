@@ -45,6 +45,7 @@ Route::get('/rendered/deferred-counter', [RenderController::class, 'deferredCoun
 Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
 
 Route::get('/embed', fn () => view('embed'));
+Route::get('/islands', fn () => view('islands'));
 
 /** For the browser tests: the names the browser has for components and chunks (an obfuscated build's aliases). */
 Route::get('/_test/names', function () {

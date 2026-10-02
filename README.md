@@ -340,6 +340,28 @@ public function connect(): void
 
 Callbacks are closures. A property they change renders as any other change does.
 
+## Islands
+
+A component placed in a Blade view that is not a component's own (a page, a layout) is an island: the rest of the page stays plain HTML. By default an island starts with the page. `fusion:hydrate` starts it later, and `fusion:static` never:
+
+```blade
+<fusion:comments :post="$post" fusion:hydrate.visible />
+<fusion:chat-widget fusion:hydrate.interaction />
+<fusion:report-chart fusion:hydrate.idle />
+<fusion:mobile-menu fusion:hydrate.media="(max-width: 768px)" />
+<fusion:price-table fusion:static />
+```
+
+| Attribute | The island starts |
+| --- | --- |
+| `fusion:hydrate.idle` | When the browser is idle |
+| `fusion:hydrate.visible` | When it comes into view; `.visible.200px` that far before |
+| `fusion:hydrate.interaction` | On the first click, focus, key or input in it. The click is given again once the island is live, so its handler runs; what was typed reaches `fusion:model` |
+| `fusion:hydrate.media="(query)"` | When the media query matches |
+| `fusion:static` | Never: the server's HTML, without state for the browser |
+
+Until it starts, an island is the server's HTML; what is typed in it meanwhile is kept for it. Content between its tags (its slots) is the Blade view's: its HTML goes with the island's state, so the island renders it again in the browser. The components inside it start with it, and `@fusionScripts` does not load their chunks with the page: with `#[LazyLoad]`, a component's code is fetched when its island starts. Inside a component's view, children start with their parent, so `fusion:hydrate` there is a compile error.
+
 ## Uploads
 
 ```php

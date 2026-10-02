@@ -29,6 +29,8 @@ export function readState(envelope) {
         deferred: memo instanceof Map ? P.entries(memo.get('deferred') ?? []).map(([, name]) => name) : [],
         /** A partial reload's merge props: property => its rule (Merge). */
         merge: memo instanceof Map && memo.get('merge') instanceof Map ? memo.get('merge') : new Map(),
+        /** A component placed in a Blade view: its slots' HTML (no parent renders them in the browser). */
+        slots: memo instanceof Map && memo.get('slots') instanceof Map ? memo.get('slots') : null,
     };
 }
 

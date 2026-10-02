@@ -35,6 +35,11 @@ final class ChildTag
         public readonly bool $selfClosing = true,
         /** fusion:model="path": the parent's property (path) its #[Modelable] property is bound to. */
         public readonly ?string $model = null,
+        /**
+         * An island's start (fusion:hydrate, fusion:static): "idle", "visible" ("visible:200px"),
+         * "interaction", "media:(query)" or "static". Null: it starts with the page.
+         */
+        public readonly ?string $hydrate = null,
     ) {
     }
 
@@ -53,6 +58,7 @@ final class ChildTag
         $props = [];
         $key = null;
         $model = null;
+        $hydrate = null;
 
         preg_match_all('/([:\w\-.]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/', $attributes, $matches, PREG_SET_ORDER);
 
@@ -73,6 +79,16 @@ final class ChildTag
                 $hasValue => var_export($value, true),
                 default => 'true',
             };
+
+            if ($prop === 'fusion:static' || $prop === 'fusion:hydrate' || str_starts_with($prop, 'fusion:hydrate.')) {
+                if ($hydrate !== null) {
+                    throw new CompileException("<fusion:{$name}> has one fusion:hydrate or fusion:static", $file, $line);
+                }
+
+                $hydrate = self::hydrate($prop, $bound ? null : ($hasValue ? $value : null), $name, $file, $line);
+
+                continue;
+            }
 
             if ($prop === 'key' || $prop === 'fusion:key') {
                 $key = $expression;
@@ -99,7 +115,31 @@ final class ChildTag
             $props[self::camel($prop)] = $expression;
         }
 
-        return new self(strtolower($name), $props, $key, $number, $length, $selfClosing !== '', $model);
+        return new self(strtolower($name), $props, $key, $number, $length, $selfClosing !== '', $model, $hydrate);
+    }
+
+    /**
+     * When an island starts: fusion:hydrate.idle, .visible (.visible.200px), .interaction,
+     * .media="(max-width: 768px)"; fusion:static never.
+     */
+    private static function hydrate(string $attribute, ?string $value, string $name, ?string $file, int $line): string
+    {
+        if ($attribute === 'fusion:static') {
+            return $value === null ? 'static' : throw new CompileException("fusion:static on <fusion:{$name}> takes no value", $file, $line);
+        }
+
+        $modifiers = array_slice(explode('.', $attribute), 1);
+        $when = $modifiers[0] ?? null;
+        $usage = 'fusion:hydrate takes when the island starts: .idle, .visible (.visible.200px), .interaction or .media="(max-width: 768px)"';
+
+        return match (true) {
+            in_array($when, ['idle', 'interaction'], true) && count($modifiers) === 1 && $value === null => $when,
+            $when === 'visible' && count($modifiers) === 1 && $value === null => 'visible',
+            $when === 'visible' && count($modifiers) === 2 && preg_match('/^\d+px$/', $modifiers[1]) === 1 && $value === null => 'visible:'.$modifiers[1],
+            $when === 'media' && count($modifiers) === 1 && $value !== null && trim($value) !== '' => 'media:'.trim($value),
+            $when === 'media' => throw new CompileException("fusion:hydrate.media on <fusion:{$name}> needs a media query: fusion:hydrate.media=\"(max-width: 768px)\"", $file, $line),
+            default => throw new CompileException("{$usage} (on <fusion:{$name}>)", $file, $line),
+        };
     }
 
     /** Every child tag of a template, in order. @return list<array{0: int, 1: self}> offset => tag */
