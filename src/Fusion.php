@@ -1118,7 +1118,7 @@ final class Fusion
 
         return [
             'serverCalls' => filter_var($config['server_calls'] ?? false, FILTER_VALIDATE_BOOL),
-            'delay' => (int) ($config['delay'] ?? 150),
+            'delay' => (int) ($config['delay'] ?? 0),
             'color' => (string) ($config['color'] ?? '#29d'),
             'height' => (string) ($config['height'] ?? '3px'),
             'position' => ($config['position'] ?? 'top') === 'bottom' ? 'bottom' : 'top',
@@ -1127,11 +1127,13 @@ final class Fusion
             'spinner' => filter_var($config['spinner'] ?? false, FILTER_VALIDATE_BOOL),
             'spinnerSize' => (string) ($config['spinner_size'] ?? '18px'),
             'zIndex' => (int) ($config['z_index'] ?? 1031),
-            'minimum' => (float) ($config['minimum'] ?? 0.08),
-            'easing' => (string) ($config['easing'] ?? 'ease'),
-            'speed' => (int) ($config['speed'] ?? 200),
+            'minimum' => (float) ($config['minimum'] ?? 0.15),
+            'maximum' => (float) ($config['maximum'] ?? 0.92),
+            'easing' => (string) ($config['easing'] ?? 'ease-out'),
+            'speed' => (int) ($config['speed'] ?? 150),
+            'fadeSpeed' => (int) ($config['fade_speed'] ?? 200),
             'trickle' => filter_var($config['trickle'] ?? true, FILTER_VALIDATE_BOOL),
-            'trickleSpeed' => (int) ($config['trickle_speed'] ?? 200),
+            'trickleSpeed' => (int) ($config['trickle_speed'] ?? 100),
         ];
     }
 

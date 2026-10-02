@@ -1431,6 +1431,10 @@ final class TemplateCompiler
      */
     private function checkTransition(array $modifiers): void
     {
+        if (in_array('out-in', $modifiers, true) && in_array('in-out', $modifiers, true)) {
+            throw $this->error('fusion:transition takes one mode: .out-in or .in-out');
+        }
+
         for ($i = 0; $i < count($modifiers); $i++) {
             $modifier = $modifiers[$i];
 

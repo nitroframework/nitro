@@ -6,10 +6,9 @@ use Nitro\Fusion\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The NProgress bar through visits of every length, one after another as fast as a visitor
- * clicks: it never goes back while shown, a bar starts from its start, and none is left over.
- * (NProgress queues a bar's finish; a visit starting while the last bar finishes used to take
- * that bar back to the start, and its queued removal took the new bar away.)
+ * The progress bar (nitro-progress) through visits of every length, one after another as fast as
+ * a visitor clicks: it never goes back while shown, a bar starts from its start, and none is left
+ * over.
  */
 class ProgressTest extends TestCase
 {
@@ -21,7 +20,8 @@ class ProgressTest extends TestCase
             'options' => [
                 'serverCalls' => false, 'delay' => $options['delay'], 'color' => 'red', 'height' => '3px', 'position' => 'top',
                 'glow' => true, 'glowWidth' => '100px', 'spinner' => false, 'spinnerSize' => '18px', 'zIndex' => 1031,
-                'minimum' => $options['minimum'], 'easing' => $options['easing'], 'speed' => $options['speed'],
+                'minimum' => $options['minimum'], 'maximum' => $options['maximum'], 'easing' => $options['easing'],
+                'speed' => $options['speed'], 'fadeSpeed' => $options['fade_speed'],
                 'trickle' => $options['trickle'], 'trickleSpeed' => $options['trickle_speed'],
             ],
             'scenarios' => [

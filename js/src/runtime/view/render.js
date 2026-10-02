@@ -13,7 +13,7 @@
  * @for, @while and @switch render again as a whole when what they read changes (renderDynamic),
  * a @switch only when its case changes; a block a @break leaves is part of the loop it breaks.
  */
-import { enter, motionless, transitionOf } from './transition.js';
+import { entering, motionless, transitionOf } from './transition.js';
 import * as B from '../../blade.js';
 import * as P from '../../php.js';
 import { append, createAnchorNode, getAnchor, nextAnchorNodeId, removeBefore, removeNode } from './anchor.js';
@@ -160,7 +160,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
 
         /** fusion:transition: it enters animated, once the component is live (on its first render too with .appear). */
         const transition = transitionOf(element);
-        if (transition?.enter && (instance.live || transition.appear) && !motionless(element)) enter(element, transition);
+        if (transition?.enter && (instance.live || transition.appear) && !motionless(element)) entering(element, transition);
     }
     return element;
 }

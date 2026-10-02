@@ -3,7 +3,7 @@
  * (a block's begin and end share a name), and, while the server's HTML is hydrated, how far into
  * each element the render has matched (getAnchor).
  */
-import { leave, motionless, transitionOf } from './transition.js';
+import { leaving, motionless, transitionOf } from './transition.js';
 
 let anchorNodeId = 0;
 
@@ -53,7 +53,7 @@ export function removeNode(instance, node) {
     if (transition?.leave && node.isConnected && !motionless(node)) {
         if (node._leaving) return;
         node._leaving = true;
-        leave(node, transition).then(() => node.remove(), () => node.remove());
+        leaving(node, transition).then(() => node.remove(), () => node.remove());
         return;
     }
     node.remove();

@@ -11,6 +11,10 @@
  *   .appear                             on the component's first render too (a visit's new page);
  *                                       never on the server's HTML, which is there already
  *   .in / .out                          entering only / leaving only
+ *   .out-in / .in-out                   Vue's modes, for an element replacing another (@if / @else):
+ *                                       the old one leaves before the new enters, or after
+ *   .move                               rows of a @foreach slide to their new places (Vue's
+ *                                       <TransitionGroup>; with a name, its name-move class)
  *
  * Nothing animates in a hidden tab, or for a visitor who asks for reduced motion.
  */
@@ -37,7 +41,117 @@ export function transitionOf(el) {
         scale: !modifiers.includes('opacity') || modifiers.includes('scale'),
         duration: duration === null ? 150 : duration.endsWith('ms') ? parseInt(duration, 10) : parseFloat(duration) * 1000,
         origin: after('origin'),
+        mode: modifiers.includes('out-in') ? 'out-in' : modifiers.includes('in-out') ? 'in-out' : null,
+        move: modifiers.includes('move'),
     };
+}
+
+/** Elements entering and leaving, by their parent: a mode waits for the others. */
+const running = new WeakMap();
+
+function runningIn(parent) {
+    if (!running.has(parent)) running.set(parent, { entering: new Set(), leaving: new Set() });
+    return running.get(parent);
+}
+
+function track(set, promise) {
+    set.add(promise);
+    const done = () => set.delete(promise);
+    promise.then(done, done);
+    return promise;
+}
+
+/**
+ * The element came in (render.js). With .out-in it shows once what it replaces has left: it waits
+ * a microtask, as the branch going may update after the one coming.
+ */
+export function entering(el, spec) {
+    const parent = el.parentNode;
+    if (spec.mode !== 'out-in' || !parent) return track(runningIn(parent ?? el).entering, enter(el, spec));
+
+    const display = el.style.display;
+    el.style.display = 'none';
+    const shown = new Promise((resolve) => queueMicrotask(resolve))
+        .then(() => Promise.all(runningIn(parent).leaving))
+        .then(() => {
+            el.style.display = display;
+            return enter(el, spec);
+        });
+
+    return track(runningIn(parent).entering, shown);
+}
+
+/**
+ * The element is going (anchor.js): the promise settles when it may be removed. With .in-out it
+ * waits for what replaces it to enter. With .move it leaves the flow at once, where it is, so the
+ * rows after it slide up while it fades.
+ */
+export function leaving(el, spec) {
+    const parent = el.parentNode;
+    if (spec.move) lift(el);
+
+    const gone = spec.mode === 'in-out' && parent
+        ? new Promise((resolve) => queueMicrotask(resolve)).then(() => Promise.all(runningIn(parent).entering)).then(() => leave(el, spec))
+        : leave(el, spec);
+
+    return parent ? track(runningIn(parent).leaving, gone) : gone;
+}
+
+/** Out of the flow, kept where it shows: absolute, at its box. */
+function lift(el) {
+    const win = el.ownerDocument.defaultView;
+    const box = el.getBoundingClientRect();
+    const holder = el.offsetParent;
+    const positioned = holder && win.getComputedStyle(holder).position !== 'static';
+    const origin = positioned ? holder.getBoundingClientRect() : { top: -win.scrollY, left: -win.scrollX };
+
+    Object.assign(el.style, {
+        position: 'absolute',
+        margin: '0',
+        top: box.top - origin.top - (positioned ? holder.clientTop - holder.scrollTop : 0) + 'px',
+        left: box.left - origin.left - (positioned ? holder.clientLeft - holder.scrollLeft : 0) + 'px',
+        width: box.width + 'px',
+        height: box.height + 'px',
+    });
+}
+
+/** Where the elements are: element => its box (before a list changes, for move()). */
+export function positions(elements) {
+    return new Map(elements.map((el) => [el, el.getBoundingClientRect()]));
+}
+
+/**
+ * .move: from where it was to where it is now (FLIP). It is put back where it was with a
+ * transform, then the transform goes, animated: by the built-in transition, or by the name-move
+ * class's CSS.
+ */
+export async function move(el, spec, from) {
+    const to = el.getBoundingClientRect();
+    const dx = from.left - to.left;
+    const dy = from.top - to.top;
+    if (!dx && !dy) return;
+
+    const win = el.ownerDocument.defaultView;
+    const style = el.style;
+    const saved = { transition: style.transition, transform: style.transform };
+
+    style.transition = 'none';
+    style.transform = `translate(${dx}px, ${dy}px)`;
+    void el.offsetHeight; // the old place, laid out before the transition starts
+
+    if (spec.name) {
+        el.classList.add(`${spec.name}-move`);
+        style.transition = saved.transition;
+        style.transform = saved.transform;
+        await ended(el, win);
+        el.classList.remove(`${spec.name}-move`);
+        return;
+    }
+
+    style.transition = `transform ${spec.duration}ms ease`;
+    style.transform = saved.transform;
+    await wait(win, spec.duration);
+    style.transition = saved.transition;
 }
 
 /** Nothing to animate: the visitor asked for reduced motion, or the page is in a hidden tab. */

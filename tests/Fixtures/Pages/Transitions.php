@@ -16,6 +16,14 @@ class Transitions extends Component
 
     public array $items = [1, 2, 3];
 
+    /** .move: rows that slide to their places. */
+    public array $movers = [1, 2, 3];
+
+    /** .out-in and .in-out: one element replacing another. */
+    public string $tab = 'a';
+
+    public string $pane = 'x';
+
     public function toggle(): void
     {
         $this->open = ! $this->open;
@@ -34,5 +42,25 @@ class Transitions extends Component
     public function removeFirst(): void
     {
         array_shift($this->items);
+    }
+
+    public function reverseMovers(): void
+    {
+        $this->movers = array_reverse($this->movers);
+    }
+
+    public function dropMover(): void
+    {
+        array_shift($this->movers);
+    }
+
+    public function switchTab(): void
+    {
+        $this->tab = $this->tab === 'a' ? 'b' : 'a';
+    }
+
+    public function switchPane(): void
+    {
+        $this->pane = $this->pane === 'x' ? 'y' : 'x';
     }
 }

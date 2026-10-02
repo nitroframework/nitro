@@ -15,6 +15,7 @@ import { createAnchorNode, nextAnchorNodeId, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { render } from './render.js';
 import { createScope, dispose } from './scope.js';
+import { motionless, move, positions, transitionOf } from './transition.js';
 
 /** An iteration's variables, at their positions: its key, its value, $loop. */
 export function setLoopArguments(args, directive, key, value, loop) {
@@ -35,6 +36,10 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
 
     const current = [...currentArrayScope.data.values()];
     const usedMap = new Set();
+
+    /** fusion:transition.move: where its rows are before anything changes. */
+    const movers = moversIn(current);
+    const before = movers.length ? positions(movers.map(([el]) => el)) : null;
 
     /** Which iterations stay, and where: worked out before anything moves. */
     const matches = [];
@@ -105,6 +110,25 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     }
     currentArrayScope.data = nextArrayScope;
     ifConditions.values[0] = positionIndex > -1;
+
+    /** Each row that stays slides from where it was to where it is now. */
+    if (before) {
+        for (const [el, spec] of movers) {
+            if (el.isConnected && !el._leaving) move(el, spec, before.get(el));
+        }
+    }
+}
+
+/** The rows' elements with fusion:transition.move (not those leaving, nor in a tab that is hidden). */
+function moversIn(items) {
+    const movers = [];
+    for (const item of items) {
+        for (let node = item.begin.nextSibling; node && node !== item.end; node = node.nextSibling) {
+            const spec = transitionOf(node);
+            if (spec?.move && !node._leaving && !motionless(node)) movers.push([node, spec]);
+        }
+    }
+    return movers;
 }
 
 /** Past the nodes still leaving (fusion:transition): they keep their place until they go. */

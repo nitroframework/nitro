@@ -4,6 +4,15 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- The progress bar is now nitro-progress instead of NProgress: it finishes as the new page appears
+  rather than trailing after it, and creeps as one CSS animation, so a page busy rendering cannot
+  stall it. New settings `maximum` and `fade_speed`; new defaults (starts at
+  15%, no delay). The markup is unchanged.
+
+- Transitions: `.out-in` and `.in-out` (Vue's modes) for an element replacing another, and
+  `.move` (Vue's `<TransitionGroup>`): the rows of a list slide to their new places, around a row
+  leaving too.
+
 - Islands: `fusion:hydrate.idle`, `.visible` (`.visible.200px`), `.interaction` and
   `.media="(query)"` start a component placed in a Blade view later than the page, and
   `fusion:static` renders it without state; a waiting island's chunks load when it starts.

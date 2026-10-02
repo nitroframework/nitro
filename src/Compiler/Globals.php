@@ -63,9 +63,10 @@ final class Globals
     /**
      * fusion:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
      * too), .in / .out (entering or leaving only); for the built-in effect, .opacity / .scale (one
-     * of them only), .duration.300ms, .origin.top (bottom, left, right, center).
+     * of them only), .duration.300ms, .origin.top (bottom, left, right, center); .out-in / .in-out
+     * (Vue's modes) and .move (Vue's <TransitionGroup>: rows slide to their new places).
      */
-    public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin'];
+    public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin', 'out-in', 'in-out', 'move'];
 
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):

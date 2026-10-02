@@ -7,7 +7,7 @@ await esbuild.build({
     format: 'iife',
     target: ['es2020'],
     minify: true,
-    /** Bundled libraries' licence notices (NProgress, MIT) stay with them. */
+    /** Bundled libraries' licence notices stay with them. */
     legalComments: 'eof',
     outfile: 'dist/fusion.js',
     logLevel: 'info',

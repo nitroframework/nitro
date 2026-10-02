@@ -114,6 +114,15 @@ async function open(path) {
             };
             window.observers = observers;
 
+            /** jsdom has no layout: .mover rows stand 20px apart, in their order (absolute ones out of the flow). */
+            const box = window.Element.prototype.getBoundingClientRect;
+            window.Element.prototype.getBoundingClientRect = function () {
+                if (!this.classList.contains('mover')) return box.call(this);
+                const inFlow = [...this.parentNode.children].filter((el) => el.style.position !== 'absolute');
+                const top = this.style.position === 'absolute' ? parseFloat(this.style.top) || 0 : inFlow.indexOf(this) * 20;
+                return { top, left: 0, width: 100, height: 20, right: 100, bottom: top + 20, x: 0, y: top };
+            };
+
             /** jsdom has no media queries: none match until the test says so (window.setMedia(query, matches)). */
             const media = new Map();
             window.matchMedia = (query) => {
@@ -1142,6 +1151,35 @@ await scenario('transitions', async () => {
     await wait(30);
     check('a removed row leaves first', document.querySelectorAll('.items li').length === 4 && text(document.querySelector('.items li')) === '1');
     await until('then goes', () => [...document.querySelectorAll('.items li')].map(text).join(',') === '2,3,4', 1000);
+
+    /** .move: rows that stay slide from where they were (FLIP); the middle one has not moved. */
+    const movers = () => [...document.querySelectorAll('.moving li')];
+    const row = (n) => movers().find((li) => text(li) === String(n));
+    click(window, $('.reverse'));
+    await until('reversed', () => movers().map(text).join(',') === '3,2,1');
+    check('a row that moved slides', row(1).style.transition.includes('transform 150ms') && row(3).style.transition.includes('transform 150ms'), row(1).getAttribute('style'));
+    check('one that did not, does not', !row(2).style.transition, row(2).getAttribute('style'));
+    await until('then it is as it was', () => !row(1).getAttribute('style'), 1000);
+
+    /** A row leaving moves out of the flow, so those after it slide up while it fades. */
+    click(window, $('.drop'));
+    await until('it leaves', () => row(3)?.style.position === 'absolute');
+    check('those after it slide up', row(2).style.transition.includes('transform 150ms'), row(2).getAttribute('style'));
+    await until('then it goes', () => movers().map(text).join(',') === '2,1', 1000);
+
+    /** .out-in: the new one shows once the old one has left. */
+    click(window, $('.switch-tab'));
+    await until('switching', () => $('.tab-b') !== null);
+    check('out-in: the new one waits, hidden', $('.tab-b').style.display === 'none' && $('.tab-a') !== null);
+    await until('the old one is gone', () => $('.tab-a') === null, 1000);
+    await until('then the new one shows and enters', () => $('.tab-b').style.display !== 'none', 1000);
+
+    /** .in-out: the old one leaves once the new one has entered. */
+    click(window, $('.switch-pane'));
+    await until('switching', () => $('.pane-y') !== null);
+    await wait(40);
+    check('in-out: the old one stays while the new one enters', $('.pane-x') !== null && $('.pane-x').style.opacity !== '0', String($('.pane-x')?.getAttribute('style')));
+    await until('then the old one leaves', () => $('.pane-x') === null, 1500);
     window.close();
 });
 

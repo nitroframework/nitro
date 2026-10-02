@@ -153,6 +153,7 @@ class CompileErrorsTest extends TestCase
             'island inside a component' => ["<div>\n<fusion:counter fusion:hydrate.idle /></div>", 'fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:counter> is a child of this component', 2],
             'unknown transition modifier' => ['<div><p fusion:transition.durration.200ms>x</p></div>', 'Unknown modifier .durration on fusion:transition', 1],
             'transition duration without a time' => ['<div><p fusion:transition.duration>x</p></div>', 'fusion:transition.duration needs a time', 1],
+            'transition with both modes' => ['<div><p fusion:transition.out-in.in-out>x</p></div>', 'fusion:transition takes one mode: .out-in or .in-out', 1],
             'transition origin without a side' => ['<div><p fusion:transition.scale.origin.middle>x</p></div>', 'fusion:transition.origin needs a side', 1],
             'reload of no property' => ['<div><button fusion:click="$reload(\'nothing\')">x</button></div>', '$reload takes the names of public properties', 1],
             'deferred by expression' => ['<div>@deferred($name)x@enddeferred</div>', "@deferred names properties as strings: @deferred('stats')", 1],

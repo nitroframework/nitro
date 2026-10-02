@@ -4,12 +4,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | NProgress
+    | Progress bar
     |--------------------------------------------------------------------------
     |
-    | The progress bar shown while a fusion:navigate visit loads the next page
-    | (NProgress, https://ricostacruz.com/nprogress). @fusionScripts passes
-    | these settings to the browser.
+    | The bar shown while a fusion:navigate visit loads the next page
+    | (nitro-progress). It shows at once, creeps forward while the server
+    | answers, and fills and fades as the new page appears. @fusionScripts
+    | passes these settings to the browser.
     |
     */
 
@@ -19,18 +20,16 @@ return [
     // Also while a #[Server] call runs (not only on navigation).
     'server_calls' => env('NPROGRESS_SERVER_CALLS', false),
 
-    // Wait this long (ms) before showing it. A visit faster than this shows no bar; with 0 every
-    // visit starts one, and NProgress holds each step `speed` ms, so a quick page is already there
-    // while the bar still shows its first step on its own.
-    'delay' => 30,
+    // Wait this long (ms) before showing it: a visit faster than this shows no bar. With 0, every
+    // visit shows one, as a quick sweep for a fast page.
+    'delay' => 0,
 
     /*
     |--------------------------------------------------------------------------
     | Look
     |--------------------------------------------------------------------------
     |
-    | The bar spans the page as it progresses: `height` is its thickness. Sizes
-    | are CSS lengths.
+    | Sizes are CSS lengths.
     |
     */
 
@@ -55,22 +54,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Motion (NProgress's own options)
+    | Motion
     |--------------------------------------------------------------------------
     |
-    | minimum: where the bar starts (0 to 1). speed: its animation, in ms.
-    | trickle: creep forward while waiting, every trickle_speed ms.
+    | minimum and maximum: where the bar starts, and how far it creeps before
+    | the page arrives (0 to 1). trickle: creep every trickle_speed ms. speed
+    | and easing: the width animation. fade_speed: the fade at the end (ms).
     |
     */
 
-    'minimum' => 0.08,
+    'minimum' => 0.15,
 
-    'easing' => 'ease',
-
-    'speed' => 200,
+    'maximum' => 0.92,
 
     'trickle' => true,
 
-    'trickle_speed' => 200,
+    'trickle_speed' => 100,
+
+    'speed' => 150,
+
+    'easing' => 'ease-out',
+
+    'fade_speed' => 200,
 
 ];

@@ -1,5 +1,5 @@
 // The progress bar through visits (stdin: {options, scenarios: {name: [[ms, event], ...]}}): the
-// real NProgress and runtime/progress.js in jsdom, the bar sampled every few ms. stdout: what went
+// real nitro-progress and runtime/progress.js in jsdom, the bar sampled every few ms. stdout: what went
 // wrong, by scenario: the bar going back while it is shown, a bar appearing part way (not from
 // its start), or a bar left on the page.
 import { JSDOM } from 'jsdom';
@@ -9,7 +9,7 @@ const input = await readStdin();
 const dom = new JSDOM('<!DOCTYPE html><body></body>', { pretendToBeVisual: true });
 Object.assign(globalThis, { window: dom.window, document: dom.window.document });
 const { Progress } = await import('../../src/runtime/progress.js');
-new Progress(dom.window, input.options);
+const progress = new Progress(dom.window, input.options);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = {};
@@ -29,9 +29,8 @@ for (const [name, steps] of Object.entries(input.scenarios)) {
     let lastPct = null;
     const sample = setInterval(() => {
         const el = document.getElementById('nprogress');
-        const match = el?.querySelector('.bar')?.style.transform.match(/-?[\d.]+/);
-        const pct = match ? 100 + Number(match[0]) : null;
-        const shown = el && (el.style.opacity === '' || Number(el.style.opacity) === 1);
+        const pct = el ? progress.bar.width : null;
+        const shown = el && el.style.opacity !== '0';
         if (el && pct !== null) {
             if (el === lastEl && lastPct !== null && shown && pct < lastPct - 0.5) problems.push(`back from ${lastPct.toFixed(0)}% to ${pct.toFixed(0)}%`);
             if (el !== lastEl && pct > input.options.minimum * 100 + 2) problems.push(`a bar appeared at ${pct.toFixed(0)}%`);

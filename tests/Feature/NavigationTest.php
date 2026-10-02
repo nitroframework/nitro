@@ -112,7 +112,9 @@ class NavigationTest extends TestCase
         $this->assertSame('4px', $settings['height']);
         $this->assertTrue($settings['spinner']);
         $this->assertSame(0, $settings['delay']);
-        $this->assertSame(0.08, $settings['minimum']);
+        $this->assertSame(0.15, $settings['minimum']);
+        $this->assertSame(0.92, $settings['maximum']);
+        $this->assertSame(200, $settings['fadeSpeed']);
         $this->assertSame('top', $settings['position']);
 
         $this->app->make('config')->set('nprogress.show', false);

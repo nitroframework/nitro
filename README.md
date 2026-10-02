@@ -283,6 +283,8 @@ Without a name, a built-in fade and scale needs no CSS:
 | `.origin.top` | The transform origin: `top`, `bottom`, `left`, `right`, `center` |
 | `.in`, `.out` | Animate entering only, or leaving only |
 | `.appear` | Animate on the component's first render in the browser too |
+| `.out-in`, `.in-out` | Vue's modes, for an element replacing another (`@if` / `@else`, on both): the old one leaves before the new one enters, or after it |
+| `.move` | On the rows of a `@foreach`: rows that stay slide to their new places when the list changes (Vue's `<TransitionGroup>`) |
 
 With a name, the classes are Vue's, and the CSS decides what moves and for how long:
 
@@ -295,7 +297,21 @@ With a name, the classes are Vue's, and the CSS decides what moves and for how l
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 ```
 
-Rows of a list animate on their own; a removed row leaves where it was, while the others take their places. Nothing animates on the server's HTML, in a hidden tab, or for a visitor who asks for reduced motion.
+Rows of a list animate on their own; a removed row leaves where it was. With `.move`, the rows around it slide into its place as it fades, and a reordered list slides into its new order; with a name, the `name-move` class gives the CSS (`.fade-move { transition: transform .3s; }`).
+
+```blade
+@foreach ($students as $student)
+    <li fusion:key="{{ $student['id'] }}" fusion:transition.move.duration.250ms>{{ $student['name'] }}</li>
+@endforeach
+
+@if ($tab === 'fees')
+    <section fusion:transition.out-in>...</section>
+@else
+    <section fusion:transition.out-in>...</section>
+@endif
+```
+
+Nothing animates on the server's HTML, in a hidden tab, or for a visitor who asks for reduced motion.
 
 ## Browser APIs
 
@@ -609,10 +625,13 @@ Each visit sends the bundle's version (`X-Fusion-Version`). When the application
 deployed with a new build since the page was loaded, the server answers `409` with
 `X-Fusion-Location`, and the browser loads that URL in full, with the new assets.
 
-While a visit loads, an [NProgress](https://ricostacruz.com/nprogress) bar runs at the top of the
-window. `php artisan vendor:publish --tag=nprogress-config` gives `config/nprogress.php`: `show`,
+While a visit loads, a progress bar (nitro-progress) runs at the top of the window: it shows at
+once, creeps forward while the server answers, and fills and fades as the new page appears.
+`php artisan vendor:publish --tag=nprogress-config` gives `config/nprogress.php`: `show`,
 `color`, `height`, `position`, the glow and spinner and their sizes, `delay` (ms before it
-appears), NProgress's motion options, and `server_calls` to show it during `#[Server]` calls too.
+appears), the motion (`minimum`, `maximum`, `trickle`, `trickle_speed`, `speed`, `easing`,
+`fade_speed`), and `server_calls` to show it during `#[Server]` calls too. The markup is
+NProgress's (`#nprogress`, `.bar`), so styles written for it still apply.
 The runtime also emits `fusion:request` and `fusion:response` around each `#[Server]` call.
 
 ### Testing pages
