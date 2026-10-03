@@ -194,9 +194,9 @@ abstract class Component
     }
 
     /**
-     * A paginator, as a property that loads more as it scrolls. The property
-     * holds ['data' => items, 'scroll' => where it is]; $loadMore('posts') asks for the next page
-     * and appends its items.
+     * A paginator, as a property that loads more as it scrolls: the property holds its items,
+     * $loadMore('posts') asks for the next page and appends them, and $this->hasMore('posts')
+     * says whether there is one.
      *
      *   $this->scroll('posts', fn () => Post::latest()->paginate(20));
      */
@@ -214,6 +214,16 @@ abstract class Component
     final protected function wants(string $property): bool
     {
         return app(Fusion::class)->wants($property);
+    }
+
+    /**
+     * Whether a scroll prop ($this->scroll()) has a next page to load. In views and methods:
+     *
+     *   @if ($this->hasMore('posts')) <div fusion:visible="$loadMore('posts')">…</div> @endif
+     */
+    final public function hasMore(string $property): bool
+    {
+        return ($this->fusion()->scroll[$property]['nextPage'] ?? null) !== null;
     }
 
     /**

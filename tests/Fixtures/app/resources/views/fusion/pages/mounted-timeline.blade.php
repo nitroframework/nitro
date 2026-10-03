@@ -1,10 +1,10 @@
 <div class="timeline">
     <ul class="posts">
-        @foreach ($posts['data'] as $post)
+        @foreach ($posts as $post)
             <li>{{ $post['title'] }}</li>
         @endforeach
     </ul>
-    @if ($posts['scroll']['nextPage'] !== null)
+    @if ($this->hasMore('posts'))
         <button class="more" fusion:click="$loadMore('posts')">More</button>
     @endif
     <p class="tags">{{ implode(',', array_column($tags, 'name')) }}</p>

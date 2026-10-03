@@ -56,9 +56,9 @@ final class Globals
      * Methods Fusion gives every component, usable from browser code:
      *   $this->dispatch('event', ...$params)  $this->reset('prop', ...)  $this->redirect($url)
      *   $this->js('$refs.search.focus()')  $this->shared('auth.user.name', $default)  $this->reload('orders')
-     *   $this->flashed('toast')
+     *   $this->flashed('toast')  $this->hasMore('posts')
      */
-    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload'];
+    public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload', 'hasMore'];
 
     /** fusion: attributes that are not events (the runtime reads them from the DOM). */
     public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];

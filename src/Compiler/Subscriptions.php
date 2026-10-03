@@ -85,6 +85,11 @@ final class Subscriptions
             $keys['$flash'] = true;
         }
 
+        /** $this->hasMore(): where the page's scroll props are, which the runtime marks "$scroll" when it changes. */
+        if (str_contains($js, '$this.$hasMore(')) {
+            $keys['$scroll'] = true;
+        }
+
         /** @deferred: the page's deferred properties, which the runtime marks "$deferred" once loaded. */
         if (str_contains($js, '$this.$deferring(')) {
             $keys['$deferred'] = true;

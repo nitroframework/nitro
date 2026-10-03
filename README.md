@@ -539,15 +539,15 @@ public function mount(): void
 | --- | --- |
 | `$this->merge()` | Appends the new items. `->prepend()` puts them first; `->append('data')` merges the list at a key |
 | `$this->deepMerge()` | Merges arrays key by key, all the way down; lists are appended |
-| `$this->scroll()` | A paginator, held as `['data' => items, 'scroll' => [...]]`. `$loadMore('posts')` asks for the next page and appends it |
+| `$this->scroll()` | A paginator (`paginate()`, `simplePaginate()` or `cursorPaginate()`): the property holds its items. `$loadMore('posts')` asks for the next page and appends it, and `$this->hasMore('posts')` says whether there is one |
 | `->matchOn('id')` | An item with the same id replaces the one there instead of being added again |
 
 ```blade
-@foreach ($posts['data'] as $post)
+@foreach ($posts as $post)
     <article fusion:key="{{ $post['id'] }}">...</article>
 @endforeach
 
-@if ($posts['scroll']['nextPage'] !== null)
+@if ($this->hasMore('posts'))
     <div fusion:visible="$loadMore('posts')">Loading…</div>
 @endif
 ```

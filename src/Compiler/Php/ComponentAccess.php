@@ -170,6 +170,9 @@ final class ComponentAccess extends Part
             'js' => '$this.$js('.implode(', ', $this->jsArgs($e->args)).')',
             'shared' => 'B.shared('.implode(', ', $calls->args($e->args)).')',
             'flashed' => 'B.flashed('.implode(', ', $calls->args($e->args)).')',
+            'hasMore' => count($e->args) === 1 && $e->args[0] instanceof Arg
+                ? '$this.$hasMore('.$this->propertyName($e->args[0], $e, '$this->hasMore()').')'
+                : throw $c->error('$this->hasMore() takes the name of one scroll property', $e),
             default => throw $c->error("\$this->{$name}() is not a method of the component that can run in the browser", $e),
         };
     }

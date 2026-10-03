@@ -29,6 +29,8 @@ export function readState(envelope) {
         deferred: memo instanceof Map ? P.entries(memo.get('deferred') ?? []).map(([, name]) => name) : [],
         /** A partial reload's merge props: property => its rule (Merge). */
         merge: memo instanceof Map && memo.get('merge') instanceof Map ? memo.get('merge') : new Map(),
+        /** A page's scroll props: property => where its paginator is ($this->scroll()). */
+        scroll: memo instanceof Map && memo.get('scroll') instanceof Map ? memo.get('scroll') : new Map(),
         /** A component placed in a Blade view: its slots' HTML (no parent renders them in the browser). */
         slots: memo instanceof Map && memo.get('slots') instanceof Map ? memo.get('slots') : null,
     };
@@ -66,6 +68,8 @@ export class Component {
         this.errors = errors ?? new ErrorBag();
         /** Its deferred properties not loaded yet (a page's: Network::deferred()). */
         this.deferred = new Set();
+        /** Where its scroll props' paginators are: property => Map {pageName, currentPage, nextPage, previousPage}. */
+        this.scroll = new Map();
         /** element => (event => {event, modifiers, fn}): its fusion:<event> handlers */
         this.handlers = new WeakMap();
         /** The event types it has handlers for. */
@@ -124,6 +128,8 @@ export class Component {
             $js: (code) => self.js(code),
             $reload: (names) => self.runtime.reload(self, names),
             $loadMore: (name) => self.runtime.loadMore(self, P.toStr(name)),
+            /** $this->hasMore('posts'): whether the scroll prop has a next page. */
+            $hasMore: (name) => self.nextPage(P.toStr(name)) !== null,
             /** @deferred: whether any of the properties (any, when none are named) is still loading. */
             $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
         });
@@ -422,8 +428,9 @@ export class Component {
      * server changed renders again (a value equal to the one here stays the one here).
      */
     applySnapshot(envelope, sent) {
-        const { data, errors } = readState(envelope);
+        const { data, errors, scroll } = readState(envelope);
         const fresh = new Map();
+        this.setScroll(scroll, true);
 
         for (const [name, value] of data) {
             const current = this.data.get(name);
@@ -459,7 +466,8 @@ export class Component {
      */
     applyReload(envelope, only, sent, partial = null) {
         if (only.length > 0 && partial) {
-            const { data, merge: rules } = readState(partial);
+            const { data, merge: rules, scroll } = readState(partial);
+            this.setScroll(scroll, false);
             for (const [name, value] of data) {
                 if (!only.includes(name)) continue;
                 const current = this.data.get(name);
@@ -476,7 +484,8 @@ export class Component {
             }
             this.partials.push(partial);
         } else {
-            const { data } = readState(envelope);
+            const { data, scroll } = readState(envelope);
+            this.setScroll(scroll, true);
             const fresh = new Map(this.data);
             for (const [name, value] of data) {
                 const current = this.data.get(name);
@@ -497,6 +506,23 @@ export class Component {
         const modelChanged = modelable && this.dirty.has(modelable);
         this.update();
         if (modelChanged) this.modelChanged(modelable);
+    }
+
+    /**
+     * Where its scroll props are, from a snapshot (replace: all of them) or a partial reload (the
+     * ones it has). What reads $this->hasMore() renders again when it changes.
+     */
+    setScroll(scroll, replace) {
+        const next = new Map(replace ? [] : this.scroll);
+        for (const [name, position] of scroll) next.set(name, position);
+        if (JSON.stringify(P.encode(next)) !== JSON.stringify(P.encode(this.scroll))) this.dirty.add('$scroll');
+        this.scroll = next;
+    }
+
+    /** A scroll prop's next page (a number or a cursor), or null when it has none. */
+    nextPage(name) {
+        const position = this.scroll.get(name);
+        return position instanceof Map ? position.get('nextPage') ?? null : null;
     }
 
     /** Values changed in the browser since the last snapshot (sent with the next #[Server] call). */

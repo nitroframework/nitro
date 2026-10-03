@@ -62,7 +62,8 @@ All notable changes to `nitro/fusion` will be documented in this file.
 - A chunk the page already loaded is not fetched again on a visit.
 
 - Merge props (`->prepend()`, `->matchOn()`) and scroll props with `$loadMore('prop')`, merged
-  on partial reloads in the browser and on the server.
+  on partial reloads in the browser and on the server. A scroll prop holds the paginator's items;
+  `$this->hasMore('prop')` says whether there is a next page.
 - Once shared data: `Fusion::once()`, `Fusion::shareOnce()` (`->until()`, `->fresh()`).
 - Flash data: `Fusion::flash()`, read with `$this->flashed()`, announced with `fusion:flash`.
 - A partial reload signs the properties it reloads on their own; the next `#[Server]` call lays

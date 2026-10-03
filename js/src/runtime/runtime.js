@@ -183,6 +183,7 @@ export class Runtime {
 
         const component = new Component(this, definition, el, state.id, state.name, state.data, envelope, state.errors);
         component.deferred = new Set(state.deferred);
+        component.scroll = new Map(state.scroll ?? []);
         if (state.slots) component.slots = Object.fromEntries([...state.slots].map(([name, html]) => [name, { html: P.toStr(html) }]));
         this.instances.set(state.id, component);
         return component;
@@ -315,6 +316,7 @@ export class Runtime {
         component.parent = links.parent ?? null;
         component.model = links.model ?? null;
         component.deferred = new Set(state.deferred ?? []);
+        component.scroll = new Map(state.scroll ?? []);
         const made = component.create((root) => {
             root.setAttribute('fusion:id', state.id);
             root.setAttribute('fusion:name', state.name);
@@ -489,12 +491,10 @@ export class Runtime {
             return Promise.reject(error);
         }
         return this.network.reload(component, [name], false, () => {
-            const value = component.data.get(name);
-            const scroll = value instanceof Map ? value.get('scroll') : null;
-            const next = scroll instanceof Map ? scroll.get('nextPage') : null;
-            if (next === null || next === undefined) return null;
+            const next = component.nextPage(name);
+            if (next === null) return null;
             const url = new URL(this.window.location.href);
-            url.searchParams.set(P.toStr(scroll.get('pageName') ?? 'page'), P.toStr(next));
+            url.searchParams.set(P.toStr(component.scroll.get(name).get('pageName') ?? 'page'), P.toStr(next));
             return url.href;
         });
     }

@@ -73,14 +73,17 @@ class MergePropsTest extends TestCase
     }
 
     #[DataProvider('timelines')]
-    public function test_a_scroll_prop_holds_the_page_and_where_it_is(string $framework, string $uri): void
+    public function test_a_scroll_prop_holds_the_items_and_the_snapshot_where_it_is(string $framework, string $uri): void
     {
         $this->boot($framework);
 
-        $this->page($uri)->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
-            ->has('posts.data', 10)
-            ->where('posts.data.0.title', 'Post 1')
-            ->where('posts.scroll', ['pageName' => 'page', 'currentPage' => 1, 'nextPage' => 2, 'previousPage' => null]));
+        $response = $this->page($uri)->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+            ->has('posts', 10)
+            ->where('posts.0.title', 'Post 1'));
+
+        $html = (string) $response->getContent();
+        $this->assertSame(['pageName' => 'page', 'currentPage' => 1, 'nextPage' => 2, 'previousPage' => null], $this->snapshots($html)[0]['state']['memo']['scroll']['posts']);
+        $this->assertStringContainsString('class="more"', $html, '$this->hasMore() on the server');
     }
 
     #[DataProvider('timelines')]
@@ -90,9 +93,9 @@ class MergePropsTest extends TestCase
 
         $state = Wire::fromJson((string) $this->page("{$uri}?page=2", 'posts')->json('partial.state'));
 
-        $this->assertSame('Post 11', $state['data']['posts']['data'][0]['title']);
-        $this->assertSame(3, $state['data']['posts']['scroll']['nextPage']);
-        $this->assertSame(['posts' => ['mode' => 'append', 'path' => 'data', 'match' => []]], $state['memo']['merge']);
+        $this->assertSame('Post 11', $state['data']['posts'][0]['title']);
+        $this->assertSame(3, $state['memo']['scroll']['posts']['nextPage']);
+        $this->assertSame(['posts' => ['mode' => 'append', 'path' => null, 'match' => []]], $state['memo']['merge']);
         $this->assertArrayNotHasKey('tags', $state['data']);
     }
 
@@ -112,10 +115,11 @@ class MergePropsTest extends TestCase
         $this->app->forgetScopedInstances();
         $response = $this->update(['snapshot' => $snapshot, 'partials' => $partials, 'updates' => [], 'call' => ['method' => 'touch', 'params' => []]]);
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
-        $data = Wire::fromJson($this->json($response)['snapshot']['state'])['data'];
+        $state = Wire::fromJson($this->json($response)['snapshot']['state']);
+        $data = $state['data'];
 
-        $this->assertCount(20, $data['posts']['data'], 'page 2 appended to page 1');
-        $this->assertSame(3, $data['posts']['scroll']['nextPage']);
+        $this->assertCount(20, $data['posts'], 'page 2 appended to page 1');
+        $this->assertSame(3, $state['memo']['scroll']['posts']['nextPage'], 'where it is, from the last partial reload');
         $this->assertSame(['php', 'js'], array_column($data['tags'], 'name'), 'matched on id: not doubled');
         $this->assertSame(['theme' => ['color' => 'teal', 'size' => 'large']], $data['settings'], 'merged key by key');
         $this->assertSame(1, $data['touched']);

@@ -26,8 +26,11 @@ final class Merge
     /** @var list<string> */
     private array $match = [];
 
-    /** $this->scroll(): the value is a paginator, sent as ['data' => items, 'scroll' => where it is]. */
+    /** $this->scroll(): the value is a paginator; the property holds its items. */
     private bool $scroll = false;
+
+    /** @var array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}|null where the paginator is, once resolved */
+    private ?array $position = null;
 
     public function __construct(private readonly mixed $value)
     {
@@ -72,9 +75,20 @@ final class Merge
     {
         $this->scroll = true;
         $this->mode = 'append';
-        $this->path = 'data';
+        $this->path = null;
 
         return $this;
+    }
+
+    /**
+     * Where a resolved paginator is (its page name and the pages around it), for $loadMore and
+     * $this->hasMore(); null for other merge props.
+     *
+     * @return array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}|null
+     */
+    public function position(): ?array
+    {
+        return $this->position;
     }
 
     /**
@@ -87,21 +101,26 @@ final class Merge
         return ['mode' => $this->mode, 'path' => $this->path, 'match' => $this->match];
     }
 
-    /** The value: the closure called, a paginator as the page holds it. */
+    /** The value: the closure called; for a paginator, its items (position() has where it is). */
     public function resolve(callable $call): mixed
     {
         $value = $this->value instanceof Closure ? $call($this->value) : $this->value;
 
-        return $this->scroll ? self::paginated($value) : $value;
+        if (! $this->scroll) {
+            return $value;
+        }
+
+        ['data' => $items, 'scroll' => $this->position] = self::paginated($value);
+
+        return $items;
     }
 
     /**
-     * A paginator as a property holds it: its items, and where it is (the page name and the
-     * pages around it) for $loadMore.
+     * A paginator's items, and where it is (the page name and the pages around it).
      *
      * @return array{data: array, scroll: array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}}
      */
-    public static function paginated(mixed $paginator): array
+    private static function paginated(mixed $paginator): array
     {
         return match (true) {
             $paginator instanceof LengthAwarePaginator, $paginator instanceof Paginator => [

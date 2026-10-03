@@ -80,6 +80,7 @@ final class Snapshot
             'models' => $models,
             'errors' => $context->errors->toArray(),
             'deferred' => $context->deferred,
+            'scroll' => $context->scroll,
         ], fn ($v) => $v !== [] && $v !== null));
     }
 
@@ -108,6 +109,7 @@ final class Snapshot
         return new self($this->name, $this->id, array_intersect_key($this->data, $names), array_filter([
             'models' => array_intersect_key($this->memo['models'] ?? [], $names),
             'merge' => array_intersect_key($merges, $names),
+            'scroll' => array_intersect_key($this->memo['scroll'] ?? [], $names),
             'partial' => true,
         ]));
     }
@@ -133,8 +135,8 @@ final class Snapshot
     }
 
     /**
-     * Its data and memo with the properties renamed: keys of the data, models and merge rules,
-     * error fields (paths), deferred properties.
+     * Its data and memo with the properties renamed: keys of the data, models, merge rules and
+     * scroll positions, error fields (paths), deferred properties.
      *
      * @param  Closure(string): string  $property
      * @param  Closure(string): string  $path
@@ -145,7 +147,7 @@ final class Snapshot
         $keys = fn (array $values, Closure $rename) => array_combine(array_map(fn ($key) => $rename((string) $key), array_keys($values)), $values);
         $memo = $this->memo;
 
-        foreach (['models', 'merge'] as $entry) {
+        foreach (['models', 'merge', 'scroll'] as $entry) {
             if (isset($memo[$entry]) && is_array($memo[$entry])) {
                 $memo[$entry] = $keys($memo[$entry], $property);
             }
@@ -233,6 +235,7 @@ final class Snapshot
         $context->id = $this->id;
         $context->name = $this->name;
         $context->errors->merge($this->memo['errors'] ?? []);
+        $context->scroll = [...$context->scroll, ...(array) ($this->memo['scroll'] ?? [])];
     }
 
     /** @return Model|EloquentCollection<int, Model> */

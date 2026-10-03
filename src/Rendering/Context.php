@@ -42,6 +42,9 @@ final class Context
     /** @var array<string, \Nitro\Fusion\Merge> merge props from mount() ($this->merge(), ...): their rule is read when the page answers */
     public array $mergeProps = [];
 
+    /** @var array<string, array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}> where each scroll prop's paginator is ($this->scroll()) */
+    public array $scroll = [];
+
     /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
     public array $deferred = [];
 

@@ -550,6 +550,10 @@ final class Fusion
 
         if ($this->wants($property)) {
             $page->{$property} = $merge->resolve($this->app->call(...));
+
+            if ($merge->position() !== null) {
+                $page->fusion()->scroll[$property] = $merge->position();
+            }
         }
 
         if ($this->partial() !== null) {
