@@ -18,8 +18,9 @@ use Symfony\Component\Console\Helper\ProgressBar;
  * file and line.
  *
  * It says how it goes, a line a step with its time: compiling (a progress bar with the component
- * being compiled; -v lists them), minifying (in one Node process; chunks unchanged since the last
- * build come from its cache), publishing.
+ * being compiled; -v lists them), minifying (in one Node process; files unchanged since the last
+ * build come from its cache), copying to public/. Then what was built: each file and its size
+ * (-v: every on-demand file and what is in it), what a first visit downloads, the version.
  */
 #[AsCommand(name: 'fusion:build')]
 class BuildCommand extends Command
@@ -43,7 +44,7 @@ class BuildCommand extends Command
         $this->newLine();
 
         try {
-            $path = $bundle->build(static: true, report: $this->report(...));
+            $bundle->build(static: true, report: $this->report(...));
         } catch (RuntimeException $e) {
             $this->bar?->clear();
             $this->newLine();
@@ -53,24 +54,74 @@ class BuildCommand extends Command
         }
 
         $files->put($manifest, $fusion->registry()->export());
-
-        $names = array_keys($fusion->registry()->all());
-        $pages = count(array_filter($names, Naming::isPage(...)));
-
-        $this->newLine();
-        $this->components->info(sprintf(
-            '%d Fusion components and %d pages built: %s (%s KB).',
-            count($names) - $pages,
-            $pages,
-            basename($path),
-            number_format($files->size($path) / 1024, 1),
-        ));
-
-        if ($bundle->staticFile() !== null) {
-            $this->components->info('Published to public/'.dirname((string) $bundle->staticFile()).': served without PHP.');
-        }
+        $this->summary($this->built);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * What was built: each file and its size, what a first visit downloads, the version, and
+     * where the files are served from.
+     *
+     * @param  array{version: string, obfuscated: bool, directory: ?string, runtime: array{name: string, bytes: int}, files: list<array{group: string, name: string, bytes: int, members: list<string>}>}  $built
+     */
+    private function summary(array $built): void
+    {
+        $main = $built['files'][0];
+        $onDemand = array_slice($built['files'], 1);
+        $sizes = array_column($onDemand, 'bytes');
+        $total = $built['runtime']['bytes'] + array_sum(array_column($built['files'], 'bytes'));
+
+        $rows = [
+            ['Runtime', $built['runtime']['name'], $built['runtime']['bytes'], ''],
+            ['Main bundle', $main['name'], $main['bytes'], 'components and shared code'],
+        ];
+
+        if ($onDemand !== []) {
+            $rows[] = ['On demand', count($onDemand).' files, each loaded when first needed', array_sum($sizes), 'largest '.$this->size(max($sizes))];
+
+            if ($this->output->isVerbose()) {
+                foreach ($onDemand as $file) {
+                    $rows[] = ['', $file['name'], $file['bytes'], implode(', ', $file['members'])];
+                }
+            }
+        }
+
+        $rows[] = ['Total', '', $total, ''];
+
+        $this->newLine();
+
+        foreach ($rows as [$label, $file, $bytes, $note]) {
+            $this->components->twoColumnDetail(
+                trim(($label !== '' ? "<fg=green;options=bold>{$label}</> " : '  ').($file !== '' ? "<fg=cyan>{$file}</>" : '').($note !== '' ? " <fg=gray>{$note}</>" : '')),
+                '<fg=yellow;options=bold>'.$this->size($bytes).'</>',
+            );
+        }
+
+        $first = $built['runtime']['bytes'] + $main['bytes'];
+        $this->newLine();
+        $this->line('  '.($onDemand === []
+            ? 'A first visit downloads the runtime and the main bundle: <fg=yellow;options=bold>'.$this->size($first).'</>.'
+            : 'A first visit downloads the runtime, the main bundle and that page\'s file: <fg=yellow;options=bold>about '
+                .round(($first + min($sizes)) / 1024).'–'.round(($first + max($sizes)) / 1024).' KB</>.'));
+        $this->line('  Version <fg=cyan>'.$built['version'].'</> · '.($built['obfuscated'] ? '<fg=green>obfuscated</>' : '<fg=yellow>not obfuscated</>'));
+        $this->newLine();
+
+        if ($built['directory'] === null) {
+            $this->components->info('Done. The scripts are in '.$this->laravel->make('config')->get('fusion.compiled').', served by Fusion\'s routes.');
+
+            return;
+        }
+
+        $this->components->info('Done. The scripts are now plain files in <fg=cyan>public/'.basename($built['directory']).'</>.');
+        $this->line('  The web server sends them directly, without PHP, and browsers can cache them,');
+        $this->line('  since every build gets new file names. @fusionScripts in your layout already points at them.');
+        $this->newLine();
+    }
+
+    private function size(int $bytes): string
+    {
+        return number_format($bytes / 1024, 1).' KB';
     }
 
     /** The build's steps (Bundle::build()'s report), as lines. */
@@ -79,7 +130,8 @@ class BuildCommand extends Command
         switch ($event) {
             case 'compiling':
                 $this->step = 'compiling';
-                $this->label = "Compiling {$details[0]} components";
+                $pages = count(array_filter(array_keys($this->laravel->make(Fusion::class)->registry()->all()), Naming::isPage(...)));
+                $this->label = sprintf('Compiling %d components and %d pages to JavaScript', $details[0] - $pages, $pages);
 
                 if (! $this->output->isVerbose() && $this->output->isDecorated()) {
                     $this->bar = $this->output->createProgressBar($details[0]);
@@ -106,20 +158,35 @@ class BuildCommand extends Command
                 break;
             case 'minifying':
                 $this->step = 'minifying';
-                $this->label = "Minifying {$details[0]} chunks with esbuild";
+                $this->files = $details[0];
+                $this->label = 'Minifying the main bundle'.($details[0] > 1 ? ' and '.($details[0] - 1).' on-demand files' : '').' with esbuild';
                 break;
             case 'minified':
-                $this->done($this->label.($details[1] === 0 ? ' (all unchanged)' : " ({$details[1]} changed)"), $details[0]);
+                $cached = $this->files - $details[1];
+                $this->done($this->label.' ('.match (true) {
+                    $details[1] === 0 => $this->files === 1 ? 'cached' : "all {$this->files} cached",
+                    $cached === 0 => "{$details[1]} minified",
+                    default => "{$details[1]} minified, {$cached} cached",
+                }.')', $details[0]);
                 break;
             case 'publishing':
                 $this->step = 'publishing';
-                $this->label = 'Publishing to public/'.basename((string) $details[0]);
+                $this->label = "Copying {$details[1]} files to public/".basename((string) $details[0]);
                 break;
             case 'published':
                 $this->done($this->label, $details[0]);
                 break;
+            case 'built':
+                $this->built = $details[0];
+                break;
         }
     }
+
+    /** How many files the build has (the main bundle and those loaded on demand). */
+    private int $files = 0;
+
+    /** @var array<string, mixed> what Bundle::build() made (its 'built' report) */
+    private array $built = [];
 
     private string $label = '';
 

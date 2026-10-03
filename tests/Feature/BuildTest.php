@@ -30,7 +30,9 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('10 Fusion components and 17 pages built', $output);
+        $this->assertStringContainsString('Compiling 10 components and 17 pages to JavaScript', $output);
+        $this->assertMatchesRegularExpression('/Total .*KB/', $output);
+        $this->assertMatchesRegularExpression('/Version [0-9a-f]+ · (not )?obfuscated/', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
             ['beacon', 'card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::devices', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::mounted-timeline', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::transitions', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
@@ -81,7 +83,7 @@ class BuildTest extends TestCase
         $this->assertFileEquals(self::COMPILED."/app-{$version}.min.js", self::APP."/public/fusion/app-{$version}.js");
         $this->assertFileEquals(self::COMPILED."/app-{$version}.counter.chunk.min.js", self::APP."/public/fusion/{$counterChunk}-{$version}.js");
         $this->assertFileExists(self::APP.'/public/fusion/fusion-'.$this->fusion()->runtimeVersion().'.js');
-        $this->assertStringContainsString('Published to public/fusion', $output);
+        $this->assertStringContainsString('The scripts are now plain files in public/fusion', $output);
 
         $page = (string) $this->get('/counter')->getContent();
         $this->assertStringContainsString('<script src="http://localhost/fusion/fusion-'.$this->fusion()->runtimeVersion().'.js" ', $page);
@@ -364,13 +366,13 @@ class BuildTest extends TestCase
         try {
             $this->assertSame(0, $this->console()->call('fusion:build'));
             $output = $this->console()->output();
-            $this->assertMatchesRegularExpression('/Compiling \d+ components .*DONE/', $output);
-            $this->assertMatchesRegularExpression('/Minifying \d+ chunks with esbuild \(\d+ changed\) .*DONE/', $output);
-            $this->assertMatchesRegularExpression('/Publishing to public\/fusion .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Compiling \d+ components and \d+ pages to JavaScript .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Minifying the main bundle and \d+ on-demand files with esbuild \(\d+ minified(, \d+ cached)?\) .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Copying \d+ files to public\/fusion .*DONE/', $output);
 
             $this->app->forgetScopedInstances();
             $this->assertSame(0, $this->console()->call('fusion:build'));
-            $this->assertStringContainsString('(all unchanged)', $this->console()->output());
+            $this->assertMatchesRegularExpression('/\(all \d+ cached\)/', $this->console()->output());
 
             $bundle = $this->app->make(Bundle::class);
             $minified = null;

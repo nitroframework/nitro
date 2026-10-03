@@ -209,7 +209,8 @@ final class Bundle
      * $report hears how it goes (fusion:build prints it):
      *   ('compiling', count), ('component', name) for each, ('compiled', seconds),
      *   ('minifying', chunks), ('minified', seconds, how many were minified rather than cached),
-     *   ('publishing', directory), ('published', seconds)
+     *   ('publishing', directory, files), ('published', seconds),
+     *   ('built', summary): what was built (see summary())
      *
      * @param  (Closure(string, mixed...): void)|null  $report
      */
@@ -219,6 +220,7 @@ final class Bundle
         $this->version = null;
         $files = [];
         $published = [];
+        $publishing = $static && $this->staticDirectory !== null;
 
         $report('compiling', count($this->fusion->registry()->all()));
         $started = microtime(true);
@@ -239,15 +241,53 @@ final class Bundle
 
         $this->write($files);
 
-        if ($static && $this->staticDirectory !== null) {
-            $report('publishing', $this->staticDirectory);
+        $runtime = (string) file_get_contents($this->fusion->runtimePath());
+
+        if ($publishing) {
+            $published['fusion-'.$this->fusion->runtimeVersion().'.js'] = $runtime;
+            $report('publishing', $this->staticDirectory, count($published));
             $started = microtime(true);
-            $published['fusion-'.$this->fusion->runtimeVersion().'.js'] = (string) file_get_contents($this->fusion->runtimePath());
             $this->publish($published);
             $report('published', microtime(true) - $started);
         }
 
+        $report('built', $this->summary($minified, $runtime, $publishing));
+
         return $this->pathFor($this->version(), '', true);
+    }
+
+    /**
+     * What a build made, for fusion:build to show: the version, whether it is obfuscated, where it
+     * was published (null: not published), the runtime, and each file of the bundle with its size
+     * and the components and pages in it ('' the main bundle, then the files loaded on demand).
+     *
+     * @param  array<string, string>  $minified  group => code
+     * @return array{version: string, obfuscated: bool, directory: ?string, runtime: array{name: string, bytes: int}, files: list<array{group: string, name: string, bytes: int, members: list<string>}>}
+     */
+    private function summary(array $minified, string $runtime, bool $published): array
+    {
+        $lazy = $this->lazy();
+        $files = [];
+
+        foreach ($minified as $group => $code) {
+            $files[] = [
+                'group' => $group,
+                'name' => $published ? $this->staticName($group) : basename($this->pathFor($this->version(), $group, true)),
+                'bytes' => strlen($code),
+                'members' => array_values(array_filter(
+                    array_keys($this->fusion->registry()->all()),
+                    fn (string $name) => ($lazy[$name] ?? '') === $group,
+                )),
+            ];
+        }
+
+        return [
+            'version' => $this->version(),
+            'obfuscated' => $this->obfuscate,
+            'directory' => $published ? $this->staticDirectory : null,
+            'runtime' => ['name' => 'fusion-'.$this->fusion->runtimeVersion().'.js', 'bytes' => strlen($runtime)],
+            'files' => $files,
+        ];
     }
 
     /** Remove the compiled files, and the published ones. */
