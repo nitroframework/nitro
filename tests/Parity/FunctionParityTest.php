@@ -829,7 +829,7 @@ class FunctionParityTest extends TestCase
                 $cases[] = ['preg_match_all', [$pattern, $subject, PREG_SET_ORDER | PREG_OFFSET_CAPTURE]];
                 $cases[] = ['preg_replace', [$pattern, '[$0|\1|${2}|\\\\0|\$1]', $subject]];
                 $cases[] = ['preg_replace', [$pattern, '-', $subject, 1]];
-                /** Without /u a match can be half of a character: PHP's json_encode() fails on it, the browser has U+FFFD (README's caveats). */
+                /** Without /u a match can be half of a character: PHP's json_encode() fails on it, the browser has U+FFFD (README's limitations). */
                 if (str_contains(substr($pattern, strrpos($pattern, $pattern[0]) ?: 0), 'u') || mb_check_encoding($subject, 'ASCII')) {
                     $cases[] = ['preg_replace_callback', [$pattern, 'json_encode', $subject]];
                 }
