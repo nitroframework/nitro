@@ -1,6 +1,11 @@
 // fusion:build: minify the compiled components with the application's own esbuild, as `vite build`
-// does. Reads the bundle on stdin, writes the minified bundle on stdout. Run from the application
-// root (fusion.esbuild.root), so `esbuild` resolves from its node_modules.
+// does. Run from the application root (fusion.esbuild.root), so `esbuild` resolves from its
+// node_modules.
+//
+//   node minify.cjs            the bundle on stdin, the minified bundle on stdout
+//   node minify.cjs --batch    {name: code, ...} as JSON on stdin, {name: minified, ...} on stdout:
+//                              every chunk in one process (starting Node is most of the cost of
+//                              minifying one), minified in parallel
 let esbuild;
 
 try {
@@ -10,15 +15,36 @@ try {
     process.exit(2);
 }
 
+const options = { minify: true, target: 'es2020', legalComments: 'none' };
+const batch = process.argv.includes('--batch');
+
 let source = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => (source += chunk));
-process.stdin.on('end', () => {
+process.stdin.on('end', async () => {
+    if (!batch) {
+        try {
+            process.stdout.write(esbuild.transformSync(source, options).code);
+        } catch (error) {
+            process.stderr.write(String(error?.message ?? error));
+            process.exit(1);
+        }
+        return;
+    }
+
+    const chunks = JSON.parse(source);
+    const minified = {};
     try {
-        const { code } = esbuild.transformSync(source, { minify: true, target: 'es2020', legalComments: 'none' });
-        process.stdout.write(code);
+        await Promise.all(Object.entries(chunks).map(async ([name, code]) => {
+            try {
+                minified[name] = (await esbuild.transform(code, options)).code;
+            } catch (error) {
+                throw new Error(`${name === '' ? 'app' : name}: ${error?.message ?? error}`);
+            }
+        }));
     } catch (error) {
         process.stderr.write(String(error?.message ?? error));
         process.exit(1);
     }
+    process.stdout.write(JSON.stringify(minified));
 });

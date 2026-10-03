@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Build;
 
+use Closure;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Routing\Router;
 use Illuminate\View\Compilers\BladeCompiler;
@@ -204,24 +205,46 @@ final class Bundle
     /**
      * The production bundle and its chunks, minified with esbuild; with $static (fusion:build),
      * published to fusion.static as well, with the runtime.
+     *
+     * $report hears how it goes (fusion:build prints it):
+     *   ('compiling', count), ('component', name) for each, ('compiled', seconds),
+     *   ('minifying', chunks), ('minified', seconds, how many were minified rather than cached),
+     *   ('publishing', directory), ('published', seconds)
+     *
+     * @param  (Closure(string, mixed...): void)|null  $report
      */
-    public function build(bool $static = false): string
+    public function build(bool $static = false, ?Closure $report = null): string
     {
+        $report ??= function (): void {};
         $this->version = null;
         $files = [];
         $published = [];
 
-        foreach ($this->compileAll(true) as $group => $code) {
-            $files[$this->pathFor($this->version(), $group, true)] = $minified = $this->minify($code);
-            $published[$this->staticName($group)] = $minified;
+        $report('compiling', count($this->fusion->registry()->all()));
+        $started = microtime(true);
+        $chunks = $this->compileAll(true, fn (string $name) => $report('component', $name));
+        $report('compiled', microtime(true) - $started);
+
+        $report('minifying', count($chunks));
+        $started = microtime(true);
+        $minifiedNow = 0;
+        $minified = $this->minifyAll($chunks, $minifiedNow, prune: true);
+        $report('minified', microtime(true) - $started, $minifiedNow);
+
+        foreach ($minified as $group => $code) {
+            $files[$this->pathFor($this->version(), $group, true)] = $code;
+            $published[$this->staticName($group)] = $code;
         }
         $files[$this->usesPath()] = $this->usesJson();
 
         $this->write($files);
 
         if ($static && $this->staticDirectory !== null) {
+            $report('publishing', $this->staticDirectory);
+            $started = microtime(true);
             $published['fusion-'.$this->fusion->runtimeVersion().'.js'] = (string) file_get_contents($this->fusion->runtimePath());
             $this->publish($published);
+            $report('published', microtime(true) - $started);
         }
 
         return $this->pathFor($this->version(), '', true);
@@ -275,11 +298,12 @@ final class Bundle
     }
 
     /**
-     * Every file: '' the main bundle, then each group's chunk.
+     * Every file: '' the main bundle, then each group's chunk. $compiling hears each component
+     * as it is compiled (fusion:build -v lists them).
      *
      * @return array<string, string>
      */
-    public function compileAll(bool $build = false): array
+    public function compileAll(bool $build = false, ?Closure $compiling = null): array
     {
         $registry = $this->fusion->registry();
         $names = $this->obfuscator($build);
@@ -296,6 +320,10 @@ final class Bundle
         $lazy = $this->lazy();
 
         foreach (array_keys($this->fusion->registry()->all()) as $name) {
+            if ($compiling !== null) {
+                $compiling($name);
+            }
+
             $meta = $this->fusion->meta($name);
             $viewFile = $this->views->getFinder()->find($meta->view);
             $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
@@ -576,23 +604,79 @@ final class Bundle
      */
     public function minify(string $code): string
     {
+        return $this->minifyAll(['' => $code])[''];
+    }
+
+    /**
+     * Minify every chunk (name => code) in one Node process (starting Node, ~0.2s, is most of the
+     * cost of minifying one chunk), esbuild minifying them in parallel. A chunk minified before
+     * (the same code, minifier and esbuild) comes from the cache in the compiled directory, so a
+     * build where one page changed minifies that page only. $minified tells how many were.
+     *
+     * @param  array<string, string>  $chunks
+     * @return array<string, string>
+     *
+     * @throws RuntimeException when node or esbuild is missing, or esbuild rejects the code
+     */
+    public function minifyAll(array $chunks, ?int &$minified = null, bool $prune = false): array
+    {
         $root = $this->esbuild['root'] ?? getcwd();
-        $process = new Process([$this->esbuild['node'] ?? 'node', dirname(__DIR__, 2).'/resources/minify.cjs'], $root, null, $code, 120);
+        $script = dirname(__DIR__, 2).'/resources/minify.cjs';
+        $cache = $this->directory.DIRECTORY_SEPARATOR.'minified';
+        $tool = hash('sha256', (string) @file_get_contents($script).(string) @file_get_contents($root.'/node_modules/esbuild/package.json'));
 
-        try {
-            $process->run();
-        } catch (Throwable $e) {
-            throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$e->getMessage(), 0, $e);
+        $out = [];
+        $keys = [];
+        $missing = [];
+
+        foreach ($chunks as $name => $code) {
+            $keys[$name] = $cache.DIRECTORY_SEPARATOR.hash('sha256', $tool."\0".$code).'.js';
+
+            if ($this->files->exists($keys[$name])) {
+                $out[$name] = (string) $this->files->get($keys[$name]);
+            } else {
+                $missing[$name] = $code;
+            }
         }
 
-        if (! $process->isSuccessful()) {
-            $error = trim($process->getErrorOutput()) ?: trim($process->getOutput());
+        $minified = count($missing);
 
-            throw new RuntimeException('fusion:build could not minify the components with esbuild: '
-                .($error !== '' ? $error : 'node exited with '.$process->getExitCode()).'.');
+        if ($missing !== []) {
+            $process = new Process([$this->esbuild['node'] ?? 'node', $script, '--batch'], $root, null, json_encode((object) $missing, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), 300);
+
+            try {
+                $process->run();
+            } catch (Throwable $e) {
+                throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$e->getMessage(), 0, $e);
+            }
+
+            if (! $process->isSuccessful()) {
+                $error = trim($process->getErrorOutput()) ?: trim($process->getOutput());
+
+                throw new RuntimeException('fusion:build could not minify the components with esbuild: '
+                    .($error !== '' ? $error : 'node exited with '.$process->getExitCode()).'.');
+            }
+
+            $this->files->ensureDirectoryExists($cache);
+
+            foreach (json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR) as $name => $code) {
+                $out[$name] = $code;
+                $this->files->put($keys[$name], $code);
+            }
         }
 
-        return $process->getOutput();
+        /** A build's cache keeps what it used: a chunk that changed leaves its old minified code behind. */
+        if ($prune) {
+            $used = array_map(fn (string $path) => basename($path), $keys);
+
+            foreach ($this->files->glob($cache.DIRECTORY_SEPARATOR.'*.js') as $old) {
+                if (! in_array(basename($old), $used, true)) {
+                    $this->files->delete($old);
+                }
+            }
+        }
+
+        return array_replace($chunks, $out);
     }
 
     /**
