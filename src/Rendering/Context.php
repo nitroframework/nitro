@@ -45,6 +45,9 @@ final class Context
     /** @var array<string, array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}> where each scroll prop's paginator is ($this->scroll()) */
     public array $scroll = [];
 
+    /** The page's <head>, when mount() set some of it ($this->head()) */
+    public ?\Nitro\Fusion\Head $head = null;
+
     /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
     public array $deferred = [];
 

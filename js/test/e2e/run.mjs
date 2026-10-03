@@ -1271,6 +1271,29 @@ await scenario('markup-first navigation', async () => {
     window.close();
 });
 
+/** @fusionHead: a visit puts the new page's title and tags in place of the last page's. */
+await scenario('head', async () => {
+    const window = await open('/article');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const meta = (name) => document.head.querySelectorAll(`meta[name="${name}"]`);
+    const runtime = window.Fusion;
+
+    check('the server\'s head', document.title === 'Fusion & Blade · Fixture' && meta('author').length === 1, document.title);
+
+    click(window, $('.to-notice'));
+    await until('the visit\'s title', () => document.title === 'Notice · Fixture');
+    check('its description, once', meta('description').length === 1 && meta('description')[0].getAttribute('content') === 'A private notice');
+    check('its noindex', meta('robots').length === 1);
+    check('the last page\'s tags are gone', meta('author').length === 0 && document.head.querySelector('link[rel="canonical"]') === null);
+
+    click(window, $('.to-article'));
+    await until('back on the article', () => document.title === 'Fusion & Blade · Fixture');
+    check('its tags again, no noindex', meta('robots').length === 0 && meta('author').length === 1 && document.head.querySelector('link[rel="canonical"]') !== null);
+    check('no reload', window.Fusion === runtime);
+    window.close();
+});
+
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Nitro\Fusion\Facades\Fusion;
+use Nitro\Fusion\Tests\Fixtures\Pages\Article;
 use Nitro\Fusion\Tests\Fixtures\Pages\Board;
 use Nitro\Fusion\Tests\Fixtures\Pages\Counter;
 use Nitro\Fusion\Tests\Fixtures\Pages\Devices;
@@ -13,6 +14,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
 use Nitro\Fusion\Tests\Fixtures\Pages\Links;
 use Nitro\Fusion\Tests\Fixtures\Pages\Live;
 use Nitro\Fusion\Tests\Fixtures\Pages\MountedTimeline;
+use Nitro\Fusion\Tests\Fixtures\Pages\Notice;
 use Nitro\Fusion\Tests\Fixtures\Pages\Orders;
 use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
 use Nitro\Fusion\Tests\Fixtures\Pages\Report;
@@ -42,6 +44,8 @@ Route::fusion('/timeline', MountedTimeline::class)->name('timeline');
 
 Route::fusion('/orders', Orders::class)->name('orders');
 Route::fusion('/inbox', Inbox::class)->name('inbox');
+Route::fusion('/article', Article::class)->name('article');
+Route::fusion('/notice', Notice::class)->name('notice');
 
 /** Fusion::flash() and a redirect: the page it goes to delivers it. */
 Route::get('/flash-and-redirect', function () {

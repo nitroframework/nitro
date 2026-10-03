@@ -14,6 +14,12 @@ return [
         'views' => 'fusion.pages',
     ],
     'layout' => 'components.layouts.app',
+    /** For the pages in components.layouts.headed (@fusionHead): Article, Notice. */
+    'head' => [
+        'title' => '%s · Fixture',
+        'description' => 'The Fusion test app',
+        'image' => null,
+    ],
     'persistent_middleware' => [
         Illuminate\Auth\Middleware\Authenticate::class,
         Illuminate\Auth\Middleware\Authorize::class,

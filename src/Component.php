@@ -217,6 +217,17 @@ abstract class Component
     }
 
     /**
+     * The page's <head>: title, description, link-preview image, canonical URL, noindex. Set in
+     * mount(); what is left unset comes from #[Title], #[Description] and fusion.head.
+     *
+     *   $this->head()->title("Invoice {$invoice->number}")->description('...');
+     */
+    final protected function head(): Head
+    {
+        return $this->fusion()->head ??= new Head;
+    }
+
+    /**
      * Whether a scroll prop ($this->scroll()) has a next page to load. In views and methods:
      *
      *   @if ($this->hasMore('posts')) <div fusion:visible="$loadMore('posts')">…</div> @endif

@@ -93,13 +93,13 @@ composer require nitro/fusion
 php artisan vendor:publish --tag=fusion-config   # optional: config/fusion.php
 ```
 
-Add `@fusionScripts` before `</body>` in your layout:
+Add `@fusionHead` to your layout's `<head>` and `@fusionScripts` before `</body>`:
 
 ```blade
 {{-- resources/views/components/layouts/app.blade.php --}}
 <html>
 <head>
-    <title>{{ $title ?? config('app.name') }}</title>
+    @fusionHead
 </head>
 <body>
     {{ $slot }}
@@ -154,8 +154,8 @@ attributes and are read again on the server.
 | `#[Remember]` | Kept in the browser's history entry: back, forward and a reload bring back its value, such as a half-filled form. Not for `#[Locked]` properties, models or uploads |
 | `#[Modelable]` | On one property, lets a parent bind it: `<fusion:search-box fusion:model="query" />` |
 
-Pages also take `#[Title]`, `#[Layout]`, `#[LazyLoad]` and `#[Navigate]` (see [Pages](#pages) and
-[Navigation](#navigation)).
+Pages also take `#[Title]`, `#[Description]`, `#[Layout]`, `#[LazyLoad]` and `#[Navigate]` (see
+[Pages](#pages) and [Navigation](#navigation)).
 
 ### Methods
 
@@ -407,6 +407,56 @@ class Show extends Component
 
 The page renders inside its layout as `$slot`, with `#[Title]` as `$title`. Without `#[Layout]`,
 it uses `fusion.layout` (`components.layouts.app`).
+
+### The page's head
+
+Every Fusion page is rendered on the server on its first load, so search engines and link
+previews always get complete HTML. `@fusionHead` in the layout prints the page's `<title>` and
+the tags they read; a page sets only what it needs, and the rest comes from defaults.
+
+```php
+// config/fusion.php: for every page
+'head' => [
+    'title' => '%s · Campus Admin',      // the page's title in place of %s
+    'description' => 'School administration',
+    'image' => 'https://campus.test/img/share.png',
+],
+```
+
+A page with fixed text uses attributes; a page whose head depends on its data sets it in
+`mount()`:
+
+```php
+#[Title('Pricing')]
+#[Description('Plans for every school size')]
+class Pricing extends Component
+```
+
+```php
+public function mount(Invoice $invoice): void
+{
+    $this->head()
+        ->title("Invoice {$invoice->number}")
+        ->description("Invoice for {$invoice->student->name}")
+        ->image(asset('img/invoice.png'))
+        ->canonical(route('invoices.show', $invoice))
+        ->noindex();
+}
+```
+
+| | Prints |
+| --- | --- |
+| `title()`, `#[Title]` | `<title>` in the `head.title` format, and `og:title` |
+| `description()`, `#[Description]` | `<meta name="description">` and `og:description` |
+| `image()` | `og:image` and a large Twitter card |
+| `canonical()` | `<link rel="canonical">` |
+| `noindex()` | `<meta name="robots" content="noindex">` |
+| `meta($name, $content)` | any other `<meta name>` |
+
+A `fusion:navigate` visit brings the new page's head with its data, and the browser puts it in
+place of the last page's. Pages behind a login rarely need more than a title; the head matters for
+public pages people search for and share. A layout that writes its own `<title>{{ $title }}</title>`
+keeps working: `$title` is the page's title.
 
 Each page is compiled into a chunk of its own, loaded the first time the page is visited.
 `#[LazyLoad(false)]` keeps a page in the main bundle, and `#[LazyLoad('group')]` puts pages or
@@ -901,6 +951,7 @@ of views and browser methods.
 | `components` | `App\Fusion\Components` | Namespace, path and view path of components |
 | `pages` | `App\Fusion\Pages` | Namespace, path and view path of pages |
 | `layout` | `components.layouts.app` | The layout of pages without `#[Layout]` |
+| `head` | `'%s'`, no description or image | `@fusionHead`'s defaults: the title format, the description and the link-preview image |
 | `persistent_middleware` | auth, can, verified, ... | Page middleware checked again on each `#[Server]` call |
 | `max_payload` | 1 MB | The largest `#[Server]` call accepted |
 | `uploads` | | `directory`, `rules`, `max_files`, `throttle` |

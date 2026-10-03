@@ -173,6 +173,9 @@ class FusionServiceProvider extends ServiceProvider
         Blade::precompiler(FusionTags::compile(...));
 
         Blade::directive('fusionScripts', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->scripts(); ?>');
+
+        /** @fusionHead in the layout's <head>: the page's <title> and its tags for search engines and link previews. */
+        Blade::directive('fusionHead', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->head(); ?>');
         Blade::directive('fusion', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->mount({$expression}); ?>");
 
         /** Viewi's portals, as Livewire's @teleport: @portal('name') is where content goes, @teleport('name') what goes there. */

@@ -81,6 +81,12 @@ final class Fusion
 
     private bool $namesResolved = false;
 
+    /** @var array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}|null the page being answered's <head> (pageHead()) */
+    private ?array $head = null;
+
+    /** Whether the layout printed @fusionHead (a visit sends the head's tags only then). */
+    private bool $headPrinted = false;
+
     /** Whether the layout is being rendered for its title only (layoutTitle()). */
     private bool $renderingTitle = false;
 
@@ -653,8 +659,9 @@ final class Fusion
     /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
     private function respond(Component $component, ComponentMeta $meta): Response
     {
+        $this->head = $this->pageHead($component, $meta);
         $layout = $meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app');
-        $layoutData = [...($meta->layout->data ?? []), 'title' => $meta->title];
+        $layoutData = [...($meta->layout->data ?? []), 'title' => $this->head['title']];
 
         /** The same URL answers with HTML or with page data: caches must keep them apart. */
         $request = $this->app->make('request');
@@ -702,11 +709,71 @@ final class Fusion
             'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules())->toJson($key, $this->browserName($meta->name), $this->names()), true),
             'children' => (object) $children,
             'title' => $this->layoutTitle($layout, $layoutData),
+            /** @fusionHead's tags but the title, when the layout has it (layoutTitle() just rendered it): the browser puts them in place of the last page's. */
+            'head' => $this->headPrinted ? $this->headTags() : null,
             'layout' => $this->layoutKey($layout, $layoutData),
             'shared' => $this->sharedForBrowser(),
             'once' => (object) $this->onceForBrowser(),
             'flash' => $this->flashForBrowser(),
         ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * The page's <head>, as @fusionHead prints it: what mount() set ($this->head()), else
+     * #[Title] and #[Description], else the fusion.head defaults.
+     *
+     * @return array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}
+     */
+    private function pageHead(Component $component, ComponentMeta $meta): array
+    {
+        $set = $component->fusion()->head?->values() ?? [];
+
+        return [
+            'title' => $set['title'] ?? $meta->title,
+            'description' => $set['description'] ?? $meta->description ?? $this->config('head.description'),
+            'image' => $set['image'] ?? $this->config('head.image'),
+            'canonical' => $set['canonical'] ?? null,
+            'noindex' => $set['noindex'] ?? false,
+            'meta' => $set['meta'] ?? [],
+        ];
+    }
+
+    /**
+     * @fusionHead: the page's <title> (in the fusion.head.title format) and the tags search engines
+     * and link previews read. Outside a Fusion page (a plain Blade view), the defaults.
+     */
+    public function head(): HtmlString
+    {
+        $this->headPrinted = true;
+        $title = $this->head['title'] ?? null;
+        $format = (string) $this->config('head.title', '%s');
+        $text = $title === null || $title === '' ? (string) $this->app->make('config')->get('app.name') : str_replace('%s', $title, $format);
+
+        return new HtmlString('<title>'.e($text)."</title>\n".$this->headTags());
+    }
+
+    /** The head's tags but the title, each marked data-fusion-head for the browser to replace on a visit. */
+    private function headTags(): string
+    {
+        $head = $this->head ?? ['title' => null, 'description' => $this->config('head.description'), 'image' => $this->config('head.image'), 'canonical' => null, 'noindex' => false, 'meta' => []];
+        $tags = [];
+        $meta = fn (string $attribute, string $key, ?string $content) => $content === null || $content === ''
+            ? null
+            : '<meta '.$attribute.'="'.e($key).'" content="'.e($content).'" data-fusion-head>';
+
+        $tags[] = $meta('name', 'description', $head['description']);
+        $tags[] = $meta('property', 'og:title', $head['title']);
+        $tags[] = $meta('property', 'og:description', $head['description']);
+        $tags[] = $meta('property', 'og:image', $head['image']);
+        $tags[] = $head['image'] === null || $head['image'] === '' ? null : $meta('name', 'twitter:card', 'summary_large_image');
+        $tags[] = $head['canonical'] === null ? null : '<link rel="canonical" href="'.e($head['canonical']).'" data-fusion-head>';
+        $tags[] = $head['noindex'] ? $meta('name', 'robots', 'noindex') : null;
+
+        foreach ($head['meta'] as $name => $content) {
+            $tags[] = $meta('name', $name, $content);
+        }
+
+        return implode("\n", array_filter($tags));
     }
 
     /**

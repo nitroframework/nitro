@@ -4,6 +4,12 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- The page's head: `@fusionHead` in the layout prints the `<title>` (in the `fusion.head.title`
+  format) and the tags search engines and link previews read: description, Open Graph, Twitter
+  card, canonical, robots. A page sets them with `#[Title]`, `#[Description]` or `$this->head()`
+  in `mount()` (`title()`, `description()`, `image()`, `canonical()`, `noindex()`, `meta()`); the
+  rest comes from `fusion.head`. A `fusion:navigate` visit brings the new page's head with its data.
+
 - Markup-first navigation: `fusion.navigation` (`'data'`, the default, or `'markup'`) and
   `#[Navigate('markup')]` on a page. A visit to a markup-first page renders it at once with its
   defaults, every property deferred (`@deferred` / `@placeholder` show placeholders), and fills it

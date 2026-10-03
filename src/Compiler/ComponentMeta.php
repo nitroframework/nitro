@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler;
 
 use Nitro\Fusion\Attributes\Computed;
+use Nitro\Fusion\Attributes\Description;
 use Nitro\Fusion\Attributes\Layout;
 use Nitro\Fusion\Attributes\LazyLoad;
 use Nitro\Fusion\Attributes\Locked;
@@ -61,6 +62,8 @@ final class ComponentMeta
         public readonly bool $page = false,
         /** #[Navigate]: 'data' or 'markup' for this page; null to follow fusion.navigation. */
         public readonly ?string $navigate = null,
+        /** #[Description]: the page's description for search results and link previews. */
+        public readonly ?string $description = null,
     ) {
     }
 
@@ -138,9 +141,10 @@ final class ComponentMeta
         $lazy = ($reflection->getAttributes(LazyLoad::class)[0] ?? null)?->newInstance();
 
         $navigate = ($reflection->getAttributes(Navigate::class)[0] ?? null)?->newInstance()->mode;
+        $description = ($reflection->getAttributes(Description::class)[0] ?? null)?->newInstance()->description;
 
-        if (! $page && ($layout !== null || $title !== null || $navigate !== null)) {
-            throw new CompileException("#[Layout], #[Title] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
+        if (! $page && ($layout !== null || $title !== null || $navigate !== null || $description !== null)) {
+            throw new CompileException("#[Layout], #[Title], #[Description] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
         }
 
         if ($navigate !== null && ! in_array($navigate, ['data', 'markup'], true)) {
@@ -177,6 +181,7 @@ final class ComponentMeta
             $modelable,
             $page,
             $navigate,
+            $description,
         );
     }
 

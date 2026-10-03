@@ -214,6 +214,7 @@ export class Navigator {
         if (early && !early.destroyed && readState(page.snapshot).name === early.name && page.layout === early.el.getAttribute('fusion:page')) {
             this.runtime.arrive(early, page);
             if (page.title !== null) this.document.title = page.title;
+            this.updateHead(page.head);
             return;
         }
 
@@ -222,6 +223,7 @@ export class Navigator {
             return;
         }
         if (page.title !== null) this.document.title = page.title;
+        this.updateHead(page.head);
         /** Back or forward: what #[Remember] properties had in that entry. */
         if (!push) this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
         this.arrive(target, options);
@@ -285,6 +287,18 @@ export class Navigator {
             // the network failed
         }
         return answer;
+    }
+
+    /**
+     * The new page's head tags (@fusionHead's: description, link-preview tags, canonical, robots)
+     * in place of the last page's. None sent (a layout without @fusionHead): left as they are.
+     */
+    updateHead(html) {
+        if (typeof html !== 'string') return;
+        for (const tag of this.document.head.querySelectorAll('[data-fusion-head]')) tag.remove();
+        const template = this.document.createElement('template');
+        template.innerHTML = html;
+        this.document.head.append(...template.content.children);
     }
 
     /** Leaving the page for target: where it was scrolled to, and its #[Remember] values, for the back button. */

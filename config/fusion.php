@@ -58,6 +58,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Head
+    |--------------------------------------------------------------------------
+    |
+    | What @fusionHead prints in the layout's <head> for a page that does not
+    | say otherwise (#[Title], #[Description], $this->head() in mount()):
+    |
+    | title: the format of the <title>, the page's title in place of %s
+    |        ('%s · Campus Admin'); a page without a title gets app.name.
+    | description: the description search results and link previews show.
+    | image: the image link previews show (an absolute URL).
+    |
+    */
+
+    'head' => [
+        'title' => '%s',
+        'description' => null,
+        'image' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Security
     |--------------------------------------------------------------------------
     |
