@@ -39,11 +39,24 @@ final class Context
     /** @var list<string>|null the page properties for the browser to reload after a #[Server] call (all of them: []) */
     public ?array $reload = null;
 
-    /** @var array<string, array{mode: string, path: ?string, match: list<string>}> merge props a partial reload sends, with their rule */
+    /** @var array<string, array{mode: string, path: ?string, match: list<string>}> merge props a partial reload sends, with their rule (Fusion::render()'s) */
     public array $merges = [];
+
+    /** @var array<string, \Nitro\Fusion\Merge> merge props from mount() ($this->merge(), ...): their rule is read when the page answers */
+    public array $mergeProps = [];
 
     /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
     public array $deferred = [];
+
+    /**
+     * Every merge prop's rule, from a controller (Fusion::render()) or mount() ($this->merge(), ...).
+     *
+     * @return array<string, array{mode: string, path: ?string, match: list<string>}>
+     */
+    public function mergeRules(): array
+    {
+        return [...$this->merges, ...array_map(fn (\Nitro\Fusion\Merge $merge) => $merge->rule(), $this->mergeProps)];
+    }
 
     public function __construct()
     {

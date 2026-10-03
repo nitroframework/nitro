@@ -11,6 +11,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
 use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
 use Nitro\Fusion\Tests\Fixtures\Pages\Links;
 use Nitro\Fusion\Tests\Fixtures\Pages\Live;
+use Nitro\Fusion\Tests\Fixtures\Pages\MountedTimeline;
 use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
 use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
@@ -35,6 +36,7 @@ Route::fusion('/feed', Feed::class)->name('feed');
 Route::fusion('/transitions', Transitions::class)->name('transitions');
 Route::fusion('/live', Live::class)->name('live');
 Route::fusion('/devices', Devices::class)->name('devices');
+Route::fusion('/timeline', MountedTimeline::class)->name('timeline');
 
 /** Pages from a controller: Fusion::render(). */
 Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');

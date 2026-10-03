@@ -171,6 +171,52 @@ abstract class Component
     }
 
     /**
+     * A page property whose new items are added to the ones the page has on a partial reload,
+     * instead of replacing them: Fusion::merge() from a controller, here from mount(). A first
+     * render or a visit sets it as usual. The closure runs only when the request wants the
+     * property. ->prepend(), ->append('data'), ->matchOn('id') as Fusion::merge()'s.
+     *
+     *   $this->merge('tags', fn () => Tag::popular()->get()->toArray())->matchOn('id');
+     */
+    final protected function merge(string $property, mixed $value): Merge
+    {
+        return app(Fusion::class)->mergeProperty($this, $property, new Merge($value));
+    }
+
+    /**
+     * As merge(), arrays merged key by key, all the way down (lists appended): Fusion::deepMerge().
+     *
+     *   $this->deepMerge('filters', fn () => $this->defaultFilters());
+     */
+    final protected function deepMerge(string $property, mixed $value): Merge
+    {
+        return app(Fusion::class)->mergeProperty($this, $property, (new Merge($value))->deep());
+    }
+
+    /**
+     * A paginator, as a property that loads more as it scrolls: Fusion::scroll(). The property
+     * holds ['data' => items, 'scroll' => where it is]; $loadMore('posts') asks for the next page
+     * and appends its items.
+     *
+     *   $this->scroll('posts', fn () => Post::latest()->paginate(20));
+     */
+    final protected function scroll(string $property, mixed $paginator): Merge
+    {
+        return app(Fusion::class)->mergeProperty($this, $property, (new Merge($paginator))->asScroll());
+    }
+
+    /**
+     * Whether this request needs the page property: always, except on a partial reload of other
+     * properties. In mount(), to skip work a partial reload does not need:
+     *
+     *   if ($this->wants('total')) { $this->total = Order::sum('amount'); }
+     */
+    final protected function wants(string $property): bool
+    {
+        return app(Fusion::class)->wants($property);
+    }
+
+    /**
      * Reload page properties from the page's route or controller, as Inertia's partial reloads:
      * the page asks its URL again and takes the named properties (all of them when none are
      * named) from the answer. In the browser, or after a #[Server] call.

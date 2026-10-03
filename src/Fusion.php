@@ -529,6 +529,37 @@ final class Fusion
     }
 
     /**
+     * A merge prop from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()), as
+     * Fusion::render()'s: its value set when the request wants the property (the closure is not
+     * called otherwise), and, on a partial reload, the Merge kept so its rule (->matchOn(),
+     * ->prepend(), ... called after) goes with the value.
+     *
+     * @internal
+     */
+    public function mergeProperty(Component $page, string $property, Merge $merge): Merge
+    {
+        $meta = $this->meta($page::class);
+
+        if (! $meta->page) {
+            throw new InvalidArgumentException("Only pages merge properties: [{$meta->name}] is a component.");
+        }
+
+        if ($meta->property($property) === null) {
+            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to merge into.");
+        }
+
+        if ($this->wants($property)) {
+            $page->{$property} = $merge->resolve($this->app->call(...));
+        }
+
+        if ($this->partial() !== null) {
+            $page->fusion()->mergeProps[$property] = $merge;
+        }
+
+        return $merge;
+    }
+
+    /**
      * A page from a controller, as Inertia::render() returns one: the component created with the
      * props (mount()'s arguments by name, or its public properties when it has no mount()), then
      * answered as a Route::fusion() page is, fusion:navigate visits included. A Fusion::defer()
@@ -745,7 +776,7 @@ final class Fusion
             'fusion' => 1,
             'snapshot' => json_decode($snapshot->toJson($key, $this->browserName($meta->name), $this->names()), true),
             /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
-            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->merges)->toJson($key, $this->browserName($meta->name), $this->names()), true),
+            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules())->toJson($key, $this->browserName($meta->name), $this->names()), true),
             'children' => (object) $children,
             'title' => $this->layoutTitle($layout, $layoutData),
             'layout' => $this->layoutKey($layout, $layoutData),

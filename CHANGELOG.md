@@ -4,6 +4,11 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Merge props from a routed page's `mount()`: `$this->merge()`, `$this->deepMerge()` and
+  `$this->scroll()`, as `Fusion::merge()`, `Fusion::deepMerge()` and `Fusion::scroll()` from a
+  controller; their closures run only when a partial reload wants the property. `$this->wants()`
+  skips other work a partial reload does not need.
+
 - `fusion.rendering`: `'clone'` (the default) copies each static part of a view the browser
   renders itself (a visit, an `@if` turning true, new rows) from one made once; `'create'` makes
   every element in turn, as before. On the dashboard's Students page a visit renders about 20%

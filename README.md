@@ -562,6 +562,30 @@ row of the one before: `Fusion::scroll(...)->matchOn('id')` keeps each row once.
 The signed partial reload carries the merge rule: the next `#[Server]` call merges it into the
 server's state the same way, so a `#[Locked]` list keeps what was loaded.
 
+A routed page (`Route::fusion()`) does the same in its `mount()`, the property named first:
+
+```php
+public array $posts = [];
+public array $tags = [];
+public array $filters = [];
+public int $total = 0;
+
+public function mount(): void
+{
+    $this->scroll('posts', fn () => Post::latest()->paginate(20));
+    $this->merge('tags', fn () => Tag::popular()->get()->toArray())->matchOn('id');
+    $this->deepMerge('filters', fn () => $this->defaultFilters());
+
+    if ($this->wants('total')) {
+        $this->total = Order::sum('amount');
+    }
+}
+```
+
+A partial reload runs `mount()` again: each closure runs only when the reload wants its property,
+and `$this->wants('total')` skips other work the reload does not need (a first visit wants
+everything).
+
 ### Shared data
 
 `Fusion::share()` gives every component and page the same data, as Inertia's shared props:

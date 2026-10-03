@@ -6,13 +6,15 @@ use Illuminate\Testing\TestResponse;
 use Nitro\Fusion\Merge;
 use Nitro\Fusion\Support\Wire;
 use Nitro\Fusion\Testing\AssertableFusion;
+use Nitro\Fusion\Tests\Fixtures\Components\Store;
 use Nitro\Fusion\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Merge props (Fusion::merge(), Fusion::deepMerge(), Fusion::scroll()), as Inertia's: a partial
  * reload's value merged into the page's, in the browser and, through the signed partial reload,
- * on the server.
+ * on the server. The same from a controller (/rendered/timeline) and from a routed page's mount()
+ * ($this->merge(), $this->deepMerge(), $this->scroll(): /timeline).
  */
 class MergePropsTest extends TestCase
 {
@@ -59,23 +61,36 @@ class MergePropsTest extends TestCase
         );
     }
 
-    #[DataProvider('frameworks')]
-    public function test_a_scroll_prop_holds_the_page_and_where_it_is(string $framework): void
+    /** Each framework, with the timeline from a controller and from mount(). */
+    public static function timelines(): array
+    {
+        $cases = [];
+
+        foreach (self::frameworks() as $name => [$framework]) {
+            $cases["{$name}, controller"] = [$framework, '/rendered/timeline'];
+            $cases["{$name}, mount()"] = [$framework, '/timeline'];
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('timelines')]
+    public function test_a_scroll_prop_holds_the_page_and_where_it_is(string $framework, string $uri): void
     {
         $this->boot($framework);
 
-        $this->page()->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+        $this->page($uri)->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
             ->has('posts.data', 10)
             ->where('posts.data.0.title', 'Post 1')
             ->where('posts.scroll', ['pageName' => 'page', 'currentPage' => 1, 'nextPage' => 2, 'previousPage' => null]));
     }
 
-    #[DataProvider('frameworks')]
-    public function test_a_partial_reload_of_a_merge_prop_carries_its_rule(string $framework): void
+    #[DataProvider('timelines')]
+    public function test_a_partial_reload_of_a_merge_prop_carries_its_rule(string $framework, string $uri): void
     {
         $this->boot($framework);
 
-        $state = Wire::fromJson((string) $this->page('/rendered/timeline?page=2', 'posts')->json('partial.state'));
+        $state = Wire::fromJson((string) $this->page("{$uri}?page=2", 'posts')->json('partial.state'));
 
         $this->assertSame('Post 11', $state['data']['posts']['data'][0]['title']);
         $this->assertSame(3, $state['data']['posts']['scroll']['nextPage']);
@@ -83,17 +98,17 @@ class MergePropsTest extends TestCase
         $this->assertArrayNotHasKey('tags', $state['data']);
     }
 
-    #[DataProvider('frameworks')]
-    public function test_the_server_merges_the_partial_reloads_into_its_state(string $framework): void
+    #[DataProvider('timelines')]
+    public function test_the_server_merges_the_partial_reloads_into_its_state(string $framework, string $uri): void
     {
         $this->boot($framework);
 
-        $snapshot = $this->snapshots((string) $this->page()->getContent())[0]['envelope'];
+        $snapshot = $this->snapshots((string) $this->page($uri)->getContent())[0]['envelope'];
         $id = Wire::fromJson($snapshot['state'])['id'];
         $partials = [
-            $this->page('/rendered/timeline?page=2', 'posts', $id)->json('partial'),
-            $this->page('/rendered/timeline', 'tags', $id)->json('partial'),
-            $this->page('/rendered/timeline', 'settings', $id)->json('partial'),
+            $this->page("{$uri}?page=2", 'posts', $id)->json('partial'),
+            $this->page($uri, 'tags', $id)->json('partial'),
+            $this->page($uri, 'settings', $id)->json('partial'),
         ];
 
         $this->app->forgetScopedInstances();
@@ -106,5 +121,23 @@ class MergePropsTest extends TestCase
         $this->assertSame(['php', 'js'], array_column($data['tags'], 'name'), 'matched on id: not doubled');
         $this->assertSame(['theme' => ['color' => 'teal', 'size' => 'large']], $data['settings'], 'merged key by key');
         $this->assertSame(1, $data['touched']);
+    }
+
+    /**
+     * From mount(): a merge prop's closure runs only when the request wants the property, and
+     * $this->wants() skips the work a partial reload does not need; a first visit does it all.
+     */
+    #[DataProvider('frameworks')]
+    public function test_mount_does_only_what_a_partial_reload_wants(string $framework): void
+    {
+        $this->boot($framework);
+
+        Store::$log = [];
+        $this->page('/timeline')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page->where('count', 23));
+        $this->assertSame(['posts', 'tags', 'count'], Store::$log, 'a first visit: everything');
+
+        Store::$log = [];
+        $this->page('/timeline?page=2', 'posts')->assertOk();
+        $this->assertSame(['posts'], Store::$log, 'a partial reload of posts: posts only');
     }
 }
