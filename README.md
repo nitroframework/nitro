@@ -489,16 +489,32 @@ current one. The layout, and the components in it, stay.
 Links are for going to another page. To filter or sort what a page shows, change a property
 (`$set()`, `fusion:model`) and let the view render again.
 
+### How a visit shows a page
+
+A page chooses how a `fusion:navigate` visit shows it with `#[Navigate]`. Two questions decide
+which mode fits:
+
+```
+Does the page need the server?
+├── No  → client   (appears at once, no request)
+└── Yes → when should it appear?
+          ├── after its data  → data     (default)
+          └── before its data → markup
+```
+
+| Mode | The browser | Feels | Suits |
+| --- | --- | --- | --- |
+| **`data`** (the default) | asks the server for the page's data, then renders the page complete | one server round trip before the page changes; nothing shows half-filled | pages that mean nothing without their data (a student's profile), pages behind `auth` or `can` |
+| **`markup`** | renders the page at once with its properties' defaults, then fills it in when the data arrives | instant | dashboards, lists and forms with placeholders where the data goes |
+| **`client`** | renders the page at once and does not ask the server at all | instant, no request | pages that need nothing from the server: help, about, legal text, docs |
+
+The first page load is the server's HTML in every mode; the mode only decides what a later
+visit does.
+
 ### Data first or markup first
 
-A visit can show the new page in two ways:
-
-| | The browser | Feels | Suits |
-| --- | --- | --- | --- |
-| **Data first** (the default) | asks the server for the page's data, then renders the page complete | one server round trip before the page changes; nothing shows half-filled | pages that mean nothing without their data (a student's profile), pages behind `auth` or `can` |
-| **Markup first** | renders the page at once with its properties' defaults, then fills it in when the data arrives | instant | dashboards, lists and forms with placeholders where the data goes |
-
-Set the default in `config/fusion.php`, and choose per page with `#[Navigate]`:
+Both ask the server; they differ in when the page appears. Set the default in
+`config/fusion.php`, and choose per page with `#[Navigate]`:
 
 ```php
 // config/fusion.php
@@ -533,6 +549,30 @@ On a markup-first visit every property counts as deferred until the data arrives
 - The title is set when the data arrives.
 - A page in another layout, a redirect or an error is handled as a data-first visit would be.
 - The first page load is the server's HTML either way.
+
+### Client pages
+
+A page that needs nothing from the server (help, about, legal text, docs) can skip it entirely
+on a visit:
+
+```php
+#[Title('Help')]
+#[Navigate('client')]
+class Help extends Component
+```
+
+The browser renders it from its compiled view the moment the link is clicked, with no request.
+Its title and head tags are worked out when the app is built. Its own state and browser methods
+work as on any page; back and forward render it again without a request. A reload or a first
+visit is still the server's HTML.
+
+A client page cannot have what only the server can do, and the build refuses one that has:
+
+- `mount()`, `#[Server]` methods or `#[Url]` properties;
+- route parameters, or middleware beyond the `web` group (`auth`, `can`, `verified`, ...), which
+  only the server can check.
+
+Use `#[Navigate('markup')]` for those: it renders at once too, and asks the server for the rest.
 
 ### Progress bar
 

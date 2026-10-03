@@ -46,8 +46,11 @@ final class ComponentCompiler
         private readonly ?Obfuscator $names = null,
         /** Clone mode (fusion.rendering = 'clone'): views' static parts marked for the browser to copy */
         private readonly bool $cloneStatic = false,
-        /** A markup-first page's layout (fusion:page), null for other components: the browser renders it at once into that layout */
-        private readonly ?Closure $markupLayout = null,
+        /**
+         * A page a visit renders at once (markup first, or client): its definition's extra fields, the
+         * layout it renders into (markup) and a client page's title and head (client); null for others.
+         */
+        private readonly ?Closure $atOnce = null,
     ) {
     }
 
@@ -93,12 +96,8 @@ final class ComponentCompiler
             'hooks' => $hooks,
         ];
 
-        /** A markup-first page: rendered at once on a visit, into this layout only. */
-        $markupLayout = $this->markupLayout === null ? null : ($this->markupLayout)($meta);
-
-        if ($markupLayout !== null) {
-            $definition['markup'] = $markupLayout;
-        }
+        /** A page rendered at once on a visit (markup first, or client), into this layout only. */
+        $definition += ($this->atOnce === null ? null : ($this->atOnce)($meta)) ?? [];
 
         $fields = [];
 

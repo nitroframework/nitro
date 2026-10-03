@@ -1294,6 +1294,42 @@ await scenario('head', async () => {
     window.close();
 });
 
+/**
+ * A client page (#[Navigate('client')]): a visit renders it in the browser without asking the
+ * server, its title and head worked out at build time; back and forward the same.
+ */
+await scenario('client navigation', async () => {
+    const window = await open('/article');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const runtime = window.Fusion;
+    const asked = [];
+    const fetch = window.fetch;
+    window.fetch = (input, init) => {
+        asked.push(new URL(input, window.location.href).pathname);
+        return fetch(input, init);
+    };
+
+    click(window, $('.to-terms'));
+    await until('the client page renders', () => window.location.pathname === '/terms' && $('.terms') !== null);
+    check('its title, from the build', document.title === 'Terms · Fixture', document.title);
+    check('its head tags', document.head.querySelector('meta[name="description"]')?.getAttribute('content') === 'The terms of the Fusion test app');
+    check('no request to the server for it', !asked.includes('/terms'), asked.join(' '));
+
+    click(window, $('.agree'));
+    await until('its browser methods work', () => text($('.agree')) === 'Agreed');
+
+    click(window, $('.to-article'));
+    await until('a server page after it', () => window.location.pathname === '/article' && $('.article') !== null);
+    check('which the server answered', asked.includes('/article'));
+
+    window.history.back();
+    await until('back to the client page', () => window.location.pathname === '/terms' && $('.terms') !== null);
+    check('back, still without a request', asked.filter((path) => path === '/terms').length === 0);
+    check('no reload', window.Fusion === runtime);
+    window.close();
+});
+
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;

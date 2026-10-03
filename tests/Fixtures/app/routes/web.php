@@ -21,6 +21,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
 use Nitro\Fusion\Tests\Fixtures\Pages\Showcase;
 use Nitro\Fusion\Tests\Fixtures\Pages\StudentPage;
+use Nitro\Fusion\Tests\Fixtures\Pages\Terms;
 use Nitro\Fusion\Tests\Fixtures\Pages\Transitions;
 
 Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
@@ -46,6 +47,7 @@ Route::fusion('/orders', Orders::class)->name('orders');
 Route::fusion('/inbox', Inbox::class)->name('inbox');
 Route::fusion('/article', Article::class)->name('article');
 Route::fusion('/notice', Notice::class)->name('notice');
+Route::fusion('/terms', Terms::class)->name('terms');
 
 /** Fusion::flash() and a redirect: the page it goes to delivers it. */
 Route::get('/flash-and-redirect', function () {

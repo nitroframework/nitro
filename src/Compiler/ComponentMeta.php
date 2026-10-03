@@ -147,8 +147,21 @@ final class ComponentMeta
             throw new CompileException("#[Layout], #[Title], #[Description] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
         }
 
-        if ($navigate !== null && ! in_array($navigate, ['data', 'markup'], true)) {
-            throw new CompileException("#[Navigate] on {$class} is 'data' or 'markup', not '{$navigate}'", $file);
+        if ($navigate !== null && ! in_array($navigate, ['data', 'markup', 'client'], true)) {
+            throw new CompileException("#[Navigate] on {$class} is 'data', 'markup' or 'client', not '{$navigate}'", $file);
+        }
+
+        /** A client page renders in the browser without asking the server: it must need nothing from it. */
+        if ($navigate === 'client') {
+            $needs = array_filter([
+                $reflection->hasMethod('mount') ? 'mount()' : null,
+                $server !== [] ? '#[Server] methods ('.implode(', ', $server).')' : null,
+                array_filter($properties, fn (PropertyMeta $property) => $property->url !== null) !== [] ? '#[Url] properties' : null,
+            ]);
+
+            if ($needs !== []) {
+                throw new CompileException("#[Navigate('client')] on {$class}: a client page renders without asking the server, so it cannot have ".implode(', ', $needs).". Use #[Navigate('markup')]: it renders at once too, and its data follows.", $file);
+            }
         }
 
         /** A page is a chunk of its own unless it names a group or #[LazyLoad(false)]; a component only with #[LazyLoad]. */

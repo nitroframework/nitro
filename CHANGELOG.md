@@ -4,6 +4,11 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Client pages: `#[Navigate('client')]` on a page that needs nothing from the server. A visit
+  renders it in the browser without a request, its title and head tags worked out at build time.
+  The build refuses one with `mount()`, `#[Server]` methods, `#[Url]` properties, route parameters
+  or middleware beyond the `web` group.
+
 - The page's head: `@fusionHead` in the layout prints the `<title>` (in the `fusion.head.title`
   format) and the tags search engines and link previews read: description, Open Graph, Twitter
   card, canonical, robots. A page sets them with `#[Title]`, `#[Description]` or `$this->head()`

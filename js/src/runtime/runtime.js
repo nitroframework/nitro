@@ -72,20 +72,23 @@ export class Runtime {
      * it cannot render without its data; the visit then goes on as a data-first one.
      */
     renderEarly(current, name, definition) {
+        /** A client page (#[Navigate('client')]) needs nothing from the server: it is complete as it renders. */
+        const client = Boolean(definition.client);
         const data = new Map();
         for (const [prop, spec] of Object.entries(definition.props)) {
             if ('default' in spec) data.set(prop, P.decode(spec.default));
         }
         const id = 'f' + Math.random().toString(36).slice(2, 12).padEnd(10, '0');
-        const state = { id, name, data, errors: new ErrorBag(), deferred: Object.keys(definition.props) };
+        const state = { id, name, data, errors: new ErrorBag(), deferred: client ? [] : Object.keys(definition.props) };
         const placeholder = this.document.createElement('div');
         current.replaceWith(placeholder);
         this.forget(current);
-        const component = this.create(placeholder, definition, state, null, { 'fusion:page': definition.markup }, {}, { early: true });
+        const component = this.create(placeholder, definition, state, null, { 'fusion:page': definition.markup }, {}, { early: !client });
         if (component === null) {
             placeholder.replaceWith(current);
             return null;
         }
+        if (client) return component;
         component.sent = new Map(component.data);
         /** Its #[Server] calls wait for its signed state. */
         component.arrival = new Promise((resolve) => (component.arrived = resolve));

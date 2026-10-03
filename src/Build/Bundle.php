@@ -83,10 +83,61 @@ final class Bundle
         }
     }
 
-    /** Whether a visit to the page renders it at once (markup first): its #[Navigate], or fusion.navigation. */
+    /** Whether a visit to the page renders it at once (markup first, or client): its #[Navigate], or fusion.navigation. */
     public function markupFirst(ComponentMeta $meta): bool
     {
-        return $meta->page && ($meta->navigate ?? $this->navigation) === 'markup';
+        return $meta->page && in_array($meta->navigate ?? $this->navigation, ['markup', 'client'], true);
+    }
+
+    /**
+     * What a page rendered at once carries in its definition: the layout it renders into, and for a
+     * client page (#[Navigate('client')]) the title and head tags the server would give it, worked out
+     * now, since a visit to it does not ask the server. Null for any other page.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function rendersAtOnce(ComponentMeta $meta): ?array
+    {
+        if (! $this->markupFirst($meta)) {
+            return null;
+        }
+
+        $fields = ['markup' => $this->fusion->pageLayout($meta)];
+
+        if ($meta->navigate === 'client') {
+            $this->assertClientRoutes($meta);
+            $fields['client'] = $this->fusion->clientHead($meta);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * A client page's routes must need nothing from the server either: no middleware beyond the
+     * web group, and no parameters to bind.
+     *
+     * @throws CompileException
+     */
+    private function assertClientRoutes(ComponentMeta $meta): void
+    {
+        $web = $this->router?->getMiddlewareGroups()['web'] ?? [];
+
+        foreach ($this->pageRoutes() as [, $name, $route]) {
+            if ($name !== $meta->name) {
+                continue;
+            }
+
+            $extra = array_values(array_filter($route->gatherMiddleware(), fn ($middleware) => $middleware !== 'web' && ! in_array($middleware, $web, true)));
+            $problem = match (true) {
+                $route->parameterNames() !== [] => 'route parameters ({'.implode('}, {', $route->parameterNames()).'})',
+                $extra !== [] => 'middleware beyond the web group ('.implode(', ', array_map(fn ($m) => is_string($m) ? $m : get_debug_type($m), $extra)).')',
+                default => null,
+            };
+
+            if ($problem !== null) {
+                throw new CompileException("#[Navigate('client')] on {$meta->class}: its route /".ltrim($route->uri(), '/')." has {$problem}, which only the server can check. Use #[Navigate('markup')].", $meta->file);
+            }
+        }
     }
 
     /**
@@ -369,7 +420,7 @@ final class Bundle
             componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null,
             names: $names,
             cloneStatic: $this->rendering === 'clone',
-            markupLayout: fn (ComponentMeta $meta) => $this->markupFirst($meta) ? $this->fusion->pageLayout($meta) : null,
+            atOnce: $this->rendersAtOnce(...),
         );
         $main = [];
         $chunks = [];
@@ -415,7 +466,7 @@ final class Bundle
         }
 
         if ($markup !== []) {
-            $main[] = '// #[Navigate(\'markup\')]: path => page, rendered at once on a visit'."\n"
+            $main[] = '// #[Navigate(\'markup\')] and #[Navigate(\'client\')]: path => page, rendered at once on a visit'."\n"
                 .'Fusion.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
 
@@ -545,10 +596,10 @@ final class Bundle
     }
 
     /**
-     * Every Route::fusion() page reached with GET, as [path pattern, page name] (routes on a
-     * domain left out: their path alone does not say the page).
+     * Every Route::fusion() page reached with GET, as [path pattern, page name, route] (routes on
+     * a domain left out: their path alone does not say the page).
      *
-     * @return list<array{0: string, 1: string}>
+     * @return list<array{0: string, 1: string, 2: \Illuminate\Routing\Route}>
      */
     private function pageRoutes(): array
     {
@@ -572,7 +623,7 @@ final class Bundle
                 continue;
             }
 
-            $routes[] = [$this->pattern($route->uri()), $pages[$class]];
+            $routes[] = [$this->pattern($route->uri()), $pages[$class], $route];
         }
 
         return $routes;

@@ -155,6 +155,8 @@ export class Navigator {
         /** A markup-first page in this layout: rendered at once, its data filling it in when it comes. */
         const early = current ? await this.renderEarly(current, url, push, options, visit) : null;
         if (visit !== this.visiting) return;
+        /** A client page: complete as it rendered, nothing to ask the server. */
+        if (early?.definition.client) return;
         if (early) current = early.el;
         /** The history entry is pushed once: by the early render, or when the page arrives. */
         const go = (target) => {
@@ -260,6 +262,11 @@ export class Navigator {
         if (!early) return null;
         if (push) this.window.history.pushState({}, '', url.href);
         else this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
+        /** A client page's title and head, as the server would have sent them (worked out at build time). */
+        if (definition.client) {
+            if (definition.client.title !== null) this.document.title = definition.client.title;
+            this.updateHead(definition.client.head);
+        }
         this.arrive(url, options);
         return early;
     }

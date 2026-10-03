@@ -739,6 +739,43 @@ final class Fusion
     }
 
     /**
+     * A client page's title and head tags (#[Navigate('client')]), worked out at build time from
+     * its #[Title], #[Description] and layout, since a visit to it does not ask the server: what a
+     * visit's answer would carry ('head' null when the layout has no @fusionHead).
+     *
+     * @return array{title: ?string, head: ?string}
+     *
+     * @throws Compiler\CompileException when its layout cannot be rendered outside a request
+     */
+    public function clientHead(ComponentMeta $meta): array
+    {
+        $layout = $meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app');
+        /** Each page's layout renders afresh: its @portal places are its own. */
+        $previous = [$this->head, $this->headPrinted, $this->portals, $this->teleporting];
+        $this->portals = [];
+        $this->teleporting = [];
+        $this->head = [
+            'title' => $meta->title,
+            'description' => $meta->description ?? $this->config('head.description'),
+            'image' => $this->config('head.image'),
+            'canonical' => null,
+            'noindex' => false,
+            'meta' => [],
+        ];
+        $this->headPrinted = false;
+
+        try {
+            $title = $this->layoutTitle($layout, [...($meta->layout->data ?? []), 'title' => $meta->title]);
+
+            return ['title' => $title, 'head' => $this->headPrinted ? $this->headTags() : null];
+        } catch (\Throwable $e) {
+            throw new Compiler\CompileException("#[Navigate('client')] on {$meta->class}: its title comes from its layout [{$layout}], which could not be rendered at build time ({$e->getMessage()}). Use #[Navigate('markup')].", $meta->file);
+        } finally {
+            [$this->head, $this->headPrinted, $this->portals, $this->teleporting] = $previous;
+        }
+    }
+
+    /**
      * @fusionHead: the page's <title> (in the fusion.head.title format) and the tags search engines
      * and link previews read. Outside a Fusion page (a plain Blade view), the defaults.
      */
