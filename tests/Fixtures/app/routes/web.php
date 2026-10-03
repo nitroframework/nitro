@@ -46,6 +46,11 @@ Route::get('/flash-and-redirect', [RenderController::class, 'flashAndRedirect'])
 Route::get('/rendered/deferred-counter', [RenderController::class, 'deferredCounter'])->name('rendered.deferred-counter');
 Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
 
+/** A page that is only a view (@page(...)): the controller renders it and takes its actions. */
+Route::get('/notes', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'index'])->name('notes.index');
+Route::post('/notes', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'store'])->name('notes.store');
+Route::delete('/notes/{index}', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'destroy'])->name('notes.destroy');
+
 Route::get('/embed', fn () => view('embed'));
 Route::get('/islands', fn () => view('islands'));
 

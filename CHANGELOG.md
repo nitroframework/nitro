@@ -4,6 +4,23 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- `$visit(url)` in handlers: a `fusion:navigate` visit from any page (search on Enter).
+- `php artisan fusion:page-class notes.index`: a view page grows into a page class (typed
+  properties from its `@page`, which leaves the view) when it needs browser methods, hooks or
+  uploads; its controller is unchanged. A page class takes the place of a view page of its name.
+
+- `fusion:build` is about four times faster and says how it goes: every chunk is minified in one
+  Node process (starting Node was most of the time), chunks unchanged since the last build come
+  from a cache, and each step prints with its time (a progress bar while compiling; `-v` lists the
+  components).
+
+- Pages that are only a view, as Inertia's: a controller returns `Fusion::render('notes.index',
+  [...])`, and the view declares `@page(props: [...], state: [...], remember: [...], url: [...])`;
+  Fusion makes its class. Its actions are the controller's routes: `$post()`, `$put()`, `$patch()`
+  and `$delete()` in handlers send JSON, show a 422's errors as `$errors`, and take the page's props
+  again from the controller's `back()` (`only`, `reset`). A Fusion request's PUT, PATCH or DELETE
+  redirected with a 302 is answered with a 303.
+
 - Merge props from a routed page's `mount()`: `$this->merge()`, `$this->deepMerge()` and
   `$this->scroll()`, as `Fusion::merge()`, `Fusion::deepMerge()` and `Fusion::scroll()` from a
   controller; their closures run only when a partial reload wants the property. `$this->wants()`

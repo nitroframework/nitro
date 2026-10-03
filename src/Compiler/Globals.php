@@ -37,6 +37,8 @@ final class Globals
     /**
      * Actions a handler can call without a method on the component, and their arity.
      *   $set('prop', value)  $toggle('prop')  $refresh  $reload('prop', ...)  $loadMore('prop')  $dispatch('event', ...)
+     *   $post(url, data, options)  $put(...)  $patch(...)  $delete(url, options): a controller's route
+     *   $visit(url): go there, as a fusion:navigate link does
      */
     public const ACTIONS = [
         'set' => 2,
@@ -47,6 +49,13 @@ final class Globals
         'dispatch' => null,
         'dispatchTo' => null,
         'dispatchSelf' => null,
+        /** $post(url, data, options): a controller's route (a view page's actions); see Network::submit(). */
+        'post' => null,
+        'put' => null,
+        'patch' => null,
+        'delete' => null,
+        /** $visit(url): a fusion:navigate visit, from any handler (search on Enter). */
+        'visit' => 1,
     ];
 
     /**

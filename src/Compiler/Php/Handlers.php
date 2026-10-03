@@ -143,6 +143,50 @@ final class Handlers extends Part
             return '$this.$dispatch('.$component->dispatchArgs($e->args, $e).').self()';
         }
 
+        /**
+         * $post(route('notes.store'), $form, ['reset' => ['form']]): a request to a controller's
+         * route, the data as JSON (Network::submit()). $delete takes no data: $delete(url, options).
+         */
+        if (in_array($name, ['post', 'put', 'patch', 'delete'], true)) {
+            $most = $name === 'delete' ? 2 : 3;
+
+            if (count($e->args) < 1 || count($e->args) > $most) {
+                throw $c->error("\${$name} takes the URL".($name === 'delete' ? ', then options' : ', then the data and options').": \${$name}(route('...')".($name === 'delete' ? '' : ', $form').')', $e);
+            }
+
+            /** The properties options.only and options.reset name, written out: by the browser's names (an obfuscated build). */
+            $options = $e->args[$most - 1] ?? null;
+            $restore = [];
+
+            if ($c->scope->names !== null && $options instanceof Arg && $options->value instanceof Expr\Array_) {
+                foreach ($options->value->items as $item) {
+                    if ($item?->key instanceof Scalar\String_ && in_array($item->key->value, ['only', 'reset'], true) && $item->value instanceof Expr\Array_) {
+                        foreach ($item->value->items as $property) {
+                            if ($property?->value instanceof Scalar\String_) {
+                                $restore[] = [$property->value, $property->value->value];
+                                $property->value->value = $c->scope->browserProperty($property->value->value);
+                            }
+                        }
+                    }
+                }
+            }
+
+            try {
+                $args = $this->transpiler->calls->args($e->args);
+            } finally {
+                foreach ($restore as [$node, $value]) {
+                    $node->value = $value;
+                }
+            }
+
+            return '$this.$submit('.$c->string(strtoupper($name)).', '.implode(', ', $name === 'delete' ? [$args[0], 'null', ...array_slice($args, 1)] : $args).')';
+        }
+
+        /** $visit(url): a fusion:navigate visit there (the runtime's $redirect, as $this->redirect() in a method). */
+        if ($name === 'visit') {
+            return '$this.$redirect('.implode(', ', $this->transpiler->calls->args($e->args)).')';
+        }
+
         $args = match ($name) {
             'set' => [$this->propertyPath($e->args[0], $e), $this->transpiler->expr($e->args[1]->value)],
             'toggle' => [$this->propertyPath($e->args[0], $e)],

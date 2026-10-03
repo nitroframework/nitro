@@ -15,7 +15,7 @@ class BuildTest extends TestCase
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
-    private const CHUNKS = ['board', 'counter', 'devices', 'feed', 'gallery', 'greeting', 'islands', 'journal', 'live', 'mounted-timeline', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos', 'transitions'];
+    private const CHUNKS = ['board', 'counter', 'devices', 'feed', 'gallery', 'greeting', 'islands', 'journal', 'live', 'mounted-timeline', 'notes', 'orders', 'pages', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'todos', 'transitions'];
 
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
@@ -30,10 +30,10 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('10 Fusion components and 18 pages built', $output);
+        $this->assertStringContainsString('10 Fusion components and 19 pages built', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['beacon', 'card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::devices', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::mounted-timeline', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'pages::transitions', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
+            ['beacon', 'card', 'clock', 'counter', 'journal', 'pages::board', 'pages::counter', 'pages::devices', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::journal', 'pages::links', 'pages::live', 'pages::mounted-timeline', 'pages::notes', 'pages::orders', 'pages::panels', 'pages::report', 'pages::shelf', 'pages::showcase', 'pages::student-page', 'pages::timeline', 'pages::transitions', 'roster', 'search-box', 'todo-item', 'todo-list', 'wallet'],
             array_keys(array_sort_recursive(require $manifest))
         );
 
@@ -117,7 +117,7 @@ class BuildTest extends TestCase
         ksort($chunks);
 
         $this->assertSame([
-            'routes' => ['archive', 'counter', 'posts.show', 'students.show'],
+            'routes' => ['archive', 'counter', 'notes.destroy', 'notes.store', 'posts.show', 'students.show'],
             'lang' => ['Nothing to translate', 'Open :name', 'messages.welcome'],
             'config' => ['app.name'],
             /** Viewi's: the PHP functions the components call, from js/functions (their bundle has them). */
@@ -136,6 +136,7 @@ class BuildTest extends TestCase
             'pages::journal' => 'journal',
             'pages::live' => 'live',
             'pages::mounted-timeline' => 'mounted-timeline',
+            'pages::notes' => 'notes',
             'pages::orders' => 'orders',
             'pages::panels' => 'panels',
             'pages::report' => 'report',
@@ -226,7 +227,7 @@ class BuildTest extends TestCase
         $bundle = $this->app->make(Bundle::class);
         $files = $bundle->compileAll();
 
-        foreach (['counter', 'devices', 'feed', 'gallery', 'greeting', 'journal', 'live', 'mounted-timeline', 'orders', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'transitions'] as $page) {
+        foreach (['counter', 'devices', 'feed', 'gallery', 'greeting', 'journal', 'live', 'mounted-timeline', 'notes', 'orders', 'panels', 'report', 'shelf', 'showcase', 'timeline', 'transitions'] as $page) {
             $this->assertStringNotContainsString('Fusion.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
             $this->assertStringContainsString('Fusion.define("pages::'.$page.'", {', $files[$page]);
         }
@@ -350,6 +351,38 @@ class BuildTest extends TestCase
                 clearstatcache();
                 $this->app->forgetScopedInstances();
             }
+        }
+    }
+
+    /**
+     * fusion:build says how it goes, a line a step with its time; it minifies every chunk in one
+     * Node process, and a chunk unchanged since the last build comes from the cache.
+     */
+    #[DataProvider('frameworks')]
+    public function test_the_build_says_how_it_goes_and_minifies_only_what_changed(string $framework): void
+    {
+        $this->boot($framework);
+
+        try {
+            $this->assertSame(0, $this->console()->call('fusion:build'));
+            $output = $this->console()->output();
+            $this->assertMatchesRegularExpression('/Compiling \d+ components .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Minifying \d+ chunks with esbuild \(\d+ changed\) .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Publishing to public\/fusion .*DONE/', $output);
+
+            $this->app->forgetScopedInstances();
+            $this->assertSame(0, $this->console()->call('fusion:build'));
+            $this->assertStringContainsString('(all unchanged)', $this->console()->output());
+
+            $bundle = $this->app->make(Bundle::class);
+            $minified = null;
+            $first = $bundle->minifyAll(['a' => 'const total = 1 + 2; console.log(total);', 'b' => 'let x = 1;'], $minified);
+            $this->assertSame(2, $minified);
+            $this->assertSame($first, $bundle->minifyAll(['a' => 'const total = 1 + 2; console.log(total);', 'b' => 'let x = 1;'], $minified));
+            $this->assertSame(0, $minified, 'from the cache');
+            $this->assertSame($first['a'], $bundle->minify('const total = 1 + 2; console.log(total);'));
+        } finally {
+            $this->console()->call('fusion:clear');
         }
     }
 

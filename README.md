@@ -90,6 +90,10 @@ everything ahead of time, like `vite build`: run it when deploying so no visitor
 compile. `optimize` does not run it, and `APP_DEBUG` has no say in it. `php artisan fusion:clear`
 removes the compiled files.
 
+`fusion:build` prints each step with its time (compiling, with a progress bar, or each component
+with `-v`; minifying; publishing). It minifies every chunk in one Node process, and keeps what it
+minified: a chunk unchanged since the last build is not minified again.
+
 `fusion:build` also publishes the build to `public/fusion` (`fusion.static`), as `vite build` writes
 `public/build`, and `@fusionScripts` points at those files (through `asset()`, so `ASSET_URL` and a
 CDN apply): the web server sends them without starting PHP. Their names carry the version
@@ -256,7 +260,7 @@ either way. The first page load is the server's HTML, taken over as it is, in bo
 
 | Attribute | |
 | --- | --- |
-| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` and `$loadMore('prop')` in a page, `$dispatch('event')`). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
+| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` and `$loadMore('prop')` in a page, `$dispatch('event')`, `$visit(url)` to go to a page as `fusion:navigate` does, `$post(url, data)` / `$put` / `$patch` / `$delete` to a controller's route). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
 | `fusion:model="email"` | Two-way binding (`.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`); a dotted path binds a key: `fusion:model="form.email"` |
 | `fusion:loading` | Shown while a `#[Server]` call runs (`.remove`, `.class="..."`, `.attr="disabled"`, with `fusion:target="save"`) |
 | `fusion:key` | Keeps an element's identity in lists |
@@ -460,6 +464,89 @@ The props are the arguments of the page's `mount()`, by name (with other paramet
 from the container), or, when it has no `mount()`, its public properties. The page then answers
 exactly as a `Route::fusion()` page: in its layout on the first visit, as page data for
 `fusion:navigate` visits.
+
+### Pages that are only a view
+
+A controller's page needs no class at all, as an Inertia page is a controller and a template: the
+view declares what it receives, the controller loads it and takes the page's actions.
+
+```php
+class NotesController extends Controller
+{
+    public function index()
+    {
+        return Fusion::render('notes.index', [          // fusion/pages/notes/index.blade.php
+            'notes' => fn () => Note::latest()->get()->toArray(),
+            'count' => fn () => Note::count(),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        Note::create($request->validate(['title' => 'required|min:3']));
+        Fusion::flash('toast', 'Added.');
+
+        return back();
+    }
+
+    public function destroy(Note $note)
+    {
+        $note->delete();
+
+        return back();
+    }
+}
+```
+
+```blade
+@page(
+    title: 'Notes',
+    props: ['notes' => [], 'count' => 0],        {{-- from the controller: read-only here --}}
+    state: ['form' => ['title' => ''], 'open' => false],   {{-- the page's own --}}
+    remember: ['form'],                          {{-- state kept in the history entry --}}
+    url: [],                                     {{-- state kept in the query string --}}
+)
+<div>
+    <form fusion:submit.prevent="$post(route('notes.store'), $form, ['reset' => ['form']])">
+        <input fusion:model="form.title">
+        @error('title') <p>{{ $message }}</p> @enderror
+    </form>
+
+    @foreach ($notes as $note)
+        <li>{{ $note['title'] }} <button fusion:click="$delete(route('notes.destroy', $note['id']))">x</button></li>
+    @endforeach
+</div>
+```
+
+The view is compiled for the browser as any page's is: it renders there on `fusion:navigate`,
+updates fine-grained, and its state changes (`$set`, `$toggle`, `fusion:model`) run there. Its
+actions are requests to the controller's routes:
+
+- `$post(url, data, options)`, `$put`, `$patch`, `$delete(url, options)` send `data` as JSON with
+  the CSRF token. Laravel's validation errors (a 422) become `$errors`; nothing else changes.
+- On success the controller answers `back()` (a `$put`, `$patch` or `$delete` redirect is made a
+  303, as Inertia's middleware does), and the page takes its props from it as a partial reload
+  does, merge props merged: all of them, or `['only' => [...]]`. Its state stays, except what
+  `['reset' => [...]]` puts back to its default (the form, once sent); flash data comes with it.
+- A redirect to another page is a `fusion:navigate` visit there.
+
+Fusion makes the page's class from `@page` (in the compiled directory, made again when the view
+changes): props are `#[Locked]`, state plain properties, `remember` and `url` `#[Remember]` and
+`#[Url]`, `title` `#[Title]`. Defaults are written out (strings, numbers, arrays, `true`, `false`,
+`null`). A view page is a view under the pages' view path (`fusion.pages.views`) starting with
+`@page`; a page class of the same name takes its place.
+
+A view page is for the common page: lists, filters, forms, modals. When one needs browser
+methods, `#[Computed]`, `updated` hooks, `mounted()` or uploads, it grows a page class:
+
+```
+php artisan fusion:page-class notes.index
+```
+
+That writes `App\Fusion\Pages\Notes\Index` with the view's props and state as typed properties
+(and their `#[Locked]`, `#[Remember]`, `#[Url]`, `#[Title]`), and takes `@page` out of the view.
+The controller does not change: it renders the page by the same name and takes its actions; the
+class holds what runs in the browser.
 
 ### Deferred properties
 

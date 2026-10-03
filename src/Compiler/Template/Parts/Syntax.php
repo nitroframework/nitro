@@ -22,6 +22,8 @@ final class Syntax
         'break', 'continue', 'switch', 'case', 'default', 'endswitch', 'error', 'enderror',
         'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json',
         'teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred',
+        /** A view page's declaration (ViewPages): read when its class is made, nothing to render. */
+        'page',
         /** BladeInliner's, around an inlined @include or <x-component> (not written in views). */
         'fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot', 'fusionFrame', 'endfusionFrame', 'fusionAttr',
     ];

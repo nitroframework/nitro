@@ -51,7 +51,11 @@ src/Compiler      PHP -> JavaScript
 src/Rendering     the server side of a component
   Renderer          Blade render with $this bound, isolated loops, the root element marked
   Snapshot          the signed state sent to the browser and verified when it comes back
-src/Http          the endpoint: UpdateController (#[Server] calls), PersistentMiddleware, assets
+src/Http          the endpoint: UpdateController (#[Server] calls), PersistentMiddleware, assets;
+                  SeeOther (a view page's PUT/PATCH/DELETE redirected back: a 303)
+ViewPages         pages that are only a view (@page(...)), returned by controllers: their classes
+                  made from the declaration; their actions are $post/$put/$patch/$delete
+                  (runtime/network.js submit()) to the controller's routes
 src/Blade         <fusion:name /> tags in any view (a Blade precompiler)
 src/Build         app.js: every component compiled, versioned by its sources
 Fusion            the application's entry point: config, key, registry, mounting, pages

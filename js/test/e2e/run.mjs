@@ -1238,6 +1238,48 @@ await scenario('islands', async () => {
     window.close();
 });
 
+/**
+ * A page that is only a view (@page(...)), rendered by a controller, its actions the controller's
+ * routes: $post with a validation error, then without; the form reset; $delete; the page's own
+ * state kept through it all; and no reload.
+ */
+await scenario('a view page: actions to controller routes', async () => {
+    const window = await open('/notes');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const submit = () => $('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    const runtime = window.Fusion;
+
+    check('rendered by the server, @page leaving nothing', text($('.count')) === '0' && !document.body.innerHTML.includes('@page'));
+    click(window, $('.toggle'));
+    await until('its own state changes in the browser', () => text($('.toggle')) === 'Open');
+
+    type(window, $('.title'), 'ab');
+    submit();
+    await until('$post: the controller\'s validation errors are $errors', () => text($('.error')) !== '' && text($('.error')) !== undefined);
+    check('the field keeps what was typed', $('.title').value === 'ab');
+
+    type(window, $('.title'), 'Buy milk');
+    submit();
+    await until('$post: then the page\'s props come back from the controller', () => text($('.count')) === '1' && text($('li span')) === 'Buy milk');
+    check('the errors are cleared', $('.error') === null);
+    check('reset: the form is back to its default', $('.title').value === '', $('.title').value);
+    check('the page\'s other state is kept', text($('.toggle')) === 'Open');
+
+    type(window, $('.title'), 'Call home');
+    submit();
+    await until('a second note', () => text($('.count')) === '2' && document.querySelectorAll('li').length === 2);
+
+    click(window, document.querySelectorAll('.remove')[0]);
+    await until('$delete: the note goes', () => text($('.count')) === '1' && text($('li span')) === 'Call home');
+    check('no reload: the same runtime', window.Fusion === runtime && window.location.pathname === '/notes');
+
+    click(window, $('.go'));
+    await until('$visit: a fusion:navigate visit from a handler', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
+    check('still no reload', window.Fusion === runtime);
+    window.close();
+});
+
 /** fusion:navigate to a page that is not Fusion's (a Blade view), and from it: its HTML, still without reloading. */
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');

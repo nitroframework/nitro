@@ -563,13 +563,19 @@ final class Fusion
      * A page from a controller, as Inertia::render() returns one: the component created with the
      * props (mount()'s arguments by name, or its public properties when it has no mount()), then
      * answered as a Route::fusion() page is, fusion:navigate visits included. A Fusion::defer()
-     * prop sets its public property after the page is shown.
+     * prop sets its public property after the page is shown. A page that is only a view
+     * (@page(...), ViewPages) is named by its view: 'employees.index'.
      *
-     * @param  string  $component  the component's class or name
+     * @param  string  $component  the page's class, its name, or a view page's view name
      * @param  array<string, mixed>  $props
      */
     public function render(string $component, array $props = []): Response
     {
+        /** A page by its view's name, as Inertia names one: 'employees.index' is pages::employees.index. */
+        if (! class_exists($component) && ! Naming::isPage($component) && $this->registry->class(Naming::PAGES.$component) !== null) {
+            $component = Naming::PAGES.$component;
+        }
+
         $meta = $this->meta($component);
 
         if (! $meta->page) {

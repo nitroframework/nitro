@@ -98,6 +98,8 @@ final class Directives extends Part
             'enddeferred' => $tree->closeBlock(['deferred']),
             'teleport' => $blocks->teleport($this->required($name, $args)),
             'endteleport' => $tree->closeBlock(['teleport']),
+            /** A view page's declaration: its class is made from it (ViewPages); nothing renders. */
+            'page' => null,
             'csrf' => $tree->append($this->hiddenInput('_token', $table->expression('B.session.token'), ['autocomplete' => 'off'])),
             'method' => $tree->append($this->hiddenInput('_method', $table->expression('P.toStr('.$table->expr($this->required($name, $args)).')'))),
             'json' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')])),
