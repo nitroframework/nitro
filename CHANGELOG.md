@@ -4,6 +4,12 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- Markup-first navigation: `fusion.navigation` (`'data'`, the default, or `'markup'`) and
+  `#[Navigate('markup')]` on a page. A visit to a markup-first page renders it at once with its
+  defaults, every property deferred (`@deferred` / `@placeholder` show placeholders), and fills it
+  in when the data arrives; what is typed meanwhile is kept, and `#[Server]` calls wait for the
+  data. Another layout, a redirect or an error goes on as a data-first visit.
+
 - `$visit(url)` in handlers: a `fusion:navigate` visit from any page (search on Enter).
 
 - `fusion:build` is about four times faster and says how it goes: every chunk is minified in one

@@ -61,6 +61,7 @@ class FusionServiceProvider extends ServiceProvider
             ...self::staticDirectory($app),
             obfuscate: (bool) $app->make('config')->get('fusion.build.obfuscate', true),
             rendering: (string) $app->make('config')->get('fusion.rendering', 'clone'),
+            navigation: (string) $app->make('config')->get('fusion.navigation', 'data'),
         ));
 
         $this->app->bind(PersistentMiddleware::class, fn (Application $app) => new PersistentMiddleware(

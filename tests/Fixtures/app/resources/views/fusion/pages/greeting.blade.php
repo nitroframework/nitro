@@ -12,6 +12,7 @@
     <button class="celebrate-elsewhere" fusion:click="celebrateElsewhere">Celebrate elsewhere</button>
     <a class="to-counter" href="/counter" fusion:navigate>Counter</a>
     <a class="to-report" href="/report" fusion:navigate>Report</a>
+    <a class="to-inbox" href="/inbox" fusion:navigate>Inbox</a>
     <button class="go" fusion:click="$visit('/counter')">Go</button>
     <a class="to-counter-kept" href="/counter" fusion:navigate.preserve-scroll>Counter, same scroll</a>
 </div>

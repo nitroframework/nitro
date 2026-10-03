@@ -10,7 +10,7 @@ import { readStdin } from './common.mjs';
 
 const input = await readStdin();
 const definitions = {};
-new Function('window', input.bundle)({ Fusion: { define: (name, d) => (definitions[name] = d), lazy: () => {}, P, B } });
+new Function('window', input.bundle)({ Fusion: { define: (name, d) => (definitions[name] = d), lazy: () => {}, markupPages: () => {}, P, B } });
 
 const { document } = new JSDOM('<!DOCTYPE html>').window;
 B.session.token = input.csrf ?? '';

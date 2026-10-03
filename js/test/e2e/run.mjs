@@ -1240,6 +1240,37 @@ await scenario('islands', async () => {
 });
 
 /** fusion:navigate to a page that is not Fusion's (a Blade view), and from it: its HTML, still without reloading. */
+/**
+ * A markup-first page (#[Navigate('markup')]): the visit renders it at once, its placeholders
+ * showing, before its (slow) data; what is typed meanwhile is kept; the data fills it in, then its
+ * deferred property loads, and a #[Server] call works on the state that came.
+ */
+await scenario('markup-first navigation', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const runtime = window.Fusion;
+
+    click(window, $('.to-inbox'));
+    await until('rendered at once, before its data', () => window.location.pathname === '/inbox' && $('.heading') !== null, 300);
+    check('its placeholder shows while the data loads', $('.loading') !== null && $('.messages') === null);
+
+    type(window, $('.draft'), 'typed early');
+    await until('the data fills it in', () => document.querySelectorAll('.messages li').length === 2, 3000);
+    check('the placeholder is gone', $('.loading') === null);
+    check('what was typed before the data is kept', $('.draft').value === 'typed early', $('.draft').value);
+    await until('then its deferred property loads', () => text($('.unread')) === '3 unread');
+
+    click(window, $('.send'));
+    await until('a #[Server] call works on the state that came', () => text($('.send')) === '1');
+    check('no reload', window.Fusion === runtime);
+
+    click(window, $('.to-greeting'));
+    await until('a data-first page after it', () => window.location.pathname === '/greeting' && $('.greeting') !== null);
+    check('still no reload', window.Fusion === runtime);
+    window.close();
+});
+
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;

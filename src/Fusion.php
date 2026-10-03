@@ -38,6 +38,9 @@ final class Fusion
     /** Sent when a page reloads its properties (deferred ones, $this->reload()): the id it has in the browser. */
     public const PARTIAL_HEADER = 'X-Fusion-Partial';
 
+    /** Sent by a markup-first visit: the id of the page the browser rendered before its data. */
+    public const ID_HEADER = 'X-Fusion-Id';
+
     /** With a partial reload: the properties it wants, comma-separated (all of them when absent). */
     public const ONLY_HEADER = 'X-Fusion-Only';
 
@@ -631,10 +634,18 @@ final class Fusion
         return $names === null ? $only : array_map(fn (string $name) => $names->propertyName($name, array_keys($meta->properties)) ?? $name, $only);
     }
 
-    /** A new page's id; on a partial reload, the one it has in the browser. */
+    /**
+     * A new page's id; on a partial reload, the one it has in the browser; on a markup-first
+     * visit, the one the browser gave the page it rendered early (its children's ids follow it).
+     */
     private function pageId(): string
     {
-        $id = $this->partial() !== null ? (string) $this->app->make('request')->headers->get(self::PARTIAL_HEADER) : '';
+        $request = $this->app->make('request');
+        $id = match (true) {
+            $this->partial() !== null => (string) $request->headers->get(self::PARTIAL_HEADER),
+            $request->headers->has(self::NAVIGATE_HEADER) => (string) $request->headers->get(self::ID_HEADER),
+            default => '',
+        };
 
         return preg_match('/^f[a-z0-9]{10}$/', $id) === 1 ? $id : 'f'.Str::lower(Str::random(10));
     }
@@ -696,6 +707,15 @@ final class Fusion
             'once' => (object) $this->onceForBrowser(),
             'flash' => $this->flashForBrowser(),
         ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * The layout a page renders in, as the browser compares it (fusion:page): a markup-first
+     * visit renders the page at once only into the same one.
+     */
+    public function pageLayout(ComponentMeta $meta): string
+    {
+        return $this->layoutKey($meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app'), $meta->layout->data ?? []);
     }
 
     /** Pages share the page around them when they have the same layout, with the same data. */

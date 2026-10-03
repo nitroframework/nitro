@@ -76,7 +76,7 @@ class PagesTest extends TestCase
     public function test_a_layout_or_a_title_is_a_pages(): void
     {
         $this->expectException(CompileException::class);
-        $this->expectExceptionMessage('#[Layout] and #[Title] are a page\'s: '.TitledComponent::class.' is a component');
+        $this->expectExceptionMessage('#[Layout], #[Title] and #[Navigate] are a page\'s: '.TitledComponent::class.' is a component');
 
         ComponentMeta::read(TitledComponent::class, 'titled-component', 'fusion.components.titled-component');
     }

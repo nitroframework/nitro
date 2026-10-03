@@ -6,6 +6,11 @@
  * the current page (the element marked fusion:page). The rest of the layout, and its state, stays.
  * A #[LazyLoad] page's chunk loads during the visit, alongside its data (Runtime::preload()).
  *
+ * A markup-first page (#[Navigate('markup')], fusion.navigation) in the same layout renders at
+ * once, before its data: its properties' defaults, each counting as deferred, so @placeholder
+ * shows. The data, asked for with the id the browser gave the page (X-Fusion-Id), then fills it in
+ * (Runtime::arrive()), keeping what changed meanwhile. Any other answer goes on as a data-first visit.
+ *
  * Any other page of the application (a Blade view, a controller's view, a page in another layout,
  * or a visit from such a page) comes as HTML and takes the current document's place (Swap), as
  * wire:navigate does: still without reloading. An error, another build of Fusion or a page
@@ -31,6 +36,7 @@
  */
 import * as P from '../php.js';
 import { Swap } from './swap.js';
+import { readState } from './component.js';
 
 export class Navigator {
     constructor(runtime, window) {
@@ -139,15 +145,25 @@ export class Navigator {
             return;
         }
         /** The page Fusion renders into; none on a page that is not Fusion's (its HTML comes then). */
-        const current = this.document.querySelector('[fusion\\:page]');
+        let current = this.document.querySelector('[fusion\\:page]');
 
         const visit = (this.visiting = {});
         this.runtime.emit('fusion:navigating', { url: url.href });
         /** A #[LazyLoad] page's chunk loads while its data does. */
         this.runtime.preload(url.pathname);
 
+        /** A markup-first page in this layout: rendered at once, its data filling it in when it comes. */
+        const early = current ? await this.renderEarly(current, url, push, options, visit) : null;
+        if (visit !== this.visiting) return;
+        if (early) current = early.el;
+        /** The history entry is pushed once: by the early render, or when the page arrives. */
+        const go = (target) => {
+            if (early) this.window.history.replaceState(this.window.history.state ?? {}, '', target.href);
+            else if (push) this.leave(target);
+        };
+
         /** The page's data (a Fusion page answers with it, any other with its HTML); or its HTML. */
-        let answer = await this.fetch(url, current !== null);
+        let answer = await this.fetch(url, current !== null, early?.id);
         if (visit !== this.visiting) return; // a newer visit started
 
         /** A Fusion page in another layout: its HTML. */
@@ -167,7 +183,7 @@ export class Navigator {
                 return;
             }
             /** Its components start as on a page load, #[Remember] values of a back or forward entry too. */
-            await this.swap.replace(html, target, () => push && this.leave(target));
+            await this.swap.replace(html, target, () => go(target));
             this.arrive(target, options);
             return;
         }
@@ -190,9 +206,17 @@ export class Navigator {
             if (visit !== this.visiting) return;
         }
 
-        if (push) this.leave(target);
+        go(target);
         /** Fusion::share()'s data for this page, before it renders (components outside it follow). */
         this.runtime.receive(page, null, true);
+
+        /** The page rendered early: its data fills it in. */
+        if (early && !early.destroyed && readState(page.snapshot).name === early.name && page.layout === early.el.getAttribute('fusion:page')) {
+            this.runtime.arrive(early, page);
+            if (page.title !== null) this.document.title = page.title;
+            return;
+        }
+
         if (!this.runtime.mountPage(current, page)) {
             this.window.location.reload();
             return;
@@ -204,16 +228,52 @@ export class Navigator {
     }
 
     /**
+     * A markup-first page (#[Navigate('markup')], fusion.navigation) in the current layout,
+     * rendered at once in place of the current page, before its data: the history entry pushed,
+     * the scroll set, and on back or forward its #[Remember] values. Null for any other page, or
+     * one that cannot render without its data; the visit then waits for the data as usual.
+     */
+    async renderEarly(current, url, push, options, visit) {
+        const name = this.runtime.markupPage(url.pathname);
+        if (name === null) return null;
+        const waiting = this.runtime.require([name]);
+        if (waiting) {
+            try {
+                await waiting;
+            } catch {
+                return null;
+            }
+        }
+        /** A newer visit started while the chunk loaded, or the page is no longer there: nothing to render into. */
+        if (visit !== this.visiting || !current.isConnected) return null;
+        const definition = this.runtime.definitions.get(name);
+        if (!definition?.markup || definition.markup !== current.getAttribute('fusion:page')) return null;
+
+        /** The page left keeps its #[Remember] values and scroll, as leave() does; the entry is pushed once rendered. */
+        if (push) {
+            this.saveRemembered();
+            this.rememberScroll();
+        }
+        const early = this.runtime.renderEarly(current, name, definition);
+        if (!early) return null;
+        if (push) this.window.history.pushState({}, '', url.href);
+        else this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
+        this.arrive(url, options);
+        return early;
+    }
+
+    /**
      * The visit's answer: the page's data (asked for with X-Fusion-Navigate: a Fusion page answers
      * with it, any other page with its HTML), or its HTML. Neither for an error, a download or a
-     * failed network: the browser's own load says what it is.
+     * failed network: the browser's own load says what it is. id: the page rendered early, which
+     * the server's state keeps (X-Fusion-Id).
      */
-    async fetch(url, data) {
+    async fetch(url, data, id = null) {
         const answer = { url, page: null, html: null };
         try {
             const response = await this.window.fetch(url.href, {
                 headers: data
-                    ? { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '', 'X-Fusion-Once': this.runtime.onceHeader() }
+                    ? { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '', 'X-Fusion-Once': this.runtime.onceHeader(), ...(id ? { 'X-Fusion-Id': id } : {}) }
                     : { Accept: 'text/html, application/xhtml+xml' },
                 credentials: 'same-origin',
             });

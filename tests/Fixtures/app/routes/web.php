@@ -8,6 +8,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Devices;
 use Nitro\Fusion\Tests\Fixtures\Pages\Feed;
 use Nitro\Fusion\Tests\Fixtures\Pages\Gallery;
 use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
+use Nitro\Fusion\Tests\Fixtures\Pages\Inbox;
 use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
 use Nitro\Fusion\Tests\Fixtures\Pages\Links;
 use Nitro\Fusion\Tests\Fixtures\Pages\Live;
@@ -40,6 +41,7 @@ Route::fusion('/devices', Devices::class)->name('devices');
 Route::fusion('/timeline', MountedTimeline::class)->name('timeline');
 
 Route::fusion('/orders', Orders::class)->name('orders');
+Route::fusion('/inbox', Inbox::class)->name('inbox');
 
 /** Fusion::flash() and a redirect: the page it goes to delivers it. */
 Route::get('/flash-and-redirect', function () {

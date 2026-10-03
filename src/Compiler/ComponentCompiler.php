@@ -46,6 +46,8 @@ final class ComponentCompiler
         private readonly ?Obfuscator $names = null,
         /** Clone mode (fusion.rendering = 'clone'): views' static parts marked for the browser to copy */
         private readonly bool $cloneStatic = false,
+        /** A markup-first page's layout (fusion:page), null for other components: the browser renders it at once into that layout */
+        private readonly ?Closure $markupLayout = null,
     ) {
     }
 
@@ -90,6 +92,13 @@ final class ComponentCompiler
             'modelable' => $meta->modelable === null ? null : $scope->browserProperty($meta->modelable),
             'hooks' => $hooks,
         ];
+
+        /** A markup-first page: rendered at once on a visit, into this layout only. */
+        $markupLayout = $this->markupLayout === null ? null : ($this->markupLayout)($meta);
+
+        if ($markupLayout !== null) {
+            $definition['markup'] = $markupLayout;
+        }
 
         $fields = [];
 

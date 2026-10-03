@@ -56,6 +56,69 @@ export class Runtime {
         this.lazyRoutes = routes.map(([pattern, group]) => [new RegExp(pattern), group]);
     }
 
+    /** Called by app.js with the markup-first pages ([path pattern, page]): a visit renders them at once. */
+    markupPages(routes) {
+        this.markup = routes.map(([pattern, name]) => [new RegExp(pattern), name]);
+    }
+
+    /** The markup-first page a path shows, or null. */
+    markupPage(path) {
+        return (this.markup ?? []).find(([pattern]) => pattern.test(path))?.[1] ?? null;
+    }
+
+    /**
+     * A markup-first visit: the page rendered at once in place of the current one, with its
+     * properties' defaults, each counting as deferred until the data arrives (arrive()). Null when
+     * it cannot render without its data; the visit then goes on as a data-first one.
+     */
+    renderEarly(current, name, definition) {
+        const data = new Map();
+        for (const [prop, spec] of Object.entries(definition.props)) {
+            if ('default' in spec) data.set(prop, P.decode(spec.default));
+        }
+        const id = 'f' + Math.random().toString(36).slice(2, 12).padEnd(10, '0');
+        const state = { id, name, data, errors: new ErrorBag(), deferred: Object.keys(definition.props) };
+        const placeholder = this.document.createElement('div');
+        current.replaceWith(placeholder);
+        this.forget(current);
+        const component = this.create(placeholder, definition, state, null, { 'fusion:page': definition.markup }, {}, { early: true });
+        if (component === null) {
+            placeholder.replaceWith(current);
+            return null;
+        }
+        component.sent = new Map(component.data);
+        /** Its #[Server] calls wait for its signed state. */
+        component.arrival = new Promise((resolve) => (component.arrived = resolve));
+        this.network.queues.set(component, component.arrival);
+        return component;
+    }
+
+    /**
+     * The data of a page rendered early: its id, signed state, deferred properties and the
+     * children only the server could make. What changed here meanwhile (typed, toggled) is kept.
+     */
+    arrive(component, page) {
+        const state = readState(page.snapshot);
+        this.instances.delete(component.id);
+        component.id = state.id;
+        component.el.setAttribute('fusion:id', state.id);
+        this.instances.set(state.id, component);
+        component.early = false;
+        component.errors = state.errors;
+        component.deferred = new Set(state.deferred);
+        component.setScroll(state.scroll, true);
+        component.dirty.add('$deferred');
+        component.dirty.add('$errors');
+        this.provided = new Map(Object.entries(page.children ?? {}));
+        try {
+            component.applyReload(page.snapshot, [], component.sent ?? new Map());
+        } finally {
+            this.provided.clear();
+        }
+        this.loadDeferred(component);
+        component.arrived?.();
+    }
+
     /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
     load(group) {
         /** Its components are here already (the page loaded the chunk with its own script tag). */
@@ -274,6 +337,8 @@ export class Runtime {
                 const envelope = this.provided.get(spec.id);
                 const state = envelope ? readState(envelope) : null;
                 if (!state || state.id !== spec.id || state.name !== spec.name) {
+                    /** A page rendered before its data: the server makes the child when the data comes. */
+                    if (parent.early) continue;
                     this.report(parent, new Error(`Fusion: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
                     continue;
                 }
@@ -315,6 +380,8 @@ export class Runtime {
         component.slots = slots ?? {};
         component.parent = links.parent ?? null;
         component.model = links.model ?? null;
+        /** A markup-first page rendered before its data (renderEarly()). */
+        component.early = links.early ?? false;
         component.deferred = new Set(state.deferred ?? []);
         component.scroll = new Map(state.scroll ?? []);
         const made = component.create((root) => {
@@ -370,6 +437,8 @@ export class Runtime {
 
     /** A page with deferred properties asks for them once it is shown. */
     loadDeferred(component) {
+        /** Rendered early: the visit's answer brings the data. */
+        if (component.early) return;
         if (component.deferred.size > 0) this.network.reload(component, [...component.deferred], true).catch(() => {});
     }
 

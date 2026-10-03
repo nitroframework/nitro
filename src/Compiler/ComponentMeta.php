@@ -7,6 +7,7 @@ use Nitro\Fusion\Attributes\Layout;
 use Nitro\Fusion\Attributes\LazyLoad;
 use Nitro\Fusion\Attributes\Locked;
 use Nitro\Fusion\Attributes\Modelable;
+use Nitro\Fusion\Attributes\Navigate;
 use Nitro\Fusion\Attributes\On;
 use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
@@ -58,6 +59,8 @@ final class ComponentMeta
         /** The #[Modelable] property: what fusion:model on its tag binds. */
         public readonly ?string $modelable = null,
         public readonly bool $page = false,
+        /** #[Navigate]: 'data' or 'markup' for this page; null to follow fusion.navigation. */
+        public readonly ?string $navigate = null,
     ) {
     }
 
@@ -134,8 +137,14 @@ final class ComponentMeta
         $title = $reflection->getAttributes(Title::class)[0] ?? null;
         $lazy = ($reflection->getAttributes(LazyLoad::class)[0] ?? null)?->newInstance();
 
-        if (! $page && ($layout !== null || $title !== null)) {
-            throw new CompileException("#[Layout] and #[Title] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
+        $navigate = ($reflection->getAttributes(Navigate::class)[0] ?? null)?->newInstance()->mode;
+
+        if (! $page && ($layout !== null || $title !== null || $navigate !== null)) {
+            throw new CompileException("#[Layout], #[Title] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
+        }
+
+        if ($navigate !== null && ! in_array($navigate, ['data', 'markup'], true)) {
+            throw new CompileException("#[Navigate] on {$class} is 'data' or 'markup', not '{$navigate}'", $file);
         }
 
         /** A page is a chunk of its own unless it names a group or #[LazyLoad(false)]; a component only with #[LazyLoad]. */
@@ -167,6 +176,7 @@ final class ComponentMeta
             $group,
             $modelable,
             $page,
+            $navigate,
         );
     }
 

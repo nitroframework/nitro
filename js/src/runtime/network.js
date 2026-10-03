@@ -25,7 +25,7 @@ export class Network {
     }
 
     /**
-     * Reload a page's properties from its route or controller, as Inertia's partial reloads ($reload,
+     * Reload a page's properties from its route, as Inertia's partial reloads ($reload,
      * $this->reload(), and its deferred properties once it is shown): the page's URL asked again
      * for its data (X-Fusion-Partial: its id; X-Fusion-Only: the properties, all when none), then
      * the named properties taken from it. In the component's queue, after the calls before it.

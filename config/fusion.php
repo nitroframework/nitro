@@ -197,6 +197,28 @@ return [
 
     'rendering' => 'clone',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Navigation
+    |--------------------------------------------------------------------------
+    |
+    | How a fusion:navigate visit shows a page. A page can choose otherwise
+    | with #[Navigate('data')] or #[Navigate('markup')].
+    |
+    | 'data' (the default): the browser asks the server for the page's data,
+    | then renders the page complete. Nothing shows half-filled.
+    |
+    | 'markup': the browser renders the page at once, with its properties'
+    | defaults, and fills it in when the data arrives. Until then every
+    | property counts as deferred: @deferred / @placeholder show what to show
+    | meanwhile. Its views must render with the defaults (no $student['name']
+    | on an empty array). A page in another layout, a redirect or an error is
+    | handled as with 'data'. The first page load is the server's HTML either way.
+    |
+    */
+
+    'navigation' => 'data',
+
     'esbuild' => [
         'node' => env('FUSION_NODE', 'node'),
         'root' => base_path(),

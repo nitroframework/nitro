@@ -9,6 +9,7 @@ use Illuminate\View\Compilers\BladeCompiler;
 use Illuminate\View\Factory as ViewFactory;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentCompiler;
+use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Functions;
 use Nitro\Fusion\Compiler\Template\BladeInliner;
 use Nitro\Fusion\Compiler\Template\ComponentTags;
@@ -70,10 +71,22 @@ final class Bundle
         private readonly bool $obfuscate = false,
         /** fusion.rendering: 'clone' (the default: views' static parts copied in the browser) or 'create' */
         private readonly string $rendering = 'clone',
+        /** fusion.navigation: how a visit shows a page without #[Navigate], 'data' (the default) or 'markup' */
+        private readonly string $navigation = 'data',
     ) {
         if (! in_array($rendering, ['create', 'clone'], true)) {
             throw new \InvalidArgumentException("fusion.rendering is 'create' or 'clone', not '{$rendering}'");
         }
+
+        if (! in_array($navigation, ['data', 'markup'], true)) {
+            throw new \InvalidArgumentException("fusion.navigation is 'data' or 'markup', not '{$navigation}'");
+        }
+    }
+
+    /** Whether a visit to the page renders it at once (markup first): its #[Navigate], or fusion.navigation. */
+    public function markupFirst(ComponentMeta $meta): bool
+    {
+        return $meta->page && ($meta->navigate ?? $this->navigation) === 'markup';
     }
 
     /**
@@ -116,7 +129,9 @@ final class Bundle
             /** Obfuscated names come from the key: either changing makes another build. */
             .($this->obfuscate ? 'obfuscate:'.hash('sha256', $this->fusion->key()) : '')
             /** Clone mode marks the templates' static parts: another build than create mode's. */
-            .($this->rendering === 'clone' ? 'rendering:clone' : '')), 0, 16);
+            .($this->rendering === 'clone' ? 'rendering:clone' : '')
+            /** Markup-first pages carry their layout and are listed by path: another build. */
+            .'navigation:'.$this->navigation), 0, 16);
     }
 
     /**
@@ -354,6 +369,7 @@ final class Bundle
             componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null,
             names: $names,
             cloneStatic: $this->rendering === 'clone',
+            markupLayout: fn (ComponentMeta $meta) => $this->markupFirst($meta) ? $this->fusion->pageLayout($meta) : null,
         );
         $main = [];
         $chunks = [];
@@ -387,6 +403,20 @@ final class Bundle
             $main[] = '// #[LazyLoad]: component => chunk, and the pages that render them'."\n"
                 .'Fusion.lazy('.json_encode((object) $ids, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).', '
                 .json_encode($routes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
+        }
+
+        /** Markup-first pages by path: a visit renders the page at once, before its data. */
+        $markup = [];
+
+        foreach ($this->pageRoutes() as [$pattern, $name]) {
+            if ($this->markupFirst($this->fusion->meta($name))) {
+                $markup[] = [$pattern, $names?->component($name) ?? $name];
+            }
+        }
+
+        if ($markup !== []) {
+            $main[] = '// #[Navigate(\'markup\')]: path => page, rendered at once on a visit'."\n"
+                .'Fusion.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
 
         /** Viewi's: the PHP functions the components call (and those they use), in the main bundle. */
@@ -503,15 +533,33 @@ final class Bundle
     private function routes(): array
     {
         $lazy = $this->lazy();
+        $routes = [];
 
-        if ($lazy === [] || $this->router === null) {
+        foreach ($lazy === [] ? [] : $this->pageRoutes() as [$pattern, $name]) {
+            if (isset($lazy[$name])) {
+                $routes[] = [$pattern, $lazy[$name]];
+            }
+        }
+
+        return $routes;
+    }
+
+    /**
+     * Every Route::fusion() page reached with GET, as [path pattern, page name] (routes on a
+     * domain left out: their path alone does not say the page).
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private function pageRoutes(): array
+    {
+        if ($this->router === null) {
             return [];
         }
 
-        $groups = [];
+        $pages = [];
 
-        foreach ($lazy as $name => $group) {
-            $groups[ltrim((string) $this->fusion->registry()->class($name), '\\')] = $group;
+        foreach ($this->fusion->registry()->all() as $name => $class) {
+            $pages[ltrim($class, '\\')] = $name;
         }
 
         $routes = [];
@@ -520,11 +568,11 @@ final class Bundle
             $controller = $route->getAction('controller');
             $class = is_string($controller) ? ltrim(explode('@', $controller)[0], '\\') : null;
 
-            if ($class === null || ! isset($groups[$class]) || $route->getDomain() !== null || ! in_array('GET', $route->methods(), true)) {
+            if ($class === null || ! isset($pages[$class]) || $route->getDomain() !== null || ! in_array('GET', $route->methods(), true)) {
                 continue;
             }
 
-            $routes[] = [$this->pattern($route->uri()), $groups[$class]];
+            $routes[] = [$this->pattern($route->uri()), $pages[$class]];
         }
 
         return $routes;

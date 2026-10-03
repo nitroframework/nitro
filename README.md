@@ -154,6 +154,9 @@ attributes and are read again on the server.
 | `#[Remember]` | Kept in the browser's history entry: back, forward and a reload bring back its value, such as a half-filled form. Not for `#[Locked]` properties, models or uploads |
 | `#[Modelable]` | On one property, lets a parent bind it: `<fusion:search-box fusion:model="query" />` |
 
+Pages also take `#[Title]`, `#[Layout]`, `#[LazyLoad]` and `#[Navigate]` (see [Pages](#pages) and
+[Navigation](#navigation)).
+
 ### Methods
 
 ```php
@@ -435,6 +438,51 @@ current one. The layout, and the components in it, stay.
 
 Links are for going to another page. To filter or sort what a page shows, change a property
 (`$set()`, `fusion:model`) and let the view render again.
+
+### Data first or markup first
+
+A visit can show the new page in two ways:
+
+| | The browser | Feels | Suits |
+| --- | --- | --- | --- |
+| **Data first** (the default) | asks the server for the page's data, then renders the page complete | one server round trip before the page changes; nothing shows half-filled | pages that mean nothing without their data (a student's profile), pages behind `auth` or `can` |
+| **Markup first** | renders the page at once with its properties' defaults, then fills it in when the data arrives | instant | dashboards, lists and forms with placeholders where the data goes |
+
+Set the default in `config/fusion.php`, and choose per page with `#[Navigate]`:
+
+```php
+// config/fusion.php
+'navigation' => 'data',   // or 'markup'
+```
+
+```php
+use Nitro\Fusion\Attributes\Navigate;
+
+#[Navigate('markup')]
+class Dashboard extends Component
+```
+
+On a markup-first visit every property counts as deferred until the data arrives, so
+`@deferred` and `@placeholder` show what to show meanwhile:
+
+```blade
+<h1>Dashboard</h1>
+
+@deferred('stats')
+    <x-stats :stats="$stats" />
+@placeholder
+    <div class="skeleton"></div>
+@enddeferred
+```
+
+- The view must render with the defaults: guard data that is not there yet with `@deferred` or
+  `??` (no `$student['name']` on an empty array).
+- What is typed or toggled before the data arrives is kept. A `#[Server]` call made meanwhile
+  waits for the data.
+- Components created by the server (those with `mount()`) appear when the data arrives.
+- The title is set when the data arrives.
+- A page in another layout, a redirect or an error is handled as a data-first visit would be.
+- The first page load is the server's HTML either way.
 
 ### Progress bar
 
@@ -862,6 +910,7 @@ of views and browser methods.
 | `build.obfuscate` | `true` | Obfuscate builds (`FUSION_OBFUSCATE`) |
 | `minify_on_change` | `true` | Minify when recompiling during development (`FUSION_MINIFY_ON_CHANGE`) |
 | `rendering` | `'clone'` | How the browser creates elements: `'clone'` or `'create'` |
+| `navigation` | `'data'` | How a visit shows a page: `'data'` (data first) or `'markup'` (markup first); `#[Navigate]` per page |
 | `esbuild` | | The Node binary (`FUSION_NODE`) and where esbuild is installed |
 
 ## Testing your application
