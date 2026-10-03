@@ -15,11 +15,9 @@ use Nitro\Fusion\Blade\FusionTags;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Console\BuildCommand;
 use Nitro\Fusion\Console\ClearCommand;
-use Nitro\Fusion\Console\PageClassCommand;
 use Nitro\Fusion\Http\AssetController;
 use Nitro\Fusion\Http\FillPortals;
 use Nitro\Fusion\Http\PersistentMiddleware;
-use Nitro\Fusion\Http\SeeOther;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Rendering\Renderer;
@@ -38,19 +36,10 @@ class FusionServiceProvider extends ServiceProvider
 
         $this->app->scoped(Renderer::class, fn (Application $app) => new Renderer($app->make('view')));
 
-        /** Pages that are only a view (@page(...)), returned by controllers: their classes are generated. */
-        $this->app->scoped(ViewPages::class, fn (Application $app) => new ViewPages(
-            $app->make('view'),
-            (string) ($app->make('config')->get('fusion.pages.views') ?? 'fusion.pages'),
-            (string) $app->make('config')->get('fusion.compiled'),
-        ));
-        self::autoloadViewPages();
-
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
             (array) $app->make('config')->get('fusion.components'),
             (array) $app->make('config')->get('fusion.pages'),
             $app->bootstrapPath('cache/fusion.php'),
-            fn () => $app->make(ViewPages::class)->discover(),
         ));
 
         $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion(
@@ -104,9 +93,6 @@ class FusionServiceProvider extends ServiceProvider
         /** The @portal placeholders in any web response get the content teleported to them. */
         $this->app->make('router')->pushMiddlewareToGroup('web', FillPortals::class);
 
-        /** A view page's $put, $patch or $delete redirected back: a 303, followed with a GET. */
-        $this->app->make('router')->pushMiddlewareToGroup('web', SeeOther::class);
-
         /**
          * Route::fusion('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':
          * a page; mount() is the action, so its parameters bind like a controller's.
@@ -125,34 +111,11 @@ class FusionServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             /** fusion:build is its own step (as `vite build` is), not part of `optimize`. */
-            $this->commands([BuildCommand::class, ClearCommand::class, PageClassCommand::class]);
+            $this->commands([BuildCommand::class, ClearCommand::class]);
 
             $this->publishes([dirname(__DIR__).'/config/fusion.php' => config_path('fusion.php')], 'fusion-config');
             $this->publishes([dirname(__DIR__).'/config/nprogress.php' => config_path('nprogress.php')], ['fusion-config', 'nprogress-config']);
         }
-    }
-
-    /**
-     * A view page's generated class (Nitro\Fusion\ViewPages\...), made from its view when it is
-     * first needed: once per process, with the application of the moment.
-     */
-    private static function autoloadViewPages(): void
-    {
-        static $registered = false;
-
-        if ($registered) {
-            return;
-        }
-
-        $registered = true;
-
-        spl_autoload_register(function (string $class): void {
-            $app = \Illuminate\Container\Container::getInstance();
-
-            if (str_starts_with($class, ViewPages::NAMESPACE.'\\') && $app->bound(ViewPages::class)) {
-                $app->make(ViewPages::class)->load($class);
-            }
-        });
     }
 
     private function routes(): void
@@ -209,9 +172,6 @@ class FusionServiceProvider extends ServiceProvider
         Blade::precompiler(FusionTags::compile(...));
 
         Blade::directive('fusionScripts', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->scripts(); ?>');
-
-        /** @page(props: [...], state: [...]): a view page's declaration (ViewPages); it renders nothing. */
-        Blade::directive('page', fn () => '');
         Blade::directive('fusion', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->mount({$expression}); ?>");
 
         /** Viewi's portals, as Livewire's @teleport: @portal('name') is where content goes, @teleport('name') what goes there. */

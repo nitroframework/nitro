@@ -41,7 +41,7 @@ class TestingHelpersTest extends TestCase
         }
 
         $this->assertSame('Ada Lovelace', $this->response('/students/1')->fusionState('student.name'));
-        $this->assertSame(7, $this->response('/rendered/counter')->fusionState('count'));
+        $this->assertSame(0, $this->response('/counter')->fusionState('count'));
     }
 
     #[DataProvider('frameworks')]
@@ -49,7 +49,7 @@ class TestingHelpersTest extends TestCase
     {
         $this->boot($framework);
 
-        $this->response('/rendered/counter')->assertFusion(fn (AssertableFusion $page) => $page
+        $this->response('/counter')->assertFusion(fn (AssertableFusion $page) => $page
             ->page('pages::counter')
             ->has('history', 0));
     }

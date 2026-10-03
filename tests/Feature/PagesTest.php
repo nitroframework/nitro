@@ -15,8 +15,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Pages and components, as Livewire 4 separates them: pages (fusion.pages, "pages::...") are
- * routed or rendered by controllers and have a layout and a title; components
- * (fusion.components) are placed in views.
+ * routed and have a layout and a title; components (fusion.components) are placed in views.
  */
 class PagesTest extends TestCase
 {

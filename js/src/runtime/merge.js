@@ -1,5 +1,5 @@
 /**
- * Merge props (Fusion::merge(), Fusion::deepMerge(), Fusion::scroll()): a partial reload's value
+ * Merge props ($this->merge(), $this->deepMerge(), $this->scroll() in mount()): a partial reload's value
  * merged into the one the page has, by the rule it came with. Mirrors Merge::apply() in PHP, on
  * PHP values as the runtime holds them (lists are Arrays, other arrays Maps).
  */

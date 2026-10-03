@@ -126,8 +126,8 @@ class OnceAndFlashTest extends TestCase
         $this->app->forgetScopedInstances();
         $answer = $this->json($this->update(['snapshot' => $snapshot, 'updates' => [], 'call' => ['method' => 'celebrateElsewhere', 'params' => []]]));
         $this->assertNull($answer['flash']);
-        $this->assertSame('/rendered/counter', $answer['effects']['redirect']['url']);
+        $this->assertSame('/counter', $answer['effects']['redirect']['url']);
 
-        $this->assertSame(['toast' => 'Over here'], Wire::decode($this->visit('/rendered/counter')->json('flash')));
+        $this->assertSame(['toast' => 'Over here'], Wire::decode($this->visit('/counter')->json('flash')));
     }
 }

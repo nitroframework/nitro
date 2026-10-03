@@ -37,7 +37,7 @@ final class ComponentMeta
      * @param  list<string>  $computed  #[Computed] methods, read as $this->name
      * @param  string|null  $lazy  the chunk it is compiled into: a page's own (or its #[LazyLoad] group),
      *                             a component's #[LazyLoad] group; null for the main bundle
-     * @param  bool  $page  a page (routed or rendered by a controller) rather than a component
+     * @param  bool  $page  a page (routed) rather than a component
      */
     public function __construct(
         public readonly string $class,

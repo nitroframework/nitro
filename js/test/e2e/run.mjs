@@ -870,11 +870,12 @@ await scenario('render and shared', async () => {
     click(window, greeting().querySelector('.rename'));
     await until('the shared name follows the call', () => text(greeting().querySelector('.hello')) === 'Hello Grace');
 
-    /** fusion:navigate to a page a controller returned with Fusion::render(). */
-    click(window, greeting().querySelector('.to-counter'));
-    await until('the rendered page is shown in place', () => window.location.pathname === '/rendered/counter' && text(document.querySelector('.count')) === '7');
+    /** $visit(url) from a handler: a fusion:navigate visit to another page. */
+    const runtime = window.Fusion;
+    click(window, greeting().querySelector('.go'));
+    await until('$visit: the page is shown in place', () => window.location.pathname === '/counter' && text(document.querySelector('.count')) === '0');
     check('the greeting is gone', greeting() === null);
-    check('the page was not reloaded', window.Fusion !== undefined);
+    check('the page was not reloaded', window.Fusion === runtime);
     window.close();
 });
 
@@ -893,14 +894,14 @@ await scenario('scroll and builds', async () => {
     await until('the scroll position is kept in the history entry', () => window.history.state?.fusionScroll?.y === 420);
 
     click(window, document.querySelector('.to-counter'));
-    await until('a visit goes to the top', () => window.location.pathname === '/rendered/counter' && scrolls.at(-1) === '0,0');
+    await until('a visit goes to the top', () => window.location.pathname === '/counter' && scrolls.at(-1) === '0,0');
 
     window.history.back();
     await until('back restores the position', () => window.location.pathname === '/greeting' && document.querySelector('.greeting') !== null && scrolls.at(-1) === '0,420');
 
     const before = scrolls.length;
     click(window, document.querySelector('.to-counter-kept'));
-    await until('a preserve-scroll visit lands', () => window.location.pathname === '/rendered/counter');
+    await until('a preserve-scroll visit lands', () => window.location.pathname === '/counter');
     check('fusion:navigate.preserve-scroll keeps the position', scrolls.length === before, scrolls.join(' '));
     window.close();
 
@@ -953,7 +954,7 @@ await scenario('deferred', async () => {
 });
 
 await scenario('partial reloads', async () => {
-    const window = await open('/rendered/orders');
+    const window = await open('/orders');
     const { document } = window;
     const list = () => [...document.querySelectorAll('.list li')].map(text).join(' ');
     const total = () => text(document.querySelector('.total'));
@@ -994,7 +995,7 @@ await scenario('remember', async () => {
     await until('typed and shouted', () => draft()[1] === 'half done' && text(document.querySelector('.shouted')) !== '');
 
     click(window, document.querySelector('.to-counter'));
-    await until('another page', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+    await until('another page', () => window.location.pathname === '/counter' && document.querySelector('.count') !== null);
 
     window.history.back();
     await until('back brings the #[Remember] property back', () => window.location.pathname === '/greeting' && draft().join('|') === 'half done|half done');
@@ -1003,7 +1004,7 @@ await scenario('remember', async () => {
     type(window, document.querySelector('.draft'), 'changed');
     await until('a later change', () => draft()[1] === 'changed');
     window.history.forward();
-    await until('forward', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+    await until('forward', () => window.location.pathname === '/counter' && document.querySelector('.count') !== null);
     check('the counter page has nothing remembered', document.querySelector('.draft') === null);
     window.history.back();
     await until('the entry keeps the latest value', () => window.location.pathname === '/greeting' && draft().join('|') === 'changed|changed');
@@ -1057,7 +1058,7 @@ await scenario('once, flash and merge', async () => {
     check('a #[Server] call says the browser has the once data', sentOnce.at(-1) === 'countries', String(sentOnce));
 
     click(window, document.querySelector('.to-counter'));
-    await until('a visit', () => window.location.pathname === '/rendered/counter' && document.querySelector('.count') !== null);
+    await until('a visit', () => window.location.pathname === '/counter' && document.querySelector('.count') !== null);
     check('so does a visit', sentOnce.at(-1) === 'countries', String(sentOnce));
 
     window.history.back();
@@ -1066,10 +1067,10 @@ await scenario('once, flash and merge', async () => {
     check('flash data belongs to the page it came with', text(document.querySelector('.toast')) === 'no toast', text(document.querySelector('.toast')));
 
     click(window, document.querySelector('.celebrate-elsewhere'));
-    await until('a call that redirects: its flash data comes with the page it goes to', () => window.location.pathname === '/rendered/counter' && window.Fusion.B.flashed('toast') === 'Over here');
+    await until('a call that redirects: its flash data comes with the page it goes to', () => window.location.pathname === '/counter' && window.Fusion.B.flashed('toast') === 'Over here');
     window.close();
 
-    const timeline = await open('/rendered/timeline');
+    const timeline = await open('/timeline');
     const doc = timeline.document;
     const posts = () => doc.querySelectorAll('.posts li').length;
     check('the first page', posts() === 10, String(posts()));
@@ -1235,48 +1236,6 @@ await scenario('islands', async () => {
     await until('visible: in view, it starts', () => live('visible') === 1);
     click(window, $('.visible .hit'));
     await until('and works', () => text($('.visible .hits')) === '1');
-    window.close();
-});
-
-/**
- * A page that is only a view (@page(...)), rendered by a controller, its actions the controller's
- * routes: $post with a validation error, then without; the form reset; $delete; the page's own
- * state kept through it all; and no reload.
- */
-await scenario('a view page: actions to controller routes', async () => {
-    const window = await open('/notes');
-    const { document } = window;
-    const $ = (selector) => document.querySelector(selector);
-    const submit = () => $('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    const runtime = window.Fusion;
-
-    check('rendered by the server, @page leaving nothing', text($('.count')) === '0' && !document.body.innerHTML.includes('@page'));
-    click(window, $('.toggle'));
-    await until('its own state changes in the browser', () => text($('.toggle')) === 'Open');
-
-    type(window, $('.title'), 'ab');
-    submit();
-    await until('$post: the controller\'s validation errors are $errors', () => text($('.error')) !== '' && text($('.error')) !== undefined);
-    check('the field keeps what was typed', $('.title').value === 'ab');
-
-    type(window, $('.title'), 'Buy milk');
-    submit();
-    await until('$post: then the page\'s props come back from the controller', () => text($('.count')) === '1' && text($('li span')) === 'Buy milk');
-    check('the errors are cleared', $('.error') === null);
-    check('reset: the form is back to its default', $('.title').value === '', $('.title').value);
-    check('the page\'s other state is kept', text($('.toggle')) === 'Open');
-
-    type(window, $('.title'), 'Call home');
-    submit();
-    await until('a second note', () => text($('.count')) === '2' && document.querySelectorAll('li').length === 2);
-
-    click(window, document.querySelectorAll('.remove')[0]);
-    await until('$delete: the note goes', () => text($('.count')) === '1' && text($('li span')) === 'Call home');
-    check('no reload: the same runtime', window.Fusion === runtime && window.location.pathname === '/notes');
-
-    click(window, $('.go'));
-    await until('$visit: a fusion:navigate visit from a handler', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
-    check('still no reload', window.Fusion === runtime);
     window.close();
 });
 

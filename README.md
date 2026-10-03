@@ -73,10 +73,10 @@ Fusion separates **components** from **pages**, as Livewire 4 does:
 | Class | `app/Fusion/Components` | `app/Fusion/Pages` |
 | View | `resources/views/fusion/components` | `resources/views/fusion/pages` |
 | Name | `students.table` (`App\Fusion\Components\Students\Table`) | `pages::students.index` (`App\Fusion\Pages\Students\Index`) |
-| Used | placed in views: `<fusion:students.table />` | routed with `Route::fusion()` or returned by a controller with `Fusion::render()` |
+| Used | placed in views: `<fusion:students.table />` | routed with `Route::fusion()` |
 | Layout and title | no | `#[Layout]`, `#[Title]` |
 
-A page cannot be placed in a view, a component cannot be routed or rendered by a controller, and
+A page cannot be placed in a view, a component cannot be routed, and
 `#[Layout]` or `#[Title]` on a component fails: each says what to do instead. The directories,
 namespaces and view paths are set in `config/fusion.php`.
 
@@ -260,7 +260,7 @@ either way. The first page load is the server's HTML, taken over as it is, in bo
 
 | Attribute | |
 | --- | --- |
-| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` and `$loadMore('prop')` in a page, `$dispatch('event')`, `$visit(url)` to go to a page as `fusion:navigate` does, `$post(url, data)` / `$put` / `$patch` / `$delete` to a controller's route). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
+| `fusion:click="save"`, `fusion:submit.prevent="add"`, `fusion:keydown.enter="search"`, ... | Call a method (or `$set('prop', value)`, `$toggle('prop')`, `$refresh`, `$reload('prop')` and `$loadMore('prop')` in a page, `$dispatch('event')`, `$visit(url)` to go to a page as `fusion:navigate` does). Modifiers: `prevent` `stop` `self` `once` `window` `document` `outside` key names, `debounce.300ms`, `throttle.1s` |
 | `fusion:model="email"` | Two-way binding (`.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`); a dotted path binds a key: `fusion:model="form.email"` |
 | `fusion:loading` | Shown while a `#[Server]` call runs (`.remove`, `.class="..."`, `.attr="disabled"`, with `fusion:target="save"`) |
 | `fusion:key` | Keeps an element's identity in lists |
@@ -441,113 +441,6 @@ Route::fusion('/students', 'pages::students.index')->name('students.index');
 The page's `mount(Student $student)` binds like a controller method; the page renders in
 `components.layouts.app` (or `#[Layout('...')]`) as its `$slot`, with `#[Title('...')]` as `$title`.
 
-### Pages from controllers
-
-A controller returns a page with `Fusion::render()`, as it would return `Inertia::render()`:
-
-```php
-use App\Fusion\Pages\Students\Index;
-use Nitro\Fusion\Facades\Fusion;
-
-class StudentController extends Controller
-{
-    public function index()
-    {
-        return Fusion::render(Index::class, [
-            'students' => Student::orderBy('name')->get(),
-        ]);
-    }
-}
-```
-
-The props are the arguments of the page's `mount()`, by name (with other parameters still resolved
-from the container), or, when it has no `mount()`, its public properties. The page then answers
-exactly as a `Route::fusion()` page: in its layout on the first visit, as page data for
-`fusion:navigate` visits.
-
-### Pages that are only a view
-
-A controller's page needs no class at all, as an Inertia page is a controller and a template: the
-view declares what it receives, the controller loads it and takes the page's actions.
-
-```php
-class NotesController extends Controller
-{
-    public function index()
-    {
-        return Fusion::render('notes.index', [          // fusion/pages/notes/index.blade.php
-            'notes' => fn () => Note::latest()->get()->toArray(),
-            'count' => fn () => Note::count(),
-        ]);
-    }
-
-    public function store(Request $request)
-    {
-        Note::create($request->validate(['title' => 'required|min:3']));
-        Fusion::flash('toast', 'Added.');
-
-        return back();
-    }
-
-    public function destroy(Note $note)
-    {
-        $note->delete();
-
-        return back();
-    }
-}
-```
-
-```blade
-@page(
-    title: 'Notes',
-    props: ['notes' => [], 'count' => 0],        {{-- from the controller: read-only here --}}
-    state: ['form' => ['title' => ''], 'open' => false],   {{-- the page's own --}}
-    remember: ['form'],                          {{-- state kept in the history entry --}}
-    url: [],                                     {{-- state kept in the query string --}}
-)
-<div>
-    <form fusion:submit.prevent="$post(route('notes.store'), $form, ['reset' => ['form']])">
-        <input fusion:model="form.title">
-        @error('title') <p>{{ $message }}</p> @enderror
-    </form>
-
-    @foreach ($notes as $note)
-        <li>{{ $note['title'] }} <button fusion:click="$delete(route('notes.destroy', $note['id']))">x</button></li>
-    @endforeach
-</div>
-```
-
-The view is compiled for the browser as any page's is: it renders there on `fusion:navigate`,
-updates fine-grained, and its state changes (`$set`, `$toggle`, `fusion:model`) run there. Its
-actions are requests to the controller's routes:
-
-- `$post(url, data, options)`, `$put`, `$patch`, `$delete(url, options)` send `data` as JSON with
-  the CSRF token. Laravel's validation errors (a 422) become `$errors`; nothing else changes.
-- On success the controller answers `back()` (a `$put`, `$patch` or `$delete` redirect is made a
-  303, as Inertia's middleware does), and the page takes its props from it as a partial reload
-  does, merge props merged: all of them, or `['only' => [...]]`. Its state stays, except what
-  `['reset' => [...]]` puts back to its default (the form, once sent); flash data comes with it.
-- A redirect to another page is a `fusion:navigate` visit there.
-
-Fusion makes the page's class from `@page` (in the compiled directory, made again when the view
-changes): props are `#[Locked]`, state plain properties, `remember` and `url` `#[Remember]` and
-`#[Url]`, `title` `#[Title]`. Defaults are written out (strings, numbers, arrays, `true`, `false`,
-`null`). A view page is a view under the pages' view path (`fusion.pages.views`) starting with
-`@page`; a page class of the same name takes its place.
-
-A view page is for the common page: lists, filters, forms, modals. When one needs browser
-methods, `#[Computed]`, `updated` hooks, `mounted()` or uploads, it grows a page class:
-
-```
-php artisan fusion:page-class notes.index
-```
-
-That writes `App\Fusion\Pages\Notes\Index` with the view's props and state as typed properties
-(and their `#[Locked]`, `#[Remember]`, `#[Url]`, `#[Title]`), and takes `@page` out of the view.
-The controller does not change: it renders the page by the same name and takes its actions; the
-class holds what runs in the browser.
-
 ### Deferred properties
 
 A page can show first and load slow data right after, as Inertia's deferred props. In `mount()`:
@@ -559,15 +452,6 @@ public function mount(): void
 {
     $this->defer('stats', fn () => Order::stats());
 }
-```
-
-From a controller, the prop names a public property of the page:
-
-```php
-return Fusion::render(Overview::class, [
-    'orders' => $orders,
-    'stats' => Fusion::defer(fn () => Order::stats()),
-]);
 ```
 
 The page is rendered without them, then asks its own URL for them (a partial reload, below): the
@@ -586,7 +470,7 @@ The page can be used while they load; what changes meanwhile is kept. Only pages
 
 ### Partial reloads
 
-A page can reload some of its properties from its route or controller, as Inertia's partial
+A page can reload some of its properties from its route, as Inertia's partial
 reloads: `$this->reload('orders')` in a browser method or after a `#[Server]` call, or
 `$reload('orders')` in a handler.
 
@@ -605,35 +489,47 @@ property takes the value the route gives it, including what was typed. The answe
 properties on their own; the next `#[Server]` call sends them with the snapshot, so reloaded
 `#[Locked]` properties reach the server as the server gave them.
 
-A closure prop of `Fusion::render()` is called only when it is needed: on a partial reload, only
-the props it names (for pages without `mount()`, whose props set their properties).
+A partial reload runs `mount()` again: `$this->wants('total')` skips work the reload does not
+need (a first visit wants everything).
 
 ```php
-return Fusion::render(Orders::class, [
-    'orders' => fn () => Order::latest()->get()->toArray(),
-    'total' => fn () => Order::sum('amount'),
-]);
+public function mount(): void
+{
+    if ($this->wants('orders')) {
+        $this->orders = Order::latest()->get()->toArray();
+    }
+
+    if ($this->wants('total')) {
+        $this->total = Order::sum('amount');
+    }
+}
 ```
 
 ### Merge props
 
-A prop can be merged into the page's value on a partial reload instead of replacing it, as
-Inertia's merge props. A first render or a visit sets it as usual.
+A property can be merged into the page's value on a partial reload instead of replacing it, as
+Inertia's merge props. A first render or a visit sets it as usual. In `mount()`, the property
+named first:
 
 ```php
-return Fusion::render(Feed::class, [
-    'posts' => Fusion::scroll(fn () => Post::latest()->paginate(20)),
-    'tags' => Fusion::merge(fn () => Tag::popular()->get()->toArray())->matchOn('id'),
-    'filters' => Fusion::deepMerge(fn () => $this->filters()),
-]);
+public array $posts = [];
+public array $tags = [];
+public array $filters = [];
+
+public function mount(): void
+{
+    $this->scroll('posts', fn () => Post::latest()->paginate(20));
+    $this->merge('tags', fn () => Tag::popular()->get()->toArray())->matchOn('id');
+    $this->deepMerge('filters', fn () => $this->defaultFilters());
+}
 ```
 
-- `Fusion::merge()` appends the new items (`->prepend()` puts them first; `->append('data')`
+- `$this->merge()` appends the new items (`->prepend()` puts them first; `->append('data')`
   merges the list at a key). `->matchOn('id')`: an item with the same id replaces the one there.
-- `Fusion::deepMerge()` merges arrays key by key, all the way down; lists are appended.
-- `Fusion::scroll($paginator)` holds `['data' => items, 'scroll' => [...]]`: the page name and the
-  pages around it. `$loadMore('posts')` asks for the next page and appends it, nothing once
-  there is none:
+- `$this->deepMerge()` merges arrays key by key, all the way down; lists are appended.
+- `$this->scroll($property, $paginator)` holds `['data' => items, 'scroll' => [...]]`: the page
+  name and the pages around it. `$loadMore('posts')` asks for the next page and appends it,
+  nothing once there is none:
 
 ```blade
 @foreach ($posts['data'] as $post) ... @endforeach
@@ -644,34 +540,11 @@ return Fusion::render(Feed::class, [
 ```
 
 When rows can be added while the list is open, page offsets shift and a page can repeat the last
-row of the one before: `Fusion::scroll(...)->matchOn('id')` keeps each row once.
+row of the one before: `$this->scroll(...)->matchOn('id')` keeps each row once.
 
+A partial reload runs `mount()` again: each closure runs only when the reload wants its property.
 The signed partial reload carries the merge rule: the next `#[Server]` call merges it into the
 server's state the same way, so a `#[Locked]` list keeps what was loaded.
-
-A routed page (`Route::fusion()`) does the same in its `mount()`, the property named first:
-
-```php
-public array $posts = [];
-public array $tags = [];
-public array $filters = [];
-public int $total = 0;
-
-public function mount(): void
-{
-    $this->scroll('posts', fn () => Post::latest()->paginate(20));
-    $this->merge('tags', fn () => Tag::popular()->get()->toArray())->matchOn('id');
-    $this->deepMerge('filters', fn () => $this->defaultFilters());
-
-    if ($this->wants('total')) {
-        $this->total = Order::sum('amount');
-    }
-}
-```
-
-A partial reload runs `mount()` again: each closure runs only when the reload wants its property,
-and `$this->wants('total')` skips other work the reload does not need (a first visit wants
-everything).
 
 ### Shared data
 

@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Nitro\Fusion\Tests\Fixtures\Http\RenderController;
+use Nitro\Fusion\Facades\Fusion;
 use Nitro\Fusion\Tests\Fixtures\Pages\Board;
 use Nitro\Fusion\Tests\Fixtures\Pages\Counter;
 use Nitro\Fusion\Tests\Fixtures\Pages\Devices;
@@ -12,6 +12,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
 use Nitro\Fusion\Tests\Fixtures\Pages\Links;
 use Nitro\Fusion\Tests\Fixtures\Pages\Live;
 use Nitro\Fusion\Tests\Fixtures\Pages\MountedTimeline;
+use Nitro\Fusion\Tests\Fixtures\Pages\Orders;
 use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
 use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
@@ -38,18 +39,14 @@ Route::fusion('/live', Live::class)->name('live');
 Route::fusion('/devices', Devices::class)->name('devices');
 Route::fusion('/timeline', MountedTimeline::class)->name('timeline');
 
-/** Pages from a controller: Fusion::render(). */
-Route::get('/rendered/counter', [RenderController::class, 'counter'])->name('rendered.counter');
-Route::get('/rendered/orders', [RenderController::class, 'orders'])->name('rendered.orders');
-Route::get('/rendered/timeline', [RenderController::class, 'timeline'])->name('rendered.timeline');
-Route::get('/flash-and-redirect', [RenderController::class, 'flashAndRedirect']);
-Route::get('/rendered/deferred-counter', [RenderController::class, 'deferredCounter'])->name('rendered.deferred-counter');
-Route::get('/rendered/students/{student}', [RenderController::class, 'student'])->name('rendered.student');
+Route::fusion('/orders', Orders::class)->name('orders');
 
-/** A page that is only a view (@page(...)): the controller renders it and takes its actions. */
-Route::get('/notes', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'index'])->name('notes.index');
-Route::post('/notes', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'store'])->name('notes.store');
-Route::delete('/notes/{index}', [\Nitro\Fusion\Tests\Fixtures\Http\NotesController::class, 'destroy'])->name('notes.destroy');
+/** Fusion::flash() and a redirect: the page it goes to delivers it. */
+Route::get('/flash-and-redirect', function () {
+    Fusion::flash('toast', 'Saved');
+
+    return redirect('/greeting');
+});
 
 Route::get('/embed', fn () => view('embed'));
 Route::get('/islands', fn () => view('islands'));

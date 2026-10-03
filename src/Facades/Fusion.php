@@ -5,11 +5,6 @@ namespace Nitro\Fusion\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static \Symfony\Component\HttpFoundation\Response render(string $component, array $props = [])
- * @method static \Nitro\Fusion\Deferred defer(\Closure $value)
- * @method static \Nitro\Fusion\Merge merge(mixed $value)
- * @method static \Nitro\Fusion\Merge deepMerge(mixed $value)
- * @method static \Nitro\Fusion\Merge scroll(mixed $paginator)
  * @method static \Nitro\Fusion\Once once(\Closure $value)
  * @method static \Nitro\Fusion\Once shareOnce(string $key, \Closure $value)
  * @method static void flash(string|array $key, mixed $value = null)

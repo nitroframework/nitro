@@ -9,8 +9,8 @@ use Illuminate\Pagination\Paginator;
 use InvalidArgumentException;
 
 /**
- * A Fusion::render() prop merged into the value the page has on a partial reload, instead of
- * replacing it, as Inertia's merge props (Fusion::merge(), Fusion::deepMerge(), Fusion::scroll()).
+ * A page property merged into the value the page has on a partial reload, instead of replacing
+ * it, as Inertia's merge props ($this->merge(), $this->deepMerge(), $this->scroll() in mount()).
  * A first render or a visit sets it as usual.
  *
  * The browser merges the value it is sent; the signed partial reload carries the rule, and the
@@ -26,7 +26,7 @@ final class Merge
     /** @var list<string> */
     private array $match = [];
 
-    /** Fusion::scroll(): the value is a paginator, sent as ['data' => items, 'scroll' => where it is]. */
+    /** $this->scroll(): the value is a paginator, sent as ['data' => items, 'scroll' => where it is]. */
     private bool $scroll = false;
 
     public function __construct(private readonly mixed $value)
@@ -67,7 +67,7 @@ final class Merge
         return $this;
     }
 
-    /** @internal Fusion::scroll() */
+    /** @internal $this->scroll() */
     public function asScroll(): self
     {
         $this->scroll = true;
@@ -122,7 +122,7 @@ final class Merge
                     'previousPage' => $paginator->previousCursor()?->encode(),
                 ],
             ],
-            default => throw new InvalidArgumentException('Fusion::scroll() takes a paginator (paginate(), simplePaginate() or cursorPaginate()).'),
+            default => throw new InvalidArgumentException('$this->scroll() takes a paginator (paginate(), simplePaginate() or cursorPaginate()).'),
         };
     }
 

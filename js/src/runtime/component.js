@@ -123,8 +123,6 @@ export class Component {
             $refresh: () => self.definition.server.length ? self.runtime.network.call(self, null, []) : self.render(),
             $js: (code) => self.js(code),
             $reload: (names) => self.runtime.reload(self, names),
-            /** $post(url, data, options), $put, $patch, $delete: a controller's route (Network::submit()). */
-            $submit: (method, url, data = null, options = null) => self.runtime.network.submit(self, method, url, data, options),
             $loadMore: (name) => self.runtime.loadMore(self, P.toStr(name)),
             /** @deferred: whether any of the properties (any, when none are named) is still loading. */
             $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),

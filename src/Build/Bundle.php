@@ -431,9 +431,8 @@ final class Bundle
 
     /**
      * What is not in app.js, name => chunk: every page, in a chunk of its own (or its #[LazyLoad]
-     * group), however it is reached (Route::fusion() or a controller's Fusion::render()), as
-     * Next.js and Nuxt split by page; and components with #[LazyLoad]. The components pages share
-     * stay in app.js.
+     * group), as Next.js and Nuxt split by page; and components with #[LazyLoad]. The components
+     * pages share stay in app.js.
      *
      * @return array<string, string>
      */

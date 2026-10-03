@@ -14,7 +14,7 @@ use Nitro\Fusion\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Deferred page properties ($this->defer(), Fusion::defer()): left out of the page, then loaded
+ * Deferred page properties ($this->defer()): left out of the page, then loaded
  * by the page asking its URL again for them (a partial reload), with the id it has in the browser.
  */
 class DeferredTest extends TestCase
@@ -123,22 +123,6 @@ class DeferredTest extends TestCase
     }
 
     #[DataProvider('frameworks')]
-    public function test_a_controller_defers_a_prop(string $framework): void
-    {
-        $this->boot($framework);
-
-        $this->response('/rendered/deferred-counter')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
-            ->deferred('step')
-            ->where('count', 7)
-            ->where('step', 1));
-
-        $this->load('/rendered/deferred-counter')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
-            ->notDeferred()
-            ->where('count', 7)
-            ->where('step', 5));
-    }
-
-    #[DataProvider('frameworks')]
     public function test_a_deferred_prop_names_a_public_property(string $framework): void
     {
         $this->boot($framework);
@@ -146,7 +130,7 @@ class DeferredTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Fusion page [pages::counter] has no public property $nothing to defer.');
 
-        Fusion::render(CounterPage::class, ['nothing' => Fusion::defer(fn () => 1)]);
+        app(\Nitro\Fusion\Fusion::class)->deferProperty(new CounterPage, 'nothing', fn () => 1);
     }
 
     #[DataProvider('frameworks')]

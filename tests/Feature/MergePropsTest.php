@@ -11,14 +11,13 @@ use Nitro\Fusion\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Merge props (Fusion::merge(), Fusion::deepMerge(), Fusion::scroll()), as Inertia's: a partial
- * reload's value merged into the page's, in the browser and, through the signed partial reload,
- * on the server. The same from a controller (/rendered/timeline) and from a routed page's mount()
- * ($this->merge(), $this->deepMerge(), $this->scroll(): /timeline).
+ * Merge props from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()), as
+ * Inertia's: a partial reload's value merged into the page's, in the browser and, through the
+ * signed partial reload, on the server (/timeline).
  */
 class MergePropsTest extends TestCase
 {
-    private function page(string $uri = '/rendered/timeline', ?string $only = null, string $id = 'fabcdefghij'): TestResponse
+    private function page(string $uri = '/timeline', ?string $only = null, string $id = 'fabcdefghij'): TestResponse
     {
         $this->app->forgetScopedInstances();
 
@@ -61,13 +60,12 @@ class MergePropsTest extends TestCase
         );
     }
 
-    /** Each framework, with the timeline from a controller and from mount(). */
+    /** Each framework, with the timeline's page. */
     public static function timelines(): array
     {
         $cases = [];
 
         foreach (self::frameworks() as $name => [$framework]) {
-            $cases["{$name}, controller"] = [$framework, '/rendered/timeline'];
             $cases["{$name}, mount()"] = [$framework, '/timeline'];
         }
 

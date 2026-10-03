@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Partial reloads ($reload, $this->reload()), as Inertia's: the page asks its URL again
- * (X-Fusion-Partial, X-Fusion-Only), and a closure prop is called only when it is wanted.
+ * (X-Fusion-Partial, X-Fusion-Only), and mount() loads only what is wanted ($this->wants()).
  */
 class PartialReloadTest extends TestCase
 {
@@ -36,7 +36,7 @@ class PartialReloadTest extends TestCase
             'HTTP_X_FUSION_ONLY' => $only,
         ]) : [];
 
-        return TestResponse::fromBaseResponse($this->request('GET', '/rendered/orders', $server));
+        return TestResponse::fromBaseResponse($this->request('GET', '/orders', $server));
     }
 
     private function addOrder(string $method): array
@@ -116,7 +116,7 @@ class PartialReloadTest extends TestCase
         $id = Wire::fromJson($snapshot['state'])['id'];
         $this->addOrder('add');
         $this->app->forgetScopedInstances();
-        $partial = json_decode((string) $this->request('GET', '/rendered/orders', [
+        $partial = json_decode((string) $this->request('GET', '/orders', [
             'HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_X_FUSION_PARTIAL' => $id, 'HTTP_X_FUSION_ONLY' => 'total',
         ])->getContent(), true)['partial'];
 

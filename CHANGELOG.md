@@ -5,33 +5,22 @@ All notable changes to `nitro/fusion` will be documented in this file.
 ## Unreleased
 
 - `$visit(url)` in handlers: a `fusion:navigate` visit from any page (search on Enter).
-- `php artisan fusion:page-class notes.index`: a view page grows into a page class (typed
-  properties from its `@page`, which leaves the view) when it needs browser methods, hooks or
-  uploads; its controller is unchanged. A page class takes the place of a view page of its name.
 
 - `fusion:build` is about four times faster and says how it goes: every chunk is minified in one
   Node process (starting Node was most of the time), chunks unchanged since the last build come
   from a cache, and each step prints with its time (a progress bar while compiling; `-v` lists the
   components).
 
-- Pages that are only a view, as Inertia's: a controller returns `Fusion::render('notes.index',
-  [...])`, and the view declares `@page(props: [...], state: [...], remember: [...], url: [...])`;
-  Fusion makes its class. Its actions are the controller's routes: `$post()`, `$put()`, `$patch()`
-  and `$delete()` in handlers send JSON, show a 422's errors as `$errors`, and take the page's props
-  again from the controller's `back()` (`only`, `reset`). A Fusion request's PUT, PATCH or DELETE
-  redirected with a 302 is answered with a 303.
-
-- Merge props from a routed page's `mount()`: `$this->merge()`, `$this->deepMerge()` and
-  `$this->scroll()`, as `Fusion::merge()`, `Fusion::deepMerge()` and `Fusion::scroll()` from a
-  controller; their closures run only when a partial reload wants the property. `$this->wants()`
-  skips other work a partial reload does not need.
+- Merge props from a page's `mount()`: `$this->merge()`, `$this->deepMerge()` and
+  `$this->scroll()`; their closures run only when a partial reload wants the property.
+  `$this->wants()` skips other work a partial reload does not need.
 
 - `fusion.rendering`: `'clone'` (the default) copies each static part of a view the browser
   renders itself (a visit, an `@if` turning true, new rows) from one made once; `'create'` makes
   every element in turn, as before. On the dashboard's Students page a visit renders about 20%
   faster; the page is the same either way.
 
-- `fusion:navigate` to any page, not only Fusion pages: a Blade view, a controller's view or a page
+- `fusion:navigate` to any page, not only Fusion pages: a Blade view, a view a controller returns or a page
   in another layout comes as HTML and replaces the document without reloading (as
   `wire:navigate`), and links from such pages navigate too.
 
@@ -72,9 +61,8 @@ All notable changes to `nitro/fusion` will be documented in this file.
   until the next build after a change. Built chunks are named by a hash (`7f3a9c21-<version>.js`).
 - A chunk the page already loaded is not fetched again on a visit.
 
-- Merge props: `Fusion::merge()` (`->prepend()`, `->matchOn()`), `Fusion::deepMerge()` and
-  `Fusion::scroll()` with `$loadMore('prop')`, merged on partial reloads in the browser and on
-  the server.
+- Merge props (`->prepend()`, `->matchOn()`) and scroll props with `$loadMore('prop')`, merged
+  on partial reloads in the browser and on the server.
 - Once shared data: `Fusion::once()`, `Fusion::shareOnce()` (`->until()`, `->fresh()`).
 - Flash data: `Fusion::flash()`, read with `$this->flashed()`, announced with `fusion:flash`.
 - A partial reload signs the properties it reloads on their own; the next `#[Server]` call lays
@@ -89,10 +77,9 @@ All notable changes to `nitro/fusion` will be documented in this file.
 - `#[Remember]` properties: kept in the history entry, brought back by back, forward and reload.
 
 - Partial reloads: `$this->reload('orders')` and `$reload('orders')` reload page properties from
-  the page's route or controller. Closure props of `Fusion::render()` are called only when
-  needed. Deferred properties load as a partial reload.
+  the page's route. Deferred properties load as a partial reload.
 
-- Deferred page properties: `$this->defer()` in `mount()` and `Fusion::defer()` props, loaded
+- Deferred page properties: `$this->defer()` in `mount()`, loaded
   after the page is shown, with `@deferred` / `@placeholder` in views.
 
 - A `fusion:navigate` visit from an older build is answered with `409` and `X-Fusion-Location`,
@@ -102,11 +89,10 @@ All notable changes to `nitro/fusion` will be documented in this file.
 - `assertFusion()` and `fusionState()` on test responses, as `assertInertia()`.
 
 - Pages and components are separate, as in Livewire 4: pages (`App\Fusion\Pages`,
-  `fusion.pages` views, named `pages::...`) are routed or rendered by controllers and have
+  `fusion.pages` views, named `pages::...`) are routed and have
   `#[Layout]` and `#[Title]`; components (`App\Fusion\Components`, `fusion.components` views) are
   placed in views. The `components` and `pages` config entries replace `components` and
   `view_prefix`.
-- `Fusion::render()` returns a page with props from a Laravel controller, as `Inertia::render()`.
 - `Fusion::share()` data for every component, read with `$this->shared()` on the server and in the
   browser, and sent with pages, `fusion:navigate` visits and `#[Server]` calls.
 - A `Fusion` facade.

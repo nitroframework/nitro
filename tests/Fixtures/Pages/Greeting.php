@@ -43,6 +43,6 @@ class Greeting extends Component
     public function celebrateElsewhere(): void
     {
         Fusion::flash('toast', 'Over here');
-        $this->redirect('/rendered/counter', navigate: true);
+        $this->redirect('/counter', navigate: true);
     }
 }

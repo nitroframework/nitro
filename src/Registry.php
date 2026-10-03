@@ -28,8 +28,6 @@ final class Registry
         private readonly array $componentsAt,
         private readonly array $pagesAt,
         private readonly ?string $cache = null,
-        /** @var (\Closure(): array<string, class-string<Component>>)|null pages that are only a view (ViewPages): name => generated class */
-        private readonly ?\Closure $viewPages = null,
     ) {
     }
 
@@ -125,11 +123,6 @@ final class Registry
                     $this->components[Naming::name($class, $location['namespace'], $page)] ??= $class;
                 }
             }
-        }
-
-        /** Pages that are only a view: a page class of the same name wins. */
-        foreach ($this->viewPages === null ? [] : ($this->viewPages)() as $name => $class) {
-            $this->components[$name] ??= $class;
         }
     }
 

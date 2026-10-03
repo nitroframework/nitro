@@ -371,7 +371,7 @@ export class Runtime {
         if (component.deferred.size > 0) this.network.reload(component, [...component.deferred], true).catch(() => {});
     }
 
-    /** $reload / $this->reload(): a page's properties, from its route or controller (all of them when none are named). */
+    /** $reload / $this->reload(): a page's properties, from its route (all of them when none are named). */
     reload(component, only = []) {
         if (!component.definition.page) {
             const error = new Error(`Fusion: [${component.name}] is a component; only pages reload their properties`);
@@ -479,7 +479,7 @@ export class Runtime {
     }
 
     /**
-     * $loadMore('payments'): the next page of a Fusion::scroll() prop, merged into it (a partial
+     * $loadMore('payments'): the next page of a $this->scroll() prop, merged into it (a partial
      * reload of the page's URL with the paginator's page in the query). Nothing when it has no next.
      */
     loadMore(component, name) {

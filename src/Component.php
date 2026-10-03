@@ -172,9 +172,9 @@ abstract class Component
 
     /**
      * A page property whose new items are added to the ones the page has on a partial reload,
-     * instead of replacing them: Fusion::merge() from a controller, here from mount(). A first
-     * render or a visit sets it as usual. The closure runs only when the request wants the
-     * property. ->prepend(), ->append('data'), ->matchOn('id') as Fusion::merge()'s.
+     * instead of replacing them, as Inertia's merge props. A first render or a visit sets it as
+     * usual. The closure runs only when the request wants the property. ->prepend(),
+     * ->append('data'), ->matchOn('id').
      *
      *   $this->merge('tags', fn () => Tag::popular()->get()->toArray())->matchOn('id');
      */
@@ -184,7 +184,7 @@ abstract class Component
     }
 
     /**
-     * As merge(), arrays merged key by key, all the way down (lists appended): Fusion::deepMerge().
+     * As merge(), arrays merged key by key, all the way down (lists appended).
      *
      *   $this->deepMerge('filters', fn () => $this->defaultFilters());
      */
@@ -194,7 +194,7 @@ abstract class Component
     }
 
     /**
-     * A paginator, as a property that loads more as it scrolls: Fusion::scroll(). The property
+     * A paginator, as a property that loads more as it scrolls. The property
      * holds ['data' => items, 'scroll' => where it is]; $loadMore('posts') asks for the next page
      * and appends its items.
      *
@@ -217,7 +217,7 @@ abstract class Component
     }
 
     /**
-     * Reload page properties from the page's route or controller, as Inertia's partial reloads:
+     * Reload page properties from the page's route, as Inertia's partial reloads:
      * the page asks its URL again and takes the named properties (all of them when none are
      * named) from the answer. In the browser, or after a #[Server] call.
      *

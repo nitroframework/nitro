@@ -4,8 +4,6 @@
  * the answer replaces the state, keeping anything changed in the browser meanwhile.
  */
 import * as P from '../php.js';
-import { readState } from './component.js';
-import { ErrorBag } from './errors.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -97,116 +95,6 @@ export class Network {
         } finally {
             this.runtime.provided.clear();
         }
-    }
-
-    /**
-     * $post(url, data, options), $put, $patch, $delete: a request to a controller's route, as
-     * Inertia's router.post() (a view page's actions; any page's). The data goes as JSON, with the
-     * CSRF token; the page's headers go too (X-Fusion-Navigate, X-Fusion-Partial: its id), so the
-     * page the controller answers with, or redirects to (`return back()`), comes back as page data:
-     *
-     *  - the same page: its props are taken as a partial reload takes them (merge props merged),
-     *    all of its #[Locked] properties (a view page's props) unless options.only names some;
-     *    the page's own state stays, but options.reset puts the properties it names back to their
-     *    defaults (a form once it is sent); validation errors from before are cleared
-     *  - a 422 (validation failed): its errors become $errors, and nothing else changes
-     *  - another page (a redirect elsewhere): a fusion:navigate visit to it
-     */
-    submit(component, method, url, data = null, options = null) {
-        const previous = this.queues.get(component) ?? Promise.resolve();
-        const next = previous.catch(() => {}).then(() => this.request(component, method, url, data, options));
-        next.catch((error) => this.runtime.report(component, error));
-        this.queues.set(component, next);
-        return next;
-    }
-
-    async request(component, method, url, data, options) {
-        if (component.destroyed) return;
-        const window = this.runtime.window;
-        const href = new URL(P.toStr(url), window.location.href).href;
-        const list = (key) => (options === null || options === undefined ? null : P.get(options, key));
-        const props = component.definition.props;
-        const only = list('only') !== null
-            ? P.entries(list('only')).map(([, name]) => P.toStr(name))
-            : Object.keys(props).filter((name) => props[name].locked);
-        const reset = list('reset') === null ? [] : P.entries(list('reset')).map(([, name]) => P.toStr(name));
-        const sent = new Map(component.data);
-
-        const headers = {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': this.config.csrf,
-            'X-Fusion-Navigate': '1',
-            'X-Fusion-Partial': component.id,
-            'X-Fusion-Version': this.config.bundle ?? '',
-            'X-Fusion-Once': this.runtime.onceHeader(),
-        };
-        if (only.length > 0) headers['X-Fusion-Only'] = only.join(',');
-        if (data !== null && data !== undefined) headers['Content-Type'] = 'application/json';
-
-        const loading = '$' + method.toLowerCase();
-        this.runtime.loading(component, loading, true);
-        let response;
-        try {
-            response = await fetch(href, {
-                method,
-                credentials: 'same-origin',
-                headers,
-                body: data === null || data === undefined ? undefined : P.fns.json_encode(data),
-            });
-        } catch (error) {
-            throw new ServerCallError(`${loading}(): the server could not be reached`, 0, String(error?.message ?? error));
-        } finally {
-            this.runtime.loading(component, loading, false);
-        }
-        if (component.destroyed) return;
-
-        if (response.status === 409) {
-            window.location.href = response.headers.get('X-Fusion-Location') || window.location.href;
-            return;
-        }
-        if (response.status === 419) {
-            this.runtime.emit('fusion:expired', { component: component.name, status: 419 });
-        }
-
-        const text = await response.text();
-        let answer = null;
-        try {
-            answer = JSON.parse(text);
-        } catch {
-            // not JSON: below
-        }
-
-        /** Validation failed: Laravel's messages, by field, are the page's $errors. */
-        if (response.status === 422 && answer?.errors) {
-            component.errors = new ErrorBag(new Map(Object.entries(answer.errors)));
-            component.dirty.add('$errors');
-            component.update();
-            return;
-        }
-        if (!response.ok) {
-            throw new ServerCallError(`${loading}(): the server answered ${response.status}`, response.status, text);
-        }
-
-        /** Another page, or not a page: go there (a redirect elsewhere), or leave the page as it is. */
-        if (answer?.fusion !== 1 || readState(answer.snapshot).name !== component.name) {
-            if (response.redirected || answer?.fusion === 1) this.runtime.navigator.visit(response.url);
-            return;
-        }
-
-        this.runtime.receive(answer, component);
-        this.runtime.provided = new Map(Object.entries(answer.children ?? {}));
-        try {
-            component.applyReload(answer.snapshot, only, sent, answer.partial ?? null);
-        } finally {
-            this.runtime.provided.clear();
-        }
-        if (component.errors.any()) {
-            component.errors = new ErrorBag();
-            component.dirty.add('$errors');
-        }
-        if (reset.length > 0) component.reset(reset);
-        component.update();
     }
 
     async send(component, method, args) {

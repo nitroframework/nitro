@@ -430,7 +430,7 @@ final class Fusion
         $meta = $this->meta($name);
 
         if ($meta->page) {
-            throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::fusion()) or rendered by controllers (Fusion::render()), not placed in views. Place a component instead.");
+            throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::fusion()), not placed in views. Place a component instead.");
         }
 
         return $meta;
@@ -529,10 +529,10 @@ final class Fusion
     }
 
     /**
-     * A merge prop from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()), as
-     * Fusion::render()'s: its value set when the request wants the property (the closure is not
-     * called otherwise), and, on a partial reload, the Merge kept so its rule (->matchOn(),
-     * ->prepend(), ... called after) goes with the value.
+     * A merge prop from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()):
+     * its value set when the request wants the property (the closure is not called otherwise),
+     * and, on a partial reload, the Merge kept so its rule (->matchOn(), ->prepend(), ... called
+     * after) goes with the value.
      *
      * @internal
      */
@@ -560,105 +560,7 @@ final class Fusion
     }
 
     /**
-     * A page from a controller, as Inertia::render() returns one: the component created with the
-     * props (mount()'s arguments by name, or its public properties when it has no mount()), then
-     * answered as a Route::fusion() page is, fusion:navigate visits included. A Fusion::defer()
-     * prop sets its public property after the page is shown. A page that is only a view
-     * (@page(...), ViewPages) is named by its view: 'employees.index'.
-     *
-     * @param  string  $component  the page's class, its name, or a view page's view name
-     * @param  array<string, mixed>  $props
-     */
-    public function render(string $component, array $props = []): Response
-    {
-        /** A page by its view's name, as Inertia names one: 'employees.index' is pages::employees.index. */
-        if (! class_exists($component) && ! Naming::isPage($component) && $this->registry->class(Naming::PAGES.$component) !== null) {
-            $component = Naming::PAGES.$component;
-        }
-
-        $meta = $this->meta($component);
-
-        if (! $meta->page) {
-            throw new InvalidArgumentException("Fusion::render() renders pages: [{$meta->name}] is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");
-        }
-
-        $deferred = array_filter($props, fn (mixed $value) => $value instanceof Deferred);
-        $props = array_diff_key($props, $deferred);
-
-        /**
-         * A closure prop (or a merge prop's closure) is called when the page needs it: a partial
-         * reload skips those it does not want (pages without mount()).
-         */
-        $merges = [];
-
-        foreach ($props as $prop => $value) {
-            if (! $value instanceof Closure && ! $value instanceof Merge) {
-                continue;
-            }
-
-            if (! $meta->hasMount && ! $this->wants((string) $prop)) {
-                unset($props[$prop]);
-
-                continue;
-            }
-
-            if ($value instanceof Merge) {
-                $merges[$prop] = $value->rule();
-            }
-
-            $props[$prop] = $value instanceof Merge ? $value->resolve($this->app->call(...)) : $this->app->call($value);
-        }
-
-        $page = $this->create($meta, $this->pageId(), $props);
-
-        /** On a partial reload, the merge props it reloads go with their rule (Snapshot::only()). */
-        if ($this->partial() !== null) {
-            $page->fusion()->merges = $merges;
-        }
-
-        foreach ($deferred as $property => $value) {
-            $this->deferProperty($page, (string) $property, $value->value);
-        }
-
-        return $this->respond($page, $meta);
-    }
-
-    /**
-     * A prop for Fusion::render() merged into the page's value on a partial reload, instead of
-     * replacing it, as Inertia::merge(): appended by default (->prepend(), ->matchOn('id')).
-     */
-    public function merge(mixed $value): Merge
-    {
-        return new Merge($value);
-    }
-
-    /** A merge prop merged key by key, all the way down, as Inertia::deepMerge(). */
-    public function deepMerge(mixed $value): Merge
-    {
-        return (new Merge($value))->deep();
-    }
-
-    /**
-     * A paginator for a list that loads as it scrolls, as Inertia::scroll(): the page holds
-     * ['data' => items, 'scroll' => where it is], and $loadMore('prop') reloads the next page
-     * into it.
-     */
-    public function scroll(mixed $paginator): Merge
-    {
-        return (new Merge($paginator))->asScroll();
-    }
-
-    /**
-     * A prop for Fusion::render() loaded after the page is shown, as Inertia::defer(): the browser
-     * asks for it right away, and @deferred / @placeholder show something meanwhile.
-     */
-    public function defer(Closure $value): Deferred
-    {
-        return new Deferred($value);
-    }
-
-    /**
-     * A page property loaded after the page is shown ($this->defer(), Fusion::defer()): set when
+     * A page property loaded after the page is shown ($this->defer()): set when
      * a partial reload wants it; left as it is otherwise, and named in the snapshot for the
      * browser to ask for (a partial reload that does not want it leaves it alone).
      *
