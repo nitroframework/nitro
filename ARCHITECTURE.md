@@ -17,7 +17,20 @@ adds the compiler, the browser runtime and one endpoint.
 
 ```
 src/Compiler      PHP -> JavaScript
-  Transpiler        methods, template expressions and handlers (nikic/php-parser AST -> JS)
+  Transpiler        methods, template expressions and handlers (nikic/php-parser AST -> JS):
+                    the entry points and expr()/stmt() dispatch, each node sent to a part in Php/
+  Php/              the transpiler's parts, each saying in its docblock whether it is general
+                    PHP or Fusion:
+    Statements        if, loops, switch, break/continue levels, unset            (PHP)
+    Expressions       values, operators, isset/empty, match, constants          (PHP)
+    Writes            assignments with PHP's array value semantics (P.setIn)    (PHP)
+    Calls             PHP functions, by-ref functions, Laravel helpers, Str::   (PHP, Laravel)
+    FunctionDefinitions  methods, closures, arrow functions, type coercion      (PHP)
+    Catalog           what of PHP exists in the browser: functions, constants   (PHP)
+    ComponentAccess   $this->prop, $this->method(), #[Server], dispatch,
+                      Fusion::browser()                                         (Fusion)
+    Handlers          event handlers, magic actions, template-expression rules  (Fusion)
+    Context           the state the parts share while compiling one piece of code
   Template/         the Blade subset -> a render function (Lexer, TemplateCompiler, ChildTag)
   ComponentMeta     what a class declares (properties, #[Server], #[On], mount, ...)
   ComponentCompiler class + view -> Fusion.define(...), compiling only what the browser reaches
