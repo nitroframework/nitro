@@ -44,6 +44,8 @@ final class ComponentCompiler
         private readonly ?Closure $componentName = null,
         /** An obfuscated build's names for methods and components (null: their own) */
         private readonly ?Obfuscator $names = null,
+        /** Clone mode (fusion.rendering = 'clone'): views' static parts marked for the browser to copy */
+        private readonly bool $cloneStatic = false,
     ) {
     }
 
@@ -59,7 +61,7 @@ final class ComponentCompiler
     {
         $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
         $scope = $scope->withNames($this->names);
-        $templates = new TemplateCompiler($this->isBladeDirective);
+        $templates = new TemplateCompiler($this->isBladeDirective, $this->cloneStatic);
         $templates->compile($viewSource, $scope, $viewFile);
         $this->use($templates->uses());
         $template = $templates->fragment($this->parseTemplates);

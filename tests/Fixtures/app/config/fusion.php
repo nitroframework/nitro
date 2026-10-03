@@ -31,6 +31,8 @@ return [
     'build' => [
         'obfuscate' => (bool) getenv('FUSION_OBFUSCATE'),
     ],
+    /** Clone mode (the default), unless a test turns create mode on (FUSION_RENDERING: the browser tests' create-mode run). */
+    'rendering' => getenv('FUSION_RENDERING') ?: 'clone',
     /** Readable on first use, so tests can read it (BuildTest turns it on). */
     'minify_on_change' => false,
     /** esbuild from the package's own node_modules (the fixture app has none). */

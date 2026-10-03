@@ -56,6 +56,26 @@ class RuntimeTest extends TestCase
         }
     }
 
+    /**
+     * The same, in create mode (fusion.rendering = 'create'): what the browser renders itself (a
+     * visit, an @if turning true, new rows) is created element by element, rather than the views'
+     * static parts copied (clone mode, the default), and everything behaves the same.
+     */
+    #[DataProvider('frameworks')]
+    public function test_components_come_alive_in_create_mode(string $framework): void
+    {
+        putenv('FUSION_RENDERING=create');
+
+        try {
+            $this->boot($framework);
+            $this->assertStringNotContainsString('"s": 1', $this->app->make(\Nitro\Fusion\Build\Bundle::class)->compile(), 'no static parts marked');
+
+            $this->test_components_come_alive_in_the_browser($framework);
+        } finally {
+            putenv('FUSION_RENDERING');
+        }
+    }
+
     private function seed(string $database): void
     {
         $pdo = new \PDO('sqlite:'.$database);

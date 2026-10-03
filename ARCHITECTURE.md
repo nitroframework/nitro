@@ -42,6 +42,7 @@ src/Compiler      PHP -> JavaScript
       ExpressionTable   numbered expressions and what each reads              (Fusion)
       FusionAttributes  fusion:click, fusion:model, fusion:transition, ...    (Fusion)
       ChildComponents   <fusion:child />, <fusion:slot>                       (Fusion)
+      StaticParts       clone mode: marks static parts for the browser to copy (Fusion)
       Syntax            what a view may contain: directives, HTML rules
       Context           the state the parts share while compiling one view
   ComponentMeta     what a class declares (properties, #[Server], #[On], mount, ...)

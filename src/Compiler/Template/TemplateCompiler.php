@@ -14,6 +14,7 @@ use Nitro\Fusion\Compiler\Template\Parts\ExpressionTable;
 use Nitro\Fusion\Compiler\Template\Parts\FusionAttributes;
 use Nitro\Fusion\Compiler\Template\Parts\HtmlScanner;
 use Nitro\Fusion\Compiler\Template\Parts\InlinedViews;
+use Nitro\Fusion\Compiler\Template\Parts\StaticParts;
 use Nitro\Fusion\Compiler\Template\Parts\Syntax;
 use Nitro\Fusion\Compiler\Template\Parts\Tree;
 use Nitro\Fusion\Compiler\Transpiler;
@@ -73,8 +74,11 @@ final class TemplateCompiler
 
     public readonly ChildComponents $childComponents;
 
-    /** @param  Closure(string): bool  $isBladeDirective */
-    public function __construct(private readonly Closure $isBladeDirective)
+    /**
+     * @param  Closure(string): bool  $isBladeDirective
+     * @param  bool  $cloneStatic  clone mode (fusion.rendering = 'clone'): the static parts are marked for the browser to copy (StaticParts)
+     */
+    public function __construct(private readonly Closure $isBladeDirective, private readonly bool $cloneStatic = false)
     {
         $this->context = new Context;
 
@@ -218,6 +222,11 @@ final class TemplateCompiler
         }
 
         $c->tree = $root->toArray();
+
+        /** Clone mode: the static parts marked, for the browser to copy rather than create. */
+        if ($this->cloneStatic) {
+            $c->tree = StaticParts::mark($c->tree);
+        }
 
         return $this->fragment();
     }

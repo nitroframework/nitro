@@ -246,6 +246,12 @@ What a part reads is worked out at compile time, through what it calls:
 Reading more than needed only renders more; what a part reads is never missed. A method the
 browser does not have (a `#[Server]` method's value) counts as reading everything.
 
+When the browser makes elements itself (a `fusion:navigate` visit, an `@if` that turns true, new
+rows of a list), `fusion.rendering` says how. With `'clone'` (the default), each static part of a
+view, markup without data, is made once and copied after that; only the parts with data are
+created. With `'create'`, every element and attribute is created in turn. The page is the same
+either way. The first page load is the server's HTML, taken over as it is, in both.
+
 ## Directives
 
 | Attribute | |

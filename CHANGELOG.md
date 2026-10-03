@@ -4,6 +4,11 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- `fusion.rendering`: `'clone'` (the default) copies each static part of a view the browser
+  renders itself (a visit, an `@if` turning true, new rows) from one made once; `'create'` makes
+  every element in turn, as before. On the dashboard's Students page a visit renders about 20%
+  faster; the page is the same either way.
+
 - `fusion:navigate` to any page, not only Fusion pages: a Blade view, a controller's view or a page
   in another layout comes as HTML and replaces the document without reloading (as
   `wire:navigate`), and links from such pages navigate too.

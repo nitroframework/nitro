@@ -179,6 +179,24 @@ return [
 
     'minify_on_change' => env('FUSION_MINIFY_ON_CHANGE', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Rendering in the browser
+    |--------------------------------------------------------------------------
+    |
+    | How the browser makes the elements of a view it renders itself: a page
+    | reached by fusion:navigate, an @if that turns true, new rows of a list.
+    | (The first page load is the server's HTML, taken over as it is.)
+    |
+    | 'clone' (the default): each static part, markup without data, is copied
+    | from one made the first time it renders; only the parts with data are
+    | created. 'create': each element and attribute is created in turn. The
+    | page is the same either way.
+    |
+    */
+
+    'rendering' => 'clone',
+
     'esbuild' => [
         'node' => env('FUSION_NODE', 'node'),
         'root' => base_path(),

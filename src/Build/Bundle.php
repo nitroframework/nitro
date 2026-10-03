@@ -67,7 +67,12 @@ final class Bundle
         private readonly string $staticPath = 'fusion',
         /** fusion.build.obfuscate: a build names methods and components by aliases (Obfuscator) */
         private readonly bool $obfuscate = false,
+        /** fusion.rendering: 'clone' (the default: views' static parts copied in the browser) or 'create' */
+        private readonly string $rendering = 'clone',
     ) {
+        if (! in_array($rendering, ['create', 'clone'], true)) {
+            throw new \InvalidArgumentException("fusion.rendering is 'create' or 'clone', not '{$rendering}'");
+        }
     }
 
     /**
@@ -108,7 +113,9 @@ final class Bundle
             $this->sources()
         )).$this->fusion->runtimeVersion().json_encode($this->routes())
             /** Obfuscated names come from the key: either changing makes another build. */
-            .($this->obfuscate ? 'obfuscate:'.hash('sha256', $this->fusion->key()) : '')), 0, 16);
+            .($this->obfuscate ? 'obfuscate:'.hash('sha256', $this->fusion->key()) : '')
+            /** Clone mode marks the templates' static parts: another build than create mode's. */
+            .($this->rendering === 'clone' ? 'rendering:clone' : '')), 0, 16);
     }
 
     /**
@@ -282,6 +289,7 @@ final class Bundle
             parseTemplates: $build,
             componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null,
             names: $names,
+            cloneStatic: $this->rendering === 'clone',
         );
         $main = [];
         $chunks = [];

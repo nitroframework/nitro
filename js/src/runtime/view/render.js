@@ -81,7 +81,8 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
                 break;
             }
             case 't':
-                renderTag(target, instance, node, scope, hydrate, insert);
+                /** Clone mode (fusion.rendering): a static part, copied rather than created. */
+                node.s && !hydrate ? cloneStatic(target, instance, node, scope, insert) : renderTag(target, instance, node, scope, hydrate, insert);
                 break;
             case 'c':
                 renderChild(target, instance, node, scope, hydrate, insert);
@@ -162,6 +163,36 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         const transition = transitionOf(element);
         if (transition?.enter && (instance.live || transition.appear) && !motionless(element)) entering(element, transition);
     }
+    return element;
+}
+
+/**
+ * Clone mode (config fusion.rendering = 'clone', the default; the compiler marks static parts s: 1, see
+ * StaticParts.php): a part without data, copied. The first time it renders (per namespace it lands
+ * in) it is made as create mode makes it, into a detached element, with no component's marks; that
+ * one is kept, and every render copies it. The copy then gets what create mode gives a new element
+ * of the component: its owner (read by walking up, so on the part's top element) and added().
+ */
+const statics = new WeakMap();
+
+function cloneStatic(target, instance, node, scope, insert) {
+    const ns = namespaceOf(insert ? target.parentNode : target, node.c);
+    let byNs = statics.get(node);
+    if (!byNs) statics.set(node, (byNs = new Map()));
+    let source = byNs.get(ns);
+    if (!source) {
+        const document = instance.document;
+        const holder = ns === null ? document.createElement('div') : document.createElementNS(ns, ns === SVG ? 'svg' : 'math');
+        /** No component: no owner, no handlers, nothing tracked (a static part has none of those). */
+        const neutral = { document, host: {}, leaks: new WeakMap() };
+        source = renderTag(holder, neutral, node, scope, false, false);
+        byNs.set(ns, source);
+    }
+
+    const element = source.cloneNode(true);
+    if (instance.ownerId !== undefined) element.fusionOwner = instance.ownerId;
+    append(target, element, insert);
+    instance.host.added?.(element);
     return element;
 }
 
