@@ -32,6 +32,18 @@ src/Compiler      PHP -> JavaScript
     Handlers          event handlers, magic actions, template-expression rules  (Fusion)
     Context           the state the parts share while compiling one piece of code
   Template/         the Blade subset -> a render function (Lexer, TemplateCompiler, ChildTag)
+    TemplateCompiler  the front door: the token loop, each token sent to a part in Parts/
+    Parts/            each saying in its docblock whether it is HTML, Blade or Fusion:
+      HtmlScanner       the markup as the browser's HTML parser reads it      (HTML)
+      Tree              the open stack and the nodes it builds                (HTML)
+      Directives        each @directive where it belongs                      (Blade)
+      Blocks            loops, @switch, @break/@continue, @error, @teleport   (Blade)
+      InlinedViews      @include and <x-component> (BladeInliner's markers)   (Blade)
+      ExpressionTable   numbered expressions and what each reads              (Fusion)
+      FusionAttributes  fusion:click, fusion:model, fusion:transition, ...    (Fusion)
+      ChildComponents   <fusion:child />, <fusion:slot>                       (Fusion)
+      Syntax            what a view may contain: directives, HTML rules
+      Context           the state the parts share while compiling one view
   ComponentMeta     what a class declares (properties, #[Server], #[On], mount, ...)
   ComponentCompiler class + view -> Fusion.define(...), compiling only what the browser reaches
   Globals           everything a component can use without declaring it, in one table
