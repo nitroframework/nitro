@@ -218,9 +218,11 @@ class ServerCallTest extends TestCase
         $this->assertSame('hello', $state['data']['note']);
         $this->assertArrayNotHasKey('secret', $state['data']['student']);
 
-        /** A deleted model: the call fails, it does not run on a stale copy. */
+        /** A deleted model: never a stale copy. $student is nullable, so it is null (ModelStateTest: a non-nullable one answers 404). */
         Student::find(1)->delete();
-        $this->assertSame(404, $this->call($this->json($response)['snapshot'], 'rename', ['Ghost'])->getStatusCode());
+        $gone = $this->call($this->json($response)['snapshot'], null);
+        $this->assertSame(200, $gone->getStatusCode(), (string) $gone->getContent());
+        $this->assertNull(Wire::fromJson($this->json($gone)['snapshot']['state'])['data']['student']);
     }
 
     #[DataProvider('frameworks')]

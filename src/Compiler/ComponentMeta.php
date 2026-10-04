@@ -2,6 +2,8 @@
 
 namespace Nitro\Fusion\Compiler;
 
+use BackedEnum;
+use Illuminate\Database\Eloquent\Model;
 use Nitro\Fusion\Attributes\Computed;
 use Nitro\Fusion\Attributes\Description;
 use Nitro\Fusion\Attributes\Layout;
@@ -14,6 +16,7 @@ use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Attributes\Title;
 use Nitro\Fusion\Attributes\Url;
+use Nitro\Fusion\Attributes\Validate;
 use Nitro\Fusion\Attributes\View;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\State;
@@ -35,7 +38,7 @@ final class ComponentMeta
      * @param  list<string>  $serverMethods
      * @param  list<string>  $browserMethods  methods that may be compiled (if something reaches them)
      * @param  array<string, list<string>>  $listeners  event => methods
-     * @param  array<string, list<array{name: string, type: ?string, nullable: bool, optional: bool, variadic: bool}>>  $serverParameters
+     * @param  array<string, list<array{name: string, type: ?string, kind: string, nullable: bool, optional: bool, variadic: bool}>>  $serverParameters
      * @param  list<string>  $computed  #[Computed] methods, read as $this->name
      * @param  string|null  $lazy  the chunk it is compiled into: a page's own (or its #[LazyLoad] group),
      *                             a component's #[LazyLoad] group; null for the main bundle
@@ -64,7 +67,33 @@ final class ComponentMeta
         public readonly ?string $navigate = null,
         /** #[Description]: the page's description for search results and link previews. */
         public readonly ?string $description = null,
+        /**
+         * #[Validate], by property: its rules by key (the property, or keys of an array in dot
+         * notation) and the names messages give them.
+         *
+         * @var array<string, array{rules: array<string, mixed>, attributes: array<string, string>}>
+         */
+        public readonly array $rules = [],
     ) {
+    }
+
+    /**
+     * The rules of these properties (#[Validate]), and the names messages give them.
+     *
+     * @param  list<string>|null  $properties  null: every property that has rules
+     * @return array{0: array<string, mixed>, 1: array<string, string>}
+     */
+    public function rulesFor(?array $properties = null): array
+    {
+        $rules = [];
+        $attributes = [];
+
+        foreach ($properties === null ? $this->rules : array_intersect_key($this->rules, array_flip($properties)) as $set) {
+            $rules += $set['rules'];
+            $attributes += $set['attributes'];
+        }
+
+        return [$rules, $attributes];
     }
 
     public static function read(string $class, string $name, string $defaultView, bool $page = false): self
@@ -78,9 +107,20 @@ final class ComponentMeta
 
         $properties = [];
         $modelable = null;
+        $rules = [];
 
         foreach (State::properties($class) as $property) {
             $url = ($property->getAttributes(Url::class)[0] ?? null)?->newInstance();
+
+            /** #[Validate]: rules for the property itself, or rules by key when given with string keys (an array's). */
+            if (($validate = ($property->getAttributes(Validate::class)[0] ?? null)?->newInstance()) !== null) {
+                $field = $property->getName();
+                $byKey = is_array($validate->rules) && $validate->rules !== [] && ! array_is_list($validate->rules);
+                $rules[$field] = [
+                    'rules' => $byKey ? $validate->rules : [$field => $validate->rules],
+                    'attributes' => $validate->as === null ? [] : [$field => $validate->as],
+                ];
+            }
             $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== []);
 
             if ($property->getAttributes(Modelable::class) !== []) {
@@ -195,6 +235,7 @@ final class ComponentMeta
             $page,
             $navigate,
             $description,
+            $rules,
         );
     }
 
@@ -229,8 +270,14 @@ final class ComponentMeta
     }
 
     /**
-     * The parameters of a #[Server] method: values from the browser (scalars and arrays) or
-     * services the container provides (class types).
+     * The parameters of a #[Server] method, each with what it takes from the browser:
+     *   'value'    a scalar or an array, checked against its type
+     *   'model'    an Eloquent model, from its key, as route model binding resolves one
+     *   'enum'     a backed enum, from its value
+     *   'service'  any other class, from the container (nothing from the browser)
+     *
+     * What can never arrive refuses to build: object, iterable, callable, self and parent (nothing
+     * fills them), a variadic model or enum, an abstract model, a pure enum (it has no value to send).
      */
     private static function parameters(ReflectionMethod $method, string $file): array
     {
@@ -238,6 +285,7 @@ final class ComponentMeta
 
         foreach ($method->getParameters() as $parameter) {
             $type = $parameter->getType();
+            $where = "#[Server] {$method->getName()}(\${$parameter->getName()})";
 
             if ($type !== null && ! $type instanceof ReflectionNamedType) {
                 throw new CompileException("#[Server] {$method->getName()}(): union and intersection parameter types are not supported", $file, $method->getStartLine());
@@ -247,9 +295,35 @@ final class ComponentMeta
                 throw new CompileException("#[Server] {$method->getName()}(): parameters cannot be passed by reference", $file, $method->getStartLine());
             }
 
+            $name = $type?->getName();
+
+            /** Types neither the browser can send nor the container can make. */
+            if (in_array($name, ['object', 'iterable', 'callable', 'self', 'parent', 'null', 'true', 'false'], true)) {
+                throw new CompileException("{$where}: a {$name} parameter cannot be filled from the browser. Take a scalar, an array, a model (by its key) or a backed enum, or a service class from the container.", $file, $method->getStartLine());
+            }
+
+            $kind = match (true) {
+                $name === null || $type->isBuiltin() => 'value',
+                is_a($name, Model::class, true) => 'model',
+                enum_exists($name) => 'enum',
+                default => 'service',
+            };
+
+            $problem = match (true) {
+                $kind === 'model' && (new ReflectionClass($name))->isAbstract() => "{$name} is abstract: name the model the key belongs to",
+                $kind === 'enum' && ! is_subclass_of($name, BackedEnum::class) => "{$name} is a pure enum: it has no value the browser can send (make it a backed enum: enum {$parameter->getName()}: string)",
+                in_array($kind, ['model', 'enum'], true) && $parameter->isVariadic() => 'a model or an enum arrives one per parameter, not variadic (take an array of keys and look them up)',
+                default => null,
+            };
+
+            if ($problem !== null) {
+                throw new CompileException("{$where}: {$problem}", $file, $method->getStartLine());
+            }
+
             $parameters[] = [
                 'name' => $parameter->getName(),
-                'type' => $type?->getName(),
+                'type' => $name,
+                'kind' => $kind,
                 'nullable' => $type === null || $type->allowsNull(),
                 'optional' => $parameter->isOptional(),
                 'variadic' => $parameter->isVariadic(),

@@ -618,8 +618,9 @@ export class Runtime {
         if (!target.to && !target.self) this.emit(event, { params: args, component: source?.name ?? null });
     }
 
-    emit(name, detail) {
-        this.window.dispatchEvent(new this.window.CustomEvent(name, { detail }));
+    /** A window event; with cancelable, whether no listener called preventDefault(). */
+    emit(name, detail, cancelable = false) {
+        return this.window.dispatchEvent(new this.window.CustomEvent(name, { detail, cancelable }));
     }
 
     report(component, error) {

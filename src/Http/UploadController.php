@@ -45,7 +45,7 @@ final class UploadController
             throw new HttpException(400, 'Malformed upload.');
         }
 
-        $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion()->key());
+        $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
         $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
 
         if (! $this->fusion()->has($snapshot->name)) {

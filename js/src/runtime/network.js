@@ -133,8 +133,13 @@ export class Network {
         }
 
         const text = await response.text();
+        /**
+         * The state is no longer good (another session, an expired lifetime, a logout, a new
+         * APP_KEY): the page loads again, with fresh state. A fusion:expired listener can
+         * preventDefault() to do something else.
+         */
         if (response.status === 419) {
-            this.runtime.emit('fusion:expired', { component: component.name, status: 419 });
+            if (this.runtime.emit('fusion:expired', { component: component.name, status: 419 }, true)) this.runtime.window.location.reload();
         }
         if (!response.ok) {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server answered ${response.status}`, response.status, text);

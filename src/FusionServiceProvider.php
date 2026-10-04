@@ -98,9 +98,8 @@ class FusionServiceProvider extends ServiceProvider
          * Route::fusion('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':
          * a page; mount() is the action, so its parameters bind like a controller's.
          */
-        $app = $this->app;
-        Router::macro('fusion', function (string $uri, string $page) use ($app) {
-            $registry = $app->make(Registry::class);
+        Router::macro('fusion', function (string $uri, string $page) {
+            $registry = app(Registry::class);
             $class = class_exists($page) ? ltrim($page, '\\') : ($registry->class($page) ?? throw new InvalidArgumentException("Route::fusion(): there is no page [{$page}]."));
 
             if (! $registry->isPageClass($class)) {

@@ -93,7 +93,7 @@ class NavigationTest extends TestCase
         $this->assertSame('todo-list', $state['name']);
         $this->assertSame(['Plan', 'Build'], array_column($state['data']['todos'], 'title'));
         $this->assertSame(3, $state['data']['nextId'], 'mount() ran');
-        Snapshot::fromEnvelope($envelope, $this->fusion()->key());
+        Snapshot::fromEnvelope($envelope, $this->fusion()->stateKeys());
 
         /** The todo items have no mount(): the browser creates them. */
         $this->assertStringNotContainsString('todo-item', json_encode($page['children']));

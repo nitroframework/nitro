@@ -145,7 +145,14 @@ A method the browser never reaches is never compiled, so private helpers called 
 
 Public properties are the component's state. They can be `null`, `bool`, `int`, `float`, `string`,
 `array`, an Eloquent model or an Eloquent collection. Models reach the browser as their visible
-attributes and are read again on the server.
+attributes and are read again from the database on each `#[Server]` call, never taken from the
+browser:
+
+- a collection keeps its order, each model of its own class (a polymorphic relation's too), and
+  leaves out rows deleted since;
+- a single model whose row was deleted is `null` when the property is nullable
+  (`public ?Post $post`), so the component can tell and the view can show it; a property that
+  is not nullable answers 404.
 
 | Attribute | |
 | --- | --- |
@@ -153,6 +160,29 @@ attributes and are read again on the server.
 | `#[Url]` | Kept in the query string (`as`, `history`, `keep`, `except`); read before `mount()` and kept in step with the property |
 | `#[Remember]` | Kept in the browser's history entry: back, forward and a reload bring back its value, such as a half-filled form. Not for `#[Locked]` properties, models or uploads |
 | `#[Modelable]` | On one property, lets a parent bind it: `<fusion:search-box fusion:model="query" />` |
+| `#[Validate]` | Rules checked on the server whenever the browser changes the property: `#[Validate('integer\|min:1\|max:10')]`; for an array's keys, `#[Validate(['tags' => 'array\|max:3', 'tags.*' => 'string'])]`; `as:` names it in messages |
+
+**What the browser can change.** Every public property that is not `#[Locked]` can be set by the
+browser to **any value of its type**: anyone can send a request without the page, so
+`$quantity` can arrive as `-500`. `updated*()` hooks run in the browser and protect nothing on the
+server. The server checks the type, and the `#[Validate]` rules of what changed before a
+`#[Server]` method runs: when one fails, the method does not run and the messages are in
+`$errors`.
+
+```php
+#[Validate('integer|min:1|max:10', as: 'quantity')]
+public int $quantity = 1;
+
+#[Server]
+public function checkout(): void
+{
+    // $quantity is between 1 and 10 here
+}
+```
+
+Put a rule on every property a `#[Server]` method relies on, or validate in the method itself.
+`$this->validate()` with no rules checks every property's `#[Validate]` rules, for example
+before saving a form.
 
 Pages also take `#[Title]`, `#[Description]`, `#[Layout]`, `#[LazyLoad]` and `#[Navigate]` (see
 [Pages](#pages) and [Navigation](#navigation)).
@@ -196,8 +226,18 @@ class Cart extends Component
 - **`mount(...)`** runs once, on the server, when the component is created. Its parameters come
   from the route (with route-model binding) or from the tag: `<fusion:cart :customer="$customer" />`.
 - **Methods** run in the browser.
-- **`#[Server]` methods** run on the server. Their arguments are checked against their types, and
-  class-typed parameters are resolved from the container.
+- **`#[Server]` methods** run on the server. Their arguments are checked against their types:
+  - a **model** parameter receives the record its key names, as route model binding resolves one
+    (its route key, or its own `resolveRouteBinding()`): `fusion:click="remove($post['id'])"` gives
+    `remove(Post $post)` the post. The row itself works too: `remove($post)`. A missing record
+    answers 404; a nullable `?Post` takes `null`;
+  - a **backed enum** parameter receives the case its value names; another value answers 403;
+  - any other class is resolved from the container and takes nothing from the browser.
+
+  Resolving a record is not authorizing it: the key comes from the browser, so check that the
+  visitor may act on it (`$this->authorize('delete', $post)`, a policy, a query scoped to them).
+  A parameter the browser can never fill, such as a variadic model, an abstract model or a pure
+  enum, fails the build.
 - **`#[Computed]` methods** are read as properties (`$this->total`). The value is worked out once
   and kept until the state changes. They take no parameters and are not part of the state.
 - **`$this->validate([...])`** in a `#[Server]` method: failures appear as `$errors`.
@@ -994,6 +1034,8 @@ of views and browser methods.
 | `head` | `'%s'`, no description or image | `@fusionHead`'s defaults: the title format, the description and the link-preview image |
 | `persistent_middleware` | auth, can, verified, ... | Page middleware checked again on each `#[Server]` call |
 | `max_payload` | 1 MB | The largest `#[Server]` call accepted |
+| `state.bind_to_session` | `true` | Sign state with the session's secret too: good only in its own session |
+| `state.lifetime` | `null` | How long a snapshot is good for, in seconds; null: as long as its session |
 | `uploads` | | `directory`, `rules`, `max_files`, `throttle` |
 | `public_config` | `['app.name']` | Config keys `config()` may read in the browser; their values are public |
 | `compiled` | `storage/framework/fusion` | Where compiled files are written |
@@ -1056,14 +1098,35 @@ Fusion runs your methods in the browser, which has some consequences:
 
 ## Security
 
-A `#[Server]` call carries the component's state, signed with the application key. The endpoint
-refuses:
+A `#[Server]` call carries the component's state, signed with the application key and the
+session's own secret. The endpoint refuses:
 
-- a changed or foreign state (419);
+- a changed state, or one made in another session: another visitor's, or one from before a
+  logout (419);
+- a state older than `fusion.state.lifetime`, when one is set (419);
 - methods that are not `#[Server]`, locked or unknown properties, and values or arguments of the
   wrong type (403);
 - a visitor who no longer passes the page's authorization middleware (`auth`, `can`, `verified`,
   ...), so a component stops working after logout.
+
+Within its type, an unlocked property takes any value the browser sends; `#[Validate]` rules on
+it are checked before a `#[Server]` method runs (see [Properties](#properties)).
+
+On a 419 the page reloads with fresh state; a `fusion:expired` listener can `preventDefault()` to
+do something else.
+
+```php
+// config/fusion.php
+'state' => [
+    'bind_to_session' => true,   // off only for pages cached as whole HTML for every visitor
+    'lifetime' => null,          // seconds; set it where an old state must not come back
+],
+```
+
+Signing keeps the browser from changing a `#[Locked]` value. It does not keep the same visitor
+from sending an older state of their own session within its lifetime. `#[Locked]` means
+unchangeable, not current: read what must be current (a balance, a step that was paid for, a
+permission) from the database in the `#[Server]` method.
 
 The endpoint runs in the `web` middleware group, with sessions and CSRF protection. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for how state, signing and calls work.

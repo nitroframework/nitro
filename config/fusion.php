@@ -102,6 +102,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Component state
+    |--------------------------------------------------------------------------
+    |
+    | Each component's state travels signed: the browser cannot change it.
+    |
+    | bind_to_session: sign it with the session's own secret too, so a
+    | snapshot is good only in the session it was made for: not in another
+    | visitor's, and not after logout. Turn it off only for pages cached as
+    | whole HTML for every visitor (a CDN, full-page caching), whose state
+    | would otherwise belong to the first visitor's session.
+    |
+    | lifetime: how long a snapshot is good for, in seconds; null (the
+    | default): as long as its session. Set it for flows where an old state
+    | must not come back (payments, balances): 1800 is half an hour. A page
+    | older than that reloads on its next call.
+    |
+    | Signing keeps the browser from changing a #[Locked] value, not from
+    | sending an older one of the same session: read what must be current
+    | (a balance, a paid step) from the database in the #[Server] method.
+    |
+    */
+
+    'state' => [
+        'bind_to_session' => true,
+        'lifetime' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Uploads
     |--------------------------------------------------------------------------
     |

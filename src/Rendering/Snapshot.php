@@ -61,12 +61,18 @@ final class Snapshot
                 $models[$name] = self::modelReference($value, $meta->name, $name);
                 $data[$name] = $value->toArray();
             } elseif ($value instanceof EloquentCollection) {
-                $models[$name] = [
-                    'collection' => true,
-                    'class' => $value->isEmpty() ? null : get_class($value->first()),
-                    'keys' => $value->map(fn (Model $m) => self::modelReference($m, $meta->name, $name)['key'])->all(),
-                    'connection' => $value->first()?->getConnectionName(),
-                ];
+                $references = $value->map(fn (Model $m) => self::modelReference($m, $meta->name, $name))->values()->all();
+                $classes = array_unique(array_column($references, 'class'));
+
+                /** One class (the usual): its keys. Several (a polymorphic relation's): each model's class and key, in order. */
+                $models[$name] = count($classes) > 1
+                    ? ['collection' => true, 'items' => array_map(fn (array $r) => [$r['class'], $r['key'], $r['connection']], $references)]
+                    : [
+                        'collection' => true,
+                        'class' => $value->isEmpty() ? null : get_class($value->first()),
+                        'keys' => array_column($references, 'key'),
+                        'connection' => $value->first()?->getConnectionName(),
+                    ];
                 $data[$name] = $value->toArray();
             } else {
                 $data[$name] = $value;
@@ -184,27 +190,38 @@ final class Snapshot
     public function toJson(string $key, ?string $name = null, ?Obfuscator $names = null): string
     {
         [$data, $memo] = $names === null ? [$this->data, $this->memo] : $this->renamed($names->property(...), $names->path(...));
-        $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo]);
+        /** issued: when it was signed, for fusion.state.lifetime. */
+        $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo, 'issued' => time()]);
 
         return json_encode(['state' => $state, 'checksum' => self::sign($state, $key)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**
-     * The envelope the browser sent back, verified.
+     * The envelope the browser sent back, verified: signed with one of $keys (Fusion::stateKeys():
+     * this session's, or the application's for state made without a session), and, with a
+     * $lifetime (seconds), signed no longer ago than that.
      *
-     * @throws HttpException 419 when it was not signed by this application or was changed
+     * @param  string|list<string>  $keys
+     *
+     * @throws HttpException 419 when it was changed, belongs to another session, or has expired
      */
-    public static function fromEnvelope(mixed $envelope, string $key): self
+    public static function fromEnvelope(mixed $envelope, string|array $keys, ?int $lifetime = null): self
     {
-        if (! is_array($envelope) || ! is_string($envelope['state'] ?? null) || ! is_string($envelope['checksum'] ?? null)
-            || ! hash_equals(self::sign($envelope['state'], $key), $envelope['checksum'])) {
-            throw new HttpException(419, 'The component state was changed or has expired: reload the page.');
+        $signed = is_array($envelope) && is_string($envelope['state'] ?? null) && is_string($envelope['checksum'] ?? null)
+            && array_filter((array) $keys, fn (string $key) => hash_equals(self::sign($envelope['state'], $key), $envelope['checksum'])) !== [];
+
+        if (! $signed) {
+            throw new HttpException(419, 'The component state is not valid here (changed, or from another session): reload the page.');
         }
 
         try {
             $state = Wire::fromJson($envelope['state']);
         } catch (JsonException|InvalidArgumentException) {
             throw new HttpException(419, 'The component state is corrupt.');
+        }
+
+        if ($lifetime !== null && (! is_int($state['issued'] ?? null) || $state['issued'] + $lifetime < time())) {
+            throw new HttpException(419, 'The component state has expired: reload the page.');
         }
 
         return new self($state['name'], $state['id'], $state['data'] ?? [], $state['memo'] ?? []);
@@ -225,7 +242,7 @@ final class Snapshot
             }
 
             $component->{$name} = match (true) {
-                in_array($property->kind, [PropertyMeta::MODEL, PropertyMeta::COLLECTION], true) => isset($models[$name]) ? self::loadModels($models[$name]) : null,
+                in_array($property->kind, [PropertyMeta::MODEL, PropertyMeta::COLLECTION], true) => isset($models[$name]) ? self::loadModels($models[$name], $property->nullable) : null,
                 isset($merges[$name]) => Merge::apply($component->{$name}, $this->data[$name], $merges[$name]),
                 default => $this->data[$name],
             };
@@ -238,10 +255,31 @@ final class Snapshot
         $context->scroll = [...$context->scroll, ...(array) ($this->memo['scroll'] ?? [])];
     }
 
-    /** @return Model|EloquentCollection<int, Model> */
-    private static function loadModels(array $reference): Model|EloquentCollection
+    /**
+     * A model property read again from the database. A collection keeps its order and leaves out
+     * the rows gone since. A single model whose row is gone: null for a nullable property (the
+     * component can tell, and the view show it), a 404 otherwise.
+     *
+     * @return Model|EloquentCollection<int, Model>|null
+     */
+    private static function loadModels(array $reference, bool $nullable = false): Model|EloquentCollection|null
     {
         if ($reference['collection'] ?? false) {
+            /** Several classes: each class's models in one query, then in the order they were in. */
+            if (isset($reference['items'])) {
+                $found = [];
+
+                foreach (collect($reference['items'])->groupBy(fn (array $item) => $item[0].'|'.$item[2]) as $group) {
+                    [$class, , $connection] = $group->first();
+
+                    foreach ($class::on($connection)->whereKey($group->pluck(1)->all())->get() as $model) {
+                        $found[$class.'|'.$model->getKey()] = $model;
+                    }
+                }
+
+                return new EloquentCollection(array_values(array_filter(array_map(fn (array $item) => $found[$item[0].'|'.$item[1]] ?? null, $reference['items']))));
+            }
+
             if ($reference['class'] === null) {
                 return new EloquentCollection;
             }
@@ -251,7 +289,9 @@ final class Snapshot
             return new EloquentCollection(array_values(array_filter(array_map(fn ($key) => $models[$key] ?? null, $reference['keys']))));
         }
 
-        return $reference['class']::on($reference['connection'])->findOrFail($reference['key']);
+        $query = $reference['class']::on($reference['connection']);
+
+        return $nullable ? $query->find($reference['key']) : $query->findOrFail($reference['key']);
     }
 
     private static function sign(string $state, string $key): string

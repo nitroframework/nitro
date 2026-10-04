@@ -25,7 +25,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Fusion in an application: its configuration, its components, and rendering them on the server.
- * Everything else asks this class (the service provider binds it once per application).
+ * Everything else asks this class (the service provider binds it once per request: scoped).
  */
 final class Fusion
 {
@@ -206,6 +206,65 @@ final class Fusion
         }
 
         return hash_hmac('sha256', 'nitro-fusion:state', $appKey);
+    }
+
+    /**
+     * The key component state is signed with: the application's, mixed with this session's own
+     * secret (fusion.state.bind_to_session), so a snapshot is good in the session it was made for
+     * only: not another visitor's, and not after logout. Without a session, the application's.
+     */
+    public function stateKey(): string
+    {
+        $secret = $this->sessionSecret();
+
+        return $secret === null ? $this->key() : hash_hmac('sha256', 'nitro-fusion:session|'.$secret, $this->key());
+    }
+
+    /**
+     * The keys state from the browser may be signed with: this session's, and the application's
+     * alone, which only state made without a session carries.
+     *
+     * @return list<string>
+     */
+    public function stateKeys(): array
+    {
+        return array_values(array_unique([$this->stateKey(), $this->key()]));
+    }
+
+    /** How long a snapshot is good for, in seconds (fusion.state.lifetime); null: as long as its session. */
+    public function stateLifetime(): ?int
+    {
+        $lifetime = $this->config('state.lifetime');
+
+        return $lifetime === null ? null : (int) $lifetime;
+    }
+
+    /**
+     * This session's secret for signing state, made the first time it is needed and kept in the
+     * session: a login keeps it (the session migrates), a logout ends it (the session is flushed).
+     * Null when state is not bound to the session, or there is no session.
+     */
+    private function sessionSecret(): ?string
+    {
+        if (! $this->config('state.bind_to_session', true) || ! $this->app->bound('request')) {
+            return null;
+        }
+
+        $request = $this->app->make('request');
+
+        if (! $request instanceof Request || ! $request->hasSession()) {
+            return null;
+        }
+
+        $session = $request->session();
+        $secret = $session->get('fusion.secret');
+
+        if (! is_string($secret) || $secret === '') {
+            $secret = Str::random(40);
+            $session->put('fusion.secret', $secret);
+        }
+
+        return $secret;
     }
 
     /** An URL under Fusion's endpoint (config fusion.endpoint). */
@@ -411,7 +470,7 @@ final class Fusion
             /** No parent renders its slots in the browser: their HTML goes with its state. */
             $memo = $this->pageMemo() + (array_filter($slots, fn (string $html) => trim($html) !== '') === [] ? [] : ['slots' => $slots]);
 
-            return $this->renderer->render($component, $meta, $this->key(), $memo, $attributes);
+            return $this->renderer->render($component, $meta, $this->stateKey(), $memo, $attributes);
         };
 
         if ($hydrate === null) {
@@ -430,7 +489,7 @@ final class Fusion
         $component = $this->create($meta, $parent->getId().'.'.$key, $props);
         $component->fusion()->slots = $slots;
 
-        return $this->renderer->render($component, $meta, $this->key(), $this->pageMemo());
+        return $this->renderer->render($component, $meta, $this->stateKey(), $this->pageMemo());
     }
 
     /** A component placed in a view (<fusion:...>, @fusion, a dynamic component): not a page. */
@@ -677,7 +736,7 @@ final class Fusion
             return $this->pageData($component, $meta, $layout, $layoutData)->setVary(self::NAVIGATE_HEADER, false);
         }
 
-        $html = $this->renderer->render($component, $meta, $this->key(), $this->pageMemo(), ['fusion:page' => $this->layoutKey($layout, $layoutData)]);
+        $html = $this->renderer->render($component, $meta, $this->stateKey(), $this->pageMemo(), ['fusion:page' => $this->layoutKey($layout, $layoutData)]);
 
         $page = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString($html)])->render();
 
@@ -692,7 +751,7 @@ final class Fusion
      */
     private function pageData(Component $component, ComponentMeta $meta, string $layout, array $layoutData): JsonResponse
     {
-        $key = $this->key();
+        $key = $this->stateKey();
         $memo = $this->pageMemo();
 
         $children = $this->hasServerChildren($meta)

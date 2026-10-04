@@ -131,13 +131,20 @@ abstract class Component
     }
 
     /**
-     * Validate the public properties (rules keyed by property, dot notation for arrays). Failures
-     * reach the browser as $errors, as they would on a form request.
+     * Validate the public properties (rules keyed by property, dot notation for arrays); with no
+     * rules, the #[Validate] rules of every property that has them. Failures reach the browser as
+     * $errors, as they would on a form request.
      *
      * @return array<string, mixed> the validated data
      */
-    final protected function validate(array $rules, array $messages = [], array $attributes = []): array
+    final protected function validate(?array $rules = null, array $messages = [], array $attributes = []): array
     {
+        /** No rules given: the #[Validate] rules of every property that has them. */
+        if ($rules === null) {
+            [$rules, $named] = app(Fusion::class)->meta(static::class)->rulesFor();
+            $attributes += $named;
+        }
+
         return Validator::make(State::of($this), $rules, $messages, $attributes)->validate();
     }
 

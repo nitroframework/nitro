@@ -4,6 +4,29 @@ All notable changes to `nitro/fusion` will be documented in this file.
 
 ## Unreleased
 
+- A collection property of several model classes (a polymorphic relation's) is read again with
+  each model's own class, in order; it was read as the first model's class.
+- A nullable model property whose row was deleted is `null` on the next `#[Server]` call; every
+  call answered 404. A non-nullable one still answers 404.
+- A `#[Server]` parameter typed `object`, `iterable`, `callable`, `self` or `parent` fails the
+  build; it answered 403 or 500 on each call.
+
+- `#[Validate]` on properties: rules checked on the server whenever the browser changes the
+  property; a failure keeps the `#[Server]` method from running, its messages in `$errors`.
+  `$this->validate()` with no rules checks them all. The README says plainly that an unlocked
+  property takes any value of its type from the browser.
+
+- Component state is bound to its session (`fusion.state.bind_to_session`, on by default): a
+  snapshot from another visitor's session, or from before a logout, is refused (419); a login
+  keeps it. It is signed with the time it was issued, and `fusion.state.lifetime` (seconds,
+  `null` by default) refuses older ones. On a 419 the page reloads; `fusion:expired` can be
+  `preventDefault()`ed.
+
+- `#[Server]` parameters typed with a model receive the record the browser's key names, as route
+  model binding resolves it (404 when it is missing); a backed enum receives the case its value
+  names (403 otherwise). They were given a new, empty model, or failed. A variadic model, an
+  abstract model or a pure enum parameter fails the build.
+
 - Client pages: `#[Navigate('client')]` on a page that needs nothing from the server. A visit
   renders it in the browser without a request, its title and head tags worked out at build time.
   The build refuses one with `mount()`, `#[Server]` methods, `#[Url]` properties, route parameters

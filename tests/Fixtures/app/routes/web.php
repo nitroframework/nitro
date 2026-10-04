@@ -16,6 +16,7 @@ use Nitro\Fusion\Tests\Fixtures\Pages\Live;
 use Nitro\Fusion\Tests\Fixtures\Pages\MountedTimeline;
 use Nitro\Fusion\Tests\Fixtures\Pages\Notice;
 use Nitro\Fusion\Tests\Fixtures\Pages\Orders;
+use Nitro\Fusion\Tests\Fixtures\Pages\Pair;
 use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
 use Nitro\Fusion\Tests\Fixtures\Pages\Report;
 use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
@@ -48,6 +49,7 @@ Route::fusion('/inbox', Inbox::class)->name('inbox');
 Route::fusion('/article', Article::class)->name('article');
 Route::fusion('/notice', Notice::class)->name('notice');
 Route::fusion('/terms', Terms::class)->name('terms');
+Route::fusion('/pair/{student}', Pair::class)->name('pair');
 
 /** Fusion::flash() and a redirect: the page it goes to delivers it. */
 Route::get('/flash-and-redirect', function () {
@@ -79,6 +81,10 @@ Route::get('/portals', fn () => view('portals'));
 Route::get('/clock', fn () => view('clock'));
 Route::middleware('auth')->get('/secure', fn () => view('secure'));
 Route::get('/login', fn () => 'login')->name('login');
+
+/** What logging in and out do to the session: a login regenerates it (its data kept), a logout invalidates it. */
+Route::get('/_test/login', fn () => tap('in', fn () => session()->regenerate()));
+Route::get('/_test/logout', fn () => tap('out', fn () => session()->invalidate()));
 
 Route::get('/both', fn () => view('both'));
 

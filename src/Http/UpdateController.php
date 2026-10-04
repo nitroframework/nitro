@@ -2,9 +2,13 @@
 
 namespace Nitro\Fusion\Http;
 
+use BackedEnum;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use JsonException;
@@ -12,6 +16,7 @@ use Nitro\Fusion\Component;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\State;
 use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -57,7 +62,7 @@ final class UpdateController
             throw new HttpException(400, 'Malformed component update.');
         }
 
-        $snapshot = Snapshot::fromEnvelope($payload['snapshot'] ?? null, $this->fusion()->key());
+        $snapshot = Snapshot::fromEnvelope($payload['snapshot'] ?? null, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
 
         if ($snapshot->isPartial()) {
             throw new HttpException(403, 'A partial reload is not a component\'s state.');
@@ -82,12 +87,13 @@ final class UpdateController
         Hooks::call($component, 'boot');
         Hooks::call($component, 'hydrate');
 
-        $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
+        $changed = $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
 
         $returned = null;
         $call = $payload['call'] ?? null;
 
-        if ($call !== null) {
+        /** What the browser changed, against its #[Validate] rules: a failure keeps the method from running. */
+        if ($this->validateUpdates($component, $meta, $changed) && $call !== null) {
             $returned = $this->call($component, $meta, $call);
         }
 
@@ -96,7 +102,7 @@ final class UpdateController
         $context = $component->fusion();
 
         return new JsonResponse([
-            'snapshot' => json_decode($next->toJson($this->fusion()->key(), $this->fusion()->browserName($meta->name), $this->fusion()->names()), true),
+            'snapshot' => json_decode($next->toJson($this->fusion()->stateKey(), $this->fusion()->browserName($meta->name), $this->fusion()->names()), true),
             /** Fusion::share()'s data as it is now (a #[Server] call may have changed it: a flash message). */
             'shared' => $this->fusion()->sharedForBrowser(),
             'once' => (object) $this->fusion()->onceForBrowser(),
@@ -130,7 +136,7 @@ final class UpdateController
         }
 
         foreach ($partials as $envelope) {
-            $partial = Snapshot::fromEnvelope($envelope, $this->fusion()->key());
+            $partial = Snapshot::fromEnvelope($envelope, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
 
             if (! $partial->isPartial() || $partial->id !== $snapshot->id || $this->fusion()->componentName($partial->name) !== $snapshot->name) {
                 throw new HttpException(403, 'This partial reload belongs to another component.');
@@ -140,11 +146,18 @@ final class UpdateController
         }
     }
 
-    private function applyUpdates(Component $component, ComponentMeta $meta, mixed $updates): void
+    /**
+     * The browser's changes, each checked against its property's type and lock.
+     *
+     * @return list<string> the properties changed
+     */
+    private function applyUpdates(Component $component, ComponentMeta $meta, mixed $updates): array
     {
         if (! is_array($updates)) {
             throw new HttpException(400, 'Malformed component update.');
         }
+
+        $changed = [];
 
         foreach ($updates as $name => $encoded) {
             /** By the browser's name for it (an obfuscated build). */
@@ -162,7 +175,35 @@ final class UpdateController
             }
 
             $component->{$name} = $property->cast($value);
+            $changed[] = $name;
         }
+
+        return $changed;
+    }
+
+    /**
+     * #[Validate]: the properties the browser changed, against their rules. Whether they pass;
+     * when one fails, its messages are the component's $errors (the method does not run).
+     *
+     * @param  list<string>  $changed
+     */
+    private function validateUpdates(Component $component, ComponentMeta $meta, array $changed): bool
+    {
+        [$rules, $attributes] = $meta->rulesFor($changed);
+
+        if ($rules === []) {
+            return true;
+        }
+
+        $validator = Validator::make(State::of($component), $rules, [], $attributes);
+
+        if ($validator->fails()) {
+            $component->fusion()->errors = $validator->errors();
+
+            return false;
+        }
+
+        return true;
     }
 
     private function call(Component $component, ComponentMeta $meta, mixed $call): mixed
@@ -193,20 +234,20 @@ final class UpdateController
     }
 
     /**
-     * Values from the browser fill the scalar and array parameters, in order, each checked
-     * against its type; parameters typed with a class come from the container.
+     * Values from the browser fill the parameters, in order: scalars and arrays checked against
+     * their type, a model from its key, a backed enum from its value. Other classes come from the
+     * container and take nothing from the browser.
      *
-     * @param  list<array{name: string, type: ?string, nullable: bool, optional: bool, variadic: bool}>  $parameters
+     * @param  list<array{name: string, type: ?string, kind: string, nullable: bool, optional: bool, variadic: bool}>  $parameters
      */
     private function arguments(array $parameters, array $values): array
     {
         $arguments = [];
 
         foreach ($parameters as $parameter) {
-            $type = $parameter['type'];
-
-            if ($type !== null && ! in_array($type, ['int', 'float', 'string', 'bool', 'array', 'mixed'], true)) {
-                $arguments[] = $this->container->make($type);
+            /** Not from the browser: the container's. */
+            if ($parameter['kind'] === 'service') {
+                $arguments[] = $this->container->make($parameter['type']);
 
                 continue;
             }
@@ -229,7 +270,12 @@ final class UpdateController
                 break;
             }
 
-            $arguments[] = $this->checked(array_shift($values), $parameter);
+            $value = array_shift($values);
+            $arguments[] = match ($parameter['kind']) {
+                'model' => $this->model($value, $parameter),
+                'enum' => $this->enum($value, $parameter),
+                default => $this->checked($value, $parameter),
+            };
         }
 
         if ($values !== []) {
@@ -237,6 +283,46 @@ final class UpdateController
         }
 
         return $arguments;
+    }
+
+    /**
+     * A model parameter, from the key the browser sent, as route model binding resolves one
+     * (resolveRouteBinding(): the model's route key, or its own lookup). The row itself, as the
+     * browser has it, gives its key too. Not found: 404. Resolving is not authorizing: the method
+     * still checks that the visitor may act on it.
+     *
+     * @param  array{name: string, type: class-string<Model>, nullable: bool}  $parameter
+     */
+    private function model(mixed $value, array $parameter): ?Model
+    {
+        if ($value === null && $parameter['nullable']) {
+            return null;
+        }
+
+        $model = new $parameter['type'];
+        $key = is_array($value) ? ($value[$model->getRouteKeyName()] ?? null) : $value;
+
+        if (! is_int($key) && ! is_string($key)) {
+            throw new HttpException(403, "Invalid argument \${$parameter['name']}.");
+        }
+
+        return $model->resolveRouteBinding($key) ?? throw (new ModelNotFoundException)->setModel($parameter['type'], [$key]);
+    }
+
+    /**
+     * A backed enum parameter, from its value. Not one of its cases: 403.
+     *
+     * @param  array{name: string, type: class-string<BackedEnum>, nullable: bool}  $parameter
+     */
+    private function enum(mixed $value, array $parameter): ?BackedEnum
+    {
+        if ($value === null && $parameter['nullable']) {
+            return null;
+        }
+
+        $case = is_int($value) || is_string($value) ? rescue(fn () => $parameter['type']::tryFrom($value), null, false) : null;
+
+        return $case ?? throw new HttpException(403, "Invalid argument \${$parameter['name']}.");
     }
 
     private function checked(mixed $value, array $parameter): mixed
