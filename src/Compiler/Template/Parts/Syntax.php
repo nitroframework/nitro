@@ -46,6 +46,16 @@ final class Syntax
     /** Text only, character references decoded. */
     public const RCDATA = ['textarea', 'title'];
 
+    /** Their start tag ends an open <p> (the HTML parser closes it): they cannot be in one. */
+    public const CLOSES_P = [
+        'address', 'article', 'aside', 'blockquote', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset',
+        'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'listing',
+        'main', 'menu', 'nav', 'ol', 'p', 'pre', 'search', 'section', 'summary', 'table', 'ul', 'xmp',
+    ];
+
+    /** An open <p> above these is out of scope for CLOSES_P (the HTML parser's button scope). */
+    public const P_SCOPE = ['applet', 'button', 'caption', 'html', 'marquee', 'object', 'table', 'td', 'template', 'th'];
+
     /** The HTML parser drops a newline right after their start tag. */
     public const LEADING_NEWLINE = ['pre', 'textarea', 'listing'];
 

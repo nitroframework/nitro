@@ -188,6 +188,10 @@ final class HtmlScanner extends Part
         $parentNs = $tree->element()['ns'] ?? 'html';
         $ns = $parentNs === 'html' && in_array($tag, ['svg', 'math'], true) ? $tag : $parentNs;
 
+        if ($parentNs === 'html' && in_array(strtolower($tag), Syntax::CLOSES_P, true)) {
+            $this->assertNoOpenP($tag);
+        }
+
         if (in_array($tag, Syntax::VOID, true) || ($selfClosing && $ns !== 'html')) {
             $c->state = 'data';
 
@@ -200,6 +204,31 @@ final class HtmlScanner extends Part
 
         $lower = strtolower($tag);
         $c->state = $ns !== 'html' ? 'data' : (in_array($lower, Syntax::RAW_TEXT, true) ? 'raw' : (in_array($lower, Syntax::RCDATA, true) ? 'rcdata' : 'data'));
+    }
+
+    /**
+     * <div> (and the other Syntax::CLOSES_P) inside an open <p>: the browser's HTML parser ends the
+     * <p> there, so the server's HTML would not be the tree the view says.
+     */
+    private function assertNoOpenP(string $tag): void
+    {
+        $c = $this->context;
+
+        foreach (array_reverse($c->stack) as $frame) {
+            if (($frame['kind'] ?? null) !== 'element') {
+                continue;
+            }
+
+            $open = strtolower($frame['tag']);
+
+            if ($open === 'p') {
+                throw $c->error("<{$tag}> inside <p> (line {$frame['line']}): the browser ends the <p> before a <{$tag}>, so it cannot be in one. Close the <p> first, or make it a <div>");
+            }
+
+            if (in_array($open, Syntax::P_SCOPE, true) || ($frame['ns'] ?? 'html') !== 'html') {
+                return;
+            }
+        }
     }
 
     private function tag(string $text, int $i): int

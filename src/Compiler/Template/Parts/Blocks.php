@@ -59,11 +59,16 @@ final class Blocks extends Part
         ], fn ($v) => $v !== null)];
     }
 
-    /** Blade's @empty inside @forelse: the loop's block ends, the one for no items begins. */
+    /**
+     * Blade's @empty inside @forelse: the loop's block ends, the one for no items begins. That
+     * block is after the loop, not in it: @break and @continue there are the loops' around it.
+     */
     public function forelseEmpty(): void
     {
         $this->compiler->tree->branch(['forelse'], 'empty', fn () => ['c' => 'empty']);
-        $this->context->stack[count($this->context->stack) - 1]['kind'] = 'forelse-empty';
+        $frame = &$this->context->stack[count($this->context->stack) - 1];
+        $frame['kind'] = 'forelse-empty';
+        $frame['loop'] = false;
     }
 
     /** Blade's @for($i = 0; $i < 10; $i++): its iterations, worked out by the expression. */
@@ -123,6 +128,19 @@ final class Blocks extends Part
 
             if ($args !== null) {
                 $node->fields['code'] = $this->compiler->expressionTable->condition($args);
+            }
+        }
+
+        /**
+         * Blade's @break leaves the loop where it is: an element opened inside the loop would end
+         * without its end tag in the server's HTML (the browser then nests what follows in it).
+         */
+        $targets = array_keys(array_filter($c->stack, fn ($frame) => $frame['loop'] ?? false));
+        $target = $targets[count($targets) - $node->fields['levels']];
+
+        foreach (array_slice($c->stack, $target + 1) as $frame) {
+            if ($frame['kind'] === 'element') {
+                throw $c->error("@{$keyword} inside <{$frame['tag']}> (line {$frame['line']}): Blade would leave the <{$frame['tag']}> without its end tag. Put the @{$keyword} outside the element");
             }
         }
 
