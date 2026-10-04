@@ -83,8 +83,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | persistent_middleware: when a component calls the server, the middleware
-    | of the page it was rendered on is checked again, for these classes (so a
-    | component from an admin page stops working after logout).
+    | of the page it was rendered on is checked again, for these classes and
+    | the classes extending them (so a component from an admin page stops
+    | working when its visitor loses access). Add your own (a role check).
     |
     | max_payload: the largest update accepted, in bytes.
     |

@@ -42,11 +42,16 @@ final class PersistentMiddleware
             throw new HttpException(403, 'The page this component belongs to is gone.');
         }
 
+        /** Route::fallback() answers any URL: the page is not there any more. */
+        if ($route->isFallback) {
+            throw new HttpException(403, 'The page this component belongs to is gone.');
+        }
+
         $request->setRouteResolver(fn () => $route);
 
         $middleware = array_values(array_filter(
             $this->router->gatherRouteMiddleware($route),
-            fn ($m) => is_string($m) && in_array(explode(':', $m, 2)[0], $this->middleware, true)
+            fn ($m) => is_string($m) && $this->rechecked(explode(':', $m, 2)[0])
         ));
 
         if ($middleware === []) {
@@ -70,5 +75,17 @@ final class PersistentMiddleware
         if ($result !== $allowed) {
             throw new HttpException(403, 'You no longer have access to the page this component belongs to.');
         }
+    }
+
+    /** A middleware class re-checked: one of the list, or extending one (an application's own Authenticate). */
+    private function rechecked(string $class): bool
+    {
+        foreach ($this->middleware as $listed) {
+            if ($class === $listed || is_a($class, $listed, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

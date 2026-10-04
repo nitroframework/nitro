@@ -136,7 +136,10 @@ class FusionServiceProvider extends ServiceProvider
             ->post($endpoint.'/upload', [UploadController::class, 'store'])
             ->middleware('throttle:'.$config->get('fusion.uploads.throttle', '60,1'))
             ->name('fusion.upload');
-        Route::get($endpoint.'/upload/preview', [UploadController::class, 'preview'])->name('fusion.upload.preview');
+        /** In the session: an upload's reference is signed with the session's key (Upload::sign()). */
+        Route::middleware($config->get('fusion.middleware', ['web']))
+            ->get($endpoint.'/upload/preview', [UploadController::class, 'preview'])
+            ->name('fusion.upload.preview');
 
         Route::get($endpoint.'/fusion.js', [AssetController::class, 'runtime'])->name('fusion.runtime');
         Route::get($endpoint.'/app.js', [AssetController::class, 'bundle'])->name('fusion.bundle');

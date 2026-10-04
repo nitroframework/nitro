@@ -173,6 +173,7 @@ final class Upload extends UploadedFile
     /** Signed apart from component state: an upload token cannot pass for a snapshot, nor one for it. */
     private static function sign(string $payload): string
     {
-        return hash_hmac('sha256', 'fusion-upload|'.$payload, app(Fusion::class)->key());
+        /** The session's state key: a reference is good in the session it was made for only. */
+        return hash_hmac('sha256', 'fusion-upload|'.$payload, app(Fusion::class)->stateKey());
     }
 }

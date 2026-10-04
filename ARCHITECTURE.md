@@ -128,23 +128,29 @@ else (an error, a 401, HTML from a non-Fusion route) loads normally.
 ## Security of #[Server] calls
 
 The browser holds `{"state": "<json>", "checksum": "<hmac>"}`: the HMAC (SHA-256, keyed from
-`APP_KEY`) covers the exact bytes of the state, including the component's name, locked
-properties, model references and the page it was rendered for. A call sends the envelope back
+`APP_KEY`, the session's secret and the logged-in user's id) covers the exact bytes of the state,
+including the component's name, locked properties, model references and the page it was rendered
+for. In a session only that session's key is accepted: state signed with the application key alone
+(made without a session) is good nowhere else. A call sends the envelope back
 unchanged, plus the properties the browser changed and the method with its arguments.
 `UpdateController` accepts it only if:
 
 1. the envelope is one this application signed, unchanged (else 419);
 2. the component exists;
-3. the page's authorization middleware (`fusion.persistent_middleware`) still admits the visitor
-   (re-run against the original route, with its bindings);
+3. the page's authorization middleware (`fusion.persistent_middleware`, and middleware extending
+   it) still admits the visitor (re-run against the original route, with its bindings; a route
+   that is gone, matched by a fallback only, is refused), and every partial reload laid over the
+   snapshot was rendered for that same page (method and path);
 4. every changed property is public, not locked, and has a value of its declared type, without
-   coercion;
+   coercion; uploads only in an `Upload` property or an `#[Uploads]` array, nowhere else;
 5. the method is a `#[Server]` method, and each argument has its parameter's type (class-typed
-   parameters come from the container, never from the browser).
+   parameters come from the container, never from the browser; no argument holds an upload).
 
 Models are never trusted from the browser: the state carries their attributes for display, and the
 server reads them again by class and key. The endpoint sits in the `web` group (session, cookies,
-CSRF). Every rule above has a test, on Laravel and on Nitro (`tests/Feature/ServerCallTest`).
+CSRF). A redirect goes to http(s) URLs and paths only (`redirect()` on the server, and the runtime
+whatever it is sent), so a URL from a visitor cannot run script. Every rule above has a test, on
+Laravel and on Nitro (`tests/Feature/ServerCallTest`, `SecurityTest`, `UploadTest`).
 
 ## Known limits
 

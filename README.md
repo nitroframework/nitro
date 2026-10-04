@@ -1099,16 +1099,25 @@ Fusion runs your methods in the browser, which has some consequences:
 
 ## Security
 
-A `#[Server]` call carries the component's state, signed with the application key and the
-session's own secret. The endpoint refuses:
+A `#[Server]` call carries the component's state, signed with the application key, the session's
+own secret and the logged-in user. The endpoint refuses:
 
-- a changed state, or one made in another session: another visitor's, or one from before a
-  logout (419);
+- a changed state, or one made in another session or for another user: another visitor's, or one
+  from before a logout, even an `Auth::logout()` that keeps the session (419);
 - a state older than `fusion.state.lifetime`, when one is set (419);
 - methods that are not `#[Server]`, locked or unknown properties, and values or arguments of the
-  wrong type (403);
+  wrong type (403); an upload anywhere but an `Upload` or `#[Uploads]` property (403);
 - a visitor who no longer passes the page's authorization middleware (`auth`, `can`, `verified`,
-  ...), so a component stops working after logout.
+  ..., and an application's own middleware extending them), and a page whose route is gone (403);
+- a partial reload rendered for another page than the component's (403).
+
+Upload references are good in the session that uploaded them only, and a redirect goes to http(s)
+URLs and paths only (`redirect('javascript:...')` throws; the browser refuses one too).
+
+**What the browser sees.** Every public property is in the page's state, `#[Locked]` ones too, and a
+model property carries its `toArray()` (what `$hidden` leaves out is not sent; loaded relations
+are). Keep secrets in protected or private properties, or load them in the `#[Server]` method that
+needs them.
 
 Within its type, an unlocked property takes any value the browser sends; `#[Validate]` rules on
 it are checked before a `#[Server]` method runs (see [Properties](#properties)).

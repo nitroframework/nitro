@@ -204,25 +204,44 @@ final class Fusion
 
     /**
      * The key component state is signed with: the application's, mixed with this session's own
-     * secret (fusion.state.bind_to_session), so a snapshot is good in the session it was made for
-     * only: not another visitor's, and not after logout. Without a session, the application's.
+     * secret (fusion.state.bind_to_session) and who is logged in, so a snapshot is good in the
+     * session it was made for, for the user it was made for: not another visitor's, not after a
+     * logout (Auth::logout() alone too), not for the next user to log in. Without a session, the
+     * application's.
      */
     public function stateKey(): string
     {
         $secret = $this->sessionSecret();
 
-        return $secret === null ? $this->key() : hash_hmac('sha256', 'nitro-fusion:session|'.$secret, $this->key());
+        return $secret === null ? $this->key() : hash_hmac('sha256', 'nitro-fusion:session|'.$secret.'|'.$this->authIdentity(), $this->key());
     }
 
     /**
-     * The keys state from the browser may be signed with: this session's, and the application's
-     * alone, which only state made without a session carries.
+     * The keys state from the browser may be signed with: in a session, that session's only (state
+     * signed with the application's key alone would be good in every session, for ever); without a
+     * session, the application's.
      *
      * @return list<string>
      */
     public function stateKeys(): array
     {
-        return array_values(array_unique([$this->stateKey(), $this->key()]));
+        return [$this->stateKey()];
+    }
+
+    /** Who is logged in (the default guard), for the state key: '' for a guest. */
+    private function authIdentity(): string
+    {
+        if (! $this->app->bound('auth')) {
+            return '';
+        }
+
+        try {
+            $id = $this->app->make('auth')->guard()->id();
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return is_scalar($id) ? 'user:'.$id : '';
     }
 
     /** How long a snapshot is good for, in seconds (fusion.state.lifetime); null: as long as its session. */
