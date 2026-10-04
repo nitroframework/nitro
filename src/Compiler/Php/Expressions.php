@@ -139,7 +139,7 @@ final class Expressions extends Part
             return '['.implode(', ', array_map(fn ($item) => $this->transpiler->expr($item->value), $e->items)).']';
         }
 
-        $items = array_map(fn ($item) => '['.($item->key === null ? 'undefined' : $this->transpiler->expr($item->key)).', '.$this->transpiler->expr($item->value).', '.($item->unpack ? 'true' : 'false').']', $e->items);
+        $items = array_map(fn ($item) => '['.($item->key === null ? 'P.APPEND' : $this->transpiler->expr($item->key)).', '.$this->transpiler->expr($item->value).', '.($item->unpack ? 'true' : 'false').']', $e->items);
 
         return 'P.arrayLiteral(['.implode(', ', $items).'])';
     }

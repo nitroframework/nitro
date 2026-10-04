@@ -122,8 +122,13 @@ class Playground
         $nested = [];
         $nested[$key]['x'] = 3;
         $nested['y'][$key] = 4;
+        $gone = 1;
+        unset($gone);
+        $unset = [5];
+        $unset[$gone] = 6;
+        $literal = [$gone => 7, 8];
 
-        return [$list, $nested];
+        return [$list, $nested, $unset, $literal];
     }
 
     public function loops(): array

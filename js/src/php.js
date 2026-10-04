@@ -124,13 +124,16 @@ export function prop(base, name) {
     return null;
 }
 
-/** $base[$k] = $v; returns the new array. $k === undefined appends ($base[] = $v). */
+/** The [] of $base[] = $v, and an array literal's item without a key (null and undefined keys are the key "", as in PHP). */
+export const APPEND = Symbol('append');
+
+/** $base[$k] = $v; returns the new array. $k === APPEND appends ($base[] = $v). */
 export function set(base, k, v) {
     base = arrayOrNull(base);
     if (base === null) base = [];
     if (!isArray(base)) throw new PhpError('Error', 'Cannot use a scalar value as an array');
     if (Array.isArray(base)) {
-        if (k === undefined) return [...base, v];
+        if (k === APPEND) return [...base, v];
         const i = key(k);
         if (typeof i === 'number' && i >= 0 && i <= base.length) {
             const copy = base.slice();
@@ -139,23 +142,19 @@ export function set(base, k, v) {
         }
     }
     const map = toMap(base);
-    map.set(k === undefined ? nextIndex(map) : key(k), v);
+    map.set(k === APPEND ? nextIndex(map) : key(k), v);
     return normalize(map);
 }
 
-export const push = (base, v) => set(base, undefined, v);
-
-/** The [] of $base[] = $v in a setIn() path (a null key is the key "", as in PHP). */
-export const APPEND = Symbol('append');
+export const push = (base, v) => set(base, APPEND, v);
 
 /** $base[a][b]... = $v, copying only the path. An APPEND segment appends ([] syntax). */
 export function setIn(base, path, v) {
     if (path.length === 0) return v;
     const [head, ...rest] = path;
-    const k = head === APPEND ? undefined : head;
-    if (rest.length === 0) return set(base, k, v);
+    if (rest.length === 0) return set(base, head, v);
     const child = head === APPEND ? null : get(base, head);
-    return set(base, k, setIn(isArray(child) ? child : null, rest, v));
+    return set(base, head, setIn(isArray(child) ? child : null, rest, v));
 }
 
 /** Read along a path (used by compound assignments). */
@@ -215,7 +214,7 @@ export function iter(v) {
     throw typeError(`foreach() argument must be of type array, ${typeName(v)} given`);
 }
 
-/** [ ...$a ] and literal building: [[key|undefined, value, spread?], ...] */
+/** [ ...$a ] and literal building: [[key|APPEND, value, spread?], ...] */
 export function arrayLiteral(items) {
     let map = new Map();
     let next = 0;
@@ -233,7 +232,7 @@ export function arrayLiteral(items) {
             }
             continue;
         }
-        if (k === undefined) {
+        if (k === APPEND) {
             map.set(next++, v);
         } else {
             const nk = key(k);

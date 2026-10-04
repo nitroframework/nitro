@@ -38,6 +38,7 @@ class InlinedViewsTest extends TestCase
             'an $attributes method the browser has not' => ['<div><x-filtered /></div>', '$attributes->filter() is not supported in the browser (merge, class, only, except, get, has are)', self::VIEWS.'components/filtered.blade.php', 1],
             'a Fusion child in an included view' => ["<div>\n@include('inline-errors.with-child')</div>", '<fusion:...> inside inline-errors.with-child', self::VIEWS.'inline-errors/with-child.blade.php', 2],
             'an error in an included view, at its own line' => ["<div>\n\n\n@include('inline-errors.bad-line', ['cake' => \$count])</div>", 'Only methods of the component', self::VIEWS.'inline-errors/bad-line.blade.php', 3],
+            'an $attributes->has() without a literal name, at its line' => ['<div><x-attribute-name /></div>', "\$attributes->has() takes the attribute's name as a string", self::VIEWS.'components/attribute-name.blade.php', 3],
             'an unclosed component tag' => ["<div>\n<x-badge>open</div>", '<x-badge> is not closed', 'view.blade.php', 2],
         ];
     }
@@ -56,6 +57,18 @@ class InlinedViewsTest extends TestCase
             $this->assertSame(str_replace('\\', '/', $file), str_replace('\\', '/', (string) $e->sourceFile), $e->getMessage());
             $this->assertSame($line, $e->sourceLine, $e->getMessage());
         }
+    }
+
+    public function test_a_component_view_comments_and_verbatim_are_left_as_written(): void
+    {
+        $this->boot('laravel');
+        $compiler = new TemplateCompiler(fn (string $name) => Blade::getCustomDirectives()[$name] ?? in_array($name, ['include', 'props'], true));
+
+        $js = $compiler->compile('<div><x-set-aside>Hi</x-set-aside></div>', new Scope(file: 'Component.php'), 'view.blade.php');
+
+        $this->assertStringContainsString('{{ $slot }} {{ $attributes }}', $js, '@verbatim prints its text, as Blade does');
+        $this->assertSame(1, substr_count($js, '"Hi"'), 'the slot is placed once: in <p>, not in @verbatim');
+        $this->assertStringContainsString('<code>{{ $slot }} {{ $attributes }}</code>', Blade::render('<x-set-aside>Hi</x-set-aside>'));
     }
 
     public function test_lines_after_an_inlined_view_keep_their_numbers(): void

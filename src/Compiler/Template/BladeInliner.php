@@ -361,7 +361,7 @@ final class BladeInliner
 
         $path = $this->views->getFinder()->find($class);
         $this->files[$path] = true;
-        $view = (string) file_get_contents($path);
+        [$view, $kept] = self::setAside((string) file_get_contents($path));
 
         [$attributes, $bound] = $this->tags->attributes($attributeString);
 
@@ -420,8 +420,37 @@ final class BladeInliner
         }
 
         $this->out .= '@fusionScope('.$this->frame([...$vars, ...$bagVars], true, "<x-{$name}>", $id).')';
-        $this->inline($view, $path, 1, $depth + 1);
+        $this->inline(self::putBack($view, $kept), $path, 1, $depth + 1);
         $this->out .= '@endfusionScope';
+    }
+
+    /**
+     * A component view's comments and @verbatim blocks set aside, so what reads the view ($slot,
+     * $attributes, @props) does not read them: each becomes a placeholder holding its newlines
+     * (the lines after it keep their numbers).
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private static function setAside(string $view): array
+    {
+        $kept = [];
+        $view = (string) preg_replace_callback('/\{\{--.*?--\}\}|(?<!@)@verbatim\b.*?@endverbatim\b/s', function (array $m) use (&$kept) {
+            $kept[] = $m[0];
+
+            return "\x00KEPT".(count($kept) - 1).str_repeat("\n", substr_count($m[0], "\n"))."\x00";
+        }, $view);
+
+        return [$view, $kept];
+    }
+
+    /**
+     * The view with what setAside() took out back in place.
+     *
+     * @param  list<string>  $kept
+     */
+    private static function putBack(string $view, array $kept): string
+    {
+        return (string) preg_replace_callback('/\x00KEPT(\d+)\n*\x00/', fn (array $m) => $kept[(int) $m[1]], $view);
     }
 
     /**
@@ -508,8 +537,8 @@ final class BladeInliner
      */
     private function props(string $view, string $path): array
     {
-        if (preg_match('/(?<!@)@aware\s*\(/', $view)) {
-            throw new CompileException('@aware reads a parent component at run time: pass the value as an attribute', $path, 1);
+        if (preg_match('/(?<!@)@aware\s*\(/', $view, $aware, PREG_OFFSET_CAPTURE)) {
+            throw new CompileException('@aware reads a parent component at run time: pass the value as an attribute', $path, 1 + substr_count($view, "\n", 0, $aware[0][1]));
         }
 
         if (! preg_match('/(?<!@)@props\s*\(/', $view, $m, PREG_OFFSET_CAPTURE)) {
@@ -695,12 +724,14 @@ final class BladeInliner
             return $this->printAttributes($bag, $frame);
         }, $view);
 
-        return preg_replace_callback('/\$attributes\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $m) use ($entries, $path) {
-            $args = $this->arguments($m[2], '$attributes->'.$m[1].'()', $path, 1);
+        return preg_replace_callback('/\$attributes\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $found) use ($entries, $path, $view) {
+            $m = array_column($found, 0);
+            $line = 1 + substr_count($view, "\n", 0, $found[0][1]);
+            $args = $this->arguments($m[2], '$attributes->'.$m[1].'()', $path, $line);
             $key = $args[0] ?? null;
 
             if (! $key instanceof Scalar\String_) {
-                throw new CompileException("\$attributes->{$m[1]}() takes the attribute's name as a string", $path, 1);
+                throw new CompileException("\$attributes->{$m[1]}() takes the attribute's name as a string", $path, $line);
             }
 
             $entry = $entries[$key->value] ?? null;
@@ -714,7 +745,7 @@ final class BladeInliner
             }
 
             return $entry['code'] ?? var_export(html_entity_decode(trim($entry['fusion']), ENT_QUOTES), true);
-        }, $view);
+        }, $view, flags: PREG_OFFSET_CAPTURE);
     }
 
     /**

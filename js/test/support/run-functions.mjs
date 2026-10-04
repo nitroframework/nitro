@@ -54,8 +54,8 @@ for (const c of cases) {
     const fn = OPS[c.fn] ?? P.fns[c.fn.replace(/^Str::/, 'Str_')];
     let args = c.args.map(P.decode);
     if (c.fn === 'op:literal') {
-        /** PHP's "no key" arrives as null; the literal builder takes undefined. */
-        args = [args[0].map(([k, v, spread]) => [k === null ? undefined : k, v, spread])];
+        /** PHP's "no key" arrives as null; the literal builder takes APPEND. */
+        args = [args[0].map(([k, v, spread]) => [k === null ? P.APPEND : k, v, spread])];
     }
     let actual;
     try {
