@@ -1,3 +1,0 @@
-<div>
-<fusion:counter />
-</div>

@@ -1,7 +1,7 @@
 /vendor/
 /node_modules/
 /.phpunit.cache/
-/tests/Fixtures/app/storage/
-/tests/Fixtures/app/bootstrap/cache/*
-!/tests/Fixtures/app/bootstrap/cache/.gitignore
-/tests/Fixtures/app/public/fusion/
+# The tests stay local: not in git.
+/tests/
+/js/test/
+/phpunit.xml

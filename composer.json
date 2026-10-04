@@ -53,7 +53,8 @@
     },
     "scripts": {
         "test": "@php vendor/phpunit/phpunit/phpunit --colors=always",
-        "analyse": "@php vendor/bin/phpstan analyse --memory-limit=1G"
+        "analyse": "@php vendor/bin/phpstan analyse --memory-limit=1G",
+        "fuzz": "@php tests/Fuzz/fuzz.php"
     },
     "config": {
         "sort-packages": true,
