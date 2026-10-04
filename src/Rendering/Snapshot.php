@@ -260,6 +260,7 @@ final class Snapshot
      * the rows gone since. A single model whose row is gone: null for a nullable property (the
      * component can tell, and the view show it), a 404 otherwise.
      *
+     * @param  array{collection?: bool, class?: class-string<Model>|null, key?: int|string, keys?: list<int|string>, items?: list<array{0: class-string<Model>, 1: int|string, 2: ?string}>, connection?: ?string}  $reference
      * @return Model|EloquentCollection<int, Model>|null
      */
     private static function loadModels(array $reference, bool $nullable = false): Model|EloquentCollection|null

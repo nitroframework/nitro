@@ -235,9 +235,8 @@ abstract class Component
     }
 
     /**
-     * Whether a scroll prop ($this->scroll()) has a next page to load. In views and methods:
-     *
-     *   @if ($this->hasMore('posts')) <div fusion:visible="$loadMore('posts')">…</div> @endif
+     * Whether a scroll prop ($this->scroll()) has a next page to load, in views and methods: a
+     * view shows its "load more" row while $this->hasMore('posts') is true.
      */
     final public function hasMore(string $property): bool
     {

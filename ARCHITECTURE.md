@@ -51,10 +51,17 @@ src/Compiler      PHP -> JavaScript
 src/Rendering     the server side of a component
   Renderer          Blade render with $this bound, isolated loops, the root element marked
   Snapshot          the signed state sent to the browser and verified when it comes back
+  Tags              <fusion:...> tags with content and their slots
+  Portals           @portal and @teleport
+  PageHead          the page's <head> (@fusionHead) and the layout's title
 src/Http          the endpoint: UpdateController (#[Server] calls), PersistentMiddleware, assets
+  PageResponses     a routed page's answer: HTML, a visit's data, the 409, partial reloads
+  Scripts           @fusionScripts and the browser's globals
+src/State         SharedData: shared, once and flash data
 src/Blade         <fusion:name /> tags in any view (a Blade precompiler)
 src/Build         app.js: every component compiled, versioned by its sources
-Fusion            the application's entry point: config, key, registry, mounting, pages
+Fusion            the application's entry point: config, registry, components and mounting them,
+                  the signing keys, an obfuscated build's names; the parts above behind its methods
 js/src/php.js     PHP semantics in JavaScript (values, operators, the functions)
 js/src/blade.js   Blade's helpers ($loop, @class, @style, @csrf, ...)
 js/src/runtime/   components in the page: state, render + morph, events, models, network,

@@ -4,21 +4,21 @@ namespace Nitro\Fusion;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response as HttpResponse;
-use Illuminate\Support\Arr;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use JsonSerializable;
 use Nitro\Fusion\Browser\Browser;
 use Nitro\Fusion\Browser\BrowserOnlyException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Template\ChildTag;
+use Nitro\Fusion\Http\PageResponses;
+use Nitro\Fusion\Http\Scripts;
+use Nitro\Fusion\Rendering\PageHead;
+use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\Renderer;
-use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\Rendering\Tags;
+use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Naming;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,6 +26,15 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Fusion in an application: its configuration, its components, and rendering them on the server.
  * Everything else asks this class (the service provider binds it once per request: scoped).
+ *
+ * The core is here: components (meta(), mounting them), the keys that sign their state, an
+ * obfuscated build's names. The rest is in parts, each behind the same methods here:
+ *   Rendering\Tags          <fusion:...> tags with content and their slots
+ *   Rendering\Portals       @portal and @teleport
+ *   Rendering\PageHead      the page's <head> (@fusionHead) and the layout's title
+ *   Http\PageResponses      a routed page's answer, visits, partial reloads, merge and deferred props
+ *   Http\Scripts            @fusionScripts and the browser's globals
+ *   State\SharedData        shared, once and flash data
  */
 final class Fusion
 {
@@ -53,42 +62,21 @@ final class Fusion
     /** @var array<class-string, ComponentMeta> */
     private array $metas = [];
 
-    /** @var array<class-string, bool> */
-    private array $serverChildren = [];
-
-    /**
-     * <fusion:...> tags with content being rendered, innermost last: the slots they collect.
-     *
-     * @var list<array{name: string, props: array, key: mixed, number: int, hydrate: ?string, slots: array<string, string>, slot: ?string}>
-     */
-    private array $tags = [];
-
-    /**
-     * Viewi's PortalScope, by portal name: whether @portal placed it, and the @teleport content
-     * for it (with the order the browser hydrates it in).
-     *
-     * @var array<string, array{defined: bool, contents: list<array{order: int, seq: int, html: string}>}>
-     */
-    private array $portals = [];
-
-    /** @var list<string> the @teleport blocks being rendered, innermost last: their portal names */
-    private array $teleporting = [];
-
-    /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
-    private array $shared = [];
-
     private ?Build\Obfuscator $names = null;
 
     private bool $namesResolved = false;
 
-    /** @var array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}|null the page being answered's <head> (pageHead()) */
-    private ?array $head = null;
+    private readonly Tags $tags;
 
-    /** Whether the layout printed @fusionHead (a visit sends the head's tags only then). */
-    private bool $headPrinted = false;
+    private readonly Portals $portals;
 
-    /** Whether the layout is being rendered for its title only (layoutTitle()). */
-    private bool $renderingTitle = false;
+    private readonly PageHead $head;
+
+    private readonly SharedData $data;
+
+    private readonly PageResponses $pages;
+
+    private readonly Scripts $scripts;
 
     public function __construct(
         private readonly Container $app,
@@ -96,6 +84,12 @@ final class Fusion
         private readonly Registry $registry,
         private readonly Renderer $renderer,
     ) {
+        $this->tags = new Tags($this, $renderer);
+        $this->portals = new Portals($renderer);
+        $this->head = new PageHead($this, $app, $this->portals);
+        $this->data = new SharedData($app);
+        $this->pages = new PageResponses($this, $app, $renderer, $this->head, $this->portals, $this->data);
+        $this->scripts = new Scripts($this, $app, $renderer, $this->head, $this->data);
     }
 
     public function config(string $key, mixed $default = null): mixed
@@ -333,122 +327,57 @@ final class Fusion
         return new HtmlString($this->mountChild($name, $props, $parent, $key, $slots));
     }
 
+    // ------------------------------------------------------------ tags with content (Rendering\Tags)
+
     /**
      * <fusion:name ...> with content: the content renders (here, in this view) into output buffers,
      * one per slot, until </fusion:name> renders the component with them.
      */
     public function startTag(string $name, array $props, mixed $key, int $number, ?string $hydrate = null): string
     {
-        /** Keyed now: the loops around the tag, not those its content may have. */
-        $key = $this->renderer->current() !== null && $key === null ? ChildTag::key($number, $this->renderer->loopIndexes()) : $key;
-        $this->tags[] = ['name' => $name, 'props' => $props, 'key' => $key, 'number' => $number, 'hydrate' => $hydrate, 'slots' => [], 'slot' => null];
-        ob_start();
-
-        return '';
+        return $this->tags->start($name, $props, $key, $number, $hydrate);
     }
 
     /** <fusion:slot name="footer"> inside a tag with content. */
     public function startSlot(string $name): string
     {
-        $top = array_key_last($this->tags);
-
-        if ($top === null || $this->tags[$top]['slot'] !== null) {
-            throw new InvalidArgumentException("<fusion:slot name=\"{$name}\"> belongs directly inside a <fusion:...> tag");
-        }
-
-        $this->tags[$top]['slot'] = $name;
-        ob_start();
-
-        return '';
+        return $this->tags->startSlot($name);
     }
 
     public function endSlot(): string
     {
-        $top = array_key_last($this->tags);
-
-        if ($top === null || $this->tags[$top]['slot'] === null) {
-            throw new InvalidArgumentException('</fusion:slot> closes no <fusion:slot>');
-        }
-
-        $this->tags[$top]['slots'][$this->tags[$top]['slot']] = (string) ob_get_clean();
-        $this->tags[$top]['slot'] = null;
-
-        return '';
+        return $this->tags->endSlot();
     }
 
     /** </fusion:name>: the component, with what was between its tags as its default slot. */
     public function endTag(string $name): HtmlString
     {
-        $tag = array_pop($this->tags);
-
-        if ($tag === null || $tag['name'] !== $name || $tag['slot'] !== null) {
-            throw new InvalidArgumentException("</fusion:{$name}> closes no <fusion:{$name}>");
-        }
-
-        $slots = ['default' => (string) ob_get_clean(), ...$tag['slots']];
-
-        return $this->tag($tag['name'], $tag['props'], $tag['key'], $tag['number'], $slots, $tag['hydrate']);
+        return $this->tags->end($name);
     }
 
-    /**
-     * The @portal('modals') directive, Viewi's <Portal name="modals">: its marks, and where the content
-     * teleported to it goes once the response is rendered (fillPortals()).
-     */
+    // ------------------------------------------------------------ portals (Rendering\Portals)
+
+    /** The @portal('modals') directive: where the content teleported to it goes. */
     public function portal(string $name): string
     {
-        $scope = $this->portals[$name] ??= ['defined' => false, 'contents' => []];
-
-        if ($scope['defined']) {
-            throw new InvalidArgumentException("Portal '{$name}' is already defined. Must be only one portal with such name.");
-        }
-
-        $this->portals[$name]['defined'] = true;
-        $name = e($name);
-
-        return "<i id=\"portal_{$name}\" style=\"display: none !important;\"></i>"
-            ."PORTAL_{$name}"
-            ."<i id=\"portal_{$name}_end\" style=\"display: none !important;\"></i>";
+        return $this->portals->portal($name);
     }
 
-    /** The @teleport('modals') directive, Viewi's <Portal to="modals">: its content renders into a buffer, for the portal. */
+    /** The @teleport('modals') directive: its content renders into a buffer, for the portal. */
     public function startTeleport(string $name): string
     {
-        $this->teleporting[] = $name;
-        ob_start();
-
-        return '';
+        return $this->portals->startTeleport($name);
     }
 
     public function endTeleport(): string
     {
-        $name = array_pop($this->teleporting) ?? throw new InvalidArgumentException('@endteleport closes no @teleport');
-        $this->portals[$name] ??= ['defined' => false, 'contents' => []];
-        $this->portals[$name]['contents'][] = [
-            'order' => $this->renderer->order(),
-            'seq' => count($this->portals[$name]['contents']),
-            'html' => (string) ob_get_clean(),
-        ];
-
-        return '';
+        return $this->portals->endTeleport();
     }
 
-    /**
-     * Viewi's portals post action: each portal's placeholder becomes the content teleported to it.
-     * Fusion: in the order the browser hydrates it (a component's children hydrate after it, the
-     * server renders them inside it), then as it was rendered. The portals are done with after.
-     */
+    /** Each portal's placeholder becomes the content teleported to it, once the response is rendered. */
     public function fillPortals(string $body): string
     {
-        foreach ($this->portals as $name => $scope) {
-            $contents = $scope['contents'];
-            usort($contents, fn (array $a, array $b) => [$a['order'], $a['seq']] <=> [$b['order'], $b['seq']]);
-            $name = e($name);
-            $body = str_replace("PORTAL_{$name}<i id=\"portal_{$name}_end\"", implode('', array_column($contents, 'html'))."<i id=\"portal_{$name}_end\"", $body);
-        }
-
-        $this->portals = [];
-
-        return $body;
+        return $this->portals->fill($body);
     }
 
     /**
@@ -550,7 +479,7 @@ final class Fusion
      * #[Url] properties from the request's query string, when the component is created (before
      * mount(), so mount() sees them). A value that does not fit the property's type is ignored.
      */
-    private function applyUrl(Component $component, ComponentMeta $meta): void
+    public function applyUrl(Component $component, ComponentMeta $meta): void
     {
         $request = $this->app->bound('request') ? $this->app->make('request') : null;
 
@@ -575,381 +504,8 @@ final class Fusion
         }
     }
 
-    /**
-     * A routed page (Route::fusion()): mount() with the route's parameters, then the component
-     * inside its layout; or, for a fusion:navigate visit, only what the browser needs to render
-     * the page itself (pageData()).
-     */
-    public function page(Component $component, array $parameters): Response
-    {
-        $meta = $this->meta($component::class);
-        $component->fusion()->id = $this->pageId();
-        $component->fusion()->name = $meta->name;
-        Hooks::call($component, 'boot');
-        $this->applyUrl($component, $meta);
-
-        if ($meta->hasMount) {
-            /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
-            [$component, 'mount'](...array_values($parameters));
-        }
-
-        return $this->respond($component, $meta);
-    }
-
-    /**
-     * A merge prop from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()):
-     * its value set when the request wants the property (the closure is not called otherwise),
-     * and, on a partial reload, the Merge kept so its rule (->matchOn(), ->prepend(), ... called
-     * after) goes with the value.
-     *
-     * @internal
-     */
-    public function mergeProperty(Component $page, string $property, Merge $merge): Merge
-    {
-        $meta = $this->meta($page::class);
-
-        if (! $meta->page) {
-            throw new InvalidArgumentException("Only pages merge properties: [{$meta->name}] is a component.");
-        }
-
-        if ($meta->property($property) === null) {
-            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to merge into.");
-        }
-
-        if ($this->wants($property)) {
-            $page->{$property} = $merge->resolve($this->app->call(...));
-
-            if ($merge->position() !== null) {
-                $page->fusion()->scroll[$property] = $merge->position();
-            }
-        }
-
-        if ($this->partial() !== null) {
-            $page->fusion()->mergeProps[$property] = $merge;
-        }
-
-        return $merge;
-    }
-
-    /**
-     * A page property loaded after the page is shown ($this->defer()): set when
-     * a partial reload wants it; left as it is otherwise, and named in the snapshot for the
-     * browser to ask for (a partial reload that does not want it leaves it alone).
-     *
-     * @internal
-     */
-    public function deferProperty(Component $page, string $property, Closure $value): void
-    {
-        $meta = $this->meta($page::class);
-
-        if (! $meta->page) {
-            throw new InvalidArgumentException("Only pages defer properties: [{$meta->name}] is a component.");
-        }
-
-        if ($meta->property($property) === null) {
-            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to defer.");
-        }
-
-        if ($this->partial() === null) {
-            $page->fusion()->deferred[] = $property;
-        } elseif ($this->wants($property)) {
-            $page->{$property} = $this->app->call($value);
-        }
-    }
-
-    /**
-     * A page reloading its properties in the browser (X-Fusion-Partial): the ones it wants, an
-     * empty list for all of them. Null for any other request.
-     *
-     * @return list<string>|null
-     */
-    public function partial(): ?array
-    {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-
-        if (! $request instanceof Request || ! $request->headers->has(self::NAVIGATE_HEADER) || ! $request->headers->has(self::PARTIAL_HEADER)) {
-            return null;
-        }
-
-        $only = array_map('trim', explode(',', (string) $request->headers->get(self::ONLY_HEADER, '')));
-
-        return array_values(array_filter($only, fn (string $name) => preg_match('/^\w+$/', $name) === 1));
-    }
-
-    /** Whether the request needs the page property: any request but a partial reload of others. */
-    public function wants(string $property): bool
-    {
-        $only = $this->partial();
-
-        return $only === null || $only === [] || in_array($property, $only, true)
-            || ($this->names() !== null && in_array($this->names()->property($property), $only, true));
-    }
-
-    /**
-     * A partial reload's properties by the component's own names (the browser names them by
-     * an obfuscated build's aliases).
-     *
-     * @param  list<string>  $only
-     * @return list<string>
-     */
-    private function partialProperties(array $only, ComponentMeta $meta): array
-    {
-        $names = $this->names();
-
-        return $names === null ? $only : array_map(fn (string $name) => $names->propertyName($name, array_keys($meta->properties)) ?? $name, $only);
-    }
-
-    /**
-     * A new page's id; on a partial reload, the one it has in the browser; on a markup-first
-     * visit, the one the browser gave the page it rendered early (its children's ids follow it).
-     */
-    private function pageId(): string
-    {
-        $request = $this->app->make('request');
-        $id = match (true) {
-            $this->partial() !== null => (string) $request->headers->get(self::PARTIAL_HEADER),
-            $request->headers->has(self::NAVIGATE_HEADER) => (string) $request->headers->get(self::ID_HEADER),
-            default => '',
-        };
-
-        return preg_match('/^f[a-z0-9]{10}$/', $id) === 1 ? $id : 'f'.Str::lower(Str::random(10));
-    }
-
-    /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
-    private function respond(Component $component, ComponentMeta $meta): Response
-    {
-        $this->head = $this->pageHead($component, $meta);
-        $layout = $meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app');
-        $layoutData = [...($meta->layout->data ?? []), 'title' => $this->head['title']];
-
-        /** The same URL answers with HTML or with page data: caches must keep them apart. */
-        $request = $this->app->make('request');
-
-        if ($request->headers->has(self::NAVIGATE_HEADER)) {
-            /** The browser runs another build's components (a deploy since it loaded): load the page in full. */
-            $version = $request->headers->get(self::VERSION_HEADER);
-
-            if ($version !== null && $version !== $this->app->make(Build\Bundle::class)->tag()) {
-                return (new HttpResponse('', 409, ['X-Fusion-Location' => $request->fullUrl()]))->setVary(self::NAVIGATE_HEADER, false);
-            }
-
-            return $this->pageData($component, $meta, $layout, $layoutData)->setVary(self::NAVIGATE_HEADER, false);
-        }
-
-        $html = $this->renderer->render($component, $meta, $this->stateKey(), $this->pageMemo(), ['fusion:page' => $this->layoutKey($layout, $layoutData)]);
-
-        $page = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString($html)])->render();
-
-        return response($this->fillPortals($page))->setVary(self::NAVIGATE_HEADER, false);
-    }
-
-    /**
-     * A page for the browser to render: its signed state, the title its layout gives it, and the
-     * layout it belongs in (a different one is a full page load). The browser has the compiled
-     * component; no HTML is rendered here, except to create the children that have mount(): those
-     * can only be created on the server, with the props the server's render passes them.
-     */
-    private function pageData(Component $component, ComponentMeta $meta, string $layout, array $layoutData): JsonResponse
-    {
-        $key = $this->stateKey();
-        $memo = $this->pageMemo();
-
-        $children = $this->hasServerChildren($meta)
-            ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $key, $memo))
-            : [];
-
-        $snapshot = Snapshot::capture($component, $meta, $memo);
-        $only = $this->partial();
-
-        return new JsonResponse([
-            'fusion' => 1,
-            'snapshot' => json_decode($snapshot->toJson($key, $this->browserName($meta->name), $this->names()), true),
-            /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
-            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules())->toJson($key, $this->browserName($meta->name), $this->names()), true),
-            'children' => (object) $children,
-            'title' => $this->layoutTitle($layout, $layoutData),
-            /** @fusionHead's tags but the title, when the layout has it (layoutTitle() just rendered it): the browser puts them in place of the last page's. */
-            'head' => $this->headPrinted ? $this->headTags() : null,
-            'layout' => $this->layoutKey($layout, $layoutData),
-            'shared' => $this->sharedForBrowser(),
-            'once' => (object) $this->onceForBrowser(),
-            'flash' => $this->flashForBrowser(),
-        ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    }
-
-    /**
-     * The page's <head>, as @fusionHead prints it: what mount() set ($this->head()), else
-     * #[Title] and #[Description], else the fusion.head defaults.
-     *
-     * @return array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}
-     */
-    private function pageHead(Component $component, ComponentMeta $meta): array
-    {
-        $set = $component->fusion()->head?->values() ?? [];
-
-        return [
-            'title' => $set['title'] ?? $meta->title,
-            'description' => $set['description'] ?? $meta->description ?? $this->config('head.description'),
-            'image' => $set['image'] ?? $this->config('head.image'),
-            'canonical' => $set['canonical'] ?? null,
-            'noindex' => $set['noindex'] ?? false,
-            'meta' => $set['meta'] ?? [],
-        ];
-    }
-
-    /**
-     * A client page's title and head tags (#[Navigate('client')]), worked out at build time from
-     * its #[Title], #[Description] and layout, since a visit to it does not ask the server: what a
-     * visit's answer would carry ('head' null when the layout has no @fusionHead).
-     *
-     * @return array{title: ?string, head: ?string}
-     *
-     * @throws Compiler\CompileException when its layout cannot be rendered outside a request
-     */
-    public function clientHead(ComponentMeta $meta): array
-    {
-        $layout = $meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app');
-        /** Each page's layout renders afresh: its @portal places are its own. */
-        $previous = [$this->head, $this->headPrinted, $this->portals, $this->teleporting];
-        $this->portals = [];
-        $this->teleporting = [];
-        $this->head = [
-            'title' => $meta->title,
-            'description' => $meta->description ?? $this->config('head.description'),
-            'image' => $this->config('head.image'),
-            'canonical' => null,
-            'noindex' => false,
-            'meta' => [],
-        ];
-        $this->headPrinted = false;
-
-        try {
-            $title = $this->layoutTitle($layout, [...($meta->layout->data ?? []), 'title' => $meta->title]);
-
-            return ['title' => $title, 'head' => $this->headPrinted ? $this->headTags() : null];
-        } catch (\Throwable $e) {
-            throw new Compiler\CompileException("#[Navigate('client')] on {$meta->class}: its title comes from its layout [{$layout}], which could not be rendered at build time ({$e->getMessage()}). Use #[Navigate('markup')].", $meta->file);
-        } finally {
-            [$this->head, $this->headPrinted, $this->portals, $this->teleporting] = $previous;
-        }
-    }
-
-    /**
-     * @fusionHead: the page's <title> (in the fusion.head.title format) and the tags search engines
-     * and link previews read. Outside a Fusion page (a plain Blade view), the defaults.
-     */
-    public function head(): HtmlString
-    {
-        $this->headPrinted = true;
-        $title = $this->head['title'] ?? null;
-        $format = (string) $this->config('head.title', '%s');
-        $text = $title === null || $title === '' ? (string) $this->app->make('config')->get('app.name') : str_replace('%s', $title, $format);
-
-        return new HtmlString('<title>'.e($text)."</title>\n".$this->headTags());
-    }
-
-    /** The head's tags but the title, each marked data-fusion-head for the browser to replace on a visit. */
-    private function headTags(): string
-    {
-        $head = $this->head ?? ['title' => null, 'description' => $this->config('head.description'), 'image' => $this->config('head.image'), 'canonical' => null, 'noindex' => false, 'meta' => []];
-        $tags = [];
-        $meta = fn (string $attribute, string $key, ?string $content) => $content === null || $content === ''
-            ? null
-            : '<meta '.$attribute.'="'.e($key).'" content="'.e($content).'" data-fusion-head>';
-
-        $tags[] = $meta('name', 'description', $head['description']);
-        $tags[] = $meta('property', 'og:title', $head['title']);
-        $tags[] = $meta('property', 'og:description', $head['description']);
-        $tags[] = $meta('property', 'og:image', $head['image']);
-        $tags[] = $head['image'] === null || $head['image'] === '' ? null : $meta('name', 'twitter:card', 'summary_large_image');
-        $tags[] = $head['canonical'] === null ? null : '<link rel="canonical" href="'.e($head['canonical']).'" data-fusion-head>';
-        $tags[] = $head['noindex'] ? $meta('name', 'robots', 'noindex') : null;
-
-        foreach ($head['meta'] as $name => $content) {
-            $tags[] = $meta('name', $name, $content);
-        }
-
-        return implode("\n", array_filter($tags));
-    }
-
-    /**
-     * The layout a page renders in, as the browser compares it (fusion:page): a markup-first
-     * visit renders the page at once only into the same one.
-     */
-    public function pageLayout(ComponentMeta $meta): string
-    {
-        return $this->layoutKey($meta->layout->view ?? (string) $this->config('layout', 'components.layouts.app'), $meta->layout->data ?? []);
-    }
-
-    /** Pages share the page around them when they have the same layout, with the same data. */
-    private function layoutKey(string $layout, array $layoutData): string
-    {
-        unset($layoutData['title']);
-
-        return $layoutData === [] ? $layout : $layout.'#'.substr(md5(serialize($layoutData)), 0, 12);
-    }
-
-    /** The document title as the layout writes it (the layout owns its format). */
-    private function layoutTitle(string $layout, array $layoutData): ?string
-    {
-        /** For its title only: @fusionScripts writes nothing (no shared data resolved, no globals built). */
-        $this->renderingTitle = true;
-
-        try {
-            $html = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString('')])->render();
-        } finally {
-            $this->renderingTitle = false;
-        }
-
-        return preg_match('/<title\b[^>]*>(.*?)<\/title>/is', $html, $m)
-            ? html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')
-            : null;
-    }
-
-    /**
-     * Whether the component's view places (itself or through the children it places) a child that
-     * has mount(): only the server can create those.
-     *
-     * @param  array<string, true>  $seen  classes already looked at (views can place each other)
-     */
-    private function hasServerChildren(ComponentMeta $meta, array &$seen = []): bool
-    {
-        if (isset($this->serverChildren[$meta->class])) {
-            return $this->serverChildren[$meta->class];
-        }
-
-        $seen[$meta->class] = true;
-        $source = (string) file_get_contents($this->app->make('view')->getFinder()->find($meta->view));
-        $found = false;
-
-        preg_match_all('/<fusion:([\w.\-]+)/', $source, $tags);
-
-        foreach (array_unique($tags[1]) as $name) {
-            /** It may name any component, one with mount() too. */
-            if ($name === 'dynamic-component') {
-                $found = true;
-
-                break;
-            }
-
-            if (! $this->has($name)) {
-                continue;
-            }
-
-            $child = $this->meta($name);
-
-            if ($child->hasMount || (! isset($seen[$child->class]) && $this->hasServerChildren($child, $seen))) {
-                $found = true;
-
-                break;
-            }
-        }
-
-        return $this->serverChildren[$meta->class] = $found;
-    }
-
     /** The page the components were rendered for: their #[Server] calls re-check its middleware. */
-    private function pageMemo(): array
+    public function pageMemo(): array
     {
         $request = $this->app->bound('request') ? $this->app->make('request') : null;
 
@@ -960,129 +516,126 @@ final class Fusion
         return ['route' => ['method' => $request->getMethod(), 'uri' => $request->getRequestUri()]];
     }
 
-    // ------------------------------------------------------------ assets
+    // ------------------------------------------------------------ pages (Http\PageResponses)
+
+    /**
+     * A routed page (Route::fusion()): mount() with the route's parameters, then the component
+     * inside its layout; or, for a fusion:navigate visit, only what the browser needs to render
+     * the page itself.
+     */
+    public function page(Component $component, array $parameters): Response
+    {
+        return $this->pages->page($component, $parameters);
+    }
+
+    /**
+     * A merge prop from a page's mount() ($this->merge(), $this->deepMerge(), $this->scroll()).
+     *
+     * @internal
+     */
+    public function mergeProperty(Component $page, string $property, Merge $merge): Merge
+    {
+        return $this->pages->mergeProperty($page, $property, $merge);
+    }
+
+    /**
+     * A page property loaded after the page is shown ($this->defer()).
+     *
+     * @internal
+     */
+    public function deferProperty(Component $page, string $property, Closure $value): void
+    {
+        $this->pages->deferProperty($page, $property, $value);
+    }
+
+    /**
+     * A page reloading its properties in the browser (X-Fusion-Partial): the ones it wants, an
+     * empty list for all of them. Null for any other request.
+     *
+     * @return list<string>|null
+     */
+    public function partial(): ?array
+    {
+        return $this->pages->partial();
+    }
+
+    /** Whether the request needs the page property: any request but a partial reload of others. */
+    public function wants(string $property): bool
+    {
+        return $this->pages->wants($property);
+    }
+
+    /**
+     * The layout a page renders in, as the browser compares it (fusion:page): a markup-first
+     * visit renders the page at once only into the same one.
+     */
+    public function pageLayout(ComponentMeta $meta): string
+    {
+        return $this->pages->pageLayout($meta);
+    }
+
+    // ------------------------------------------------------------ the page's head (Rendering\PageHead)
+
+    /**
+     * A client page's title and head tags (#[Navigate('client')]), worked out at build time.
+     *
+     * @return array{title: ?string, head: ?string}
+     *
+     * @throws Compiler\CompileException when its layout cannot be rendered outside a request
+     */
+    public function clientHead(ComponentMeta $meta): array
+    {
+        return $this->head->forClientPage($meta);
+    }
+
+    /** @fusionHead: the page's <title> and the tags search engines and link previews read. */
+    public function head(): HtmlString
+    {
+        return $this->head->html();
+    }
+
+    // ------------------------------------------------------------ assets (Http\Scripts)
 
     /** @fusionScripts: the runtime and the application's compiled components. */
     public function scripts(): HtmlString
     {
-        if ($this->renderingTitle) {
-            return new HtmlString('');
-        }
-
-        $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
-        $built = $this->app->make(Build\Bundle::class);
-        $tag = $built->tag();
-        $urls = $this->app->make('url');
-
-        /** fusion:build's static files when it has them for these components (served without PHP), else Fusion's routes. */
-        $static = fn (?string $file) => $file === null ? null : $urls->asset($file);
-        $runtime = e($static($built->staticRuntime()) ?? $this->endpoint('fusion.js').'?v='.$this->runtimeVersion());
-        $bundle = e($static($built->staticFile()) ?? $this->endpoint('app.js').'?v='.$tag);
-        $chunkUrl = $static($built->staticChunkPattern()) ?? $this->endpoint('app/{id}.js').'?v='.$tag;
-
-        $progress = $this->progress();
-        $progress = $progress === null ? '' : ' data-progress="'.e(json_encode($progress, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)).'"';
-
-        /** The chunks of the components on this page (pages and #[LazyLoad]), loaded with the bundle. */
-        $inChunks = $built->uses()['chunks'] ?? [];
-        $groups = array_unique(array_filter(array_map(fn (string $name) => $inChunks[$name] ?? null, $this->renderer->rendered())));
-        $chunks = array_map(
-            fn (string $group) => "\n".'<script src="'.e(str_replace('{id}', rawurlencode($built->chunkId($group)), $chunkUrl)).'" defer></script>',
-            $groups,
-        );
-
-        $globals = json_encode($this->globals(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
-
-        return new HtmlString(
-            '<script type="application/json" data-fusion-globals>'.$globals.'</script>'."\n"
-            .'<script src="'.$runtime.'" data-endpoint="'.e($this->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
-            .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
-        );
+        return $this->scripts->html();
     }
 
     /**
-     * What the browser's Laravel helpers need, for what the compiled code names only (the
-     * bundle's uses): the named routes it generates, its translations in this request's locale,
-     * the public config it reads, and the URLs url() and asset() start from.
+     * What the browser's Laravel helpers need (routes, translations, public config, URLs), and the
+     * shared and flash data.
      *
      * @return array<string, mixed>
      */
     public function globals(): array
     {
-        $uses = $this->app->make(Build\Bundle::class)->uses();
-        $urls = $this->app->make('url');
-
-        $routes = [];
-        foreach ($uses['routes'] as $name) {
-            $route = $this->app->make('router')->getRoutes()->getByName($name);
-
-            if ($route !== null) {
-                /** uri() without the binding fields ({post:slug} is {post} there): those come apart. */
-                $routes[$name] = array_filter([
-                    'uri' => $route->uri(),
-                    'bindings' => $route->bindingFields() === [] ? null : $route->bindingFields(),
-                    'domain' => $route->getDomain(),
-                ], fn ($v) => $v !== null);
-            }
-        }
-
-        $lang = [];
-        foreach ($uses['lang'] as $key) {
-            $line = $this->app->make('translator')->get($key);
-
-            /** A key without a line is its own line: nothing to ship. */
-            if (is_string($line) && $line !== $key) {
-                $lang[$key] = $line;
-            }
-        }
-
-        $config = [];
-        foreach ($uses['config'] as $key) {
-            $config[$key] = Support\Wire::encode($this->app->make('config')->get($key));
-        }
-
-        return [
-            'url' => $urls->to('/'),
-            'asset' => rtrim($urls->asset('/'), '/'),
-            'locale' => $this->app->make('translator')->getLocale(),
-            'routes' => (object) $routes,
-            'lang' => (object) $lang,
-            'config' => (object) $config,
-            'shared' => $this->sharedForBrowser(),
-            'once' => (object) $this->onceForBrowser(),
-            'flash' => $this->flashForBrowser(),
-        ];
+        return $this->scripts->globals();
     }
 
-    // ------------------------------------------------------------ shared data
+    // ------------------------------------------------------------ shared and flash data (State\SharedData)
 
     /**
      * Data every component can read with $this->shared(), on the server and in the browser, as
-     * Inertia's shared props: the signed-in user, flash messages. A value can be a closure,
-     * called when the data is read. Keys use dot notation. The data is sent to the browser
-     * with every page, fusion:navigate visit and #[Server] call: nothing secret.
+     * Inertia's shared props. Sent to the browser with every page, visit and #[Server] call:
+     * nothing secret.
      *
      * @param  string|array<string, mixed>  $key
      */
     public function share(string|array $key, mixed $value = null): void
     {
-        foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
-            Arr::set($this->shared, (string) $name, $item);
-        }
+        $this->data->share($key, $value);
     }
 
     /** The shared data, or one value of it (dot notation), with the closures called. */
     public function shared(?string $key = null, mixed $default = null): mixed
     {
-        $data = $this->resolveShared($this->shared);
-
-        return $key === null ? $data : data_get($data, $key, $default);
+        return $this->data->shared($key, $default);
     }
 
     /**
      * Shared data sent once (Fusion::once()), as Inertia's once props: the browser keeps it, and
      * a response neither calls the closure for the browser nor sends it while the browser has it.
-     * Reading it on the server ($this->shared()) calls the closure as usual.
      */
     public function once(Closure $value): Once
     {
@@ -1092,175 +645,45 @@ final class Fusion
     /** Share data sent once: Fusion::share($key, Fusion::once($value)). */
     public function shareOnce(string $key, Closure $value): Once
     {
-        $once = new Once($value);
-        $this->share($key, $once);
-
-        return $once;
+        return $this->data->shareOnce($key, $value);
     }
 
-    /**
-     * The shared data as the browser reads it (B.shared()), without the once data the browser
-     * says it has (X-Fusion-Once), unless it is fresh.
-     */
+    /** The shared data as the browser reads it, without the once data it has. */
     public function sharedForBrowser(): mixed
     {
-        $held = $this->heldOnce();
-        $shared = array_filter($this->shared, fn (mixed $value, string|int $key) => ! ($value instanceof Once && in_array((string) $key, $held, true) && ! $value->isFresh()), ARRAY_FILTER_USE_BOTH);
-
-        return Support\Wire::encode($this->resolveShared($shared));
+        return $this->data->sharedForBrowser();
     }
 
     /**
-     * The once data's keys, and when the browser asks for each again (Unix time in seconds, null
-     * for never): what it keeps.
+     * The once data's keys, and when the browser asks for each again.
      *
      * @return array<string, int|null>
      */
     public function onceForBrowser(): array
     {
-        $once = [];
-
-        foreach ($this->shared as $key => $value) {
-            if ($value instanceof Once) {
-                $once[(string) $key] = $value->expiresAt();
-            }
-        }
-
-        return $once;
+        return $this->data->onceForBrowser();
     }
-
-    /** @return list<string> the once data the browser has (X-Fusion-Once) */
-    private function heldOnce(): array
-    {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-        $header = $request instanceof Request ? (string) $request->headers->get(self::ONCE_HEADER, '') : '';
-
-        return array_values(array_filter(array_map('trim', explode(',', $header)), fn (string $key) => $key !== ''));
-    }
-
-    // ------------------------------------------------------------ flash data
 
     /**
-     * Data for the next response only, as Inertia::flash(): a toast after a save. It goes with the
-     * next page, visit or #[Server] answer (this request's, or the next one's after a redirect),
-     * then it is gone, and the browser keeps it out of history. Read with $this->flashed().
+     * Data for the next response only, as Inertia::flash(): a toast after a save.
      *
      * @param  string|array<string, mixed>  $key
      */
     public function flash(string|array $key, mixed $value = null): void
     {
-        $session = $this->session() ?? throw new \RuntimeException('Fusion::flash() keeps its data in the session: the request has none (the web middleware starts it).');
-        $data = $this->flashData();
-
-        foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
-            Arr::set($data, (string) $name, $item);
-        }
-
-        $session->flash(self::FLASH_KEY, $data);
+        $this->data->flash($key, $value);
     }
 
     /** The flash data, or one value of it (dot notation). */
     public function flashed(?string $key = null, mixed $default = null): mixed
     {
-        return $key === null ? $this->flashData() : data_get($this->flashData(), $key, $default);
+        return $this->data->flashed($key, $default);
     }
 
-    /**
-     * The flash data for the browser (B.flashed()). Delivered, it is this request's only (the
-     * session's now()): read again within it (the layout rendered for the title), gone after.
-     */
+    /** The flash data for the browser, delivered with this response. */
     public function flashForBrowser(): mixed
     {
-        $data = $this->flashData();
-
-        $session = $this->session();
-
-        if ($data !== [] && $session !== null) {
-            /** The session's now(): kept for this request, dropped when it ends. */
-            $session->put(self::FLASH_KEY, $data);
-            $session->put('_flash.old', array_values(array_unique([...(array) $session->get('_flash.old', []), self::FLASH_KEY])));
-        }
-
-        return Support\Wire::encode($this->resolveShared($data));
-    }
-
-    /**
-     * The flash data waiting in the session: the last request's, and this one's. Only there, not
-     * on this object: a Fusion kept past its request (a facade, Octane) carries none of it over.
-     *
-     * @return array<string, mixed>
-     */
-    private function flashData(): array
-    {
-        return (array) ($this->session()?->get(self::FLASH_KEY, []) ?? []);
-    }
-
-    private function session(): ?\Illuminate\Contracts\Session\Session
-    {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-
-        return $request instanceof Request && $request->hasSession() ? $request->session() : null;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $values
-     * @return array<array-key, mixed>
-     */
-    private function resolveShared(array $values): array
-    {
-        foreach ($values as $key => $value) {
-            if ($value instanceof Once) {
-                $value = $value->value;
-            }
-
-            if ($value instanceof Closure) {
-                $value = $this->app->call($value);
-            }
-
-            if ($value instanceof Arrayable) {
-                $value = $value->toArray();
-            } elseif ($value instanceof JsonSerializable) {
-                $value = $value->jsonSerialize();
-            }
-
-            $values[$key] = is_array($value) ? $this->resolveShared($value) : $value;
-        }
-
-        return $values;
-    }
-
-    /**
-     * The progress bar's settings for the browser (config/nprogress.php), null when it is off.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function progress(): ?array
-    {
-        $config = (array) $this->app->make('config')->get('nprogress', []);
-
-        if (! filter_var($config['show'] ?? false, FILTER_VALIDATE_BOOL)) {
-            return null;
-        }
-
-        return [
-            'serverCalls' => filter_var($config['server_calls'] ?? false, FILTER_VALIDATE_BOOL),
-            'delay' => (int) ($config['delay'] ?? 0),
-            'color' => (string) ($config['color'] ?? '#29d'),
-            'height' => (string) ($config['height'] ?? '3px'),
-            'position' => ($config['position'] ?? 'top') === 'bottom' ? 'bottom' : 'top',
-            'glow' => filter_var($config['glow'] ?? true, FILTER_VALIDATE_BOOL),
-            'glowWidth' => (string) ($config['glow_width'] ?? '100px'),
-            'spinner' => filter_var($config['spinner'] ?? false, FILTER_VALIDATE_BOOL),
-            'spinnerSize' => (string) ($config['spinner_size'] ?? '18px'),
-            'zIndex' => (int) ($config['z_index'] ?? 1031),
-            'minimum' => (float) ($config['minimum'] ?? 0.15),
-            'maximum' => (float) ($config['maximum'] ?? 0.92),
-            'easing' => (string) ($config['easing'] ?? 'ease-out'),
-            'speed' => (int) ($config['speed'] ?? 150),
-            'fadeSpeed' => (int) ($config['fade_speed'] ?? 200),
-            'trickle' => filter_var($config['trickle'] ?? true, FILTER_VALIDATE_BOOL),
-            'trickleSpeed' => (int) ($config['trickle_speed'] ?? 100),
-        ];
+        return $this->data->flashForBrowser();
     }
 
     public function runtimePath(): string
