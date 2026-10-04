@@ -67,6 +67,15 @@ export function hydrateChild(instance, target, id) {
 /** Viewi's hydrateText. */
 export function hydrateText(instance, target, content) {
     const anchor = getAnchor(instance, target);
+    /** Fusion: an empty text is no node in the server's HTML: it is made, and what is there kept. */
+    if (content === '' && target.childNodes[anchor.current + 1]?.nodeType !== 3) {
+        anchor.added++;
+        anchor.current++;
+        const empty = instance.document.createTextNode('');
+        return target.childNodes.length > anchor.current
+            ? target.insertBefore(empty, target.childNodes[anchor.current])
+            : target.appendChild(empty);
+    }
     const max = target.childNodes.length;
     let end = anchor.current + 3;
     end = end > max ? max : end;
@@ -78,12 +87,14 @@ export function hydrateText(instance, target, content) {
             potentialNode.nodeType === 3
         ) {
             if (i === anchor.current) {
+                /** Fusion: the rest of a server text node the text before split off (setText) is this text's. */
+                if (target.childNodes[i + 1]?.nodeType === 3) continue;
                 // text after text, no shift
                 break;
             }
             anchor.current = i;
             anchor.invalid = anchor.invalid.concat(invalid);
-            potentialNode.nodeValue !== content && (potentialNode.nodeValue = content);
+            setText(potentialNode, content);
             return potentialNode;
         }
         i !== anchor.current && invalid.push(i);
@@ -123,6 +134,20 @@ export function hydrateComment(instance, target, content) {
         : target.appendChild(element);
 }
 
+/**
+ * A server text node taken over for a text of the view. Text beside {!! $html !!} is one text node
+ * in the server's HTML (the parser joins them): the part after this text is split off, for the
+ * text that follows to take, rather than cut (which would make the hydration rebuild from there).
+ */
+function setText(node, content) {
+    if (node.nodeValue === content) return;
+    if (node.nodeValue.startsWith(content)) {
+        node.splitText(content.length);
+        return;
+    }
+    node.nodeValue = content;
+}
+
 /** Viewi's hydrateRaw: {!! $html !!} parsed (vdom), matched node by node. */
 export function hydrateRaw(vdom, anchor, target) {
     if (vdom.childNodes.length > 0) {
@@ -135,7 +160,7 @@ export function hydrateRaw(vdom, anchor, target) {
                 // text
                 const currentTargetNode = target.childNodes[anchor.current];
                 if (currentTargetNode && currentTargetNode.nodeType === rawNodeType) {
-                    currentTargetNode.nodeValue = rawNode.nodeValue;
+                    setText(currentTargetNode, rawNode.nodeValue);
                 } else {
                     anchor.added++;
                     target.childNodes.length > anchor.current && invalid.push(anchor.current);
