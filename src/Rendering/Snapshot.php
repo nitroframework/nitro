@@ -116,6 +116,8 @@ final class Snapshot
             'models' => array_intersect_key($this->memo['models'] ?? [], $names),
             'merge' => array_intersect_key($merges, $names),
             'scroll' => array_intersect_key($this->memo['scroll'] ?? [], $names),
+            /** The page it was rendered for: it can only be laid over a snapshot of that page (UpdateController). */
+            'route' => $this->memo['route'] ?? null,
             'partial' => true,
         ]));
     }

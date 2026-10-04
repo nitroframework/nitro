@@ -15,6 +15,7 @@ use Nitro\Fusion\Attributes\On;
 use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
 use Nitro\Fusion\Attributes\Title;
+use Nitro\Fusion\Attributes\Uploads;
 use Nitro\Fusion\Attributes\Url;
 use Nitro\Fusion\Attributes\Validate;
 use Nitro\Fusion\Attributes\View;
@@ -121,7 +122,7 @@ final class ComponentMeta
                     'attributes' => $validate->as === null ? [] : [$field => $validate->as],
                 ];
             }
-            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== []);
+            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== [], $property->getAttributes(Uploads::class) !== []);
 
             if ($property->getAttributes(Modelable::class) !== []) {
                 if ($modelable !== null || $properties[$property->getName()]->locked) {

@@ -870,6 +870,7 @@ use Nitro\Fusion\Upload;
 class CakeForm extends Component
 {
     public ?Upload $photo = null;   // one file
+    #[Uploads]
     public array $photos = [];      // several: <input type="file" multiple>
 
     #[Server]

@@ -13,7 +13,7 @@ import { islandsIn, whenToStart } from './islands.js';
 import { Broadcasts } from './echo.js';
 import { applyLoading, STYLE } from './loading.js';
 import { Model } from './model.js';
-import { Navigator } from './navigate.js';
+import { Navigator, webUrl } from './navigate.js';
 import { Network } from './network.js';
 
 export class Runtime {
@@ -590,7 +590,8 @@ export class Runtime {
         }
         if (effects.reload) this.reload(component, effects.reload.only).catch(() => {});
         if (effects.redirect) {
-            effects.redirect.navigate ? this.navigator.visit(effects.redirect.url) : (this.window.location.href = effects.redirect.url);
+            const url = webUrl(effects.redirect.url, this.window.location.href);
+            if (url) effects.redirect.navigate ? this.navigator.visit(url.href) : (this.window.location.href = url.href);
         }
     }
 

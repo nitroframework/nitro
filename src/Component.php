@@ -112,6 +112,13 @@ abstract class Component
      */
     final protected function redirect(string $url, bool $navigate = false): void
     {
+        /** http(s) or a path only: a javascript: or data: URL (from what a visitor typed) would run script. */
+        $scheme = parse_url(trim($url), PHP_URL_SCHEME);
+
+        if (is_string($scheme) && ! in_array(strtolower($scheme), ['http', 'https'], true)) {
+            throw new \InvalidArgumentException("redirect() goes to http(s) URLs and paths, not {$scheme}:");
+        }
+
         $this->fusion()->redirect = ['url' => $url, 'navigate' => $navigate];
     }
 

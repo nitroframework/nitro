@@ -45,10 +45,12 @@ final class PropertyMeta
         public readonly ?Url $url = null,
         /** Kept in the browser's history entry (#[Remember]). */
         public readonly bool $remember = false,
+        /** An array that takes files from the browser (#[Uploads]): a list of Uploads. */
+        public readonly bool $uploads = false,
     ) {
     }
 
-    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null, bool $remember = false): self
+    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null, bool $remember = false, bool $uploads = false): self
     {
         $type = $property->getType();
         $types = [];
@@ -95,6 +97,10 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Url]: the URL sets it, so it is a plain value the browser can change (not #[Locked], not a model)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
+        if ($uploads && ($kind !== self::VALUE || $types === [] || array_diff($types, ['array', 'null']) !== [] || $locked)) {
+            throw new CompileException("\${$property->getName()} is #[Uploads]: it is an array the browser sends files to (public array \${$property->getName()} = []), not #[Locked]", $file, $property->getDeclaringClass()->getStartLine());
+        }
+
         if ($remember && ($kind !== self::VALUE || $locked)) {
             throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
         }
@@ -109,6 +115,7 @@ final class PropertyMeta
             $property->hasDefaultValue() ? $property->getDefaultValue() : null,
             $url,
             $remember,
+            $uploads,
         );
     }
 
@@ -150,6 +157,24 @@ final class PropertyMeta
      * Whether a value from the browser fits the declared type. No coercion: a property is set
      * from the browser only with a value of its own type (ints are accepted for floats).
      */
+    /** Whether an array from the browser has an Upload in it, at any depth. */
+    public static function holdsUpload(mixed $value): bool
+    {
+        if ($value instanceof Upload) {
+            return true;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (self::holdsUpload($item)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function accepts(mixed $value): bool
     {
         /** An upload property takes an Upload (Wire::decode made it from a reference it checked) or null. */
@@ -163,6 +188,15 @@ final class PropertyMeta
 
         if ($value === null) {
             return $this->nullable;
+        }
+
+        /** #[Uploads]: a list of Uploads. Any other value holds none, at any depth (only these properties take files). */
+        if ($this->uploads) {
+            return is_array($value) && array_is_list($value) && array_filter($value, fn ($item) => ! $item instanceof Upload) === [];
+        }
+
+        if (self::holdsUpload($value)) {
+            return false;
         }
 
         if ($this->types === [] || in_array('mixed', $this->types, true)) {

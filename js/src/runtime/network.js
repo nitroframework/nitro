@@ -4,6 +4,7 @@
  * the answer replaces the state, keeping anything changed in the browser meanwhile.
  */
 import * as P from '../php.js';
+import { webUrl } from './navigate.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -67,7 +68,7 @@ export class Network {
 
         /** Deployed since the page loaded: load it in full, with the new components. */
         if (response.status === 409) {
-            window.location.href = response.headers.get('X-Fusion-Location') || window.location.href;
+            window.location.href = webUrl(response.headers.get('X-Fusion-Location') || window.location.href, window.location.href)?.href ?? window.location.href;
             return;
         }
 

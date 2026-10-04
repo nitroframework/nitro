@@ -38,6 +38,24 @@ import * as P from '../php.js';
 import { Swap } from './swap.js';
 import { readState } from './component.js';
 
+/**
+ * A URL the browser may be sent to: http(s) only. A redirect can come from what a visitor typed
+ * (a "return to" URL); javascript: or data: there would run script on the page.
+ */
+export function webUrl(href, base) {
+    let url;
+    try {
+        url = new URL(href, base);
+    } catch {
+        return null;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        console.error(`Fusion: not sending the browser to ${url.protocol} URLs`);
+        return null;
+    }
+    return url;
+}
+
 export class Navigator {
     constructor(runtime, window) {
         this.runtime = runtime;
@@ -139,7 +157,8 @@ export class Navigator {
      * #hash or the top.
      */
     async visit(href, push = true, options = {}) {
-        const url = new URL(href, this.window.location.href);
+        const url = webUrl(href, this.window.location.href);
+        if (!url) return;
         if (url.origin !== this.window.location.origin) {
             this.window.location.href = url.href;
             return;

@@ -59,7 +59,8 @@ final class UploadController
         /** By the browser's name for it (an obfuscated build). */
         $name = is_string($name) ? ($this->fusion()->names()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
         $property = is_string($name) ? $meta->property($name) : null;
-        $multiple = $property !== null && in_array('array', $property->types, true);
+        /** Several files only for an #[Uploads] array; any other array takes none. */
+        $multiple = $property !== null && $property->uploads;
 
         if ($property === null || $property->locked || ! ($property->kind === PropertyMeta::UPLOAD || $multiple)) {
             throw new HttpException(403, 'This property does not take uploads.');

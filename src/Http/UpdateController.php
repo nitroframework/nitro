@@ -14,6 +14,7 @@ use InvalidArgumentException;
 use JsonException;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\State;
@@ -142,8 +143,23 @@ final class UpdateController
                 throw new HttpException(403, 'This partial reload belongs to another component.');
             }
 
+            /** Rendered for the page of the snapshot: the middleware checked is that page's (another route of the same page could bind other models). */
+            if (self::page($partial->memo['route'] ?? null) !== self::page($snapshot->memo['route'] ?? null)) {
+                throw new HttpException(403, 'This partial reload belongs to another page.');
+            }
+
             $partial->fromBrowser($this->fusion()->names(), array_keys($meta->properties))->restore($component, $meta);
         }
+    }
+
+    /** A snapshot's page: its method and path (the route and its bindings; a query string, such as a scroll prop's page, is not another page). */
+    private static function page(mixed $route): ?string
+    {
+        if (! is_array($route) || ! is_string($route['uri'] ?? null)) {
+            return null;
+        }
+
+        return ($route['method'] ?? '').' '.(parse_url($route['uri'], PHP_URL_PATH) ?: '/');
     }
 
     /**
@@ -220,7 +236,13 @@ final class UpdateController
             throw new HttpException(403, 'This method cannot be called from the browser.');
         }
 
-        $arguments = $this->arguments($meta->serverParameters[$method], array_map(Wire::decode(...), $params));
+        try {
+            $params = array_map(Wire::decode(...), $params);
+        } catch (InvalidArgumentException) {
+            throw new HttpException(400, 'Malformed component update.');
+        }
+
+        $arguments = $this->arguments($meta->serverParameters[$method], $params);
         $context = $component->fusion();
         $context->errors = new \Illuminate\Support\MessageBag;
 
@@ -337,7 +359,8 @@ final class UpdateController
             default => false,
         };
 
-        if (! $fits && ! ($value === null && $parameter['nullable'])) {
+        /** Uploads reach a component through its Upload and #[Uploads] properties, never an argument. */
+        if ((! $fits && ! ($value === null && $parameter['nullable'])) || PropertyMeta::holdsUpload($value)) {
             throw new HttpException(403, "Invalid argument \${$parameter['name']}.");
         }
 

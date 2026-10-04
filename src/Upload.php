@@ -38,8 +38,8 @@ final class Upload extends UploadedFile
     /** A new upload: the received file moved into the temporary folder under a random name. */
     public static function receive(UploadedFile $received): self
     {
-        $extension = Str::lower(preg_replace('/[^A-Za-z0-9]/', '', $received->getClientOriginalExtension()) ?? '');
-        $file = Str::random(40).($extension === '' ? '' : '.'.substr($extension, 0, 10));
+        /** No extension from the client: the file is kept as data until store() names it by its content. */
+        $file = Str::random(40);
         $directory = self::directory();
 
         if (! is_dir($directory)) {
