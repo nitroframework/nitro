@@ -178,7 +178,7 @@ final class Expressions extends Part
             $e instanceof Expr\BinaryOp\BooleanAnd, $e instanceof Expr\BinaryOp\LogicalAnd => '(P.bool('.$l().') && P.bool('.$r().'))',
             $e instanceof Expr\BinaryOp\BooleanOr, $e instanceof Expr\BinaryOp\LogicalOr => '(P.bool('.$l().') || P.bool('.$r().'))',
             $e instanceof Expr\BinaryOp\LogicalXor => '(P.bool('.$l().') !== P.bool('.$r().'))',
-            $e instanceof Expr\BinaryOp\Coalesce => 'P.coalesce('.$l().', () => '.$r().')',
+            $e instanceof Expr\BinaryOp\Coalesce => 'P.coalesce('.($this->isKeyRead($e->left) ? $this->existence('P.peek', $e->left) : $l()).', () => '.$r().')',
             $e instanceof Expr\BinaryOp\BitwiseAnd => '(P.toInt('.$l().') & P.toInt('.$r().'))',
             $e instanceof Expr\BinaryOp\BitwiseOr => '(P.toInt('.$l().') | P.toInt('.$r().'))',
             $e instanceof Expr\BinaryOp\BitwiseXor => '(P.toInt('.$l().') ^ P.toInt('.$r().'))',
@@ -246,9 +246,16 @@ final class Expressions extends Part
 
         $out .= $default !== null
             ? "return {$default};\n"
-            : "throw new P.PhpError('UnhandledMatchError', 'Unhandled match case ' + P.jsonEncode({$subject}));\n";
+            : "throw P.unhandledMatch({$subject});\n";
 
         return $out.'})('.$this->transpiler->expr($e->cond).')';
+    }
+
+    /** $a['k'] or $post->title: read as isset() reads it by ?? (a missing key or offset gives the default). */
+    private function isKeyRead(Expr $e): bool
+    {
+        return ($e instanceof Expr\ArrayDimFetch && $e->dim !== null)
+            || (($e instanceof Expr\PropertyFetch || $e instanceof Expr\NullsafePropertyFetch) && $e->name instanceof Identifier && ! $this->context->isThis($e->var));
     }
 
     private function existence(string $fn, Expr $e): string

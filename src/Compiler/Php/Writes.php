@@ -30,6 +30,9 @@ use PhpParser\Node\Identifier;
  */
 final class Writes extends Part
 {
+    /** JavaScript with no effects and nothing to evaluate: a variable, a number, a string (read later, it is the same). */
+    private const SIMPLE = '/^(\$\w+|-?\d+(\.\d+)?|"(?:[^"\\\\]|\\\\.)*")$/';
+
     /** $x = ...: an assignment; a variable given a Fusion::browser() API keeps its class, for the calls on it. */
     public function assignment(Expr\Assign $e, bool $valueUsed): string
     {
@@ -92,6 +95,11 @@ final class Writes extends Part
             [$root, $path] = $this->target($e->var);
             $path[] = $e->dim === null ? 'P.APPEND' : $this->transpiler->expr($e->dim);
 
+            /** $a[$a] = ...: PHP reads the key after null or false became an array, so the key is that array. */
+            if ($e->var instanceof Expr\Variable && $e->dim instanceof Expr\Variable && $e->var->name === $e->dim->name && count($path) === 1) {
+                $path = ["P.ownKey({$root})"];
+            }
+
             return [$root, $path];
         }
 
@@ -135,8 +143,27 @@ final class Writes extends Part
     {
         [$root, $path] = $this->target($e->var);
         [$root, $path, $prefix] = $this->stablePath($root, $path);
-        $current = $path === [] ? $root : "P.getIn({$root}, [".implode(', ', $path).'])';
+        /** ??= reads as isset() does (a missing key or offset gives the default); the others, after PHP's checks of where they write. */
+        $read = $e instanceof Expr\AssignOp\Coalesce ? 'P.peek' : 'P.getForUpdate';
+        $current = $path === [] ? $root : "{$read}({$root}, [".implode(', ', $path).'])';
         $operand = $this->transpiler->expr($e->expr);
+
+        /** ??= writes only where the value is missing: a value that is there is left as it is (a string's byte too). */
+        if ($e instanceof Expr\AssignOp\Coalesce) {
+            $t = $this->context->temp();
+
+            return "({$prefix}{$t} = {$current}, {$t} !== null && {$t} !== undefined ? {$t} : ".$this->write($root, $path, $operand, true).')';
+        }
+
+        /**
+         * PHP evaluates the right side first, then reads where it writes ($a = 1; $a += ($a = 5) is
+         * 10) and checks it (a string offset, a scalar).
+         */
+        if (! preg_match(self::SIMPLE, $operand)) {
+            $t = $this->context->temp();
+            $prefix .= "{$t} = {$operand}, ";
+            $operand = $t;
+        }
 
         $value = match (true) {
             $e instanceof Expr\AssignOp\Plus => "P.add({$current}, {$operand})",
@@ -146,7 +173,6 @@ final class Writes extends Part
             $e instanceof Expr\AssignOp\Mod => "P.mod({$current}, {$operand})",
             $e instanceof Expr\AssignOp\Pow => "P.pow({$current}, {$operand})",
             $e instanceof Expr\AssignOp\Concat => "P.concat({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Coalesce => "P.coalesce({$current}, () => {$operand})",
             $e instanceof Expr\AssignOp\BitwiseAnd => "(P.toInt({$current}) & P.toInt({$operand}))",
             $e instanceof Expr\AssignOp\BitwiseOr => "(P.toInt({$current}) | P.toInt({$operand}))",
             $e instanceof Expr\AssignOp\BitwiseXor => "(P.toInt({$current}) ^ P.toInt({$operand}))",
@@ -164,7 +190,7 @@ final class Writes extends Part
     {
         [$root, $path] = $this->target($e->var);
         [$root, $path, $prefix] = $this->stablePath($root, $path);
-        $current = $path === [] ? $root : "P.getIn({$root}, [".implode(', ', $path).'])';
+        $current = $path === [] ? $root : "P.getForUpdate({$root}, [".implode(', ', $path).'], true)';
         $fn = $e instanceof Expr\PreInc || $e instanceof Expr\PostInc ? 'P.inc' : 'P.dec';
         $post = $e instanceof Expr\PostInc || $e instanceof Expr\PostDec;
 
@@ -265,7 +291,7 @@ final class Writes extends Part
                 throw new CompileException('[] cannot be used with a compound assignment', $this->context->scope->file);
             }
 
-            if (! preg_match('/^(\$\w+|-?\d+(\.\d+)?|"(?:[^"\\\\]|\\\\.)*")$/', $key)) {
+            if (! preg_match(self::SIMPLE, $key)) {
                 $t = $this->context->temp();
                 $prefix .= "{$t} = {$key}, ";
                 $path[$i] = $t;

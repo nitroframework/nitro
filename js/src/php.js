@@ -89,6 +89,41 @@ export function listItem(base, k) {
     return Array.isArray(base) || base instanceof Map ? get(base, k) : null;
 }
 
+/**
+ * A string offset's position, from its key as PHP reads one: an int, a float (truncated), a bool,
+ * null, an integer string (" 1", "01"). A leading-numeric string ("1x") is its number with a
+ * warning (not legal: isset() is false). Any other string ("x", "1.0", "") is no offset: null.
+ */
+function stringOffset(k) {
+    if (typeof k === 'number') return { i: Math.trunc(k), legal: true };
+    if (k === true) return { i: 1, legal: true };
+    if (k === false || k === null || k === undefined) return { i: 0, legal: true };
+    if (typeof k === 'string') {
+        if (/^[ \t\n\r\v\f]*[+-]?\d+[ \t\n\r\v\f]*$/.test(k)) return { i: Number(k.trim()), legal: true };
+        const leading = /^[ \t\n\r\v\f]*([+-]?\d+)(?![.eE\d])/.exec(k);
+        if (leading) return { i: Number(leading[1]), legal: false };
+    }
+    return null;
+}
+
+/** $string[$k] = $v: one byte replaced, the string padded with spaces up to it. */
+function setStringOffset(base, k, v) {
+    if (k === APPEND) throw new PhpError('Error', '[] operator not supported for strings');
+    const offset = stringOffset(k);
+    if (offset === null) throw typeError(`Cannot access offset of type ${typeName(k)} on string`);
+    const bytes = utf8(base);
+    let i = offset.i;
+    if (i < 0) i += bytes.length;
+    /** Before the start: PHP warns and leaves the string. */
+    if (i < 0) return base;
+    const value = utf8(toStr(v));
+    if (value.length === 0) throw new PhpError('Error', 'Cannot assign an empty string to a string offset');
+    const out = new Uint8Array(Math.max(bytes.length, i + 1)).fill(0x20);
+    out.set(bytes);
+    out[i] = value[0];
+    return fromUtf8(out);
+}
+
 /** $base[$k] (read). Missing keys, and offsets of null, read as null (PHP warns). */
 export function get(base, k) {
     base = arrayOrNull(base);
@@ -102,8 +137,10 @@ export function get(base, k) {
         return v === undefined ? null : v;
     }
     if (typeof base === 'string') {
+        const offset = stringOffset(k);
+        if (offset === null) throw typeError(`Cannot access offset of type ${typeName(k)} on string`);
         const bytes = utf8(base);
-        let i = toInt(k);
+        let i = offset.i;
         if (i < 0) i += bytes.length;
         return i >= 0 && i < bytes.length ? fromUtf8(bytes.subarray(i, i + 1)) : '';
     }
@@ -112,6 +149,46 @@ export function get(base, k) {
         return v === undefined ? null : v;
     }
     return null;
+}
+
+/**
+ * What $base[a][b] += ... and $base[a][b]++ read, after PHP's checks of where they write: a
+ * string offset cannot take them, and a scalar (true, a number) holds no keys. null and false
+ * become arrays: the value read is null.
+ */
+export function getForUpdate(base, path, increment = false) {
+    let v = base;
+    for (let i = 0; i < path.length; i++) {
+        if (v === null || v === undefined || v === false) return null;
+        if (typeof v === 'string') {
+            /** Keys under a string offset: the error a nested write gives. */
+            if (i < path.length - 1) return setIn(v, path.slice(i), null);
+            if (stringOffset(path[i]) === null) throw typeError(`Cannot access offset of type ${typeName(path[i])} on string`);
+            throw new PhpError('Error', increment ? 'Cannot increment/decrement string offsets' : 'Cannot use assign-op operators with string offsets');
+        }
+        if (v === true || typeof v === 'number') throw new PhpError('Error', 'Cannot use a scalar value as an array');
+        v = get(v, path[i]);
+    }
+    return v;
+}
+
+/** match without a matching arm: the value as PHP shows it ('abc', NULL, NAN, of type array). */
+export function unhandledMatch(v) {
+    const shown = v === null || v === undefined ? 'NULL'
+        : typeof v === 'string' ? `'${v.replace(/[\\']/g, '\\$&')}'`
+        : isArray(v) ? 'of type array'
+        : typeof v === 'object' ? 'of type object'
+        : typeof v === 'boolean' ? String(v)
+        : toStr(v);
+    return new PhpError('UnhandledMatchError', `Unhandled match case ${shown}`);
+}
+
+/** The key of $a[$a] = ...: $a once the write made it an array (from null or false). */
+export const ownKey = (v) => (v === null || v === undefined || v === false ? [] : v);
+
+/** $base[a][b] ?? ...: the value where isset() finds one, else null (no warning, no error). */
+export function peek(base, path) {
+    return isset(base, path, true) ? getIn(base, path) : null;
 }
 
 /** $base->name on data (models arrive as arrays). */
@@ -129,7 +206,9 @@ export const APPEND = Symbol('append');
 
 /** $base[$k] = $v; returns the new array. $k === APPEND appends ($base[] = $v). */
 export function set(base, k, v) {
-    base = arrayOrNull(base);
+    if (typeof base === 'string') return setStringOffset(base, k, v);
+    /** false becomes an array, as null does (PHP deprecates it). */
+    base = base === false ? null : arrayOrNull(base);
     if (base === null) base = [];
     if (!isArray(base)) throw new PhpError('Error', 'Cannot use a scalar value as an array');
     if (Array.isArray(base)) {
@@ -153,8 +232,12 @@ export function setIn(base, path, v) {
     if (path.length === 0) return v;
     const [head, ...rest] = path;
     if (rest.length === 0) return set(base, head, v);
+    if (typeof base === 'string') {
+        if (head !== APPEND && stringOffset(head) === null) throw typeError(`Cannot access offset of type ${typeName(head)} on string`);
+        throw new PhpError('Error', 'Cannot use string offset as an array');
+    }
     const child = head === APPEND ? null : get(base, head);
-    return set(base, head, setIn(isArray(child) ? child : null, rest, v));
+    return set(base, head, setIn(child, rest, v));
 }
 
 /** Read along a path (used by compound assignments). */
@@ -181,17 +264,19 @@ export function unsetIn(base, path) {
     map.delete(k);
     return normalize(map);
 }
-
+/** isset() on a path: every step exists and the final value is not null. ?? (coalescing) also reads a leading-numeric string offset ("1x"), as PHP does. */
 /** isset() on a path: every step exists and the final value is not null. */
-export function isset(base, path = []) {
+export function isset(base, path = [], coalescing = false) {
     let v = base;
     for (const k of path) {
         if (v === null || v === undefined) return false;
         if (isArray(v)) {
             v = Array.isArray(v) ? v[key(k)] : v.get(key(k));
         } else if (typeof v === 'string') {
-            const i = toInt(k);
-            return i < utf8(v).length && i >= -utf8(v).length;
+            const offset = stringOffset(k);
+            const length = utf8(v).length;
+            if (offset === null || (!offset.legal && !coalescing) || offset.i >= length || offset.i < -length) return false;
+            v = get(v, offset.i);
         } else if (typeof v === 'object') {
             v = v[k];
         } else {
@@ -210,7 +295,7 @@ export function empty(base, path = []) {
 export function iter(v) {
     if (Array.isArray(v)) return v.entries();
     if (v instanceof Map) return v.entries();
-    if (v === null || v === undefined) return [];
+    if (v === null || v === undefined || typeof v !== 'object') return [];
     throw typeError(`foreach() argument must be of type array, ${typeName(v)} given`);
 }
 
@@ -296,7 +381,7 @@ export function toStr(v) {
          */
         return Number.isSafeInteger(v) ? String(v) : floatToString(v);
     }
-    if (isArray(v)) throw new PhpError('Error', 'Array to string conversion');
+    if (isArray(v)) return 'Array';
     if (typeof v === 'object' && typeof v.toString === 'function' && v.toString !== Object.prototype.toString) return v.toString();
     throw new PhpError('Error', `Object of class ${v?.constructor?.name ?? 'object'} could not be converted to string`);
 }
@@ -412,16 +497,19 @@ export function add(a, b) {
 export const sub = (a, b) => toNum(a, '-', typeName(b)) - toNum(b, '-', typeName(a));
 export const mul = (a, b) => toNum(a, '*', typeName(b)) * toNum(b, '*', typeName(a));
 
+/** The operands' types are checked before the divisor is (PHP's order: TypeError, then DivisionByZeroError). */
 export function div(a, b) {
+    const n = toNum(a, '/', typeName(b));
     const d = toNum(b, '/', typeName(a));
     if (d === 0) throw new PhpError('DivisionByZeroError', 'Division by zero');
-    return toNum(a, '/', typeName(b)) / d;
+    return n / d;
 }
 
 export function mod(a, b) {
+    const n = toInt(toNum(a, '%', typeName(b)));
     const d = toInt(toNum(b, '%', typeName(a)));
     if (d === 0) throw new PhpError('DivisionByZeroError', 'Modulo by zero');
-    const r = toInt(toNum(a, '%', typeName(b))) % d;
+    const r = n % d;
     return r === 0 ? 0 : r;
 }
 
@@ -431,12 +519,14 @@ export const concat = (...parts) => parts.map(toStr).join('');
 
 export function inc(v) {
     if (v === null || v === undefined) return 1;
+    if (typeof v === 'boolean') return v;
     if (typeof v === 'string' && !isNumericString(v)) return strInc(v);
     return toNum(v) + 1;
 }
 
 export function dec(v) {
     if (v === null || v === undefined) return null;
+    if (typeof v === 'boolean') return v;
     if (v === '') return -1;
     if (typeof v === 'string' && !isNumericString(v)) return v;
     return toNum(v) - 1;
@@ -812,7 +902,8 @@ export const fns = {
         const bytes = utf8(toStr(s));
         const pad = utf8(toStr(padString));
         const total = toInt(length) - bytes.length;
-        if (total <= 0 || pad.length === 0) return toStr(s);
+        if (total <= 0) return toStr(s);
+        if (pad.length === 0) throw new PhpError('ValueError', 'str_pad(): Argument #3 ($pad_string) must not be empty');
         const make = (n) => {
             const out = new Uint8Array(n);
             for (let i = 0; i < n; i++) out[i] = pad[i % pad.length];
@@ -1013,12 +1104,13 @@ export const fns = {
     array_column: (a, column, indexKey = null) => {
         const map = new Map();
         let next = 0;
+        /** A key that is there, even holding null (not isset()). */
+        const has = (row, k) => isArray(row) && (Array.isArray(row) ? typeof key(k) === 'number' && key(k) >= 0 && key(k) < row.length : row.has(key(k)));
         for (const [, row] of entries(need('array_column', a, 'array'))) {
-            if (!isArray(row)) continue;
-            const has = column === null || isset(row, [column]);
-            if (!has) continue;
+            /** A null column takes every row whole, scalars too; a column, the rows that have it. */
+            if (column !== null && !has(row, column)) continue;
             const value = column === null ? row : get(row, column);
-            map.set(indexKey !== null && isset(row, [indexKey]) ? key(get(row, indexKey)) : nextIndex(map), value);
+            map.set(indexKey !== null && has(row, indexKey) ? key(get(row, indexKey)) : nextIndex(map), value);
         }
         return normalize(map);
     },
@@ -1055,30 +1147,22 @@ export const fns = {
     array_intersect: (a, ...others) => fromEntries(entries(need('array_intersect', a, 'array')).filter(([, v]) => others.every((o) => entries(o).some(([, x]) => toStr(x) === toStr(v))))),
     array_diff_key: (a, ...others) => fromEntries(entries(a).filter(([k]) => others.every((o) => !fns.array_key_exists(k, o)))),
     array_intersect_key: (a, ...others) => fromEntries(entries(a).filter(([k]) => others.every((o) => fns.array_key_exists(k, o)))),
-    array_fill_keys: (keys, value) => fromEntries(entries(keys).map(([, k]) => [key(k), value])),
-    range: (start, end, step = 1) => {
-        const letters = typeof start === 'string' && typeof end === 'string' && start.length === 1 && end.length === 1 && !isNumericString(start);
-        let a = letters ? start.charCodeAt(0) : toNum(start);
-        const b = letters ? end.charCodeAt(0) : toNum(end);
-        step = Math.abs(toNum(step)) || 1;
-        const out = [];
-        if (a <= b) for (; a <= b; a += step) out.push(letters ? String.fromCharCode(a) : a);
-        else for (; a >= b; a -= step) out.push(letters ? String.fromCharCode(a) : a);
-        return out;
-    },
+    /** Each key as a string unless it is an int (1.5 is "1.5", an array "Array"), then as any key. */
+    array_fill_keys: (keys, value) => fromEntries(entries(keys).map(([, k]) => [key(Number.isInteger(k) ? k : toStr(k)), value])),
+    range: (start, end, step = 1) => range(start, end, step),
     json_encode: (v, flags = 0) => jsonEncode(v, toInt(flags)),
     json_decode: (s) => jsonDecode(toStr(s)),
 
     // by-reference functions: the compiler assigns the result back ([newArray, returnValue])
     sort: (a) => [sortEntries(entries(a), ([, x], [, y]) => cmp(x, y)).map(([, v]) => v), true],
-    rsort: (a) => [sortEntries(entries(a), ([, x], [, y]) => cmp(y, x)).map(([, v]) => v), true],
-    usort: (a, cb) => [sortEntries(entries(a), ([, x], [, y]) => toInt(callable(cb)(x, y))).map(([, v]) => v), true],
-    uasort: (a, cb) => [fromEntries(sortEntries(entries(a), ([, x], [, y]) => toInt(callable(cb)(x, y)))), true],
-    uksort: (a, cb) => [fromEntries(sortEntries(entries(a), ([x], [y]) => toInt(callable(cb)(x, y)))), true],
+    rsort: (a) => [sortEntries(entries(a), ([, x], [, y]) => -cmp(x, y)).map(([, v]) => v), true],
+    usort: (a, cb) => [sortEntries(entries(a), userCompare(cb, ([, x]) => x)).map(([, v]) => v), true],
+    uasort: (a, cb) => [fromEntries(sortEntries(entries(a), userCompare(cb, ([, x]) => x))), true],
+    uksort: (a, cb) => [fromEntries(sortEntries(entries(a), userCompare(cb, ([k]) => k))), true],
     asort: (a) => [fromEntries(sortEntries(entries(a), ([, x], [, y]) => cmp(x, y))), true],
-    arsort: (a) => [fromEntries(sortEntries(entries(a), ([, x], [, y]) => cmp(y, x))), true],
+    arsort: (a) => [fromEntries(sortEntries(entries(a), ([, x], [, y]) => -cmp(x, y))), true],
     ksort: (a) => [fromEntries(sortEntries(entries(a), ([x], [y]) => cmp(x, y))), true],
-    krsort: (a) => [fromEntries(sortEntries(entries(a), ([x], [y]) => cmp(y, x))), true],
+    krsort: (a) => [fromEntries(sortEntries(entries(a), ([x], [y]) => -cmp(x, y))), true],
     shuffle: (a) => {
         const list = entries(a).map(([, v]) => v);
         for (let i = list.length - 1; i > 0; i--) {
@@ -1128,6 +1212,78 @@ export const fns = {
     },
 };
 
+/**
+ * The functions' parameter types, checked as PHP checks them in coercive mode: a for array, s
+ * string, i int, f float, n int|float, b bool, sa array|string, key an array key, k string|int|null,
+ * c callable, m mixed; ?x also takes null; x... is every argument from there on.
+ */
+const PARAMETERS = {
+    strlen: 's', mb_strlen: 's ?s', strtolower: 's', strtoupper: 's', mb_strtolower: 's ?s', mb_strtoupper: 's ?s',
+    ucfirst: 's', lcfirst: 's', ucwords: 's s', str_contains: 's s', str_starts_with: 's s', str_ends_with: 's s',
+    trim: 's s', ltrim: 's s', rtrim: 's s', str_repeat: 's i', str_pad: 's i s i', str_replace: 'sa sa sa', str_ireplace: 'sa sa sa',
+    substr: 's i ?i', mb_substr: 's i ?i ?s', strpos: 's s i', stripos: 's s i', strrpos: 's s i', substr_count: 's s i ?i',
+    strrev: 's', str_split: 's i', nl2br: 's b', explode: 's s i', sprintf: 's m...', number_format: 'n i ?s ?s',
+    htmlspecialchars: 's i ?s b', abs: 'n', round: 'n i i', floor: 'n', ceil: 'n', intdiv: 'i i', fmod: 'f f', sqrt: 'f',
+    intval: 'm i', random_int: 'i i',
+    array_is_list: 'a', array_keys: 'a m b', array_values: 'a', array_key_exists: 'key a', array_key_first: 'a', array_key_last: 'a',
+    in_array: 'm a b', array_search: 'm a b', array_merge: 'a...', array_filter: 'a ?c i', array_map: '?c a a...',
+    array_reduce: 'a c m', array_slice: 'a i ?i b', array_reverse: 'a b', array_sum: 'a', array_product: 'a', array_unique: 'a i',
+    array_column: 'a k k', array_combine: 'a a', array_flip: 'a', array_fill: 'i i m', array_pad: 'a i m', array_chunk: 'a i b',
+    array_diff: 'a a...', array_intersect: 'a a...', array_diff_key: 'a a...', array_intersect_key: 'a a...', array_fill_keys: 'a m',
+    range: 'r r n', json_encode: 'm i i', json_decode: 's ?b i i',
+    sort: 'a i', rsort: 'a i', usort: 'a c', uasort: 'a c', uksort: 'a c', asort: 'a i', arsort: 'a i', ksort: 'a i', krsort: 'a i',
+    shuffle: 'a', array_push: 'a m...', array_pop: 'a', array_shift: 'a', array_unshift: 'a m...', array_splice: 'a i ?i m',
+};
+
+const PARAMETER_TYPES = { a: 'array', s: 'string', i: 'int', f: 'float', n: 'int|float', b: 'bool', sa: 'array|string', key: 'string|int', k: 'string|int|null', r: 'string|int|float' };
+
+const scalar = (v) => v === null || v === undefined || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+const stringable = (v) => scalar(v) || (typeof v === 'object' && !isArray(v) && typeof v.toString === 'function' && v.toString !== Object.prototype.toString);
+
+/** A value PHP passes to a parameter of the type (a numeric parameter takes a numeric string, not "2x" or ""). */
+function accepts(type, v) {
+    switch (type) {
+        case 'a': return isArray(v);
+        case 's': return stringable(v);
+        case 'i': return scalar(v) && (typeof v !== 'string' || isNumericString(v)) && (typeof v !== 'number' || Number.isFinite(v));
+        case 'f': case 'n': return scalar(v) && (typeof v !== 'string' || isNumericString(v));
+        case 'b': case 'key': case 'k': case 'r': return scalar(v);
+        case 'sa': return isArray(v) || stringable(v);
+        default: return true;
+    }
+}
+
+function checked(name, spec, fn) {
+    const types = spec.split(' ');
+    return (...args) => {
+        for (let i = 0; i < args.length; i++) {
+            let type = types[Math.min(i, types.length - 1)];
+            if (i >= types.length && !type.endsWith('...')) break;
+            type = type.replace('...', '');
+            const v = args[i];
+            const nullable = type.startsWith('?');
+            if (nullable) type = type.slice(1);
+            if ((nullable && (v === null || v === undefined)) || accepts(type, v)) continue;
+            throw typeError(`${name}(): Argument #${i + 1} must be of type ${nullable ? '?' : ''}${PARAMETER_TYPES[type]}, ${typeName(v)} given`);
+        }
+        return fn(...args);
+    };
+}
+
+for (const [name, spec] of Object.entries(PARAMETERS)) fns[name] = checked(name, spec, fns[name]);
+
+/** implode($separator, $array) or implode($array): PHP 8's two forms. */
+const implode = fns.implode;
+fns.implode = fns.join = (separator, array) => {
+    if (array === undefined) {
+        if (!isArray(separator)) throw typeError(`implode(): Argument #1 ($array) must be of type array, ${typeName(separator)} given`);
+        return implode('', separator);
+    }
+    if (!stringable(separator)) throw typeError(`implode(): Argument #1 ($separator) must be of type string, ${typeName(separator)} given`);
+    if (!isArray(array)) throw typeError(`implode(): Argument #2 ($array) must be of type ?array, ${typeName(array)} given`);
+    return implode(separator, array);
+};
+
 /** Functions whose first argument PHP takes by reference. */
 export const BY_REF = new Set([
     'sort', 'rsort', 'usort', 'uasort', 'uksort', 'asort', 'arsort', 'ksort', 'krsort', 'shuffle',
@@ -1136,7 +1292,168 @@ export const BY_REF = new Set([
 
 /** Stable sort (PHP 8 sorts are stable). */
 function sortEntries(list, compare) {
-    return list.map((x, i) => [x, i]).sort((a, b) => compare(a[0], b[0]) || a[1] - b[1]).map(([x]) => x);
+    /** PHP 8's sorts are stable: a tie keeps the original order. */
+    const items = list.map((x, i) => ({ x, i }));
+    zendSort(items, 0, items.length, (a, b) => compare(a.x, b.x) || (a.i > b.i ? 1 : a.i < b.i ? -1 : 0));
+    return items.map(({ x }) => x);
+}
+
+/**
+ * A comparison callback as PHP calls it: its result as an int's sign; false is asked again with
+ * the arguments swapped (PHP deprecates returning a bool).
+ */
+function userCompare(cb, value) {
+    const fn = callable(cb);
+    return (a, b) => {
+        const result = fn(value(a), value(b));
+        if (result === false) return -Math.sign(toInt(fn(value(b), value(a))));
+        return Math.sign(toInt(result));
+    };
+}
+
+/**
+ * zend_sort (Zend/zend_sort.c), step for step: insertion sort up to 16 items, quicksort above
+ * (a median of 3 pivot, of 5 from 1024 items). The same comparisons in the same order, so a
+ * comparison that is no ordering ($x + $y) gives what it gives in PHP.
+ */
+function zendSort(a, base, n, cmp) {
+    while (true) {
+        if (n <= 16) {
+            insertSort(a, base, n, cmp);
+            return;
+        }
+        const start = base;
+        const end = start + n;
+        const offset = n >> 1;
+        let pivot = start + offset;
+        if (n >> 10) {
+            const delta = offset >> 1;
+            sort5(a, start, start + delta, pivot, pivot + delta, end - 1, cmp);
+        } else {
+            sort3(a, start, pivot, end - 1, cmp);
+        }
+        swap(a, start + 1, pivot);
+        pivot = start + 1;
+        let i = pivot + 1;
+        let j = end - 1;
+        partition: while (true) {
+            while (cmp(a[pivot], a[i]) > 0) {
+                i++;
+                if (i === j) break partition;
+            }
+            j--;
+            if (j === i) break;
+            while (cmp(a[j], a[pivot]) > 0) {
+                j--;
+                if (j === i) break partition;
+            }
+            swap(a, i, j);
+            i++;
+            if (i === j) break;
+        }
+        swap(a, pivot, i - 1);
+        if (i - 1 - start < end - i) {
+            zendSort(a, start, i - start - 1, cmp);
+            base = i;
+            n = end - i;
+        } else {
+            zendSort(a, i, end - i, cmp);
+            n = i - start - 1;
+        }
+    }
+}
+
+function insertSort(a, start, n, cmp) {
+    switch (n) {
+        case 0: case 1: return;
+        case 2: sort2(a, start, start + 1, cmp); return;
+        case 3: sort3(a, start, start + 1, start + 2, cmp); return;
+        case 4: sort4(a, start, start + 1, start + 2, start + 3, cmp); return;
+        case 5: sort5(a, start, start + 1, start + 2, start + 3, start + 4, cmp); return;
+    }
+    const end = start + n;
+    const sentry = start + 6;
+    for (let i = start + 1; i < sentry; i++) {
+        let j = i - 1;
+        if (!(cmp(a[j], a[i]) > 0)) continue;
+        while (j !== start) {
+            j--;
+            if (!(cmp(a[j], a[i]) > 0)) {
+                j++;
+                break;
+            }
+        }
+        for (let k = i; k > j; k--) swap(a, k, k - 1);
+    }
+    for (let i = sentry; i < end; i++) {
+        let j = i - 1;
+        if (!(cmp(a[j], a[i]) > 0)) continue;
+        while (true) {
+            j -= 2;
+            if (!(cmp(a[j], a[i]) > 0)) {
+                j++;
+                if (!(cmp(a[j], a[i]) > 0)) j++;
+                break;
+            }
+            if (j === start) break;
+            if (j === start + 1) {
+                j--;
+                if (cmp(a[i], a[j]) > 0) j++;
+                break;
+            }
+        }
+        for (let k = i; k > j; k--) swap(a, k, k - 1);
+    }
+}
+
+function swap(a, i, j) {
+    const t = a[i];
+    a[i] = a[j];
+    a[j] = t;
+}
+
+function sort2(a, i, j, cmp) {
+    if (cmp(a[i], a[j]) > 0) swap(a, i, j);
+}
+
+function sort3(a, i, j, k, cmp) {
+    if (!(cmp(a[i], a[j]) > 0)) {
+        if (!(cmp(a[j], a[k]) > 0)) return;
+        swap(a, j, k);
+        if (cmp(a[i], a[j]) > 0) swap(a, i, j);
+        return;
+    }
+    if (!(cmp(a[k], a[j]) > 0)) {
+        swap(a, i, k);
+        return;
+    }
+    swap(a, i, j);
+    if (cmp(a[j], a[k]) > 0) swap(a, j, k);
+}
+
+function sort4(a, i, j, k, l, cmp) {
+    sort3(a, i, j, k, cmp);
+    if (cmp(a[k], a[l]) > 0) {
+        swap(a, k, l);
+        if (cmp(a[j], a[k]) > 0) {
+            swap(a, j, k);
+            if (cmp(a[i], a[j]) > 0) swap(a, i, j);
+        }
+    }
+}
+
+function sort5(a, i, j, k, l, m, cmp) {
+    sort4(a, i, j, k, l, cmp);
+    if (cmp(a[l], a[m]) > 0) {
+        swap(a, l, m);
+        if (cmp(a[k], a[l]) > 0) {
+            swap(a, k, l);
+            if (cmp(a[j], a[k]) > 0) {
+                swap(a, j, k);
+                if (cmp(a[i], a[j]) > 0) swap(a, i, j);
+            }
+        }
+    }
 }
 
 function lenientNumber(v, skipped) {
@@ -1145,7 +1462,54 @@ function lenientNumber(v, skipped) {
     return toFloat(v);
 }
 
+/**
+ * range() as PHP 8.3 defines it: a string of one byte is a character ("0" too), a longer
+ * numeric string a number, any other string its first byte ("" is 0). A character beside a
+ * number is its number ("3") or 0 ("e"), and everything is 0 with a fractional step for
+ * characters (PHP warns).
+ */
+function range(start, end, step) {
+    const input = (v) => {
+        if (typeof v !== 'string') return toNum(v);
+        if (v === '') return 0;
+        if (v.length > 1 && isNumericString(v)) return parseNumeric(v);
+        return { byte: utf8(v)[0], number: isNumericString(v) ? parseNumeric(v) : 0 };
+    };
+    let a = input(start);
+    let b = input(end);
+    const by = toNum(step);
+    const isChar = (v) => typeof v === 'object';
+    let chars = isChar(a) || isChar(b);
+
+    if (chars && (!isChar(a) || !isChar(b))) {
+        if (isChar(a)) a = a.number;
+        else b = b.number;
+        chars = false;
+    }
+    if (chars && !Number.isInteger(by)) [a, b, chars] = [0, 0, false];
+    if (chars) [a, b] = [a.byte, b.byte];
+
+    if (by === 0) throw new PhpError('ValueError', 'range(): Argument #3 ($step) cannot be 0');
+    if (by < 0 && a < b) throw new PhpError('ValueError', 'range(): Argument #3 ($step) must be greater than 0 for increasing ranges');
+    const size = Math.abs(by);
+    if (a !== b && size > Math.abs(b - a)) {
+        throw new PhpError('ValueError', 'range(): Argument #3 ($step) must be less than the range spanned by argument #1 ($start) and argument #2 ($end)');
+    }
+
+    const n = Math.floor(Math.abs(b - a) / size + 1e-9) + 1;
+    const direction = a <= b ? 1 : -1;
+    return Array.from({ length: n }, (_, i) => {
+        const v = a + direction * i * size;
+        return chars ? fromUtf8(Uint8Array.of(v)) : v;
+    });
+}
+
 function extreme(args, direction, fn) {
+    /** Two arguments take PHP 8.4's own path, which settles a tie (7 and true) otherwise: min() gives the second, max() the first. */
+    if (args.length === 2) {
+        const order = cmp(args[0], args[1]);
+        return direction < 0 ? (order < 0 ? args[0] : args[1]) : (order >= 0 ? args[0] : args[1]);
+    }
     let values = args;
     if (args.length === 1) {
         if (!isArray(args[0])) throw typeError(`${fn}(): Argument #1 ($value) must be of type array, ${typeName(args[0])} given`);
@@ -1172,8 +1536,12 @@ function trimWith(s, chars, left, right) {
 }
 
 function strReplace(search, replace, subject, insensitive) {
+    if (!isArray(search) && isArray(replace)) {
+        throw typeError(`str_${insensitive ? 'i' : ''}replace(): Argument #2 ($replace) must be of type string when argument #1 ($search) is a string`);
+    }
+    /** An array subject: each item as a string (an array in it is "Array"). */
     if (isArray(subject)) {
-        return fromEntries(entries(subject).map(([k, v]) => [k, strReplace(search, replace, v, insensitive)]));
+        return fromEntries(entries(subject).map(([k, v]) => [k, strReplace(search, replace, toStr(v), insensitive)]));
     }
     let s = toStr(subject);
     const searches = isArray(search) ? entries(search).map(([, v]) => toStr(v)) : [toStr(search)];

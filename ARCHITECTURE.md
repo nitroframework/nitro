@@ -150,6 +150,10 @@ CSRF). Every rule above has a test, on Laravel and on Nitro (`tests/Feature/Serv
 
 - JavaScript has one number type: an integral float of 1e14 or more (`1.0E+14` in PHP) prints as
   an integer in the browser.
+- For the same reason a float's negative zero (`-0.0`, which PHP prints as `-0`) prints as `0`: in
+  JavaScript `0 * -1` is `-0` too, where PHP's integers give `0`.
+- And `===` (and `match`) cannot tell an int from an integral float: `2 === 2.0` is true in the
+  browser, false in PHP.
 - After `unset()` on a list, appending in the browser continues from its length, where PHP continues
   from the highest key ever used.
 - Browser code cannot call date and time functions, create objects (`new`), make static calls or use
