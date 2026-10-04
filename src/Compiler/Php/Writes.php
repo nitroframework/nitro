@@ -14,7 +14,7 @@ use PhpParser\Node\Identifier;
  *  - every write under a key ($a['x'][] = 1, $this->items[$i]['done'] = true) builds a new array
  *    along the path it changes (P.setIn) and assigns it back to its root, the variable or the
  *    component property; nothing else holding the old array sees the change, as in PHP
- *  - a write's target is a root and a key path (target()); null in the path appends ([])
+ *  - a write's target is a root and a key path (target()); P.APPEND in the path appends ([])
  *  - keys read and then written ($a[f()] += 1) are evaluated once, into temporaries
  *  - destructuring takes the value first (so [$a, $b] = [$b, $a] swaps), then assigns in order
  *  - an assignment used as a value ($x = $y = 1) keeps the assigned value in a temporary
@@ -48,7 +48,7 @@ final class Writes extends Part
 
     /**
      * What an assignment writes to: a root (`$x` or `$this.prop`) and the key path under it
-     * (JS key expressions; null appends).
+     * (JS key expressions; P.APPEND appends).
      *
      * @return array{0: string, 1: list<string>}
      */
@@ -90,7 +90,7 @@ final class Writes extends Part
 
         if ($e instanceof Expr\ArrayDimFetch) {
             [$root, $path] = $this->target($e->var);
-            $path[] = $e->dim === null ? 'null' : $this->transpiler->expr($e->dim);
+            $path[] = $e->dim === null ? 'P.APPEND' : $this->transpiler->expr($e->dim);
 
             return [$root, $path];
         }
@@ -261,7 +261,7 @@ final class Writes extends Part
         $prefix = '';
 
         foreach ($path as $i => $key) {
-            if ($key === 'null') {
+            if ($key === 'P.APPEND') {
                 throw new CompileException('[] cannot be used with a compound assignment', $this->context->scope->file);
             }
 

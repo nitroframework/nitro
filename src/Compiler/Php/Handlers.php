@@ -132,6 +132,15 @@ final class Handlers extends Part
             throw $c->error("\${$name} takes {$arity} argument(s)", $e);
         }
 
+        /** The actions read their arguments by position; only the dispatches pass named parameters on. */
+        if (! in_array($name, ['dispatch', 'dispatchTo', 'dispatchSelf'], true)) {
+            foreach ($e->args as $arg) {
+                if (! $arg instanceof Arg || $arg->name !== null || $arg->unpack) {
+                    throw $c->error("\${$name} takes its arguments in order: named arguments and ... are not accepted", $e);
+                }
+            }
+        }
+
         /** $dispatchTo('card', 'event', ...), $dispatchSelf('event', ...): Livewire's. */
         if ($name === 'dispatchTo') {
             $to = $component->component($e->args[0] ?? null, $e);

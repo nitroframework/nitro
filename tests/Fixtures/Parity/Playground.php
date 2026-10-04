@@ -113,6 +113,19 @@ class Playground
         return [$totals, $list, $i];
     }
 
+    public function nullKeys(): array
+    {
+        $list = [5];
+        $key = null;
+        $list[$key] = 1;
+        $list[] = 2;
+        $nested = [];
+        $nested[$key]['x'] = 3;
+        $nested['y'][$key] = 4;
+
+        return [$list, $nested];
+    }
+
     public function loops(): array
     {
         $out = [];

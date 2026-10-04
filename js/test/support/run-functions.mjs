@@ -36,7 +36,8 @@ const OPS = {
     'op:get': P.get,
     'op:set': P.set,
     'op:push': P.push,
-    'op:setIn': P.setIn,
+    /** The cases write [] as null in a path (the wire has no APPEND). */
+    'op:setIn': (base, path, v) => P.setIn(base, path.map((k) => (k === null ? P.APPEND : k)), v),
     'op:unsetIn': P.unsetIn,
     'op:isset': P.isset,
     'op:empty': P.empty,

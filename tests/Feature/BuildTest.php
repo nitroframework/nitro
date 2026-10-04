@@ -380,7 +380,7 @@ class BuildTest extends TestCase
             $this->assertMatchesRegularExpression('/\(all \d+ cached\)/', $this->console()->output());
 
             $bundle = $this->app->make(Bundle::class);
-            $minified = null;
+            $minified = 0;
             $first = $bundle->minifyAll(['a' => 'const total = 1 + 2; console.log(total);', 'b' => 'let x = 1;'], $minified);
             $this->assertSame(2, $minified);
             $this->assertSame($first, $bundle->minifyAll(['a' => 'const total = 1 + 2; console.log(total);', 'b' => 'let x = 1;'], $minified));

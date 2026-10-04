@@ -210,7 +210,7 @@ final class TemplateCompiler
         $this->tree->flushText();
 
         if (count($c->stack) > 1) {
-            $open = end($c->stack);
+            $open = $c->stack[array_key_last($c->stack)];
             $what = match ($open['kind']) {
                 'element' => "<{$open['tag']}>",
                 'child' => "<fusion:{$open['tag']}>",

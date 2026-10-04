@@ -137,7 +137,7 @@ final class Transpiler
         $this->handlers->forbidWrites($expr);
         $js = $this->expr($expr);
 
-        return $this->context->temps === [] ? $js : $this->context->withTemps("return {$js};", true);
+        return $this->context->hasTemps() ? $this->context->withTemps("return {$js};", true) : $js;
     }
 
     /**
@@ -153,14 +153,7 @@ final class Transpiler
         $this->context->locals = array_fill_keys([...$locals, ...Globals::HANDLER_VARIABLES], true);
         $this->context->temps = [];
 
-        /**
-         * "save" and "goTo($page)" call component methods. Written as $this->method(), PHP accepts
-         * any method name, keywords included (goto, print, list, ...), which a bare call does not.
-         */
-        $code = preg_replace('/(^|;)(\s*)([A-Za-z_]\w*)(\s*)(?=\(|;|$)/', '$1$2$this->$3$4', trim($code));
-        $code = preg_replace('/(\$this->[A-Za-z_]\w*)(\s*)(?=;|$)/', '$1()$2', $code);
-
-        $stmts = $this->parse('<?php '.$code.';', $line);
+        $stmts = $this->parse('<?php '.self::methodCalls(trim($code)).';', $line);
         $body = '';
 
         foreach ($stmts as $stmt) {
@@ -177,6 +170,57 @@ final class Transpiler
          * was rendered with.
          */
         return '($event) => {'."\n".$this->context->declareTemps().$body.'}';
+    }
+
+    /**
+     * A handler's bare calls as $this calls: "save" and "goTo($page)" call component methods.
+     * Written as $this->method(), PHP accepts any method name, keywords included (goto, print,
+     * list, ...), which a bare call does not; "$this->save" gets its (). Read as PHP's tokens, so
+     * a string ($set('note', 'a; b')) is never changed.
+     */
+    private static function methodCalls(string $code): string
+    {
+        $tokens = array_slice(token_get_all('<?php '.$code), 1);
+        $blank = fn ($t) => is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true);
+
+        /** The code's tokens without the blanks, as text, for what comes before and after one. */
+        $texts = [];
+
+        foreach ($tokens as $token) {
+            if (! $blank($token)) {
+                $texts[] = is_array($token) ? $token[1] : $token;
+            }
+        }
+
+        $name = fn (?string $text) => $text !== null && preg_match('/^[A-Za-z_]\w*$/', $text) === 1;
+        $out = '';
+        $at = 0;
+
+        foreach ($tokens as $token) {
+            $text = is_array($token) ? $token[1] : $token;
+
+            if ($blank($token)) {
+                $out .= $text;
+
+                continue;
+            }
+
+            $previous = $texts[$at - 1] ?? ';';
+            $next = $texts[$at + 1] ?? null;
+            $ends = $next === null || $next === ';';
+
+            if ($name($text) && $previous === ';' && ($ends || $next === '(')) {
+                $out .= '$this->'.$text.($ends ? '()' : '');
+            } elseif ($name($text) && $previous === '->' && ($texts[$at - 2] ?? null) === '$this' && $ends) {
+                $out .= $text.'()';
+            } else {
+                $out .= $text;
+            }
+
+            $at++;
+        }
+
+        return $out;
     }
 
     /**

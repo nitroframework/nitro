@@ -155,6 +155,7 @@ class CompileErrorsTest extends TestCase
             'transition duration without a time' => ['<div><p fusion:transition.duration>x</p></div>', 'fusion:transition.duration needs a time', 1],
             'transition with both modes' => ['<div><p fusion:transition.out-in.in-out>x</p></div>', 'fusion:transition takes one mode: .out-in or .in-out', 1],
             'transition origin without a side' => ['<div><p fusion:transition.scale.origin.middle>x</p></div>', 'fusion:transition.origin needs a side', 1],
+            'set with named arguments' => ['<div><button fusion:click="$set(value: 1, property: \'count\')">x</button></div>', '$set takes its arguments in order', 1],
             'reload of no property' => ['<div><button fusion:click="$reload(\'nothing\')">x</button></div>', '$reload takes the names of public properties', 1],
             'deferred by expression' => ['<div>@deferred($name)x@enddeferred</div>', "@deferred names properties as strings: @deferred('stats')", 1],
             'placeholder outside deferred' => ['<div>@if($count)<p>x</p>@placeholder<p>y</p>@endif</div>', '@placeholder outside of @deferred', 1],
@@ -194,6 +195,19 @@ class CompileErrorsTest extends TestCase
         $this->assertStringContainsString('$this.list()', $js);
         $this->assertStringContainsString('$this.save()', $js);
         $this->assertStringContainsString('$this.$set("page", 1)', $js);
+    }
+
+    public function test_handler_strings_are_left_as_written(): void
+    {
+        $scope = new Scope(properties: ['note'], clientMethods: ['notify', 'go'], file: 'Component.php');
+        $compiler = new TemplateCompiler(fn () => false);
+
+        $js = $compiler->compile('<div><button fusion:click="$set(\'note\', \'a;b;\')">a</button>'
+            .'<button fusion:click="$set(\'note\', \'x; go(1)\'); notify(\'item;save\')">b</button></div>', $scope);
+
+        $this->assertStringContainsString('$this.$set("note", "a;b;")', $js);
+        $this->assertStringContainsString('$this.$set("note", "x; go(1)")', $js);
+        $this->assertStringContainsString('$this.notify("item;save")', $js);
     }
 
     /**

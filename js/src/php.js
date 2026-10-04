@@ -145,13 +145,17 @@ export function set(base, k, v) {
 
 export const push = (base, v) => set(base, undefined, v);
 
-/** $base[a][b]... = $v, copying only the path. A null segment appends ([] syntax). */
+/** The [] of $base[] = $v in a setIn() path (a null key is the key "", as in PHP). */
+export const APPEND = Symbol('append');
+
+/** $base[a][b]... = $v, copying only the path. An APPEND segment appends ([] syntax). */
 export function setIn(base, path, v) {
     if (path.length === 0) return v;
     const [head, ...rest] = path;
-    if (rest.length === 0) return set(base, head === null ? undefined : head, v);
-    const child = head === null ? null : get(base, head);
-    return set(base, head === null ? undefined : head, setIn(isArray(child) ? child : null, rest, v));
+    const k = head === APPEND ? undefined : head;
+    if (rest.length === 0) return set(base, k, v);
+    const child = head === APPEND ? null : get(base, head);
+    return set(base, k, setIn(isArray(child) ? child : null, rest, v));
 }
 
 /** Read along a path (used by compound assignments). */

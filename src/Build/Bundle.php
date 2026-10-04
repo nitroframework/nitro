@@ -756,7 +756,7 @@ final class Bundle
      *
      * @throws RuntimeException when node or esbuild is missing, or esbuild rejects the code
      */
-    public function minifyAll(array $chunks, ?int &$minified = null, bool $prune = false): array
+    public function minifyAll(array $chunks, int &$minified = 0, bool $prune = false): array
     {
         $root = $this->esbuild['root'] ?? getcwd();
         $script = dirname(__DIR__, 2).'/resources/minify.cjs';

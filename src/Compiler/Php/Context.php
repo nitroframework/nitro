@@ -85,6 +85,12 @@ final class Context
         return $this->temps === [] ? '' : 'let '.implode(', ', $this->temps).";\n";
     }
 
+    /** Whether the code compiled since the temporaries were reset needed any. */
+    public function hasTemps(): bool
+    {
+        return $this->temps !== [];
+    }
+
     /** An expression that needed temporaries, as one: a function declaring them, called at once. */
     public function withTemps(string $body, bool $arrow): string
     {
