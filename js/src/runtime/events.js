@@ -16,8 +16,12 @@ export class Events {
         this.runtime = runtime;
         this.document = document;
         this.listening = new Set();
+        /** element => (handler key => timer): .debounce and .throttle, each handler its own */
         this.timers = new WeakMap();
-        this.fired = new WeakSet();
+        /** element => the keys of its .once handlers that ran */
+        this.fired = new WeakMap();
+        /** event => (element => answer): fusion:confirm asks once, however many of the element's handlers it runs */
+        this.answers = new WeakMap();
     }
 
     /** Listen for the event types a component uses. */
@@ -38,24 +42,29 @@ export class Events {
         /** Handlers on the target and its ancestors, innermost first. */
         for (let el = event.target instanceof Element ? event.target : event.target?.parentElement; el; el = el.parentElement) {
             if (!el.hasAttribute?.(attribute)) continue;
-            const handler = this.handlerOf(el, type);
-            if (!handler || handler.modifiers.some((m) => GLOBAL.includes(m))) continue;
-            if (this.run(handler, el, event) === 'stop') break;
+            let stop = false;
+            for (const handler of this.handlersOf(el, type)) {
+                if (handler.modifiers.some((m) => GLOBAL.includes(m))) continue;
+                if (this.run(handler, el, event) === 'stop') stop = true;
+            }
+            if (stop) break;
         }
 
         /** .window / .document handlers run for any such event; .outside when it is not inside. */
         for (const component of this.runtime.components()) {
             for (const el of component.scan(`[fusion\\:h-${type}]`)) {
-                const handler = el.hasAttribute(attribute) ? component.handler(el, type) : null;
-                if (!handler || !handler.modifiers.some((m) => GLOBAL.includes(m))) continue;
-                if (handler.modifiers.includes('outside') && el.contains(event.target)) continue;
-                this.run(handler, el, event);
+                if (!el.hasAttribute(attribute)) continue;
+                for (const handler of component.handlersOf(el, type)) {
+                    if (!handler.modifiers.some((m) => GLOBAL.includes(m))) continue;
+                    if (handler.modifiers.includes('outside') && el.contains(event.target)) continue;
+                    this.run(handler, el, event);
+                }
             }
         }
     }
 
-    handlerOf(el, type) {
-        return this.runtime.owner(el)?.handler(el, type) ?? null;
+    handlersOf(el, type) {
+        return this.runtime.owner(el)?.handlersOf(el, type) ?? [];
     }
 
     run(handler, el, event) {
@@ -67,10 +76,14 @@ export class Events {
             for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;
         }
         if (m.includes('prevent')) event.preventDefault();
-        if (!this.confirmed(el)) return;
+        if (!this.answers.has(event)) this.answers.set(event, new Map());
+        const answers = this.answers.get(event);
+        if (!answers.has(el)) answers.set(el, this.confirmed(el));
+        if (!answers.get(el)) return;
         if (m.includes('once')) {
-            if (this.fired.has(el)) return;
-            this.fired.add(el);
+            if (!this.fired.has(el)) this.fired.set(el, new Set());
+            if (this.fired.get(el).has(handler.key)) return;
+            this.fired.get(el).add(handler.key);
         }
 
         const invoke = () => {
@@ -80,13 +93,15 @@ export class Events {
         };
 
         const wait = timing(m);
+        if (!this.timers.has(el)) this.timers.set(el, new Map());
+        const timers = this.timers.get(el);
         if (m.includes('debounce')) {
-            clearTimeout(this.timers.get(el));
-            this.timers.set(el, setTimeout(invoke, wait ?? 250));
+            clearTimeout(timers.get(handler.key));
+            timers.set(handler.key, setTimeout(invoke, wait ?? 250));
         } else if (m.includes('throttle')) {
-            if (this.timers.has(el)) return m.includes('stop') ? 'stop' : undefined;
+            if (timers.has(handler.key)) return m.includes('stop') ? 'stop' : undefined;
             invoke();
-            this.timers.set(el, setTimeout(() => this.timers.delete(el), wait ?? 250));
+            timers.set(handler.key, setTimeout(() => timers.delete(handler.key), wait ?? 250));
         } else {
             invoke();
         }

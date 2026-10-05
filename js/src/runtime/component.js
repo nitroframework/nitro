@@ -70,7 +70,7 @@ export class Component {
         this.deferred = new Set();
         /** Where its scroll props' paginators are: property => Map {pageName, currentPage, nextPage, previousPage}. */
         this.scroll = new Map();
-        /** element => (event => {event, modifiers, fn}): its fusion:<event> handlers */
+        /** element => (attribute => {event, modifiers, fn, key}): its fusion:<event> handlers, several per event (fusion:keydown.enter and fusion:keydown.escape) */
         this.handlers = new WeakMap();
         /** The event types it has handlers for. */
         this.events = new Set();
@@ -145,9 +145,9 @@ export class Component {
     /** What a render reports back: handlers, children, nodes it puts in the page and takes out. */
     createView() {
         const host = {
-            on: (el, event, modifiers, fn) => {
+            on: (el, event, modifiers, fn, key = event) => {
                 if (!this.handlers.has(el)) this.handlers.set(el, new Map());
-                this.handlers.get(el).set(event, { event, modifiers, fn });
+                this.handlers.get(el).set(key, { event, modifiers, fn, key });
                 this.events.add(event);
             },
             child: (name, key, props, slots, model) => {
@@ -172,9 +172,14 @@ export class Component {
         this.view.refreshSlots();
     }
 
-    /** The handler a render gave the element for the event. */
+    /** The handlers a render gave the element for the event, in the order of its attributes. */
+    handlersOf(el, event) {
+        return [...(this.handlers.get(el)?.values() ?? [])].filter((handler) => handler.event === event);
+    }
+
+    /** The element's first handler for the event (fusion:poll, fusion:init and fusion:visible have one). */
     handler(el, event) {
-        return this.handlers.get(el)?.get(event) ?? null;
+        return this.handlersOf(el, event)[0] ?? null;
     }
 
     write(name, value, prop) {

@@ -23,7 +23,8 @@ export function render(definition, $this, host, document) {
 
 export class View {
     /**
-     * @param {object} host  on(el, event, modifiers, fn) registers a handler; child(name, key,
+     * @param {object} host  on(el, event, modifiers, fn, key) registers a handler (key: its
+     *                       attribute, so an element can have several for one event); child(name, key,
      *                       props, slots) returns the child's id (null leaves it out); slot(name)
      *                       the parent's content for a slot; added(node) and removed(node):
      *                       elements a render puts in the page and takes out; id: the component's

@@ -138,7 +138,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
     /** Fusion: fusion:<event> handlers, made with the variables the element renders with. */
     for (const attribute of node.a ?? []) {
         if (!attribute.on) continue;
-        const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(instance, attribute.on.code, scope));
+        const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(instance, attribute.on.code, scope), attribute.c);
         bind();
         track(instance, [attribute.on.code], scope, bind);
     }
