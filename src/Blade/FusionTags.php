@@ -18,19 +18,37 @@ use Nitro\Fusion\Compiler\Template\ChildTag;
  *
  * In a Blade view that is not a component's, a tag is an island: fusion:hydrate.visible (.idle,
  * .interaction, .media="...") starts it later, fusion:static never.
+ *
+ * Text that is not markup is left as it is: a tag written in PHP (an @php block, <?php ?>, an
+ * echo, a string in them), in a Blade comment or in @verbatim is not a component.
  */
 final class FusionTags
 {
     private const FUSION = 'app(\Nitro\Fusion\Fusion::class)';
+
+    /** Where a <fusion: tag is not markup: Blade comments, @verbatim, @php blocks, <?php ?>, echoes. */
+    private const NOT_MARKUP = '/\{\{--.*?--\}\}|@verbatim\b.*?@endverbatim\b|@php\b(?!\s*\().*?@endphp\b|<\?php\b.*?(?:\?>|\z)|\{!!.*?!!\}|\{\{.*?\}\}/s';
 
     public static function compile(string $source): string
     {
         $out = '';
         $cursor = 0;
         $number = 0;
+        preg_match_all(self::NOT_MARKUP, $source, $skip, PREG_OFFSET_CAPTURE);
+        $skip = array_map(fn (array $match) => [$match[1], $match[1] + strlen($match[0])], $skip[0]);
 
         while (preg_match('/<\/?fusion:/i', $source, $m, PREG_OFFSET_CAPTURE, $cursor)) {
             $at = $m[0][1];
+
+            foreach ($skip as [$start, $end]) {
+                if ($at >= $start && $at < $end) {
+                    $out .= substr($source, $cursor, $end - $cursor);
+                    $cursor = $end;
+
+                    continue 2;
+                }
+            }
+
             $out .= substr($source, $cursor, $at - $cursor);
 
             if (preg_match('/\G<\/fusion:slot\s*>/i', $source, $end, 0, $at)) {

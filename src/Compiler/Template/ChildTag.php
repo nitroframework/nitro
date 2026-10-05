@@ -43,6 +43,23 @@ final class ChildTag
     ) {
     }
 
+    /** Whether $code is one PHP expression (what a bound attribute's value is put in place as). */
+    private static function isExpression(string $code): bool
+    {
+        if (trim($code) === '') {
+            return false;
+        }
+
+        try {
+            $tokens = token_get_all('<?php return ('.$code.');', TOKEN_PARSE);
+        } catch (\ParseError) {
+            return false;
+        }
+
+        /** One statement: no ; or ?> slipped in to end it early. */
+        return count(array_filter($tokens, fn ($token) => $token === ';' || (is_array($token) && $token[0] === T_CLOSE_TAG))) === 1;
+    }
+
     /**
      * The child tag starting at $offset of $text, numbered $number.
      */
@@ -62,6 +79,13 @@ final class ChildTag
 
         preg_match_all('/([:\w\-.]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/', $attributes, $matches, PREG_SET_ORDER);
 
+        /** Every character is an attribute or the space between them: anything else (an unquoted value, a stray quote) would be dropped unseen. */
+        $rest = trim((string) preg_replace('/([:\w\-.]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/', '', $attributes));
+
+        if ($rest !== '') {
+            throw new CompileException("Malformed attributes on <fusion:{$name}>: \"{$rest}\" (a value goes in quotes: :count=\"\$count\")", $file, $line);
+        }
+
         foreach ($matches as $match) {
             $attribute = $match[1];
             $hasValue = isset($match[2]) || isset($match[3]);
@@ -74,6 +98,10 @@ final class ChildTag
             }
 
             /** Bound (:prop) values are PHP expressions; others are strings; a bare attribute is true. */
+            if (($bound || $prop === 'fusion:key') && ! self::isExpression($value)) {
+                throw new CompileException("The value of {$attribute} on <fusion:{$name}> is not a PHP expression: \"{$value}\"", $file, $line);
+            }
+
             $expression = match (true) {
                 $bound || $prop === 'fusion:key' => $value,
                 $hasValue => var_export($value, true),
