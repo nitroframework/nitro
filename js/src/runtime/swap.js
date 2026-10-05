@@ -25,6 +25,17 @@ export class Swap {
         this.document = window.document;
         /** The scripts (by URL) already run here, those of the pages before this one too. */
         this.loaded = new Set([...this.document.querySelectorAll('script[src]')].map((script) => script.src));
+        /**
+         * The body's nodes that came with the page's HTML. A swap replaces those; what a script
+         * added to the body (a progress bar, Fusion's or the application's own, a chat widget)
+         * stays where it is.
+         */
+        this.pageNodes = new WeakSet();
+        const record = () => {
+            for (const node of this.document.body?.childNodes ?? []) this.pageNodes.add(node);
+        };
+        if (this.document.readyState === 'loading') this.document.addEventListener('DOMContentLoaded', record, { once: true });
+        else record();
     }
 
     /** The page's HTML parsed, or null when it cannot replace this one (it loads normally then). */
@@ -97,9 +108,21 @@ export class Swap {
         for (const script of body.querySelectorAll('script')) {
             if (!this.fusions(script, url)) script.replaceWith(this.script(script, url));
         }
-        this.document.documentElement.replaceChild(body, this.document.body);
+        /**
+         * The body is kept and the page's content in it replaced: what a script added stays where
+         * it is, so a progress bar finishes. Moved to a new parent, its running transition would stop.
+         */
+        const kept = this.document.body;
+        for (const node of [...kept.childNodes]) {
+            if (this.pageNodes.has(node)) node.remove();
+        }
+        for (const { name } of [...kept.attributes]) kept.removeAttribute(name);
+        for (const { name, value } of [...body.attributes]) kept.setAttribute(name, value);
+        const nodes = [...body.childNodes];
+        kept.prepend(...nodes);
+        for (const node of nodes) this.pageNodes.add(node);
 
-        return this.runtime.start(body);
+        return this.runtime.start(kept);
     }
 
     /** @fusionScripts' own: the globals, the runtime, app.js and the chunks (the runtime loads those it needs). */

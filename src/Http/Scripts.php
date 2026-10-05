@@ -135,6 +135,7 @@ final class Scripts
         return [
             'serverCalls' => filter_var($config['server_calls'] ?? false, FILTER_VALIDATE_BOOL),
             'delay' => (int) ($config['delay'] ?? 0),
+            'minimumDuration' => (int) ($config['minimum_duration'] ?? 0),
             'color' => (string) ($config['color'] ?? '#29d'),
             'height' => (string) ($config['height'] ?? '3px'),
             'position' => ($config['position'] ?? 'top') === 'bottom' ? 'bottom' : 'top',

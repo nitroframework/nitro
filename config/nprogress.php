@@ -15,14 +15,18 @@ return [
     */
 
     // Show the bar at all.
-    'show' => env('NPROGRESS_SHOW', true),
+    'show' => true,
 
     // Also while a #[Server] call runs (not only on navigation).
-    'server_calls' => env('NPROGRESS_SERVER_CALLS', false),
+    'server_calls' => false,
 
     // Wait this long (ms) before showing it: a visit faster than this shows no bar. With 0, every
     // visit shows one, as a quick sweep for a fast page.
     'delay' => 0,
+
+    // Once shown, the bar runs at least this long (ms): a fast visit keeps it moving until then, so
+    // it is seen to complete rather than flash. 0: it finishes as soon as the page is there.
+    'minimum_duration' => 250,
 
     /*
     |--------------------------------------------------------------------------
@@ -33,7 +37,7 @@ return [
     |
     */
 
-    'color' => env('NPROGRESS_COLOR', '#29d'),
+    'color' => '#29d',
 
     'height' => '3px',
 
@@ -75,6 +79,6 @@ return [
 
     'easing' => 'ease-out',
 
-    'fade_speed' => 200,
+    'fade_speed' => 150,
 
 ];
