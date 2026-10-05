@@ -36,6 +36,8 @@ final class Scripts
 
         $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
         $built = $this->app->make(Bundle::class);
+        /** In development, a component on this page that does not compile: its error, not a page that fails in the browser. */
+        $built->assertCompiled($this->renderer->rendered());
         $tag = $built->tag();
         $urls = $this->app->make('url');
 

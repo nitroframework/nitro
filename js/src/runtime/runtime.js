@@ -16,6 +16,9 @@ import { Model } from './model.js';
 import { Navigator, webUrl } from './navigate.js';
 import { Network } from './network.js';
 
+/** sessionStorage: the page stale() loaded again, so it does not again. */
+const STALE = 'fusion:stale';
+
 export class Runtime {
     constructor(window, config) {
         this.window = window;
@@ -40,6 +43,8 @@ export class Runtime {
         this.network = new Network(this, config);
         this.navigator = new Navigator(this, window);
         this.bus = { dispatch: (event, params, source) => this.dispatch(event, params, source) };
+        /** The page is loading again: its code is from another build (stale()). */
+        this.reloading = false;
     }
 
     /** Called by app.js (and the chunks) for every compiled component. */
@@ -122,6 +127,27 @@ export class Runtime {
         component.arrived?.();
     }
 
+    /**
+     * The page's HTML is from another build than its code (a deploy, or in development files that
+     * changed, while it loaded): the server says so for app.js and its chunks, the runtime when a
+     * chunk does not load or a component on the page has no definition. The page loads again, once:
+     * true when it does. The second time in a row it does not (the builds disagree for another
+     * reason), nor without sessionStorage to remember it by: the caller reports what is wrong.
+     */
+    stale() {
+        if (this.reloading) return true;
+        const href = this.window.location.href;
+        try {
+            if (this.window.sessionStorage.getItem(STALE) === href) return false;
+            this.window.sessionStorage.setItem(STALE, href);
+        } catch {
+            return false;
+        }
+        this.reloading = true;
+        this.window.location.reload();
+        return true;
+    }
+
     /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
     load(group) {
         /** Its components are here already (the page loaded the chunk with its own script tag). */
@@ -137,6 +163,8 @@ export class Runtime {
                 script.onload = () => resolve();
                 script.onerror = () => {
                     this.chunks.delete(group);
+                    /** Gone with a deploy since the page loaded (a build's files are replaced): the page loads again. */
+                    this.stale();
                     reject(new Error(`Fusion: the components of chunk [${group}] did not load`));
                 };
                 this.document.head.appendChild(script);
@@ -168,6 +196,7 @@ export class Runtime {
      * components are live.
      */
     start(root = this.document.body) {
+        if (this.reloading) return Promise.resolve();
         if (!this.styled) {
             const style = this.document.createElement('style');
             style.textContent = STYLE;
@@ -179,6 +208,13 @@ export class Runtime {
         const elements = snapshotsIn(root).filter((el) => !islands.some((island) => island.contains(el)));
 
         const live = this.take(elements).then(() => {
+            if (this.reloading) return;
+            /** Live: a later stale() may load the page again. */
+            try {
+                this.window.sessionStorage.removeItem(STALE);
+            } catch {
+                // no storage: stale() does not reload
+            }
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
             this.restoreRemembered(this.window.history.state?.fusionRemember);
@@ -243,7 +279,8 @@ export class Runtime {
 
         const definition = this.definitions.get(state.name);
         if (!definition) {
-            this.report(null, new Error(`Fusion: component [${state.name}] is not compiled (is @fusionScripts on the page?)`));
+            /** The page's HTML and its code from different builds: the page loads again, once. */
+            if (!this.stale()) this.report(null, new Error(`Fusion: component [${state.name}] is not compiled (is @fusionScripts on the page?)`));
             return null;
         }
 

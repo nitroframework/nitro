@@ -35,6 +35,17 @@ final class AssetController
     /** @param  Closure(): string  $path */
     private function compiled(Request $request, Bundle $bundle, Closure $path): Response
     {
+        /**
+         * Asked for by a page rendered with another version of the components (a deploy, or files
+         * changed in development, since): its code would not match its HTML. The page loads again
+         * (once, the runtime makes sure). The readable bundle and the build of one version match.
+         */
+        $asked = $request->query('v');
+
+        if (is_string($asked) && $asked !== '' && explode('.', $asked)[0] !== $bundle->version()) {
+            return $this->script('window.Fusion && window.Fusion.stale();', false);
+        }
+
         try {
             $path = $path();
         } catch (CompileException $e) {

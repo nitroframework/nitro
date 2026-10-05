@@ -11,7 +11,8 @@ use ReflectionClass;
 /**
  * Component and page names and classes: discovered in the configured directories
  * (App\Fusion\Components and App\Fusion\Pages by default), or registered by hand. Pages are
- * named "pages::...". `fusion:build` caches the list.
+ * named "pages::...". `fusion:build` caches the list, with the times its directories last changed:
+ * a file added, removed or renamed since (a component made after a build) and it is found again.
  */
 final class Registry
 {
@@ -99,9 +100,13 @@ final class Registry
         $this->discovered = true;
 
         if ($this->cache !== null && is_file($this->cache)) {
-            $this->components += require $this->cache;
+            $cached = require $this->cache;
 
-            return;
+            if (is_array($cached) && isset($cached['components'], $cached['directories']) && $cached['directories'] === $this->directories()) {
+                $this->components += $cached['components'];
+
+                return;
+            }
         }
 
         foreach ([[$this->componentsAt, false], [$this->pagesAt, true]] as [$location, $page]) {
@@ -126,9 +131,37 @@ final class Registry
         }
     }
 
-    /** The list for bootstrap/cache (written by fusion:build). */
+    /** The list for bootstrap/cache (written by fusion:build), and when its directories last changed. */
     public function export(): string
     {
-        return '<?php return '.var_export($this->all(), true).';'.PHP_EOL;
+        return '<?php return '.var_export(['components' => $this->all(), 'directories' => $this->directories()], true).';'.PHP_EOL;
+    }
+
+    /**
+     * The component and page directories, each with when it last changed (adding, removing or
+     * renaming a file in it changes it).
+     *
+     * @return array<string, int>
+     */
+    private function directories(): array
+    {
+        $directories = [];
+
+        foreach ([$this->componentsAt['path'], $this->pagesAt['path']] as $path) {
+            if (! is_dir($path)) {
+                continue;
+            }
+
+            $directories[$path] = (int) filemtime($path);
+            $tree = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+
+            foreach ($tree as $entry) {
+                if ($entry->isDir()) {
+                    $directories[$entry->getPathname()] = $entry->getMTime();
+                }
+            }
+        }
+
+        return $directories;
     }
 }

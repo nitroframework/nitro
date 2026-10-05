@@ -99,6 +99,26 @@ final class ComponentMeta
 
     public static function read(string $class, string $name, string $defaultView, bool $page = false): self
     {
+        try {
+            return self::readClass($class, $name, $defaultView, $page);
+        } catch (\Error $e) {
+            /**
+             * The class's own code failing as it is read: an attribute PHP cannot make (repeated,
+             * on the wrong target, wrong arguments), a default value naming a constant that is not
+             * there. Where it is, as any compile error. An error in Fusion's own code is not this.
+             */
+            $attribute = array_filter($e->getTrace(), fn (array $frame) => ($frame['class'] ?? null) === \ReflectionAttribute::class && $frame['function'] === 'newInstance') !== [];
+
+            if ($attribute || ! str_starts_with(realpath($e->getFile()) ?: $e->getFile(), dirname(__DIR__))) {
+                throw new CompileException("{$class}: {$e->getMessage()}", (string) (new ReflectionClass($class))->getFileName());
+            }
+
+            throw $e;
+        }
+    }
+
+    private static function readClass(string $class, string $name, string $defaultView, bool $page): self
+    {
         $reflection = new ReflectionClass($class);
         $file = (string) $reflection->getFileName();
 

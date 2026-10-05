@@ -359,7 +359,12 @@ final class Bundle
     /** Remove the compiled files, and the published ones. */
     public function clear(): void
     {
-        $this->files->deleteDirectory($this->directory, preserve: true);
+        /** Fusion's files only (app-*, the minified cache): the directory's own, such as a .gitignore, stay. */
+        foreach ($this->files->glob($this->directory.DIRECTORY_SEPARATOR.'app-*') as $file) {
+            $this->files->delete($file);
+        }
+
+        $this->files->deleteDirectory($this->directory.DIRECTORY_SEPARATOR.'minified');
         $this->publish([]);
     }
 
@@ -407,6 +412,10 @@ final class Bundle
      * Every file: '' the main bundle, then each group's chunk. $compiling hears each component
      * as it is compiled (fusion:build -v lists them).
      *
+     * A build fails on the first component that does not compile. In development, such a component
+     * is left out, with its error (uses()['broken']): the pages that use it fail with that error
+     * (assertCompiled()), the others work.
+     *
      * @return array<string, string>
      */
     public function compileAll(bool $build = false, ?Closure $compiling = null): array
@@ -424,6 +433,7 @@ final class Bundle
         );
         $main = [];
         $chunks = [];
+        $broken = [];
         $lazy = $this->lazy();
 
         foreach (array_keys($this->fusion->registry()->all()) as $name) {
@@ -431,9 +441,19 @@ final class Bundle
                 $compiling($name);
             }
 
-            $meta = $this->fusion->meta($name);
-            $viewFile = $this->views->getFinder()->find($meta->view);
-            $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
+            try {
+                $meta = $this->fusion->meta($name);
+                $viewFile = $this->views->getFinder()->find($meta->view);
+                $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
+            } catch (CompileException $e) {
+                if ($build) {
+                    throw $e;
+                }
+
+                $broken[$name] = ['message' => $e->reason, 'file' => $e->sourceFile, 'line' => $e->sourceLine];
+
+                continue;
+            }
 
             if (isset($lazy[$name])) {
                 $chunks[$lazy[$name]][] = $definition;
@@ -481,7 +501,7 @@ final class Bundle
             $files[$group] = $this->wrap($definitions);
         }
 
-        $this->lastUses = $this->checked($compiler->uses) + ['chunks' => $lazy];
+        $this->lastUses = $this->checked($compiler->uses) + ['chunks' => $lazy, 'broken' => (object) $broken];
 
         return $files;
     }
@@ -497,6 +517,37 @@ final class Bundle
         $this->ensure();
 
         return json_decode((string) $this->files->get($this->usesPath()), true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * In development: fail with the compile error of the first of these components that does not
+     * compile (a page that uses one cannot work in the browser). Pages without one are not held up.
+     *
+     * @param  list<string>  $names
+     *
+     * @throws CompileException
+     */
+    public function assertCompiled(array $names): void
+    {
+        $broken = $this->uses()['broken'] ?? [];
+
+        foreach ($names as $name) {
+            if (isset($broken[$name])) {
+                throw new CompileException($broken[$name]['message'], $broken[$name]['file'], $broken[$name]['line']);
+            }
+        }
+    }
+
+    /** Whether the readable bundle for this version left a component out (it does not compile). */
+    private function hasBroken(): bool
+    {
+        if (! $this->files->exists($this->usesPath())) {
+            return false;
+        }
+
+        $uses = json_decode((string) $this->files->get($this->usesPath()), true);
+
+        return is_array($uses) && ($uses['broken'] ?? []) !== [];
     }
 
     /**
@@ -660,7 +711,8 @@ final class Bundle
     {
         $built = $this->built();
 
-        if (! $built && $this->minifyOnChange && ! $this->files->exists($this->pathFor($this->version()))) {
+        /** While a component does not compile, the build would fail on every request: the readable bundle serves meanwhile. */
+        if (! $built && $this->minifyOnChange && ! $this->files->exists($this->pathFor($this->version())) && ! $this->hasBroken()) {
             try {
                 $this->build();
                 $built = true;

@@ -233,6 +233,9 @@ final class PageResponses
             ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $key, $memo))
             : [];
 
+        /** In development, the page or a component it renders that does not compile: its error. */
+        $this->app->make(Bundle::class)->assertCompiled([$meta->name, ...$this->renderer->rendered()]);
+
         $snapshot = Snapshot::capture($component, $meta, $memo);
         $only = $this->partial();
 
