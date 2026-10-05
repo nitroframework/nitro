@@ -60,6 +60,7 @@ class Counter extends Component
 - [Components](#components)
 - [Views](#views)
 - [Directives](#directives)
+- [Stores](#stores)
 - [Pages](#pages)
 - [Navigation](#navigation)
 - [Page data](#page-data)
@@ -73,6 +74,7 @@ class Counter extends Component
 - [Testing your application](#testing-your-application)
 - [Limitations](#limitations)
 - [Security](#security)
+- [How Fusion is tested](#how-fusion-is-tested)
 - [Contributing](#contributing)
 
 ## Requirements
@@ -126,6 +128,11 @@ own data in `mount()`. A component is a reusable part placed inside a page or an
 
 A page cannot be placed in a view and a component cannot be routed; Fusion says what to use
 instead. The directories, namespaces and view paths are set in `config/fusion.php`.
+
+In a plain Blade view or a layout, `@fusion('counter', ['start' => 5])` renders a component from
+PHP, as `<fusion:counter :start="5" />` does. A `<fusion:...>` tag written in PHP (an `@php` block,
+`<?php ?>`, an echo or a string in them), in a Blade comment or in `@verbatim` is text, not a
+component.
 
 ### Where code runs
 
@@ -235,7 +242,7 @@ class Cart extends Component
   - any other class is resolved from the container and takes nothing from the browser.
 
   Resolving a record is not authorizing it: the key comes from the browser, so check that the
-  visitor may act on it (`$this->authorize('delete', $post)`, a policy, a query scoped to them).
+  visitor may act on it (`Gate::authorize('delete', $post)` with a policy, a query scoped to them).
   A parameter the browser can never fill, such as a variadic model, an abstract model or a pure
   enum, fails the build.
 - **`#[Computed]` methods** are read as properties (`$this->total`). The value is worked out once
@@ -396,6 +403,81 @@ The value is a method name, a call (`remove($index)`), or one of the actions bel
 | `fusion:visible="loadMore"` | Calls a method when the element comes into view. `.once` for the first time only, `.200px` to start that far before. While it stays in view, it is called again after each call that changed something, so a "load more" row fills the screen |
 | `fusion:ref="chart"` | The element, as `$refs.chart` in `$this->js()` and for `Fusion::browser()->canvas('chart')` |
 | `fusion:transition` | Animates the element as it enters and leaves (see [Transitions](#transitions)) |
+
+## Stores
+
+A component's properties are its own. When several components need the same state (a cart a
+badge, a product list and a cart page all show), and need it longer than any one of them lives,
+put it in a store: a class written like a component, without a view, in `app/Fusion/Stores`.
+
+```php
+namespace App\Fusion\Stores;
+
+use Nitro\Fusion\Attributes\Computed;
+use Nitro\Fusion\Attributes\Server;
+use Nitro\Fusion\Store;
+
+class Cart extends Store
+{
+    public array $items = [];
+
+    public function mount(): void                       // server: the first page that uses it
+    {
+        $this->items = session('cart', []);
+    }
+
+    public function add(array $product): void          // browser
+    {
+        $this->items[] = $product;
+    }
+
+    #[Computed]
+    public function count(): int                        // browser, read as $cart->count
+    {
+        return count($this->items);
+    }
+
+    #[Server]
+    public function save(): void                        // server, with the store's signed state
+    {
+        session(['cart' => $this->items]);
+    }
+}
+```
+
+A component uses it through a public property of its type:
+
+```php
+class Badge extends Component
+{
+    public Cart $cart;
+}
+```
+
+```blade
+<span>{{ $cart->count }}</span>
+<button fusion:click="$cart->add($product)">Add</button>
+```
+
+- **One store, shared.** Every component that uses `Cart` gets the same one: on the server, one
+  per request (made with its `mount()`, which renders the first page); in the browser, one per
+  tab, kept across `fusion:navigate` visits. A component made later (a drawer opened, a cart page
+  reached by a visit) reads it as it is.
+- **What reads it renders again.** A change made through the store's methods renders again, in
+  every component that uses it, only what reads it, and works out their `#[Computed]` values again.
+- **Changed through its methods.** A component reads a store's properties and calls its methods;
+  writing to them from outside (`$this->cart->items[] = ...`) fails the build. Methods run in the
+  browser; `#[Server]` ones on the server, with the store's signed state (`#[Locked]` and
+  `#[Validate]` work as on a component).
+- **With a component's server methods.** A component's `#[Server]` method sees the stores it uses
+  as the browser had them, and what it changes in them comes back to the browser.
+- **Not the component's state.** A store is not part of the component's snapshot: it travels on its
+  own, signed for the page it was made for.
+
+A store has no view, is never placed or routed, and cannot use what belongs to a component on the
+page (`#[On]`, `#[Url]`, `#[Remember]`, `#[Modelable]`, uploads) or hold another store. A store is
+in the browser: like any public property, its state is public, and its `#[Server]` methods check
+what they rely on. Classes in `App\Fusion\Stores` are named `stores::cart` (`fusion.stores`).
 
 ## Pages
 
@@ -621,11 +703,12 @@ A progress bar runs at the top of the window during a visit. Publish its configu
 
 | Option | |
 | --- | --- |
-| `show` | Show the bar (`NPROGRESS_SHOW`) |
+| `show` | Show the bar |
 | `server_calls` | Show it during `#[Server]` calls too |
 | `color`, `height`, `position`, `z_index` | Its look |
 | `glow`, `glow_width`, `spinner`, `spinner_size` | The glow at its tip, and a spinner |
 | `delay` | Milliseconds before it appears |
+| `minimum_duration` | Once shown, it runs at least this long (ms, 250 by default), so a fast visit is seen to complete rather than flash |
 | `minimum`, `maximum`, `trickle`, `trickle_speed`, `speed`, `easing`, `fade_speed` | Its motion |
 
 The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. The runtime emits
@@ -1075,8 +1158,10 @@ Fusion runs your methods in the browser, which has some consequences:
 - **Server work belongs in `#[Server]` methods.** Queries, services, `Auth`, `Cache`, files, mail
   and the clock (`now()`, `date()`) are the server's. A browser method that uses them fails the
   build with the file and line.
-- **A component with `mount()` is created by the server**: on the first request, a visit or a
-  `#[Server]` call. A `<fusion:dynamic-component>` that names such a component needs one of those.
+- **A component with `mount()` is created by the server**: on the first request, a visit, or a
+  `#[Server]` call of the component whose view places it. A change made in the browser alone
+  (`$set`, a browser method) cannot place a new one: a `<fusion:dynamic-component>` that switches
+  to such a component needs one of those.
 - **Numbers are JavaScript's.** Integers are exact up to 2^53 (`PHP_INT_MAX` is 2^53-1 in the
   browser), and a whole float arrives as an int. Transcendental functions (`tanh`, `atanh`, ...)
   may differ in the last digit, as they do between PHP builds.
@@ -1138,8 +1223,43 @@ from sending an older state of their own session within its lifetime. `#[Locked]
 unchangeable, not current: read what must be current (a balance, a step that was paid for, a
 permission) from the database in the `#[Server]` method.
 
+A child is created with the props its parent's view passes it, from the parent's state as it is
+then. On a `#[Server]` call that state includes what the browser changed, so a child's `mount()`
+can receive a value the browser chose, and a `#[Locked]` property it sets from that value is only
+as trustworthy as where it came from. Pass children what the parent keeps `#[Locked]`, or check the
+value in the child's `mount()`, when the child relies on it.
+
 The endpoint runs in the `web` middleware group, with sessions and CSRF protection. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for how state, signing and calls work.
+
+## How Fusion is tested
+
+Fusion runs one component in two places, so it is tested for doing the same thing in both, for
+refusing what it must, and for not breaking on input nobody planned for. The test suites are kept
+with the framework's source; they are not part of the published package.
+
+| Kind | What it is | What it checks here |
+| --- | --- | --- |
+| Feature (integration) tests | Requests through the real HTTP kernel of a fixture application, on Laravel and on Nitro | Pages, visits, `#[Server]` calls, validation, uploads, partial reloads, shared and flash data, builds |
+| Compiler tests | The compiler fed known PHP and Blade | What compiles, what is refused, and the error it gives |
+| Parity tests | The same code run by PHP and, compiled, by the browser's runtime | PHP's functions, `Str::` helpers, methods and templates give the same results |
+| End-to-end (e2e) tests | Real pages served by `php -S`, loaded in a browser (jsdom) and driven like a user | Hydration, events, children, navigation, transitions, islands, the progress bar |
+| Security tests | Requests made by hand to get what the page would never send | Changed or foreign state, locked properties, methods that are not `#[Server]`, wrong types, CSRF, middleware checked again |
+| Forged-request tests | The same, under every spelling: methods and properties renamed, arguments by name, the wire format bent, model properties pointed elsewhere | Each is refused, nothing runs, nothing answers 500 |
+| Differential fuzzing | Thousands of random PHP methods, run in PHP and compiled in the browser's runtime | Any difference is a bug, reported with the seed that makes it again |
+| Template fuzzing | Random views rendered by Blade and by the browser | The same DOM on both sides |
+| Round-trip (property) fuzzing | Random values sent through `#[Server]` calls and back | Every value arrives as it left: types, keys, order |
+| Robustness fuzzing | Valid input bent at random: requests to the endpoints, component classes and views, views with `<fusion:...>` tags, the wire format | Bad input is refused cleanly (a 4xx, or a compile error with its file and line); never a crash, a 500 or invalid output |
+| Static analysis | PHPStan, level 6 | Types and calls across the PHP source |
+
+```bash
+composer test                            # feature, compiler, parity, security and end-to-end tests
+composer analyse                         # static analysis
+composer fuzz:all -- --seed=1 --scale=1  # every fuzzer; --scale=10 for a long run
+composer fuzz -- --seed=1 --count=500    # differential fuzzing alone
+```
+
+A fuzzer failure names its seed: run the same fuzzer with that seed to make it again.
 
 ## Contributing
 
