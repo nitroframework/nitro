@@ -325,6 +325,11 @@ final class Transpiler
             return $this->component->serverCall($expr);
         }
 
+        /** $this->cart->save(): a store's #[Server] method, as a statement. */
+        if ($expr instanceof Expr\MethodCall && $this->component->isStoreServerCall($expr)) {
+            return $this->component->serverCall($expr);
+        }
+
         if ($expr instanceof Expr\FuncCall && $expr->name instanceof Name && in_array(Catalog::functionName($expr->name), Catalog::BY_REF, true)) {
             return $this->calls->byRefCall($expr, false);
         }

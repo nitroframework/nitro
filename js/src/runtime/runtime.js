@@ -15,6 +15,7 @@ import { applyLoading, STYLE } from './loading.js';
 import { Model } from './model.js';
 import { Navigator, webUrl } from './navigate.js';
 import { Network } from './network.js';
+import { Store } from './store.js';
 
 /** sessionStorage: the page stale() loaded again, so it does not again. */
 const STALE = 'fusion:stale';
@@ -25,13 +26,17 @@ export class Runtime {
         this.document = window.document;
         this.config = config;
         this.definitions = new Map();
+        /** Stores: their compiled definitions, the tab's instances, and the server's states of those not made yet. */
+        this.storeDefinitions = new Map();
+        this.stores = new Map();
+        this.storeStates = new Map();
         /** #[LazyLoad]: component => chunk; [path pattern, chunk] of the pages; chunk => its load */
         this.lazyComponents = new Map();
         this.lazyRoutes = [];
         this.chunks = new Map();
         this.instances = new Map();
         this.inflight = new WeakMap();
-        /** Signed state of the children with mount() the server created for the page being rendered, by id. */
+        /** Signed state of the children with mount() or #[Server] methods the server created for the page being rendered, by id. */
         this.provided = new Map();
         /** Fusion::once() shared data the browser keeps between responses: key => {value, expires (ms or null)}. */
         this.onceShared = new Map();
@@ -50,6 +55,33 @@ export class Runtime {
     /** Called by app.js (and the chunks) for every compiled component. */
     define(name, definition) {
         this.definitions.set(name, definition);
+    }
+
+    /** Fusion.store(name, definition): a store, from app.js. */
+    store(name, definition) {
+        this.storeDefinitions.set(name, definition);
+    }
+
+    /**
+     * Stores' signed states from the server (the page, a visit's data): kept for the stores not
+     * made yet. One already made keeps its own: it is what the page's components have been
+     * changing, across visits.
+     */
+    takeStores(envelopes) {
+        for (const [name, envelope] of Object.entries(envelopes ?? {})) {
+            if (!this.stores.has(name)) this.storeStates.set(name, envelope);
+        }
+    }
+
+    /** The tab's store of that name: made the first time a component asks, from the server's state if it sent one. */
+    storeNamed(name) {
+        if (!this.stores.has(name)) {
+            const definition = this.storeDefinitions.get(name);
+            if (!definition) throw new Error(`Fusion: store [${name}] is not compiled`);
+            this.stores.set(name, new Store(this, definition, name, this.storeStates.get(name) ?? null));
+            this.storeStates.delete(name);
+        }
+        return this.stores.get(name);
     }
 
     /**
@@ -197,6 +229,8 @@ export class Runtime {
      */
     start(root = this.document.body) {
         if (this.reloading) return Promise.resolve();
+        /** The stores the page's components use, as the server made them (before any component is). */
+        this.takeStores(globals.stores);
         if (!this.styled) {
             const style = this.document.createElement('style');
             style.textContent = STYLE;
@@ -372,18 +406,20 @@ export class Runtime {
                 continue;
             }
 
-            if (definition.mount) {
-                /** Created by the server for the page being rendered (mountPage()). */
-                const envelope = this.provided.get(spec.id);
-                const state = envelope ? readState(envelope) : null;
-                if (!state || state.id !== spec.id || state.name !== spec.name) {
-                    /** A page rendered before its data: the server makes the child when the data comes. */
-                    if (parent.early) continue;
-                    this.report(parent, new Error(`Fusion: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
-                    continue;
-                }
+            /** Created by the server for the page being rendered (mountPage()), with its signed state: one with mount() or #[Server] methods. */
+            const envelope = this.provided.get(spec.id);
+            const provided = envelope ? readState(envelope) : null;
+            if (provided && provided.id === spec.id && provided.name === spec.name) {
                 this.provided.delete(spec.id);
-                this.create(placeholder, definition, state, envelope, {}, spec.slots, { parent, model: spec.model ? { parent, path: spec.model } : null });
+                this.create(placeholder, definition, provided, envelope, {}, spec.slots, { parent, model: spec.model ? { parent, path: spec.model } : null });
+                continue;
+            }
+
+            /** A page rendered before its data: the server makes the child when the data comes. */
+            if (parent.early && (definition.mount || definition.server.length > 0)) continue;
+
+            if (definition.mount) {
+                this.report(parent, new Error(`Fusion: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
                 continue;
             }
 
@@ -527,6 +563,15 @@ export class Runtime {
         const name = method ?? '$refresh';
         on ? methods.add(name) : methods.delete(name);
         this.inflight.set(component, methods);
+
+        /** A store's call: fusion:loading in the components that use it, with their own calls. */
+        if (component.isStore) {
+            for (const user of component.subscribers.keys()) {
+                applyLoading(user, new Set([...(this.inflight.get(user) ?? []), ...methods]));
+            }
+            return;
+        }
+
         applyLoading(component, methods);
     }
 
@@ -540,6 +585,8 @@ export class Runtime {
      * a visit replaces it; a reload or a #[Server] call only when it brings some.
      */
     receive(answer, except = null, visit = false) {
+        /** A page's data (a visit, a partial reload): the stores its components use, for those not made yet. */
+        if (answer.fusion === 1 && answer.stores) this.takeStores(answer.stores);
         if (answer.shared !== undefined) this.setShared(this.withOnce(answer.shared, answer.once ?? {}), except);
         if (answer.flash === undefined || answer.flash === null) return;
         const flash = P.decode(answer.flash);

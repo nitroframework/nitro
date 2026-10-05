@@ -40,6 +40,7 @@ class FusionServiceProvider extends ServiceProvider
             (array) $app->make('config')->get('fusion.components'),
             (array) $app->make('config')->get('fusion.pages'),
             $app->bootstrapPath('cache/fusion.php'),
+            $app->make('config')->get('fusion.stores'),
         ));
 
         $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion(
@@ -101,6 +102,10 @@ class FusionServiceProvider extends ServiceProvider
         Router::macro('fusion', function (string $uri, string $page) {
             $registry = app(Registry::class);
             $class = class_exists($page) ? ltrim($page, '\\') : ($registry->class($page) ?? throw new InvalidArgumentException("Route::fusion(): there is no page [{$page}]."));
+
+            if ($registry->isStoreClass($class)) {
+                throw new InvalidArgumentException("Route::fusion() routes pages: {$class} is a store, which components use through a property of its type.");
+            }
 
             if (! $registry->isPageClass($class)) {
                 throw new InvalidArgumentException("Route::fusion() routes pages: {$class} is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");

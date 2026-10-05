@@ -76,6 +76,10 @@ final class Writes extends Part
         if ($e instanceof Expr\PropertyFetch && $c->isThis($e->var) && $e->name instanceof Identifier) {
             $name = $e->name->toString();
 
+            if ($c->scope->isStore($name)) {
+                throw $c->error("\$this->{$name} is a store, shared with other components: change it through its methods (\$this->{$name}->add(...))", $e);
+            }
+
             if ($c->scope->isComputed($name)) {
                 throw $c->error("\$this->{$name} is #[Computed]: it is worked out from the state, change the properties it reads instead", $e);
             }

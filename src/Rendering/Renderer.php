@@ -74,7 +74,7 @@ final class Renderer
         $html = $fusion->obscure($this->view($component, $meta), [...$meta->browserMethods, ...$meta->serverMethods], array_keys($meta->properties));
         $envelope = Snapshot::capture($component, $meta, $memo)->toJson($key, $name, $fusion->names());
 
-        if ($this->collected !== null && $this->stack !== [] && $meta->hasMount) {
+        if ($this->collected !== null && $this->stack !== [] && ($meta->hasMount || $meta->serverMethods !== [])) {
             $this->collected[$component->getId()] = json_decode($envelope, true);
         }
 
@@ -104,8 +104,9 @@ final class Renderer
     }
 
     /**
-     * Run a render and return the signed state of the children with mount() it created, by id:
-     * the browser renders the page itself, but only the server can create those children.
+     * Run a render and return the signed state of the children with mount() or #[Server] methods
+     * it created, by id: the browser renders the page itself, but only the server can create a child
+     * with mount(), and only the server can sign the state a #[Server] call sends back.
      *
      * @return array<string, array>
      */
@@ -159,6 +160,8 @@ final class Renderer
             'slot' => new ComponentSlot($slots['default'] ?? ''),
             'slots' => new Slots($slots),
             ...State::of($component),
+            /** The stores it uses ($cart): not its state, but its view reads them as it reads its properties. */
+            ...array_map(fn (string $property) => $component->{$property}, array_combine(array_keys(State::stores($component::class)), array_keys(State::stores($component::class)))),
             'errors' => $errors,
             '__env' => $this->views,
         ];

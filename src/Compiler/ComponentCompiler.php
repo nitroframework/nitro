@@ -51,7 +51,62 @@ final class ComponentCompiler
          * layout it renders into (markup) and a client page's title and head (client); null for others.
          */
         private readonly ?Closure $atOnce = null,
+        /** @var (Closure(string): ComponentMeta)|null a store's metadata by class (the stores a component uses) */
+        private readonly ?Closure $meta = null,
     ) {
+    }
+
+    /**
+     * A store (extends Store): no view; its state, and its methods for the components that use it.
+     * Every public method and #[Computed] value is compiled (any component may call it); what they
+     * call, too.
+     */
+    public function compileStore(ComponentMeta $meta): string
+    {
+        $scope = ($this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName))->withNames($this->names);
+        $public = array_values(array_filter($meta->browserMethods, fn (string $name) => (new ReflectionMethod($meta->class, $name))->isPublic()));
+        $methods = $this->methods($meta, $scope, [...$public, ...$meta->computed]);
+
+        $this->names?->assertDistinct([...$meta->browserMethods, ...$meta->serverMethods], 'method');
+        $this->names?->assertDistinct(array_keys($meta->properties), 'property');
+        $methods = array_combine(array_map($scope->browserMethod(...), array_keys($methods)), $methods);
+
+        $definition = [
+            'props' => $this->props($meta, $scope),
+            'server' => array_map($scope->browserMethod(...), $meta->serverMethods),
+        ];
+
+        $fields = [];
+
+        foreach ($definition as $name => $value) {
+            $fields[] = $name.': '.json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        }
+
+        $methodList = implode(",\n", array_map(fn ($name, $js) => json_encode($name).': '.$js, array_keys($methods), $methods));
+
+        return '// '.$meta->class." · store\n"
+            .'Fusion.store('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n}\n});";
+    }
+
+    /** The scope with the stores the component uses: each store's name and members. */
+    private function withStores(Scope $scope, ComponentMeta $meta): Scope
+    {
+        if ($meta->stores === []) {
+            return $scope;
+        }
+
+        if ($this->meta === null) {
+            throw new \LogicException('Compiling a component that uses stores needs their metadata (the meta closure).');
+        }
+
+        $stores = [];
+
+        foreach ($meta->stores as $property => $class) {
+            $store = ($this->meta)($class);
+            $stores[$property] = ['name' => $store->name, 'scope' => $store->scope()];
+        }
+
+        return $scope->withStores($stores);
     }
 
     /**
@@ -65,7 +120,7 @@ final class ComponentCompiler
     public function compile(ComponentMeta $meta, string $viewSource, string $viewFile): string
     {
         $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
-        $scope = $scope->withNames($this->names);
+        $scope = $this->withStores($scope->withNames($this->names), $meta);
         $templates = new TemplateCompiler($this->isBladeDirective, $this->cloneStatic);
         $templates->compile($viewSource, $scope, $viewFile);
         $this->use($templates->uses());
@@ -96,6 +151,15 @@ final class ComponentCompiler
             'hooks' => $hooks,
         ];
 
+        /** The stores it uses: by the property holding each, the store's name. */
+        if ($meta->stores !== []) {
+            $definition['stores'] = [];
+
+            foreach ($scope->stores as $property => $store) {
+                $definition['stores'][$scope->browserProperty($property)] = $scope->browserComponent($store['name']);
+            }
+        }
+
         /** A page rendered at once on a visit (markup first, or client), into this layout only. */
         $definition += ($this->atOnce === null ? null : ($this->atOnce)($meta)) ?? [];
 
@@ -107,7 +171,8 @@ final class ComponentCompiler
 
         $methodList = implode(",\n", array_map(fn ($name, $js) => json_encode($name).': '.$js, array_keys($methods), $methods));
 
-        $subscriptions = new Subscriptions($methods, array_map($scope->browserProperty(...), array_keys($meta->properties)));
+        /** A store's property reads as one key: the runtime marks it when the store changes. */
+        $subscriptions = new Subscriptions($methods, array_map($scope->browserProperty(...), [...array_keys($meta->properties), ...array_keys($meta->stores)]));
         $subs = [];
 
         foreach ($subscriptions->ofTemplate($templates->expressions(), $templates->expressionSources()) as $index => $keys) {

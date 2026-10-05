@@ -37,13 +37,38 @@ final class Scope
         public readonly ?Closure $componentName = null,
         /** The names the browser sees, in an obfuscated build (null: the names themselves) */
         public readonly ?Obfuscator $names = null,
+        /** @var array<string, array{name: string, scope: Scope}> the stores it uses, by property: the store's name and members */
+        public readonly array $stores = [],
     ) {
+    }
+
+    /**
+     * The same scope, with the stores it uses (public Cart $cart): by property, the store's name
+     * and its own scope (its properties, methods, #[Computed]).
+     *
+     * @param  array<string, array{name: string, scope: Scope}>  $stores
+     */
+    public function withStores(array $stores): self
+    {
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $stores);
+    }
+
+    /** Whether $name is a property holding a store. */
+    public function isStore(string $name): bool
+    {
+        return isset($this->stores[$name]);
+    }
+
+    /** The store a property holds: its scope, by the browser's names. */
+    public function store(string $name): Scope
+    {
+        return $this->stores[$name]['scope']->withNames($this->names);
     }
 
     /** The same scope, writing the browser's names of methods and components (an obfuscated build). */
     public function withNames(?Obfuscator $names): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $names);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $names, $this->stores);
     }
 
     /** A method's name in the browser. */
@@ -75,7 +100,7 @@ final class Scope
     /** The same scope, knowing the application's components by class. */
     public function withComponentNames(Closure $componentName): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName, $this->names);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName, $this->names, $this->stores);
     }
 
     /** A component's name from its class, null when the class is not a component. */
@@ -86,13 +111,13 @@ final class Scope
 
     public function withVariables(Closure $variable, ?string $file = null, int $lineOffset = 0): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores);
     }
 
     /** The same members, for a method in $file (no template variables). */
     public function forFile(string $file): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores);
     }
 
     public function isComputed(string $name): bool

@@ -71,6 +71,11 @@ final class Handlers extends Part
             $e = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($e->name->toString()), $e->args, $e->getAttributes());
         }
 
+        /** $cart->remove($i): a method of a store the component uses (a #[Server] one, a request). */
+        if ($e instanceof Expr\MethodCall && $component->storeOf($e->var) !== null) {
+            return $component->isStoreServerCall($e) ? $component->serverCall($e) : $component->methodCall($e);
+        }
+
         if (! $e instanceof Expr\MethodCall || ! $c->isThis($e->var) || ! $e->name instanceof Identifier) {
             throw $c->error('An event handler is a method call, such as "save" or "remove($id)"', $e);
         }
@@ -106,6 +111,10 @@ final class Handlers extends Part
             if ($node instanceof Expr\MethodCall && $this->context->isThis($node->var) && $node->name instanceof Identifier
                 && $this->context->scope->isServerMethod($node->name->toString())) {
                 throw $this->context->error("\$this->{$node->name}() runs on the server and cannot be called while rendering", $node);
+            }
+
+            if ($node instanceof Expr\MethodCall && $this->transpiler->component->isStoreServerCall($node)) {
+                throw $this->context->error("{$node->name}() is a store's #[Server] method: it runs on the server and cannot be called while rendering", $node);
             }
 
             foreach ($node->getSubNodeNames() as $sub) {

@@ -249,7 +249,8 @@ final class TemplateCompiler
                 return Globals::TEMPLATE_VARIABLES[$name];
             }
 
-            return $this->context->scope->isProperty($name) ? '$this.'.$this->context->scope->browserProperty($name) : null;
+            /** A property, or a store the component uses ($cart: its members are read through it). */
+            return $this->context->scope->isProperty($name) || $this->context->scope->isStore($name) ? '$this.'.$this->context->scope->browserProperty($name) : null;
         };
     }
 }

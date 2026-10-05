@@ -45,6 +45,17 @@ return [
     ],
 
     /*
+    | Stores hold state several components share (a cart, preferences): classes
+    | extending Nitro\Fusion\Store, with no view. App\Fusion\Stores\Cart is
+    | "stores::cart"; a component uses it through a property of its type.
+    */
+
+    'stores' => [
+        'namespace' => 'App\\Fusion\\Stores',
+        'path' => app_path('Fusion/Stores'),
+    ],
+
+    /*
     |--------------------------------------------------------------------------
     | Pages
     |--------------------------------------------------------------------------

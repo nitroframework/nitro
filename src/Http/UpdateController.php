@@ -18,7 +18,9 @@ use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\State;
+use Nitro\Fusion\Store;
 use Nitro\Fusion\Support\Hooks;
+use Nitro\Fusion\Support\Naming;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -28,7 +30,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  *   {"snapshot": {...signed envelope...}, "partials": [...], "updates": {"prop": value}, "call": {"method": "save", "params": [...]}}
  *
  * partials: the page's partial reloads since its snapshot (signed envelopes of some properties),
- * laid over it in order.
+ * laid over it in order. children: true asks for the signed state of the children its view places
+ * that need one (Fusion::childrenOf()), for children the browser made itself.
  *
  * The request is refused unless:
  *   - the snapshot is one this application signed, unchanged (419 otherwise)
@@ -63,29 +66,58 @@ final class UpdateController
             throw new HttpException(400, 'Malformed component update.');
         }
 
-        $snapshot = Snapshot::fromEnvelope($payload['snapshot'] ?? null, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
+        /**
+         * A store the browser made from its defaults, with no state from the server yet (no
+         * component the server rendered used it): made here, with its mount(), as for a page.
+         */
+        if (($payload['snapshot'] ?? null) === null && is_string($payload['store'] ?? null)) {
+            $name = $this->fusion()->componentName($payload['store']);
 
-        if ($snapshot->isPartial()) {
-            throw new HttpException(403, 'A partial reload is not a component\'s state.');
+            if (! Naming::isStore($name) || ! $this->fusion()->has($name)) {
+                throw new HttpException(404, 'Unknown store.');
+            }
+
+            $meta = $this->fusion()->meta($name);
+            $component = $this->fusion()->store($meta->class);
+            $memo = [];
+        } else {
+            $snapshot = Snapshot::fromEnvelope($payload['snapshot'] ?? null, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
+
+            if ($snapshot->isPartial()) {
+                throw new HttpException(403, 'A partial reload is not a component\'s state.');
+            }
+
+            /** An obfuscated build's alias: the component it stands for. */
+            $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+
+            if (! $this->fusion()->has($snapshot->name)) {
+                throw new HttpException(404, 'Unknown component.');
+            }
+
+            $this->persistent->check($snapshot->memo['route'] ?? [], $request);
+
+            $meta = $this->fusion()->meta($snapshot->name);
+            $memo = array_intersect_key($snapshot->memo, ['route' => true]);
+
+            /** @var Component $component */
+            $component = $this->container->make($meta->class);
+            $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($meta->properties));
+            $snapshot->restore($component, $meta);
+            $this->applyPartials($component, $meta, $snapshot, $payload['partials'] ?? []);
+
+            /** A store's own call: the store this request's components would use. */
+            if ($component instanceof Store) {
+                $this->fusion()->adoptStore($component, $memo);
+            }
         }
 
-        /** An obfuscated build's alias: the component it stands for. */
-        $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+        /** The stores it uses, as the browser sent them (each checked as a component's state is), before its hooks run. */
+        $storesValid = $this->restoreStores($component, $meta, $payload['stores'] ?? [], $request);
 
-        if (! $this->fusion()->has($snapshot->name)) {
-            throw new HttpException(404, 'Unknown component.');
+        if (! $component instanceof Store || isset($snapshot)) {
+            Hooks::call($component, 'boot');
         }
 
-        $this->persistent->check($snapshot->memo['route'] ?? [], $request);
-
-        $meta = $this->fusion()->meta($snapshot->name);
-
-        /** @var Component $component */
-        $component = $this->container->make($meta->class);
-        $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($meta->properties));
-        $snapshot->restore($component, $meta);
-        $this->applyPartials($component, $meta, $snapshot, $payload['partials'] ?? []);
-        Hooks::call($component, 'boot');
         Hooks::call($component, 'hydrate');
 
         $changed = $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
@@ -94,16 +126,24 @@ final class UpdateController
         $call = $payload['call'] ?? null;
 
         /** What the browser changed, against its #[Validate] rules: a failure keeps the method from running. */
-        if ($this->validateUpdates($component, $meta, $changed) && $call !== null) {
+        $valid = $this->validateUpdates($component, $meta, $changed) && $storesValid;
+
+        if ($valid && $call !== null) {
             $returned = $this->call($component, $meta, $call);
         }
 
-        $memo = array_intersect_key($snapshot->memo, ['route' => true]);
+        /** Asked for (a child made in the browser), or a view placing children with mount(): its new state may place one, which only the server can create. */
+        $asked = ($payload['children'] ?? false) === true && $this->fusion()->placesServerChildren($meta);
+        /** Not from a state that failed its rules: the view would render what they are there to keep out. */
+        $children = $valid && ($asked || $this->fusion()->placesMountedChildren($meta)) ? $this->fusion()->childrenOf($component, $meta, $memo) : null;
         $next = Snapshot::capture($component, $meta, $memo);
         $context = $component->fusion();
 
         return new JsonResponse([
             'snapshot' => json_decode($next->toJson($this->fusion()->stateKey(), $this->fusion()->browserName($meta->name), $this->fusion()->names()), true),
+            'children' => $children === null ? null : (object) $children,
+            /** The stores it uses, as its method left them (a store's own call: its snapshot is the state). */
+            'stores' => $meta->stores === [] ? null : (object) array_intersect_key($this->fusion()->storeSnapshots(), array_flip(array_map(fn (string $class) => $this->fusion()->browserName($this->fusion()->meta($class)->name), $meta->stores))),
             /** Fusion::share()'s data as it is now (a #[Server] call may have changed it: a flash message). */
             'shared' => $this->fusion()->sharedForBrowser(),
             'once' => (object) $this->fusion()->onceForBrowser(),
@@ -124,6 +164,58 @@ final class UpdateController
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($v) => $v !== null && $v !== []),
         ]);
+    }
+
+    /**
+     * The stores a component uses, from what the browser sent for each (its signed state and what
+     * changed since), checked as a component's state is: the signature, the store it names, the
+     * page's middleware, the types and #[Locked] of what changed. Given to the component, and to
+     * the request (another component or the answer reads the same one). A store the browser sent
+     * nothing for is made here. False when what changed fails its #[Validate] rules.
+     */
+    private function restoreStores(Component $component, ComponentMeta $meta, mixed $sent, Request $request): bool
+    {
+        if (! is_array($sent)) {
+            throw new HttpException(400, 'Malformed component update.');
+        }
+
+        $valid = true;
+
+        foreach ($meta->stores as $property => $class) {
+            $storeMeta = $this->fusion()->meta($class);
+            $entry = $sent[$this->fusion()->browserName($storeMeta->name)] ?? null;
+
+            if ($entry !== null && ! is_array($entry)) {
+                throw new HttpException(400, 'Malformed component update.');
+            }
+
+            if (($entry['snapshot'] ?? null) !== null) {
+                $snapshot = Snapshot::fromEnvelope($entry['snapshot'], $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
+                $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+
+                if ($snapshot->isPartial() || $snapshot->name !== $storeMeta->name) {
+                    throw new HttpException(403, 'This is not the state of the store the component uses.');
+                }
+
+                $this->persistent->check($snapshot->memo['route'] ?? [], $request);
+
+                /** @var Store $store */
+                $store = $this->container->make($storeMeta->class);
+                $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($storeMeta->properties));
+                $snapshot->restore($store, $storeMeta);
+                $this->fusion()->adoptStore($store, array_intersect_key($snapshot->memo, ['route' => true]));
+                Hooks::call($store, 'boot');
+                Hooks::call($store, 'hydrate');
+            } else {
+                $store = $this->fusion()->store($storeMeta->class);
+            }
+
+            $changed = $this->applyUpdates($store, $storeMeta, $entry['updates'] ?? []);
+            $valid = $this->validateUpdates($store, $storeMeta, $changed) && $valid;
+            $component->{$property} = $store;
+        }
+
+        return $valid;
     }
 
     /**

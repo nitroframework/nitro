@@ -52,7 +52,17 @@ final class ComponentAccess extends Part
 
         $name = $e->name->toString();
 
+        /** $this->cart->count, or $cart->count in a template: a member of a store the component uses. */
+        if (($store = $this->storeOf($e->var)) !== null) {
+            return $this->storeMember($store, $name, $e);
+        }
+
         if ($c->isThis($e->var)) {
+            /** A store the component uses (public Cart $cart): read as a whole, its members are read through it. */
+            if ($c->scope->isStore($name)) {
+                return '$this.'.$c->scope->browserProperty($name);
+            }
+
             /** #[Computed]: the method's result, kept until the state changes. */
             if ($c->scope->isComputed($name)) {
                 $c->calledMethods[] = $name;
@@ -141,6 +151,11 @@ final class ComponentAccess extends Part
             return $e instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($e->var).' === null ? null : '.$call.')' : $call;
         }
 
+        /** $this->cart->add($product): a store's method, in the browser. */
+        if (($store = $this->storeOf($e->var)) !== null) {
+            return $this->storeCall($store, $e);
+        }
+
         if (! $c->isThis($e->var)) {
             throw $c->error('Only methods of the component ($this->method()) can be called in the browser, and an Upload\'s ('.implode('(), ', Globals::UPLOAD_METHODS).'()); data from the server arrives as arrays', $e);
         }
@@ -180,7 +195,83 @@ final class ComponentAccess extends Part
     /** $this->save(): a #[Server] method, as a request to the server with the component's signed state. */
     public function serverCall(Expr\MethodCall $e): string
     {
+        /** $this->cart->save(): the store's, with the store's signed state. */
+        if (($store = $this->storeOf($e->var)) !== null) {
+            return $this->storeBase($store).'.$call('.$this->context->string($this->context->scope->store($store)->browserMethod($e->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($e->args)).'])';
+        }
+
         return '$this.$call('.$this->context->string($this->context->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($e->args)).'])';
+    }
+
+    /**
+     * The store property an expression is: $this->cart, or $cart in a template (not a variable of
+     * its own); null for anything else.
+     */
+    public function storeOf(Expr $e): ?string
+    {
+        $c = $this->context;
+
+        if (($e instanceof Expr\PropertyFetch || $e instanceof Expr\NullsafePropertyFetch) && $c->isThis($e->var) && $e->name instanceof Identifier && $c->scope->isStore($e->name->toString())) {
+            return $e->name->toString();
+        }
+
+        if ($e instanceof Expr\Variable && is_string($e->name) && $c->scope->variable !== null && ! isset($c->locals[$e->name]) && $c->scope->isStore($e->name)) {
+            return $e->name;
+        }
+
+        return null;
+    }
+
+    /** Whether a call is a store's #[Server] method ($this->cart->save()): a request, as the component's own. */
+    public function isStoreServerCall(Expr $e): bool
+    {
+        return $e instanceof Expr\MethodCall && $e->name instanceof Identifier && ($store = $this->storeOf($e->var)) !== null
+            && $this->context->scope->store($store)->isServerMethod($e->name->toString());
+    }
+
+    /** The store in the browser: the component's property holding it. */
+    private function storeBase(string $store): string
+    {
+        return '$this.'.$this->context->scope->browserProperty($store);
+    }
+
+    /** $this->cart->items (a property), $this->cart->count (#[Computed]). */
+    private function storeMember(string $store, string $name, Node $e): string
+    {
+        $scope = $this->context->scope->store($store);
+
+        if ($scope->isComputed($name)) {
+            return $this->storeBase($store).'.$computed('.$this->context->string($scope->browserMethod($name)).')';
+        }
+
+        if (! $scope->isProperty($name)) {
+            throw $this->context->error("\${$store}->{$name} is not a public property of the store", $e);
+        }
+
+        return $this->storeBase($store).'.'.$scope->browserProperty($name);
+    }
+
+    /** $this->cart->add(...): a method of the store, run in the browser (a #[Server] one only as a statement). */
+    private function storeCall(string $store, Expr\MethodCall|Expr\NullsafeMethodCall $e): string
+    {
+        $c = $this->context;
+
+        if (! $e->name instanceof Identifier) {
+            throw $c->error('Dynamic method names are not supported in the browser', $e);
+        }
+
+        $name = $e->name->toString();
+        $scope = $c->scope->store($store);
+
+        if ($scope->isServerMethod($name)) {
+            throw $c->error("\${$store}->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $e);
+        }
+
+        if (! $scope->isClientMethod($name)) {
+            throw $c->error("\${$store}->{$name}() is not a public method of the store", $e);
+        }
+
+        return $this->storeBase($store).'.'.$scope->browserMethod($name).'('.implode(', ', $this->transpiler->calls->args($e->args)).')';
     }
 
     /**

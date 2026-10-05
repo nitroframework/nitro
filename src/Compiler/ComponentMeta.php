@@ -21,6 +21,7 @@ use Nitro\Fusion\Attributes\Validate;
 use Nitro\Fusion\Attributes\View;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\State;
+use Nitro\Fusion\Store;
 use Nitro\Fusion\Support\Naming;
 use ReflectionClass;
 use ReflectionMethod;
@@ -75,6 +76,10 @@ final class ComponentMeta
          * @var array<string, array{rules: array<string, mixed>, attributes: array<string, string>}>
          */
         public readonly array $rules = [],
+        /** @var array<string, class-string<Store>> the stores it uses, by property (public Cart $cart) */
+        public readonly array $stores = [],
+        /** A store (extends Store): state components share, with no view. */
+        public readonly bool $store = false,
     ) {
     }
 
@@ -129,6 +134,12 @@ final class ComponentMeta
         $properties = [];
         $modelable = null;
         $rules = [];
+        $stores = State::stores($class);
+        $isStore = $reflection->isSubclassOf(Store::class);
+
+        if ($isStore) {
+            self::assertStore($reflection, $stores, $file);
+        }
 
         foreach (State::properties($class) as $property) {
             $url = ($property->getAttributes(Url::class)[0] ?? null)?->newInstance();
@@ -257,6 +268,8 @@ final class ComponentMeta
             $navigate,
             $description,
             $rules,
+            $stores,
+            $isStore,
         );
     }
 
@@ -370,6 +383,35 @@ final class ComponentMeta
         return array_keys(array_filter($this->properties, fn (PropertyMeta $p) => $p->locked));
     }
 
+    /**
+     * What a store cannot have: what belongs to a component on the page (events it listens to, the
+     * query string, the history entry, fusion:model on its tag, uploads), or stores of its own.
+     *
+     * @param  ReflectionClass<object>  $reflection
+     * @param  array<string, string>  $stores
+     */
+    private static function assertStore(ReflectionClass $reflection, array $stores, string $file): void
+    {
+        $class = $reflection->getName();
+
+        if ($stores !== []) {
+            throw new CompileException("{$class} is a store: it cannot hold another store (\$".array_key_first($stores).'); components use each store themselves', $file);
+        }
+
+        foreach ($reflection->getMethods() as $method) {
+            if ($method->getAttributes(On::class) !== []) {
+                throw new CompileException("#[On] is for components on the page: {$class}::{$method->getName()}() is a store's. A component listens and calls the store", $file, $method->getStartLine());
+            }
+        }
+
+        foreach (State::properties($class) as $property) {
+            foreach ([Url::class => '#[Url]', Remember::class => '#[Remember]', Modelable::class => '#[Modelable]', Uploads::class => '#[Uploads]'] as $attribute => $label) {
+                if ($property->getAttributes($attribute) !== []) {
+                    throw new CompileException("{$label} is for components: \${$property->getName()} of the store {$class} cannot have it", $file);
+                }
+            }
+        }
+    }
     public function scope(): Scope
     {
         return new Scope(

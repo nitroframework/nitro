@@ -17,7 +17,9 @@ use Nitro\Fusion\Http\Scripts;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\Rendering\Tags;
+use Nitro\Fusion\Rendering\UnplaceableComponent;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Naming;
@@ -65,6 +67,15 @@ final class Fusion
     private ?Build\Obfuscator $names = null;
 
     private bool $namesResolved = false;
+
+    /** The page the components being rendered belong to, when it is not this request's (childrenOf()). */
+    private ?array $renderingFor = null;
+
+    /** @var array<string, Store> this request's stores, by name: one each, shared by the components that use it */
+    private array $stores = [];
+
+    /** @var array<string, array<string, mixed>> the page each store the browser sent was made for (its signed memo) */
+    private array $storeMemos = [];
 
     private readonly Tags $tags;
 
@@ -325,11 +336,24 @@ final class Fusion
         $dynamic = $name === 'dynamic-component';
 
         if ($dynamic) {
-            $name = (string) ($props['is'] ?? throw new InvalidArgumentException('<fusion:dynamic-component> needs :is, the name of the component to render'));
+            $is = $props['is'] ?? throw new InvalidArgumentException('<fusion:dynamic-component> needs :is, the name of the component to render');
             unset($props['is']);
 
-            if ($name === '') {
+            if (! is_string($is)) {
+                throw new UnplaceableComponent('<fusion:dynamic-component> :is names a component: a string, not '.get_debug_type($is).'.');
+            }
+
+            if ($is === '') {
                 return new HtmlString('');
+            }
+
+            $name = $is;
+            $class = class_exists($name) ? ltrim($name, '\\') : $this->registry->class($name);
+
+            if ($class === null || $this->registry->isPageClass($class)) {
+                throw new UnplaceableComponent($class === null
+                    ? "<fusion:dynamic-component> :is names [{$name}], which is not a Fusion component."
+                    : "[{$name}] is a page: pages are routed (Route::fusion()), not placed in views. Place a component instead.");
             }
         }
 
@@ -449,7 +473,80 @@ final class Fusion
             throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::fusion()), not placed in views. Place a component instead.");
         }
 
+        if ($meta->store) {
+            throw new InvalidArgumentException("[{$meta->name}] is a store: components use it through a property of its type (public Cart \$cart), it is not placed in views.");
+        }
+
         return $meta;
+    }
+
+    // ------------------------------------------------------------ stores
+
+    /**
+     * This request's store of a class: the same one for every component that uses it, made with
+     * its mount() (on the server) the first time one asks.
+     */
+    public function store(string $class): Store
+    {
+        $meta = $this->meta($class);
+
+        if (! $meta->store) {
+            throw new InvalidArgumentException("{$meta->class} is not a store (a class extending ".Store::class.').');
+        }
+
+        if (! isset($this->stores[$meta->name])) {
+            /** @var Store $store */
+            $store = $this->app->make($meta->class);
+            $store->fusion()->id = $meta->name;
+            $store->fusion()->name = $meta->name;
+            $this->stores[$meta->name] = $store;
+            Hooks::call($store, 'boot');
+
+            if ($meta->hasMount) {
+                $this->app->call([$store, 'mount']);
+            }
+        }
+
+        return $this->stores[$meta->name];
+    }
+
+    /**
+     * A store as the browser sent it (a #[Server] call): the one this request's components use.
+     * Signed again for the page it was made for ($memo), not for the endpoint.
+     *
+     * @param  array<string, mixed>  $memo
+     */
+    public function adoptStore(Store $store, array $memo = []): void
+    {
+        $this->stores[$store->fusion()->name] = $store;
+        $this->storeMemos[$store->fusion()->name] = $memo;
+    }
+
+    /** The component's store properties (public Cart $cart), given this request's stores. */
+    public function giveStores(Component $component, ComponentMeta $meta): void
+    {
+        foreach ($meta->stores as $property => $class) {
+            $component->{$property} = $this->store($class);
+        }
+    }
+
+    /**
+     * The stores this request made or took from the browser, signed for it: the page sends them
+     * with its components (the browser makes those it does not have yet).
+     *
+     * @return array<string, array> browser name => signed envelope
+     */
+    public function storeSnapshots(): array
+    {
+        $snapshots = [];
+
+        foreach ($this->stores as $name => $store) {
+            $meta = $this->meta($name);
+            $memo = $this->storeMemos[$name] ?? $this->pageMemo();
+            $snapshots[$this->browserName($name)] = json_decode(Snapshot::capture($store, $meta, $memo)->toJson($this->stateKey(), $this->browserName($name), $this->names()), true);
+        }
+
+        return $snapshots;
     }
 
     /**
@@ -462,6 +559,7 @@ final class Fusion
         $component = $this->app->make($meta->class);
         $component->fusion()->id = $id;
         $component->fusion()->name = $meta->name;
+        $this->giveStores($component, $meta);
         Hooks::call($component, 'boot');
 
         /** fusion:model on its tag: the parent's value, for its #[Modelable] property (once mounted). */
@@ -523,9 +621,59 @@ final class Fusion
         }
     }
 
+    /** Whether the component's view places a child with mount(), which only the server can create. */
+    public function placesMountedChildren(ComponentMeta $meta): bool
+    {
+        return $this->pages->hasServerChildren($meta, mountOnly: true);
+    }
+
+    /** Whether the component's view places a child that needs the server's state (mount() or #[Server] methods). */
+    public function placesServerChildren(ComponentMeta $meta): bool
+    {
+        return $this->pages->hasServerChildren($meta);
+    }
+
+    /**
+     * The signed state of the children the component's view places that need one (mount() or
+     * #[Server] methods), by id: its view rendered on the server, for the page of $memo (the
+     * component's own, from its snapshot), so the children's calls re-check that page's middleware.
+     * The browser takes them for children it made itself, which a #[Server] call needs.
+     *
+     * @param  array<string, mixed>  $memo
+     * @return array<string, array>
+     */
+    public function childrenOf(Component $component, ComponentMeta $meta, array $memo): array
+    {
+        $previous = $this->renderingFor;
+        $this->renderingFor = $memo;
+
+        try {
+            return $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $this->stateKey(), $memo));
+        } catch (\Throwable $e) {
+            /**
+             * The state may hold what the browser changed: props from it that do not fit a child
+             * (its mount() parameters, its typed properties), or a dynamic component's name that
+             * names none, are the request's fault, not the server's. Anything else is a real error.
+             */
+            for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
+                if ($cause instanceof UnplaceableComponent || ($cause instanceof \TypeError && preg_match('/::mount\(\): Argument #\d+|^Cannot assign .+ to property .+ of type /', $cause->getMessage()) === 1)) {
+                    throw new \Symfony\Component\HttpKernel\Exception\HttpException(403, 'A child\'s props, from the state the browser sent, do not fit it.', $e);
+                }
+            }
+
+            throw $e;
+        } finally {
+            $this->renderingFor = $previous;
+        }
+    }
+
     /** The page the components were rendered for: their #[Server] calls re-check its middleware. */
     public function pageMemo(): array
     {
+        if ($this->renderingFor !== null) {
+            return $this->renderingFor;
+        }
+
         $request = $this->app->bound('request') ? $this->app->make('request') : null;
 
         if (! $request instanceof Request || $request->route() === null) {

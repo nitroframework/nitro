@@ -54,6 +54,7 @@ final class PageResponses
         $meta = $this->fusion->meta($component::class);
         $component->fusion()->id = $this->pageId();
         $component->fusion()->name = $meta->name;
+        $this->fusion->giveStores($component, $meta);
         Hooks::call($component, 'boot');
         $this->fusion->applyUrl($component, $meta);
 
@@ -252,7 +253,10 @@ final class PageResponses
             'shared' => $this->data->sharedForBrowser(),
             'once' => (object) $this->data->onceForBrowser(),
             'flash' => $this->data->flashForBrowser(),
-        ], 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        ] + (($stores = $this->fusion->storeSnapshots()) === [] ? [] : [
+            /** The stores the page's components use: the browser makes those it does not have yet. */
+            'stores' => (object) $stores,
+        ]), 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /** Pages share the page around them when they have the same layout, with the same data. */
@@ -265,14 +269,23 @@ final class PageResponses
 
     /**
      * Whether the component's view places (itself or through the children it places) a child that
-     * has mount(): only the server can create those.
+     * has mount() or #[Server] methods: only the server can create the first, or sign the state of
+     * the second. $mountOnly: a child with mount() only (a #[Server] call answers with those: the
+     * browser takes the state of the others when they first call the server).
      *
      * @param  array<string, true>  $seen  classes already looked at (views can place each other)
      */
-    private function hasServerChildren(ComponentMeta $meta, array &$seen = []): bool
+    public function hasServerChildren(ComponentMeta $meta, bool $mountOnly = false, array &$seen = []): bool
     {
-        if (isset($this->serverChildren[$meta->class])) {
-            return $this->serverChildren[$meta->class];
+        /** A store has no view: it places nothing. */
+        if ($meta->store) {
+            return false;
+        }
+
+        $key = $meta->class.($mountOnly ? '#mount' : '');
+
+        if (isset($this->serverChildren[$key])) {
+            return $this->serverChildren[$key];
         }
 
         $seen[$meta->class] = true;
@@ -282,7 +295,7 @@ final class PageResponses
         preg_match_all('/<fusion:([\w.\-]+)/', $source, $tags);
 
         foreach (array_unique($tags[1]) as $name) {
-            /** It may name any component, one with mount() too. */
+            /** It may name any component, one with mount() or #[Server] methods too. */
             if ($name === 'dynamic-component') {
                 $found = true;
 
@@ -295,13 +308,14 @@ final class PageResponses
 
             $child = $this->fusion->meta($name);
 
-            if ($child->hasMount || (! isset($seen[$child->class]) && $this->hasServerChildren($child, $seen))) {
+            /** A child that uses a store: rendered here, so the store is made here (its mount()) and sent with the page. */
+            if ($child->hasMount || (! $mountOnly && ($child->serverMethods !== [] || $child->stores !== [])) || (! isset($seen[$child->class]) && $this->hasServerChildren($child, $mountOnly, $seen))) {
                 $found = true;
 
                 break;
             }
         }
 
-        return $this->serverChildren[$meta->class] = $found;
+        return $this->serverChildren[$key] = $found;
     }
 }

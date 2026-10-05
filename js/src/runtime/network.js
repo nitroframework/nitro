@@ -98,15 +98,28 @@ export class Network {
         }
     }
 
-    async send(component, method, args) {
+    /**
+     * children: also ask for the signed state of the children its view places that need one, for
+     * children made here (adopt()).
+     */
+    async send(component, method, args, children = false) {
+        if (component.destroyed) return null;
+        /** Made here, by a render in the browser: it has no signed state for the server yet (a store: the server makes it). */
+        if (component.snapshot === null && !component.isStore) await this.adopt(component);
         if (component.destroyed) return null;
         const sent = new Map(component.data);
         const partials = component.partials;
+        /** The stores it uses, as they are here: the server's methods read and change them too. */
+        const stores = new Map(Object.values(component.definition.stores ?? {}).map((name) => [name, this.runtime.storeNamed(name)]));
+        const storesSent = new Map([...stores].map(([name, store]) => [name, new Map(store.data)]));
         const body = {
             snapshot: component.snapshot,
+            store: component.isStore && component.snapshot === null ? component.name : undefined,
             partials: partials.length > 0 ? partials : undefined,
             updates: component.updates(),
             call: method === null ? null : { method, params: args.map(P.encode) },
+            children: children || undefined,
+            stores: stores.size > 0 ? Object.fromEntries([...stores].map(([name, store]) => [name, { snapshot: store.snapshot, updates: store.updates() }])) : undefined,
         };
 
         this.runtime.loading(component, method, true);
@@ -158,10 +171,44 @@ export class Network {
         this.runtime.receive(answer, component);
         /** The new snapshot has the partial reloads sent with the call. */
         component.partials = component.partials.filter((partial) => !partials.includes(partial));
-        component.applySnapshot(snapshot, sent);
+        /** The stores it used, as the server left them. */
+        for (const [name, envelope] of Object.entries(answer.stores ?? {})) {
+            stores.get(name)?.applySnapshot(envelope, storesSent.get(name));
+        }
+        /** Children with mount() its new state places: made by the server, with the answer. */
+        this.runtime.provided = new Map(Object.entries(answer.children ?? {}));
+        try {
+            component.applySnapshot(snapshot, sent);
+        } finally {
+            this.runtime.provided.clear();
+        }
+        for (const [id, envelope] of Object.entries(answer.children ?? {})) {
+            const child = this.runtime.instances.get(id);
+            if (child && child.snapshot === null) child.adopt(envelope);
+        }
         this.runtime.effects(component, effects);
 
         return effects.returns === undefined ? null : P.decode(effects.returns);
+    }
+
+    /**
+     * A component made in the browser (a row a render added) takes its signed state from the
+     * server before its first call: its parent is rendered there, from the parent's own signed
+     * state and what changed here, and the child's state is the one that render gives it. What
+     * changed in the child here is sent with the call, as for any component.
+     */
+    async adopt(component) {
+        const parent = component.parent;
+        if (!parent || parent.destroyed) {
+            throw new ServerCallError(`[${component.name}] was made in the browser, outside a component: it has no signed state for its #[Server] methods`, 0, '');
+        }
+        const previous = this.queues.get(parent) ?? Promise.resolve();
+        const next = previous.catch(() => {}).then(() => this.send(parent, null, [], true));
+        this.queues.set(parent, next);
+        await next;
+        if (component.snapshot === null && !component.destroyed) {
+            throw new ServerCallError(`[${component.name}] was not placed by its parent's view on the server, so it has no signed state for its #[Server] methods`, 0, '');
+        }
     }
 }
 

@@ -94,6 +94,10 @@ export class Component {
         /** Renders of what changed so far (fusion:visible: whether a call changed anything). */
         this.renders = 0;
         this.ctx = this.context();
+        /** The stores it uses: a change in one renders again what reads its property here. */
+        for (const [property, store] of Object.entries(this.definition.stores ?? {})) {
+            this.runtime.storeNamed(store).subscribe(this, property);
+        }
         this.view = this.createView();
     }
 
@@ -112,6 +116,11 @@ export class Component {
 
         for (const [name, fn] of Object.entries(this.definition.methods)) {
             ctx[name] = fn;
+        }
+
+        /** public Cart $cart: the tab's store, shared with every component that uses it. */
+        for (const [property, store] of Object.entries(this.definition.stores ?? {})) {
+            Object.defineProperty(ctx, property, { enumerable: true, get: () => self.runtime.storeNamed(store).ctx });
         }
 
         Object.assign(ctx, {
@@ -464,6 +473,17 @@ export class Component {
     }
 
     /**
+     * A signed state from the server for a component made here (Network.adopt()): what the
+     * server has becomes its last known state, and what is here stays, to be sent as changes.
+     */
+    adopt(envelope) {
+        const state = readState(envelope);
+        if (state.id !== this.id || state.name !== this.name) return;
+        this.snapshot = envelope;
+        this.serverData = new Map(state.data);
+    }
+
+    /**
      * The state after a reload ($reload, deferred properties). Of some properties: their signed
      * values (partial) are taken, unless changed here while it ran, and the envelope is kept for
      * the next #[Server] call, which lays it over the snapshot. Of all of them: the new snapshot
@@ -546,6 +566,9 @@ export class Component {
         if (!this.definition.server.includes('destroyed')) this.hook('destroyed');
         this.destroyed = true;
         this.runtime.broadcasts.unsubscribe(this);
+        for (const store of Object.values(this.definition.stores ?? {})) {
+            this.runtime.stores.get(store)?.unsubscribe(this);
+        }
         for (const cleanup of this.cleanups.splice(0)) {
             try {
                 cleanup();

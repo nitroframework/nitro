@@ -161,6 +161,10 @@ final class Bundle
     private function usesDynamicComponents(): bool
     {
         foreach (array_keys($this->fusion->registry()->all()) as $name) {
+            if ($this->fusion->meta($name)->store) {
+                continue;
+            }
+
             $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);
 
             if (str_contains((string) $this->files->get($view), '<fusion:dynamic-component')) {
@@ -430,6 +434,7 @@ final class Bundle
             names: $names,
             cloneStatic: $this->rendering === 'clone',
             atOnce: $this->rendersAtOnce(...),
+            meta: fn (string $class) => $this->fusion->meta($class),
         );
         $main = [];
         $chunks = [];
@@ -443,6 +448,14 @@ final class Bundle
 
             try {
                 $meta = $this->fusion->meta($name);
+
+                /** A store has no view, and is in the main bundle: any page's components may use it. */
+                if ($meta->store) {
+                    $main[] = $compiler->compileStore($meta);
+
+                    continue;
+                }
+
                 $viewFile = $this->views->getFinder()->find($meta->view);
                 $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
             } catch (CompileException $e) {
@@ -757,6 +770,11 @@ final class Bundle
         foreach ($this->fusion->registry()->all() as $name => $class) {
             for ($reflection = new ReflectionClass($class); $reflection !== false; $reflection = $reflection->getParentClass()) {
                 $files = [...$files, ...$this->classFiles($reflection)];
+            }
+
+            /** A store has no view. */
+            if ($this->fusion->meta($name)->store) {
+                continue;
             }
 
             $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);

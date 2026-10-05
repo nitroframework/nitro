@@ -118,7 +118,10 @@ final class Scripts
             'shared' => $this->data->sharedForBrowser(),
             'once' => (object) $this->data->onceForBrowser(),
             'flash' => $this->data->flashForBrowser(),
-        ];
+        ] + (($stores = $this->fusion->storeSnapshots()) === [] ? [] : [
+            /** The stores the page's components use, as the server made them (the browser makes them from these). */
+            'stores' => (object) $stores,
+        ]);
     }
 
     /**

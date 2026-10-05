@@ -16,12 +16,20 @@ final class Naming
     /** What a page's name starts with. */
     public const PAGES = 'pages::';
 
-    public static function name(string $class, string $namespace, bool $page = false): string
+    /** What a store's name starts with: App\Fusion\Stores\Cart is "stores::cart"; a store has no view. */
+    public const STORES = 'stores::';
+
+    public static function name(string $class, string $namespace, bool $page = false, bool $store = false): string
     {
         $relative = Str::after(ltrim($class, '\\'), trim($namespace, '\\').'\\');
         $name = implode('.', array_map(fn ($segment) => Str::kebab($segment), explode('\\', $relative)));
 
-        return $page ? self::PAGES.$name : $name;
+        return ($page ? self::PAGES : ($store ? self::STORES : '')).$name;
+    }
+
+    public static function isStore(string $name): bool
+    {
+        return str_starts_with($name, self::STORES);
     }
 
     public static function isPage(string $name): bool

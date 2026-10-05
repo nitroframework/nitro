@@ -130,8 +130,10 @@ class BuildCommand extends Command
         switch ($event) {
             case 'compiling':
                 $this->step = 'compiling';
-                $pages = count(array_filter(array_keys($this->laravel->make(Fusion::class)->registry()->all()), Naming::isPage(...)));
-                $this->label = sprintf('Compiling %d components and %d pages to JavaScript', $details[0] - $pages, $pages);
+                $names = array_keys($this->laravel->make(Fusion::class)->registry()->all());
+                $pages = count(array_filter($names, Naming::isPage(...)));
+                $stores = count(array_filter($names, Naming::isStore(...)));
+                $this->label = sprintf('Compiling %d components%s and %d pages to JavaScript', $details[0] - $pages - $stores, $stores === 0 ? '' : sprintf(', %d %s', $stores, $stores === 1 ? 'store' : 'stores'), $pages);
 
                 if (! $this->output->isVerbose() && $this->output->isDecorated()) {
                     $this->bar = $this->output->createProgressBar($details[0]);

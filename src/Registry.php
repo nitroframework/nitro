@@ -24,11 +24,13 @@ final class Registry
     /**
      * @param  array{namespace: string, path: string, views: string}  $componentsAt  where components are
      * @param  array{namespace: string, path: string, views: string}  $pagesAt  where pages are
+     * @param  array{namespace: string, path: string}|null  $storesAt  where stores are
      */
     public function __construct(
         private readonly array $componentsAt,
         private readonly array $pagesAt,
         private readonly ?string $cache = null,
+        private readonly ?array $storesAt = null,
     ) {
     }
 
@@ -64,6 +66,10 @@ final class Registry
             return $name;
         }
 
+        if ($this->storesAt !== null && str_starts_with($class, trim($this->storesAt['namespace'], '\\').'\\')) {
+            return Naming::name($class, $this->storesAt['namespace'], store: true);
+        }
+
         foreach ([[$this->pagesAt, true], [$this->componentsAt, false]] as [$location, $page]) {
             if (str_starts_with($class, trim($location['namespace'], '\\').'\\')) {
                 return Naming::name($class, $location['namespace'], $page);
@@ -85,9 +91,19 @@ final class Registry
         return str_starts_with($class, trim($this->pagesAt['namespace'], '\\').'\\');
     }
 
-    /** The view a component or page renders, from its name. */
+    /** Whether a class is a store (it extends Store). */
+    public function isStoreClass(string $class): bool
+    {
+        return is_subclass_of(ltrim($class, '\\'), Store::class);
+    }
+
+    /** The view a component or page renders, from its name ("" for a store, which has none). */
     public function view(string $name): string
     {
+        if (Naming::isStore($name)) {
+            return '';
+        }
+
         return Naming::view($name, (Naming::isPage($name) ? $this->pagesAt : $this->componentsAt)['views']);
     }
 
@@ -109,7 +125,13 @@ final class Registry
             }
         }
 
-        foreach ([[$this->componentsAt, false], [$this->pagesAt, true]] as [$location, $page]) {
+        $locations = [[$this->componentsAt, false, false], [$this->pagesAt, true, false]];
+
+        if ($this->storesAt !== null) {
+            $locations[] = [$this->storesAt, false, true];
+        }
+
+        foreach ($locations as [$location, $page, $store]) {
             if (! is_dir($location['path'])) {
                 continue;
             }
@@ -124,8 +146,9 @@ final class Registry
                 $relative = substr($file->getPathname(), strlen(rtrim($location['path'], '\\/')) + 1, -4);
                 $class = trim($location['namespace'], '\\').'\\'.str_replace(['/', '\\'], '\\', $relative);
 
-                if (class_exists($class) && is_subclass_of($class, Component::class) && (new ReflectionClass($class))->isInstantiable()) {
-                    $this->components[Naming::name($class, $location['namespace'], $page)] ??= $class;
+                /** A store only where stores are, and only a store there. */
+                if (class_exists($class) && is_subclass_of($class, Component::class) && is_subclass_of($class, Store::class) === $store && (new ReflectionClass($class))->isInstantiable()) {
+                    $this->components[Naming::name($class, $location['namespace'], $page, $store)] ??= $class;
                 }
             }
         }
@@ -147,7 +170,7 @@ final class Registry
     {
         $directories = [];
 
-        foreach ([$this->componentsAt['path'], $this->pagesAt['path']] as $path) {
+        foreach (array_filter([$this->componentsAt['path'], $this->pagesAt['path'], $this->storesAt['path'] ?? null]) as $path) {
             if (! is_dir($path)) {
                 continue;
             }
