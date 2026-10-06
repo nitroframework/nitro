@@ -76,7 +76,12 @@ class ScriptEngine implements ViewEngine
         return [];
     }
 
-    /** The element the view mounts in: the browser renders it, from the state on it. */
+    /**
+     * The element the view mounts in: the browser renders it, from the state on it.
+     *
+     * Planned: server rendering, where this asks a Node service for the view's HTML with the
+     * component's state, and the browser's engine hydrates it instead of mounting.
+     */
     public function render(Component $component, ComponentMeta $meta): string
     {
         $this->file($meta);

@@ -22,6 +22,10 @@ interface ViewEngine
     /**
      * The component's HTML on the server: its root element, not yet marked with its id, name
      * and state (ComponentRenderer marks it).
+     *
+     * Blade renders the whole view here. A JavaScript view renders an empty element for the
+     * browser to fill; server rendering for those views (a Node service the engine asks for the
+     * HTML, which the browser then hydrates) is planned, and would plug in here.
      */
     public function render(Component $component, ComponentMeta $meta): string;
 
