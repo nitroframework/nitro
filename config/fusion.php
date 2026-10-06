@@ -281,6 +281,60 @@ return [
 
     'navigation' => 'data',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Your own fusion: attributes
+    |--------------------------------------------------------------------------
+    |
+    | Attributes your views may use besides Fusion's, such as fusion:tooltip.
+    | Each needs a Fusion.directive() of the same name in your JavaScript:
+    |
+    |     Fusion.directive('tooltip', ({ el, value, modifiers, component }) => {
+    |         const tip = makeTooltip(el, value, modifiers);
+    |         return () => tip.remove();
+    |     });
+    |
+    | It runs when the element appears, again when the attribute's value
+    | changes ({{ }} in it), and its cleanup when the element goes.
+    |
+    */
+
+    'attributes' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Views in Vue, React and Solid
+    |--------------------------------------------------------------------------
+    |
+    | A component's view can be a Vue, React or Solid component instead of
+    | Blade: #[View(vue: 'cart/badge')] is cart/badge.vue in one of the vue
+    | paths. Where each engine's views are (the first that has the file),
+    | and their extensions. Your app's Vite builds them; your JavaScript
+    | registers each engine (fusionVue(), fusionReact(), fusionSolid()).
+    | A view may hold its component's PHP itself: a <php> block.
+    |
+    */
+
+    'views' => [
+        'vue' => ['path' => [resource_path('views/vue'), resource_path('js/vue')], 'extensions' => ['vue']],
+        'react' => ['path' => [resource_path('views/react'), resource_path('js/react')], 'extensions' => ['jsx', 'tsx']],
+        'solid' => ['path' => [resource_path('views/solid'), resource_path('js/solid')], 'extensions' => ['jsx', 'tsx']],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Features
+    |--------------------------------------------------------------------------
+    |
+    | Classes extending Nitro\Fusion\Feature that run around every component
+    | on the server: when it is made or restored, around a #[Server] method,
+    | before its state goes to the browser. They run after Fusion's own
+    | (#[Url], #[Validate]), in the order listed.
+    |
+    */
+
+    'features' => [],
+
     'esbuild' => [
         'node' => env('FUSION_NODE', 'node'),
         'root' => base_path(),

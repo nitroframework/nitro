@@ -124,16 +124,50 @@ class BuildCommand extends Command
         return number_format($bytes / 1024, 1).' KB';
     }
 
+    /**
+     * What their views are written in, when not all Blade: " (6 Blade, 2 Vue, 2 React)".
+     *
+     * @param  list<string>  $names
+     */
+    private function engines(Fusion $fusion, array $names): string
+    {
+        $engines = [];
+
+        foreach ($names as $name) {
+            $engine = $fusion->meta($name)->engine;
+            $engines[$engine] = ($engines[$engine] ?? 0) + 1;
+        }
+
+        if (array_keys($engines) === [] || array_keys($engines) === ['blade']) {
+            return '';
+        }
+
+        $known = ['blade' => 'Blade', 'vue' => 'Vue', 'react' => 'React', 'solid' => 'Solid'];
+        $label = fn (string $engine) => $known[$engine] ?? ucfirst($engine);
+        uksort($engines, fn (string $a, string $b) => [array_search($a, array_keys($known), true) === false, array_search($a, array_keys($known), true), $a] <=> [array_search($b, array_keys($known), true) === false, array_search($b, array_keys($known), true), $b]);
+
+        return ' ('.implode(', ', array_map(fn (string $engine, int $count) => "{$count} {$label($engine)}", array_keys($engines), $engines)).')';
+    }
+
     /** The build's steps (Bundle::build()'s report), as lines. */
     private function report(string $event, mixed ...$details): void
     {
         switch ($event) {
             case 'compiling':
                 $this->step = 'compiling';
-                $names = array_keys($this->laravel->make(Fusion::class)->registry()->all());
-                $pages = count(array_filter($names, Naming::isPage(...)));
+                $fusion = $this->laravel->make(Fusion::class);
+                $names = array_keys($fusion->registry()->all());
+                $pages = array_values(array_filter($names, Naming::isPage(...)));
                 $stores = count(array_filter($names, Naming::isStore(...)));
-                $this->label = sprintf('Compiling %d components%s and %d pages to JavaScript', $details[0] - $pages - $stores, $stores === 0 ? '' : sprintf(', %d %s', $stores, $stores === 1 ? 'store' : 'stores'), $pages);
+                $components = array_values(array_diff($names, $pages, array_filter($names, Naming::isStore(...))));
+                $this->label = sprintf(
+                    'Compiling %d components%s%s and %d pages%s to JavaScript',
+                    count($components),
+                    $this->engines($fusion, $components),
+                    $stores === 0 ? '' : sprintf(', %d %s', $stores, $stores === 1 ? 'store' : 'stores'),
+                    count($pages),
+                    $this->engines($fusion, $pages),
+                );
 
                 if (! $this->output->isVerbose() && $this->output->isDecorated()) {
                     $this->bar = $this->output->createProgressBar($details[0]);

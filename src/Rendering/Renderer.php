@@ -2,20 +2,14 @@
 
 namespace Nitro\Fusion\Rendering;
 
-use Illuminate\Support\ViewErrorBag;
-use Illuminate\View\ComponentSlot;
-use Illuminate\View\Engines\CompilerEngine;
 use Illuminate\View\Factory as ViewFactory;
-use LogicException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\State;
-use Throwable;
+use Nitro\Fusion\View\ViewEngines;
 
 /**
- * Renders components on the server with Blade itself (Fusion only compiles the same view for the
- * browser). The view sees the component's properties as variables and the component as $this,
- * and its loops start fresh, so $loop and child keys depend on the component's own view only.
+ * Renders components on the server: their view by its engine (View\ViewEngines), the root
+ * element marked with the id, name and signed state the browser takes over.
  */
 final class Renderer
 {
@@ -36,7 +30,7 @@ final class Renderer
     /** Islands being rendered that start later (or never): their components' chunks wait for them. */
     private int $later = 0;
 
-    public function __construct(private readonly ViewFactory $views)
+    public function __construct(private readonly ViewFactory $views, private readonly ViewEngines $engines)
     {
     }
 
@@ -72,6 +66,7 @@ final class Renderer
         $fusion = app(\Nitro\Fusion\Fusion::class);
         $name = $fusion->browserName($meta->name);
         $html = $fusion->obscure($this->view($component, $meta), [...$meta->browserMethods, ...$meta->serverMethods], array_keys($meta->properties));
+        $fusion->features()->dehydrate($component);
         $envelope = Snapshot::capture($component, $meta, $memo)->toJson($key, $name, $fusion->names());
 
         if ($this->collected !== null && $this->stack !== [] && ($meta->hasMount || $meta->serverMethods !== [])) {
@@ -134,111 +129,21 @@ final class Renderer
         return array_values(array_map(fn (array $loop) => $loop['index'], $this->views->getLoopStack()));
     }
 
+    /** The view's HTML, by its engine, with the component as the one rendering (children and teleports ask). */
     private function view(Component $component, ComponentMeta $meta): string
     {
-        $path = $this->views->getFinder()->find($meta->view);
-        $engine = $this->views->getEngineResolver()->resolve('blade');
-
-        if (! $engine instanceof CompilerEngine) {
-            throw new LogicException('Fusion renders views with Blade\'s compiler engine.');
-        }
-
-        $compiler = $engine->getCompiler();
-
-        if ($compiler->isExpired($path)) {
-            $compiler->compile($path);
-        }
-
-        $errors = new ViewErrorBag;
-        $errors->put('default', $component->fusion()->errors);
-
-        $slots = $component->fusion()->slots;
-
-        $data = [
-            ...$this->views->getShared(),
-            /** What the parent's tag passed: $slot (the default slot), $slots['name']. */
-            'slot' => new ComponentSlot($slots['default'] ?? ''),
-            'slots' => new Slots($slots),
-            ...State::of($component),
-            /** The stores it uses ($cart): not its state, but its view reads them as it reads its properties. */
-            ...array_map(fn (string $property) => $component->{$property}, array_combine(array_keys(State::stores($component::class)), array_keys(State::stores($component::class)))),
-            'errors' => $errors,
-            '__env' => $this->views,
-        ];
-
         $this->stack[] = $component;
         $this->orders[] = $this->started++;
-        $loops = $this->isolateLoops();
         $context = $component->fusion();
         $context->rendering = true;
 
         try {
-            return $this->evaluate($component, $compiler->getCompiledPath($path), $data);
+            return $this->engines->of($meta)->render($component, $meta);
         } finally {
             $context->rendering = false;
             $context->computed = [];
-            $this->restoreLoops($loops);
             array_pop($this->stack);
             array_pop($this->orders);
         }
-    }
-
-    /** Include the compiled view with $this bound to the component. */
-    private function evaluate(Component $component, string $__path, array $__data): string
-    {
-        $level = ob_get_level();
-        ob_start();
-
-        /**
-         * Counted as a render, as View::render() counts one: a Blade component in the view renders
-         * its own view, and when that ends the factory flushes its state if nothing else is
-         * rendering, the component tags still open around it included.
-         */
-        $this->views->incrementRender();
-
-        try {
-            (function () use ($__path, $__data) {
-                extract($__data, EXTR_SKIP);
-
-                include $__path;
-            })->call($component);
-        } catch (Throwable $e) {
-            while (ob_get_level() > $level) {
-                ob_end_clean();
-            }
-
-            throw $e;
-        } finally {
-            $this->views->decrementRender();
-        }
-
-        /** A component is its root element: whitespace around it (the view file's last newline) is not part of it. */
-        return trim((string) ob_get_clean());
-    }
-
-    /**
-     * Empty the view factory's loop stack for the component's view (Blade keeps it in a
-     * protected property, with no API to swap it) and return the outer view's.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function isolateLoops(): array
-    {
-        return (function (): array {
-            /** @var ViewFactory $this */
-            $stack = $this->loopsStack;
-            $this->loopsStack = [];
-
-            return $stack;
-        })->call($this->views);
-    }
-
-    /** @param  array<int, array<string, mixed>>  $loops */
-    private function restoreLoops(array $loops): void
-    {
-        (function () use ($loops): void {
-            /** @var ViewFactory $this */
-            $this->loopsStack = $loops;
-        })->call($this->views);
     }
 }

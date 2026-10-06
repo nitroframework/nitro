@@ -20,7 +20,6 @@ use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\Renderer;
 use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\Support\Hooks;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -55,8 +54,8 @@ final class PageResponses
         $component->fusion()->id = $this->pageId();
         $component->fusion()->name = $meta->name;
         $this->fusion->giveStores($component, $meta);
-        Hooks::call($component, 'boot');
-        $this->fusion->applyUrl($component, $meta);
+        $this->fusion->features()->boot($component);
+        $this->fusion->features()->mounting($component);
 
         if ($meta->hasMount) {
             /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
@@ -237,6 +236,7 @@ final class PageResponses
         /** In development, the page or a component it renders that does not compile: its error. */
         $this->app->make(Bundle::class)->assertCompiled([$meta->name, ...$this->renderer->rendered()]);
 
+        $this->fusion->features()->dehydrate($component);
         $snapshot = Snapshot::capture($component, $meta, $memo);
         $only = $this->partial();
 
@@ -277,8 +277,8 @@ final class PageResponses
      */
     public function hasServerChildren(ComponentMeta $meta, bool $mountOnly = false, array &$seen = []): bool
     {
-        /** A store has no view: it places nothing. */
-        if ($meta->store) {
+        /** A store has no view, and a view the app's build compiles places no Fusion children. */
+        if ($meta->store || ! $this->fusion->viewEngine($meta)->compiledByFusion()) {
             return false;
         }
 
@@ -289,7 +289,7 @@ final class PageResponses
         }
 
         $seen[$meta->class] = true;
-        $source = (string) file_get_contents($this->app->make('view')->getFinder()->find($meta->view));
+        $source = (string) file_get_contents($this->fusion->viewEngine($meta)->file($meta));
         $found = false;
 
         preg_match_all('/<fusion:([\w.\-]+)/', $source, $tags);
