@@ -33,7 +33,7 @@ trait WithSorting
 
         $field = $this->sortField;
         $direction = $this->sortDirection === 'asc' ? 1 : -1;
-        usort($rows, fn ($a, $b) => ($a[$field] <=> $b[$field]) * $direction);
+        usort($rows, fn ($left, $right) => ($left[$field] <=> $right[$field]) * $direction);
 
         return $rows;
     }

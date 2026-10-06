@@ -46,8 +46,8 @@ final class Expressions extends Part
             is_float($value) => $this->context->float($value),
             is_string($value) => $this->context->string($value),
             is_array($value) => array_is_list($value)
-                ? '['.implode(', ', array_map(fn ($v) => $this->literal($v, $node), $value)).']'
-                : 'P.arrayLiteral(['.implode(', ', array_map(fn ($k, $v) => '['.$this->literal($k, $node).', '.$this->literal($v, $node).']', array_keys($value), $value)).'])',
+                ? '['.implode(', ', array_map(fn ($item) => $this->literal($item, $node), $value)).']'
+                : 'P.arrayLiteral(['.implode(', ', array_map(fn ($itemKey, $item) => '['.$this->literal($itemKey, $node).', '.$this->literal($item, $node).']', array_keys($value), $value)).'])',
             $value instanceof UnitEnum => $this->enumCase($value, $node),
             default => throw $this->context->error(sprintf('A constant of type %s cannot be used in the browser', get_debug_type($value)), $node),
         };
@@ -67,106 +67,106 @@ final class Expressions extends Part
         return 'Fusion.classes['.json_encode($this->context->scope->browserClass($enum), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).'].$cases['.json_encode($case->name, JSON_THROW_ON_ERROR).']';
     }
 
-    public function interpolated(Scalar\InterpolatedString $e): string
+    public function interpolated(Scalar\InterpolatedString $expression): string
     {
         $parts = [];
 
-        foreach ($e->parts as $part) {
+        foreach ($expression->parts as $part) {
             $parts[] = $part instanceof Node\InterpolatedStringPart ? $this->context->string($part->value) : $this->transpiler->expr($part);
         }
 
         return 'P.concat('.implode(', ', $parts).')';
     }
 
-    public function constant(Expr\ConstFetch $e): string
+    public function constant(Expr\ConstFetch $expression): string
     {
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
 
         return match (strtolower($name)) {
             'true' => 'true',
             'false' => 'false',
             'null' => 'null',
             default => array_key_exists(ltrim($name, '\\'), Catalog::CONSTANTS)
-                ? $this->literal(Catalog::CONSTANTS[ltrim($name, '\\')], $e)
-                : throw $this->context->error("The constant {$name} is not available in the browser", $e),
+                ? $this->literal(Catalog::CONSTANTS[ltrim($name, '\\')], $expression)
+                : throw $this->context->error("The constant {$name} is not available in the browser", $expression),
         };
     }
 
     /** self::CONSTANT / static::CONSTANT: the component's constant, as its value. */
-    public function classConstant(Expr\ClassConstFetch $e): string
+    public function classConstant(Expr\ClassConstFetch $expression): string
     {
-        $class = $e->class instanceof Name ? ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\') : null;
+        $class = $expression->class instanceof Name ? ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\') : null;
 
         /** A #[Browser] class's constant (Money::CURRENCY): its value. An enum's case (Status::Paid): the case. */
-        if ($class !== null && $e->name instanceof Identifier && ! in_array(strtolower($class), ['self', 'static'], true) && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
-            $name = $e->name->toString();
+        if ($class !== null && $expression->name instanceof Identifier && ! in_array(strtolower($class), ['self', 'static'], true) && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
+            $name = $expression->name->toString();
 
             if (! (new ReflectionClass($class))->hasConstant($name)) {
-                throw $this->context->error("Undefined constant {$class}::{$name}", $e);
+                throw $this->context->error("Undefined constant {$class}::{$name}", $expression);
             }
 
             if (! (new ReflectionClassConstant($class, $name))->isPublic() && $this->context->class !== $class) {
-                throw $this->context->error("{$class}::{$name} is not public", $e);
+                throw $this->context->error("{$class}::{$name} is not public", $expression);
             }
 
-            return $this->literal(constant($class.'::'.$name), $e);
+            return $this->literal(constant($class.'::'.$name), $expression);
         }
 
-        if (! $e->class instanceof Name || ! in_array($e->class->toLowerString(), ['self', 'static'], true) || ! $e->name instanceof Identifier) {
+        if (! $expression->class instanceof Name || ! in_array($expression->class->toLowerString(), ['self', 'static'], true) || ! $expression->name instanceof Identifier) {
             throw $this->context->error($class !== null && class_exists($class)
                 ? "{$class}'s ".(enum_exists($class) ? 'cases' : 'constants')." are not in the browser: mark {$class} #[Browser], or move this code to a #[Server] method"
-                : 'Only self::CONSTANT of the component and the constants of #[Browser] classes can be used in the browser', $e);
+                : 'Only self::CONSTANT of the component and the constants of #[Browser] classes can be used in the browser', $expression);
         }
 
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
 
         if (! array_key_exists($name, $this->context->scope->constants)) {
-            throw $this->context->error("Undefined constant self::{$name}", $e);
+            throw $this->context->error("Undefined constant self::{$name}", $expression);
         }
 
-        return $this->literal($this->context->scope->constants[$name], $e);
+        return $this->literal($this->context->scope->constants[$name], $expression);
     }
 
     /** $name: a local keeps its $ ($total -> $total); in a template, what the template resolves it to. */
-    public function variable(Expr\Variable $e): string
+    public function variable(Expr\Variable $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if (! is_string($e->name)) {
-            throw $c->error('Variable variables ($$name) are not supported in the browser', $e);
+        if (! is_string($expression->name)) {
+            throw $context->error('Variable variables ($$name) are not supported in the browser', $expression);
         }
 
-        if ($e->name === 'this') {
+        if ($expression->name === 'this') {
             /** In an enum's method, $this is the case: a value like any other (match ($this) {...}). */
-            if ($c->enumCase) {
+            if ($context->enumCase) {
                 return '$this';
             }
 
-            throw $c->error('$this can only be used as $this->property or $this->method() in the browser', $e);
+            throw $context->error('$this can only be used as $this->property or $this->method() in the browser', $expression);
         }
 
-        if (isset($c->locals[$e->name])) {
-            return '$'.$e->name;
+        if (isset($context->locals[$expression->name])) {
+            return '$'.$expression->name;
         }
 
-        if ($c->scope->variable !== null && ($resolved = ($c->scope->variable)($e->name)) !== null) {
+        if ($context->scope->variable !== null && ($resolved = ($context->scope->variable)($expression->name)) !== null) {
             return $resolved;
         }
 
-        if ($c->scope->variable !== null) {
-            throw $c->error("Undefined variable \${$e->name}: a template can use the component's public properties and its own loop variables", $e);
+        if ($context->scope->variable !== null) {
+            throw $context->error("Undefined variable \${$expression->name}: a template can use the component's public properties and its own loop variables", $expression);
         }
 
-        return '$'.$e->name;
+        return '$'.$expression->name;
     }
 
-    public function array(Expr\Array_ $e): string
+    public function array(Expr\Array_ $expression): string
     {
         $simpleList = true;
 
-        foreach ($e->items as $item) {
+        foreach ($expression->items as $item) {
             if ($item === null) {
-                throw $this->context->error('Empty array items are not supported', $e);
+                throw $this->context->error('Empty array items are not supported', $expression);
             }
 
             if ($item->byRef) {
@@ -179,80 +179,80 @@ final class Expressions extends Part
         }
 
         if ($simpleList) {
-            return '['.implode(', ', array_map(fn ($item) => $this->transpiler->expr($item->value), $e->items)).']';
+            return '['.implode(', ', array_map(fn ($item) => $this->transpiler->expr($item->value), $expression->items)).']';
         }
 
-        $items = array_map(fn ($item) => '['.($item->key === null ? 'P.APPEND' : $this->transpiler->expr($item->key)).', '.$this->transpiler->expr($item->value).', '.($item->unpack ? 'true' : 'false').']', $e->items);
+        $items = array_map(fn ($item) => '['.($item->key === null ? 'P.APPEND' : $this->transpiler->expr($item->key)).', '.$this->transpiler->expr($item->value).', '.($item->unpack ? 'true' : 'false').']', $expression->items);
 
         return 'P.arrayLiteral(['.implode(', ', $items).'])';
     }
 
-    public function dimFetch(Expr\ArrayDimFetch $e): string
+    public function dimFetch(Expr\ArrayDimFetch $expression): string
     {
-        if ($e->dim === null) {
-            throw $this->context->error('Cannot use [] for reading', $e);
+        if ($expression->dim === null) {
+            throw $this->context->error('Cannot use [] for reading', $expression);
         }
 
-        return 'P.get('.$this->transpiler->expr($e->var).', '.$this->transpiler->expr($e->dim).')';
+        return 'P.get('.$this->transpiler->expr($expression->var).', '.$this->transpiler->expr($expression->dim).')';
     }
 
-    public function binary(Expr\BinaryOp $e): string
+    public function binary(Expr\BinaryOp $expression): string
     {
-        $l = fn () => $this->transpiler->expr($e->left);
-        $r = fn () => $this->transpiler->expr($e->right);
+        $left = fn () => $this->transpiler->expr($expression->left);
+        $right = fn () => $this->transpiler->expr($expression->right);
 
         return match (true) {
-            $e instanceof Expr\BinaryOp\Plus => 'P.add('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Minus => 'P.sub('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Mul => 'P.mul('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Div => 'P.div('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Mod => 'P.mod('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Pow => 'P.pow('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Concat => 'P.concat('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Equal => 'P.eq('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\NotEqual => 'P.neq('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Identical => 'P.identical('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\NotIdentical => 'P.notIdentical('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Smaller => 'P.lt('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\SmallerOrEqual => 'P.lte('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Greater => 'P.gt('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\GreaterOrEqual => 'P.gte('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\Spaceship => 'P.cmp('.$l().', '.$r().')',
-            $e instanceof Expr\BinaryOp\BooleanAnd, $e instanceof Expr\BinaryOp\LogicalAnd => '(P.bool('.$l().') && P.bool('.$r().'))',
-            $e instanceof Expr\BinaryOp\BooleanOr, $e instanceof Expr\BinaryOp\LogicalOr => '(P.bool('.$l().') || P.bool('.$r().'))',
-            $e instanceof Expr\BinaryOp\LogicalXor => '(P.bool('.$l().') !== P.bool('.$r().'))',
-            $e instanceof Expr\BinaryOp\Coalesce => 'P.coalesce('.($this->isKeyRead($e->left) ? $this->existence('P.peek', $e->left) : $l()).', () => '.$r().')',
-            $e instanceof Expr\BinaryOp\BitwiseAnd => '(P.toInt('.$l().') & P.toInt('.$r().'))',
-            $e instanceof Expr\BinaryOp\BitwiseOr => '(P.toInt('.$l().') | P.toInt('.$r().'))',
-            $e instanceof Expr\BinaryOp\BitwiseXor => '(P.toInt('.$l().') ^ P.toInt('.$r().'))',
-            $e instanceof Expr\BinaryOp\ShiftLeft => '(P.toInt('.$l().') << P.toInt('.$r().'))',
-            $e instanceof Expr\BinaryOp\ShiftRight => '(P.toInt('.$l().') >> P.toInt('.$r().'))',
-            default => throw $this->context->error('Unsupported operator', $e),
+            $expression instanceof Expr\BinaryOp\Plus => 'P.add('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Minus => 'P.sub('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Mul => 'P.mul('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Div => 'P.div('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Mod => 'P.mod('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Pow => 'P.pow('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Concat => 'P.concat('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Equal => 'P.eq('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\NotEqual => 'P.neq('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Identical => 'P.identical('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\NotIdentical => 'P.notIdentical('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Smaller => 'P.lt('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\SmallerOrEqual => 'P.lte('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Greater => 'P.gt('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\GreaterOrEqual => 'P.gte('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\Spaceship => 'P.cmp('.$left().', '.$right().')',
+            $expression instanceof Expr\BinaryOp\BooleanAnd, $expression instanceof Expr\BinaryOp\LogicalAnd => '(P.bool('.$left().') && P.bool('.$right().'))',
+            $expression instanceof Expr\BinaryOp\BooleanOr, $expression instanceof Expr\BinaryOp\LogicalOr => '(P.bool('.$left().') || P.bool('.$right().'))',
+            $expression instanceof Expr\BinaryOp\LogicalXor => '(P.bool('.$left().') !== P.bool('.$right().'))',
+            $expression instanceof Expr\BinaryOp\Coalesce => 'P.coalesce('.($this->isKeyRead($expression->left) ? $this->existence('P.peek', $expression->left) : $left()).', () => '.$right().')',
+            $expression instanceof Expr\BinaryOp\BitwiseAnd => '(P.toInt('.$left().') & P.toInt('.$right().'))',
+            $expression instanceof Expr\BinaryOp\BitwiseOr => '(P.toInt('.$left().') | P.toInt('.$right().'))',
+            $expression instanceof Expr\BinaryOp\BitwiseXor => '(P.toInt('.$left().') ^ P.toInt('.$right().'))',
+            $expression instanceof Expr\BinaryOp\ShiftLeft => '(P.toInt('.$left().') << P.toInt('.$right().'))',
+            $expression instanceof Expr\BinaryOp\ShiftRight => '(P.toInt('.$left().') >> P.toInt('.$right().'))',
+            default => throw $this->context->error('Unsupported operator', $expression),
         };
     }
 
-    public function ternary(Expr\Ternary $e): string
+    public function ternary(Expr\Ternary $expression): string
     {
-        if ($e->if === null) {
-            $t = $this->context->temp();
+        if ($expression->if === null) {
+            $temporary = $this->context->temp();
 
-            return "(P.bool({$t} = ".$this->transpiler->expr($e->cond).") ? {$t} : ".$this->transpiler->expr($e->else).')';
+            return "(P.bool({$temporary} = ".$this->transpiler->expr($expression->cond).") ? {$temporary} : ".$this->transpiler->expr($expression->else).')';
         }
 
-        return '(P.bool('.$this->transpiler->expr($e->cond).') ? '.$this->transpiler->expr($e->if).' : '.$this->transpiler->expr($e->else).')';
+        return '(P.bool('.$this->transpiler->expr($expression->cond).') ? '.$this->transpiler->expr($expression->if).' : '.$this->transpiler->expr($expression->else).')';
     }
 
-    public function cast(Expr\Cast $e): string
+    public function cast(Expr\Cast $expression): string
     {
-        $inner = $this->transpiler->expr($e->expr);
+        $inner = $this->transpiler->expr($expression->expr);
 
         return match (true) {
-            $e instanceof Expr\Cast\Int_ => "P.toInt({$inner})",
-            $e instanceof Expr\Cast\Double => "P.toFloat({$inner})",
-            $e instanceof Expr\Cast\String_ => "P.toStr({$inner})",
-            $e instanceof Expr\Cast\Bool_ => "P.bool({$inner})",
-            $e instanceof Expr\Cast\Array_ => "P.toArr({$inner})",
-            default => throw $this->context->error('This cast is not supported in the browser', $e),
+            $expression instanceof Expr\Cast\Int_ => "P.toInt({$inner})",
+            $expression instanceof Expr\Cast\Double => "P.toFloat({$inner})",
+            $expression instanceof Expr\Cast\String_ => "P.toStr({$inner})",
+            $expression instanceof Expr\Cast\Bool_ => "P.bool({$inner})",
+            $expression instanceof Expr\Cast\Array_ => "P.toArr({$inner})",
+            default => throw $this->context->error('This cast is not supported in the browser', $expression),
         };
     }
 
@@ -260,30 +260,30 @@ final class Expressions extends Part
      * isset($a['x']['y'], $this->prop['k']): a base and a key path, checked without reading
      * missing keys.
      */
-    public function isset(Expr\Isset_ $e): string
+    public function isset(Expr\Isset_ $expression): string
     {
-        return '('.implode(' && ', array_map(fn ($var) => $this->existence('P.isset', $var), $e->vars)).')';
+        return '('.implode(' && ', array_map(fn ($var) => $this->existence('P.isset', $var), $expression->vars)).')';
     }
 
-    public function empty(Expr\Empty_ $e): string
+    public function empty(Expr\Empty_ $expression): string
     {
-        return $this->existence('P.empty', $e->expr);
+        return $this->existence('P.empty', $expression->expr);
     }
 
-    public function match(Expr\Match_ $e): string
+    public function match(Expr\Match_ $expression): string
     {
         $subject = $this->context->temp();
         $out = "(({$subject}) => {\n";
         $default = null;
 
-        foreach ($e->arms as $arm) {
+        foreach ($expression->arms as $arm) {
             if ($arm->conds === null) {
                 $default = $this->transpiler->expr($arm->body);
 
                 continue;
             }
 
-            $conds = array_map(fn ($c) => "P.identical({$subject}, ".$this->transpiler->expr($c).')', $arm->conds);
+            $conds = array_map(fn ($context) => "P.identical({$subject}, ".$this->transpiler->expr($context).')', $arm->conds);
             $out .= 'if ('.implode(' || ', $conds).') return '.$this->transpiler->expr($arm->body).";\n";
         }
 
@@ -291,36 +291,36 @@ final class Expressions extends Part
             ? "return {$default};\n"
             : "throw P.unhandledMatch({$subject});\n";
 
-        return $out.'})('.$this->transpiler->expr($e->cond).')';
+        return $out.'})('.$this->transpiler->expr($expression->cond).')';
     }
 
     /** $a['k'] or $post->title: read as isset() reads it by ?? (a missing key or offset gives the default). */
-    private function isKeyRead(Expr $e): bool
+    private function isKeyRead(Expr $expression): bool
     {
-        return ($e instanceof Expr\ArrayDimFetch && $e->dim !== null)
-            || (($e instanceof Expr\PropertyFetch || $e instanceof Expr\NullsafePropertyFetch) && $e->name instanceof Identifier && ! $this->context->isThis($e->var));
+        return ($expression instanceof Expr\ArrayDimFetch && $expression->dim !== null)
+            || (($expression instanceof Expr\PropertyFetch || $expression instanceof Expr\NullsafePropertyFetch) && $expression->name instanceof Identifier && ! $this->context->isThis($expression->var));
     }
 
-    private function existence(string $fn, Expr $e): string
+    private function existence(string $fn, Expr $expression): string
     {
         $path = [];
 
         while (true) {
-            if ($e instanceof Expr\ArrayDimFetch && $e->dim !== null) {
-                array_unshift($path, $this->transpiler->expr($e->dim));
-                $e = $e->var;
-            } elseif (($e instanceof Expr\PropertyFetch || $e instanceof Expr\NullsafePropertyFetch)
-                && $e->name instanceof Identifier && ! $this->context->isThis($e->var)) {
-                array_unshift($path, $this->context->string($e->name->toString()));
-                $e = $e->var;
+            if ($expression instanceof Expr\ArrayDimFetch && $expression->dim !== null) {
+                array_unshift($path, $this->transpiler->expr($expression->dim));
+                $expression = $expression->var;
+            } elseif (($expression instanceof Expr\PropertyFetch || $expression instanceof Expr\NullsafePropertyFetch)
+                && $expression->name instanceof Identifier && ! $this->context->isThis($expression->var)) {
+                array_unshift($path, $this->context->string($expression->name->toString()));
+                $expression = $expression->var;
             } else {
                 break;
             }
         }
 
-        $base = $e instanceof Expr\Variable && is_string($e->name) && ! isset($this->context->locals[$e->name]) && $this->context->scope->variable === null
-            ? '$'.$e->name
-            : $this->transpiler->expr($e);
+        $base = $expression instanceof Expr\Variable && is_string($expression->name) && ! isset($this->context->locals[$expression->name]) && $this->context->scope->variable === null
+            ? '$'.$expression->name
+            : $this->transpiler->expr($expression);
 
         return "{$fn}({$base}, [".implode(', ', $path).'])';
     }

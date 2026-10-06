@@ -37,8 +37,8 @@ final class Obfuscator
      */
     public function method(string $name): string
     {
-        if (preg_match('/^updated([A-Z]\w*)$/', $name, $m) === 1) {
-            return 'updated'.ucfirst($this->property(lcfirst($m[1])));
+        if (preg_match('/^updated([A-Z]\w*)$/', $name, $match) === 1) {
+            return 'updated'.ucfirst($this->property(lcfirst($match[1])));
         }
 
         return self::keepsName($name) ? $name : 'm'.substr(hash_hmac('sha256', 'method:'.$name, $this->key), 0, 7);
@@ -67,10 +67,10 @@ final class Obfuscator
      */
     public function script(string $code, array $properties, array $methods): string
     {
-        return (string) preg_replace_callback('/\$fusion\.([A-Za-z_]\w*)/', fn (array $m) => '$fusion.'.match (true) {
-            in_array($m[1], $properties, true) => $this->property($m[1]),
-            in_array($m[1], $methods, true) => $this->method($m[1]),
-            default => $m[1],
+        return (string) preg_replace_callback('/\$fusion\.([A-Za-z_]\w*)/', fn (array $match) => '$fusion.'.match (true) {
+            in_array($match[1], $properties, true) => $this->property($match[1]),
+            in_array($match[1], $methods, true) => $this->method($match[1]),
+            default => $match[1],
         }, $code);
     }
 

@@ -33,7 +33,7 @@ final class ComponentState
     {
         return array_values(array_filter(
             (new ReflectionClass($class))->getProperties(ReflectionProperty::IS_PUBLIC),
-            fn (ReflectionProperty $p) => ! $p->isStatic() && self::store($p) === null
+            fn (ReflectionProperty $property) => ! $property->isStatic() && self::store($property) === null
         ));
     }
 

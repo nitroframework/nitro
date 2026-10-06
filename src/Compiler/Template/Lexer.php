@@ -99,13 +99,13 @@ final class Lexer
         $inlined = preg_match('/\G@(?:(?:end)?fusion(?:Scope|Slot|Frame)|fusionAttr)\b/', $this->source, $_, 0, $this->position) === 1;
         $afterMarker = $this->position === $this->afterMarker;
 
-        if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $m, 0, $this->position)) {
+        if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $match, 0, $this->position)) {
             $this->character();
 
             return;
         }
 
-        [$whole, $escaped, $name] = $m;
+        [$whole, $escaped, $name] = $match;
 
         if ($escaped === '@') {
             /** @@name prints "@name". */
@@ -160,12 +160,12 @@ final class Lexer
      */
     private function childTag(): bool
     {
-        if (! preg_match(substr(ChildTag::PATTERN, 0, 1).'\G'.substr(ChildTag::PATTERN, 1), $this->source, $m, 0, $this->position)) {
+        if (! preg_match(substr(ChildTag::PATTERN, 0, 1).'\G'.substr(ChildTag::PATTERN, 1), $this->source, $match, 0, $this->position)) {
             return false;
         }
 
-        $this->text .= $m[0];
-        $this->advance($this->position + strlen($m[0]));
+        $this->text .= $match[0];
+        $this->advance($this->position + strlen($match[0]));
 
         return true;
     }
@@ -210,24 +210,24 @@ final class Lexer
         $depth = 1;
         $quote = null;
 
-        for ($i = $from, $n = strlen($this->source); $i < $n; $i++) {
-            $c = $this->source[$i];
+        for ($i = $from, $length = strlen($this->source); $i < $length; $i++) {
+            $context = $this->source[$i];
 
             if ($quote !== null) {
-                if ($c === '\\') {
+                if ($context === '\\') {
                     $i++;
-                } elseif ($c === $quote) {
+                } elseif ($context === $quote) {
                     $quote = null;
                 }
 
                 continue;
             }
 
-            if ($c === '"' || $c === "'") {
-                $quote = $c;
-            } elseif ($c === '(') {
+            if ($context === '"' || $context === "'") {
+                $quote = $context;
+            } elseif ($context === '(') {
                 $depth++;
-            } elseif ($c === ')' && --$depth === 0) {
+            } elseif ($context === ')' && --$depth === 0) {
                 return $i;
             }
         }

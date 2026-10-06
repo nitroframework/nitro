@@ -70,7 +70,7 @@ final class UploadController
         $files = is_array($files) ? array_values($files) : [];
         $max = $multiple ? (int) $this->fusion()->config('uploads.max_files', 20) : 1;
 
-        if ($files === [] || count($files) > $max || array_filter($files, fn ($f) => ! $f instanceof UploadedFile) !== []) {
+        if ($files === [] || count($files) > $max || array_filter($files, fn ($file) => ! $file instanceof UploadedFile) !== []) {
             throw new HttpException(422, $files === [] ? 'No file was received.' : "Choose up to {$max} ".($max === 1 ? 'file' : 'files').'.');
         }
 

@@ -72,55 +72,55 @@ final class Calls extends Part
         return $out;
     }
 
-    public function funcCall(Expr\FuncCall $e): string
+    public function funcCall(Expr\FuncCall $expression): string
     {
-        if ($e->name instanceof Expr\Variable) {
-            return $this->transpiler->expr($e->name).'('.implode(', ', $this->args($e->args)).')';
+        if ($expression->name instanceof Expr\Variable) {
+            return $this->transpiler->expr($expression->name).'('.implode(', ', $this->args($expression->args)).')';
         }
 
-        if (! $e->name instanceof Name) {
-            throw $this->context->error('Unsupported function call', $e);
+        if (! $expression->name instanceof Name) {
+            throw $this->context->error('Unsupported function call', $expression);
         }
 
-        $name = Catalog::functionName($e->name);
+        $name = Catalog::functionName($expression->name);
 
         if (in_array($name, Globals::HELPERS, true)) {
-            return $this->helper($name, $e);
+            return $this->helper($name, $expression);
         }
 
         if (in_array($name, Catalog::BY_REF, true)) {
-            return $this->byRefCall($e, true);
+            return $this->byRefCall($expression, true);
         }
 
-        if (isset(Catalog::UNSUPPORTED_REFS[$name]) && count($e->args) > Catalog::UNSUPPORTED_REFS[$name]) {
-            throw $this->context->error("{$name}()'s argument ".(Catalog::UNSUPPORTED_REFS[$name] + 1).' (a reference) is not available in the browser', $e);
+        if (isset(Catalog::UNSUPPORTED_REFS[$name]) && count($expression->args) > Catalog::UNSUPPORTED_REFS[$name]) {
+            throw $this->context->error("{$name}()'s argument ".(Catalog::UNSUPPORTED_REFS[$name] + 1).' (a reference) is not available in the browser', $expression);
         }
 
         if (isset(Catalog::OUT_PARAMS[$name])) {
-            return $this->outParamCall($e, $name, Catalog::OUT_PARAMS[$name]);
+            return $this->outParamCall($expression, $name, Catalog::OUT_PARAMS[$name]);
         }
 
         if (JsFunctions::has($name)) {
             /** Viewi's: the bundle gets the functions its components call. */
             $this->context->uses['functions'][$name] = true;
         } elseif (! in_array($name, Catalog::FUNCTIONS, true)) {
-            throw $this->context->error("The function {$name}() is not available in the browser: move this code to a #[Server] method", $e);
+            throw $this->context->error("The function {$name}() is not available in the browser: move this code to a #[Server] method", $expression);
         }
 
-        return 'P.fns.'.$name.'('.implode(', ', $this->args($e->args)).')';
+        return 'P.fns.'.$name.'('.implode(', ', $this->args($expression->args)).')';
     }
 
     /** sort($x), array_pop($this->items), ...: [newArray, returnValue], assigned back to the target. */
-    public function byRefCall(Expr\FuncCall $e, bool $valueUsed): string
+    public function byRefCall(Expr\FuncCall $expression, bool $valueUsed): string
     {
-        $name = Catalog::functionName($e->name);
+        $name = Catalog::functionName($expression->name);
 
-        if ($e->args === [] || ! $e->args[0] instanceof Arg) {
-            throw $this->context->error("{$name}() needs an array", $e);
+        if ($expression->args === [] || ! $expression->args[0] instanceof Arg) {
+            throw $this->context->error("{$name}() needs an array", $expression);
         }
 
-        [$root, $path] = $this->transpiler->writes->target($e->args[0]->value);
-        $rest = $this->args(array_slice($e->args, 1));
+        [$root, $path] = $this->transpiler->writes->target($expression->args[0]->value);
+        $rest = $this->args(array_slice($expression->args, 1));
         $current = $path === [] ? $root : "P.getIn({$root}, [".implode(', ', $path).'])';
         $call = 'P.fns.'.$name.'('.implode(', ', [$current, ...$rest]).')';
         $result = $this->context->temp();
@@ -135,42 +135,42 @@ final class Calls extends Part
      * Fusion::browser() is the component's browser APIs. A #[Browser] class's static methods
      * (browserClassCall()).
      */
-    public function staticCall(Expr\StaticCall $e): string
+    public function staticCall(Expr\StaticCall $expression): string
     {
-        $class = $e->class instanceof Name ? ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\') : null;
+        $class = $expression->class instanceof Name ? ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\') : null;
 
         if (in_array($class, Catalog::FUSION, true)) {
-            if (! $e->name instanceof Identifier || $e->name->toString() !== 'browser' || $e->args !== []) {
-                throw $this->context->error('Fusion:: runs on the server; in the browser, Fusion::browser() has the browser\'s APIs', $e);
+            if (! $expression->name instanceof Identifier || $expression->name->toString() !== 'browser' || $expression->args !== []) {
+                throw $this->context->error('Fusion:: runs on the server; in the browser, Fusion::browser() has the browser\'s APIs', $expression);
             }
 
             return '$this.$browser';
         }
 
         /** In a #[Browser] class's method, self:: and static:: are that class. */
-        if ($this->context->class !== null && $e->class instanceof Name && in_array($e->class->toLowerString(), ['self', 'static'], true)) {
+        if ($this->context->class !== null && $expression->class instanceof Name && in_array($expression->class->toLowerString(), ['self', 'static'], true)) {
             $class = $this->context->class;
         }
 
         if ($class !== null && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
-            return $this->browserClassCall($class, $e);
+            return $this->browserClassCall($class, $expression);
         }
 
-        if (! in_array($class, ['Str', Str::class], true) || ! $e->name instanceof Identifier) {
+        if (! in_array($class, ['Str', Str::class], true) || ! $expression->name instanceof Identifier) {
             throw $this->context->error($class !== null && class_exists($class)
-                ? "{$class}::{$this->methodName($e)}() is not a browser method: mark {$class} #[Browser] to use its static methods in the browser, or move this code to a #[Server] method"
-                : 'Static calls are not supported in the browser (Str:: and #[Browser] classes are): move this code to a #[Server] method', $e);
+                ? "{$class}::{$this->methodName($expression)}() is not a browser method: mark {$class} #[Browser] to use its static methods in the browser, or move this code to a #[Server] method"
+                : 'Static calls are not supported in the browser (Str:: and #[Browser] classes are): move this code to a #[Server] method', $expression);
         }
 
-        $function = 'Str_'.$e->name->toString();
+        $function = 'Str_'.$expression->name->toString();
 
         if (! JsFunctions::has($function)) {
-            throw $this->context->error("Str::{$e->name->toString()}() is not available in the browser: move this code to a #[Server] method", $e);
+            throw $this->context->error("Str::{$expression->name->toString()}() is not available in the browser: move this code to a #[Server] method", $expression);
         }
 
         $this->context->uses['functions'][$function] = true;
 
-        return 'P.fns.'.$function.'('.implode(', ', $this->args($e->args)).')';
+        return 'P.fns.'.$function.'('.implode(', ', $this->args($expression->args)).')';
     }
 
     /**
@@ -181,13 +181,13 @@ final class Calls extends Part
      *
      * @param  class-string  $class
      */
-    private function browserClassCall(string $class, Expr\StaticCall $e): string
+    private function browserClassCall(string $class, Expr\StaticCall $expression): string
     {
-        if (! $e->name instanceof Identifier) {
-            throw $this->context->error("{$class}'s method must be named, not computed, in the browser", $e);
+        if (! $expression->name instanceof Identifier) {
+            throw $this->context->error("{$class}'s method must be named, not computed, in the browser", $expression);
         }
 
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
         $scope = $this->context->scope;
         $target = 'Fusion.classes['.json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).']';
 
@@ -199,56 +199,56 @@ final class Calls extends Part
 
             if (in_array($builtin, ['cases', 'from', 'tryfrom'], true)) {
                 if ($builtin !== 'cases' && ! is_subclass_of($class, \BackedEnum::class)) {
-                    throw $this->context->error("{$class} is a pure enum: it has no {$name}()", $e);
+                    throw $this->context->error("{$class} is a pure enum: it has no {$name}()", $expression);
                 }
 
-                return $target.'.'.($builtin === 'tryfrom' ? 'tryFrom' : $builtin).'('.implode(', ', $this->args($e->args)).')';
+                return $target.'.'.($builtin === 'tryfrom' ? 'tryFrom' : $builtin).'('.implode(', ', $this->args($expression->args)).')';
             }
         }
 
         if (! method_exists($class, $name)) {
-            throw $this->context->error("Call to undefined method {$class}::{$name}()", $e);
+            throw $this->context->error("Call to undefined method {$class}::{$name}()", $expression);
         }
 
         $method = new ReflectionMethod($class, $name);
         $name = $method->getName();
 
         if (! $method->isStatic()) {
-            throw $this->context->error("{$class}::{$name}() is not static: a #[Browser] class's static methods run in the browser", $e);
+            throw $this->context->error("{$class}::{$name}() is not static: a #[Browser] class's static methods run in the browser", $expression);
         }
 
         if (! $method->isPublic() && $this->context->class !== $class) {
-            throw $this->context->error("{$class}::{$name}() is not public", $e);
+            throw $this->context->error("{$class}::{$name}() is not public", $expression);
         }
 
         $this->context->uses['classes'][BrowserClasses::key($class, $name)] = true;
 
         return $target.'['.json_encode($scope->browserMethod($name), JSON_THROW_ON_ERROR).']'
-            .'('.implode(', ', $this->args($e->args)).')';
+            .'('.implode(', ', $this->args($expression->args)).')';
     }
 
-    private function methodName(Expr\StaticCall $e): string
+    private function methodName(Expr\StaticCall $expression): string
     {
-        return $e->name instanceof Identifier ? $e->name->toString() : '...';
+        return $expression->name instanceof Identifier ? $expression->name->toString() : '...';
     }
 
     /**
      * route(), url(), asset(), __() / trans(), config(): Laravel's helpers, in blade.js. A route
      * name, a translation key and a config key are literals: the page ships what they name.
      */
-    private function helper(string $name, Expr\FuncCall $e): string
+    private function helper(string $name, Expr\FuncCall $expression): string
     {
-        $literal = function (string $what) use ($name, $e): string {
-            $first = $e->args[0] ?? null;
+        $literal = function (string $what) use ($name, $expression): string {
+            $first = $expression->args[0] ?? null;
 
             if (! $first instanceof Arg || $first->name !== null || ! $first->value instanceof Scalar\String_) {
-                throw $this->context->error("{$name}() in the browser takes the {$what} as a string literal: the page ships what the code names", $e);
+                throw $this->context->error("{$name}() in the browser takes the {$what} as a string literal: the page ships what the code names", $expression);
             }
 
             return $first->value->value;
         };
 
-        $args = $this->args($e->args);
+        $args = $this->args($expression->args);
 
         switch ($name) {
             case 'route':
@@ -258,7 +258,7 @@ final class Calls extends Part
             case '__':
             case 'trans':
                 if (count($args) > 2) {
-                    throw $this->context->error("{$name}() in the browser uses the page's locale: pass the key and the replacements", $e);
+                    throw $this->context->error("{$name}() in the browser uses the page's locale: pass the key and the replacements", $expression);
                 }
 
                 $this->context->uses['lang'][$literal('translation key')] = true;
@@ -270,7 +270,7 @@ final class Calls extends Part
                 return 'B.config('.implode(', ', $args).')';
             default: // url, asset
                 if ($args === []) {
-                    throw $this->context->error("{$name}() in the browser needs a path", $e);
+                    throw $this->context->error("{$name}() in the browser needs a path", $expression);
                 }
 
                 return 'B.'.$name.'('.implode(', ', $args).')';
@@ -281,16 +281,16 @@ final class Calls extends Part
      * preg_match($pattern, $subject, $matches): the function returns [result, output] in the
      * browser; the output is assigned where PHP's reference would write it.
      */
-    private function outParamCall(Expr\FuncCall $e, string $name, int $position): string
+    private function outParamCall(Expr\FuncCall $expression, string $name, int $position): string
     {
         $this->context->uses['functions'][$name] = true;
-        $out = $e->args[$position] ?? null;
+        $out = $expression->args[$position] ?? null;
 
         if ($out !== null && (! $out instanceof Arg || $out->name !== null || $out->unpack)) {
-            throw $this->context->error("{$name}()'s argument ".($position + 1).' must be a variable or property', $e);
+            throw $this->context->error("{$name}()'s argument ".($position + 1).' must be a variable or property', $expression);
         }
 
-        $rest = $this->args([...array_slice($e->args, 0, $position), ...array_slice($e->args, $position + 1)]);
+        $rest = $this->args([...array_slice($expression->args, 0, $position), ...array_slice($expression->args, $position + 1)]);
         $call = 'P.fns.'.$name.'('.implode(', ', $rest).')';
 
         if ($out === null) {

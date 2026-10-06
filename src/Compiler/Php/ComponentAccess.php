@@ -43,111 +43,111 @@ use ReflectionParameter;
  */
 final class ComponentAccess extends Part
 {
-    public function propertyFetch(Expr\PropertyFetch|Expr\NullsafePropertyFetch $e): string
+    public function propertyFetch(Expr\PropertyFetch|Expr\NullsafePropertyFetch $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if (! $e->name instanceof Identifier) {
-            throw $c->error('Dynamic property names are not supported in the browser', $e);
+        if (! $expression->name instanceof Identifier) {
+            throw $context->error('Dynamic property names are not supported in the browser', $expression);
         }
 
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
 
         /** $this->cart->count, or $cart->count in a template: a member of a store the component uses. */
-        if (($store = $this->storeOf($e->var)) !== null) {
-            return $this->storeMember($store, $name, $e);
+        if (($store = $this->storeOf($expression->var)) !== null) {
+            return $this->storeMember($store, $name, $expression);
         }
 
         /** In an enum's method: the case's ->name and ->value. */
-        if ($c->enumCase && $c->isThis($e->var)) {
-            if ($name !== 'name' && ($name !== 'value' || ! is_subclass_of((string) $c->class, \BackedEnum::class))) {
-                throw $c->error("Undefined property {$c->class}::\${$name}", $e);
+        if ($context->enumCase && $context->isThis($expression->var)) {
+            if ($name !== 'name' && ($name !== 'value' || ! is_subclass_of((string) $context->class, \BackedEnum::class))) {
+                throw $context->error("Undefined property {$context->class}::\${$name}", $expression);
             }
 
             return '$this.'.$name;
         }
 
-        if ($c->isThis($e->var)) {
+        if ($context->isThis($expression->var)) {
             /** A store the component uses (public Cart $cart): read as a whole, its members are read through it. */
-            if ($c->scope->isStore($name)) {
-                return '$this.'.$c->scope->browserProperty($name);
+            if ($context->scope->isStore($name)) {
+                return '$this.'.$context->scope->browserProperty($name);
             }
 
             /** #[Computed]: the method's result, kept until the state changes. */
-            if ($c->scope->isComputed($name)) {
-                $c->calledMethods[] = $name;
+            if ($context->scope->isComputed($name)) {
+                $context->calledMethods[] = $name;
 
-                return '$this.$computed('.$c->string($c->scope->browserMethod($name)).')';
+                return '$this.$computed('.$context->string($context->scope->browserMethod($name)).')';
             }
 
-            if (! $c->scope->isProperty($name)) {
-                throw $c->error("\$this->{$name} is not a public property of the component", $e);
+            if (! $context->scope->isProperty($name)) {
+                throw $context->error("\$this->{$name} is not a public property of the component", $expression);
             }
 
-            return '$this.'.$c->scope->browserProperty($name);
+            return '$this.'.$context->scope->browserProperty($name);
         }
 
-        return 'P.prop('.$this->transpiler->expr($e->var).', '.$c->string($name).')';
+        return 'P.prop('.$this->transpiler->expr($expression->var).', '.$context->string($name).')';
     }
 
-    public function methodCall(Expr\MethodCall|Expr\NullsafeMethodCall $e): string
+    public function methodCall(Expr\MethodCall|Expr\NullsafeMethodCall $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
         $calls = $this->transpiler->calls;
 
-        if (($api = $this->browserApi($e->var)) !== null) {
-            return $this->browserCall($e, $api);
+        if (($api = $this->browserApi($expression->var)) !== null) {
+            return $this->browserCall($expression, $api);
         }
 
         /** $this->dispatch(...)->to(Card::class) / ->self(), as Livewire's. */
-        if ($e->var instanceof Expr\MethodCall && $c->isThis($e->var->var) && $e->var->name instanceof Identifier && $e->var->name->toString() === 'dispatch') {
-            $dispatch = $this->methodCall($e->var);
+        if ($expression->var instanceof Expr\MethodCall && $context->isThis($expression->var->var) && $expression->var->name instanceof Identifier && $expression->var->name->toString() === 'dispatch') {
+            $dispatch = $this->methodCall($expression->var);
 
-            return match ($e->name instanceof Identifier ? $e->name->toString() : '') {
+            return match ($expression->name instanceof Identifier ? $expression->name->toString() : '') {
                 'self' => $dispatch.'.self()',
-                'to' => $dispatch.'.to('.$this->component($e->args[0] ?? null, $e).')',
-                default => throw $c->error('A dispatch goes ->to(Component::class) or ->self()', $e),
+                'to' => $dispatch.'.to('.$this->component($expression->args[0] ?? null, $expression).')',
+                default => throw $context->error('A dispatch goes ->to(Component::class) or ->self()', $expression),
             };
         }
 
         /** $slots->has('footer'), $slot->isEmpty(), $slot->isNotEmpty(): the slots the parent passed. */
         foreach (['slots' => ['has'], 'slot' => ['isEmpty', 'isNotEmpty']] as $variable => $methods) {
-            if (! $e->var instanceof Expr\Variable || $e->var->name !== $variable || $c->scope->variable === null || isset($c->locals[$variable])) {
+            if (! $expression->var instanceof Expr\Variable || $expression->var->name !== $variable || $context->scope->variable === null || isset($context->locals[$variable])) {
                 continue;
             }
 
-            $method = $e->name instanceof Identifier ? $e->name->toString() : '';
+            $method = $expression->name instanceof Identifier ? $expression->name->toString() : '';
 
             return match (true) {
-                $variable === 'slots' && $method === 'has' => '$this.$slots.has('.implode(', ', $calls->args($e->args)).')',
+                $variable === 'slots' && $method === 'has' => '$this.$slots.has('.implode(', ', $calls->args($expression->args)).')',
                 $method === 'isEmpty' => '!$this.$slots.has("default")',
                 $method === 'isNotEmpty' => '$this.$slots.has("default")',
-                default => throw $c->error("\${$variable} has ".implode('(), ', $methods).'() in the browser', $e),
+                default => throw $context->error("\${$variable} has ".implode('(), ', $methods).'() in the browser', $expression),
             };
         }
 
-        if ($c->isErrors($e->var)) {
-            $method = $e->name instanceof Identifier ? $e->name->toString() : '';
+        if ($context->isErrors($expression->var)) {
+            $method = $expression->name instanceof Identifier ? $expression->name->toString() : '';
 
             if (! in_array($method, Globals::ERROR_METHODS, true)) {
-                throw $c->error('$errors supports '.implode('(), ', Globals::ERROR_METHODS).'()', $e);
+                throw $context->error('$errors supports '.implode('(), ', Globals::ERROR_METHODS).'()', $expression);
             }
 
             /**
              * A field written out ('form.email'), or built from a start written out ('items.'.$i):
              * its property by the browser's name (an obfuscated build).
              */
-            $args = $calls->args($e->args);
-            $field = isset($e->args[0]) && $e->args[0] instanceof Arg ? $e->args[0]->value : null;
+            $args = $calls->args($expression->args);
+            $field = isset($expression->args[0]) && $expression->args[0] instanceof Arg ? $expression->args[0]->value : null;
 
             while ($field instanceof Expr\BinaryOp\Concat) {
                 $field = $field->left;
             }
 
-            if ($field instanceof Scalar\String_ && $c->scope->names !== null) {
+            if ($field instanceof Scalar\String_ && $context->scope->names !== null) {
                 $start = $field->value;
-                $field->value = $c->scope->browserPath($start);
-                $args = $calls->args($e->args);
+                $field->value = $context->scope->browserPath($start);
+                $args = $calls->args($expression->args);
                 $field->value = $start;
             }
 
@@ -155,102 +155,102 @@ final class ComponentAccess extends Part
         }
 
         /** $photo->temporaryUrl(), ->getClientOriginalName(), ...: an Upload's, checked at run time as PHP would. */
-        if (! $c->isThis($e->var) && $e->name instanceof Identifier && in_array($e->name->toString(), Globals::UPLOAD_METHODS, true)) {
-            $call = 'P.upload('.$this->transpiler->expr($e->var).', '.$c->string($e->name->toString()).', ['.implode(', ', $calls->args($e->args)).'])';
+        if (! $context->isThis($expression->var) && $expression->name instanceof Identifier && in_array($expression->name->toString(), Globals::UPLOAD_METHODS, true)) {
+            $call = 'P.upload('.$this->transpiler->expr($expression->var).', '.$context->string($expression->name->toString()).', ['.implode(', ', $calls->args($expression->args)).'])';
 
-            return $e instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($e->var).' === null ? null : '.$call.')' : $call;
+            return $expression instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($expression->var).' === null ? null : '.$call.')' : $call;
         }
 
         /** $this->cart->add($product): a store's method, in the browser. */
-        if (($store = $this->storeOf($e->var)) !== null) {
-            return $this->storeCall($store, $e);
+        if (($store = $this->storeOf($expression->var)) !== null) {
+            return $this->storeCall($store, $expression);
         }
 
-        if (! $e->name instanceof Identifier) {
-            throw $c->error('Dynamic method names are not supported in the browser', $e);
+        if (! $expression->name instanceof Identifier) {
+            throw $context->error('Dynamic method names are not supported in the browser', $expression);
         }
 
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
 
         /**
          * $status->label() on a value: in the browser, only an enum case has methods. The method is
          * compiled for the #[Browser] enums the code reaches, and one of them must have it
          * (ComponentCompiler); data from the server arrives as arrays.
          */
-        if (! $c->isThis($e->var)) {
-            $at = $c->error('', $e);
-            $c->uses['classes'][BrowserClasses::anyEnum($name, $at->sourceFile, $at->sourceLine)] = true;
-            $call = 'P.enumCall('.$this->transpiler->expr($e->var).', '.$c->string($c->scope->browserMethod($name)).', ['.implode(', ', $calls->args($e->args)).'])';
+        if (! $context->isThis($expression->var)) {
+            $at = $context->error('', $expression);
+            $context->uses['classes'][BrowserClasses::anyEnum($name, $at->sourceFile, $at->sourceLine)] = true;
+            $call = 'P.enumCall('.$this->transpiler->expr($expression->var).', '.$context->string($context->scope->browserMethod($name)).', ['.implode(', ', $calls->args($expression->args)).'])';
 
-            return $e instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($e->var).' === null ? null : '.$call.')' : $call;
+            return $expression instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($expression->var).' === null ? null : '.$call.')' : $call;
         }
 
         /** In an enum's method: another of its methods, on the same case. */
-        if ($c->enumCase && ! $c->scope->isClientMethod($name)) {
-            throw $c->error("Call to undefined method {$c->class}::{$name}()", $e);
+        if ($context->enumCase && ! $context->scope->isClientMethod($name)) {
+            throw $context->error("Call to undefined method {$context->class}::{$name}()", $expression);
         }
 
-        if ($c->scope->isServerMethod($name)) {
-            throw $c->error("\$this->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $e);
+        if ($context->scope->isServerMethod($name)) {
+            throw $context->error("\$this->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $expression);
         }
 
-        if ($c->scope->isClientMethod($name)) {
-            $c->calledMethods[] = $name;
+        if ($context->scope->isClientMethod($name)) {
+            $context->calledMethods[] = $name;
 
-            return '$this.'.$c->scope->browserMethod($name).'('.implode(', ', $calls->args($e->args)).')';
+            return '$this.'.$context->scope->browserMethod($name).'('.implode(', ', $calls->args($expression->args)).')';
         }
 
         /** Globals::COMPONENT_METHODS */
         return match ($name) {
-            'dispatch' => '$this.$dispatch('.$this->dispatchArgs($e->args, $e).')',
-            'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reset()'), $e->args)).'])',
-            'reload' => '$this.$reload(['.implode(', ', array_map(fn (Arg $a) => $this->propertyName($a, $e, 'reload()'), $e->args)).'])',
-            'redirect' => '$this.$redirect('.implode(', ', $calls->args($e->args)).')',
-            'js' => '$this.$js('.implode(', ', $this->jsArgs($e->args)).')',
-            'shared' => 'B.shared('.implode(', ', $calls->args($e->args)).')',
-            'flashed' => 'B.flashed('.implode(', ', $calls->args($e->args)).')',
-            'hasMore' => count($e->args) === 1 && $e->args[0] instanceof Arg
-                ? '$this.$hasMore('.$this->propertyName($e->args[0], $e, '$this->hasMore()').')'
-                : throw $c->error('$this->hasMore() takes the name of one scroll property', $e),
-            default => throw $c->error("\$this->{$name}() is not a method of the component that can run in the browser", $e),
+            'dispatch' => '$this.$dispatch('.$this->dispatchArgs($expression->args, $expression).')',
+            'reset' => '$this.$reset(['.implode(', ', array_map(fn (Arg $argument) => $this->propertyName($argument, $expression, 'reset()'), $expression->args)).'])',
+            'reload' => '$this.$reload(['.implode(', ', array_map(fn (Arg $argument) => $this->propertyName($argument, $expression, 'reload()'), $expression->args)).'])',
+            'redirect' => '$this.$redirect('.implode(', ', $calls->args($expression->args)).')',
+            'js' => '$this.$js('.implode(', ', $this->jsArgs($expression->args)).')',
+            'shared' => 'B.shared('.implode(', ', $calls->args($expression->args)).')',
+            'flashed' => 'B.flashed('.implode(', ', $calls->args($expression->args)).')',
+            'hasMore' => count($expression->args) === 1 && $expression->args[0] instanceof Arg
+                ? '$this.$hasMore('.$this->propertyName($expression->args[0], $expression, '$this->hasMore()').')'
+                : throw $context->error('$this->hasMore() takes the name of one scroll property', $expression),
+            default => throw $context->error("\$this->{$name}() is not a method of the component that can run in the browser", $expression),
         };
     }
 
     /** $this->save(): a #[Server] method, as a request to the server with the component's signed state. */
-    public function serverCall(Expr\MethodCall $e): string
+    public function serverCall(Expr\MethodCall $expression): string
     {
         /** $this->cart->save(): the store's, with the store's signed state. */
-        if (($store = $this->storeOf($e->var)) !== null) {
-            return $this->storeBase($store).'.$call('.$this->context->string($this->context->scope->store($store)->browserMethod($e->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($e->args)).'])';
+        if (($store = $this->storeOf($expression->var)) !== null) {
+            return $this->storeBase($store).'.$call('.$this->context->string($this->context->scope->store($store)->browserMethod($expression->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($expression->args)).'])';
         }
 
-        return '$this.$call('.$this->context->string($this->context->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($e->args)).'])';
+        return '$this.$call('.$this->context->string($this->context->scope->browserMethod($expression->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($expression->args)).'])';
     }
 
     /**
      * The store property an expression is: $this->cart, or $cart in a template (not a variable of
      * its own); null for anything else.
      */
-    public function storeOf(Expr $e): ?string
+    public function storeOf(Expr $expression): ?string
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if (($e instanceof Expr\PropertyFetch || $e instanceof Expr\NullsafePropertyFetch) && $c->isThis($e->var) && $e->name instanceof Identifier && $c->scope->isStore($e->name->toString())) {
-            return $e->name->toString();
+        if (($expression instanceof Expr\PropertyFetch || $expression instanceof Expr\NullsafePropertyFetch) && $context->isThis($expression->var) && $expression->name instanceof Identifier && $context->scope->isStore($expression->name->toString())) {
+            return $expression->name->toString();
         }
 
-        if ($e instanceof Expr\Variable && is_string($e->name) && $c->scope->variable !== null && ! isset($c->locals[$e->name]) && $c->scope->isStore($e->name)) {
-            return $e->name;
+        if ($expression instanceof Expr\Variable && is_string($expression->name) && $context->scope->variable !== null && ! isset($context->locals[$expression->name]) && $context->scope->isStore($expression->name)) {
+            return $expression->name;
         }
 
         return null;
     }
 
     /** Whether a call is a store's #[Server] method ($this->cart->save()): a request, as the component's own. */
-    public function isStoreServerCall(Expr $e): bool
+    public function isStoreServerCall(Expr $expression): bool
     {
-        return $e instanceof Expr\MethodCall && $e->name instanceof Identifier && ($store = $this->storeOf($e->var)) !== null
-            && $this->context->scope->store($store)->isServerMethod($e->name->toString());
+        return $expression instanceof Expr\MethodCall && $expression->name instanceof Identifier && ($store = $this->storeOf($expression->var)) !== null
+            && $this->context->scope->store($store)->isServerMethod($expression->name->toString());
     }
 
     /** The store in the browser: the component's property holding it. */
@@ -260,7 +260,7 @@ final class ComponentAccess extends Part
     }
 
     /** $this->cart->items (a property), $this->cart->count (#[Computed]). */
-    private function storeMember(string $store, string $name, Node $e): string
+    private function storeMember(string $store, string $name, Node $expression): string
     {
         $scope = $this->context->scope->store($store);
 
@@ -269,33 +269,33 @@ final class ComponentAccess extends Part
         }
 
         if (! $scope->isProperty($name)) {
-            throw $this->context->error("\${$store}->{$name} is not a public property of the store", $e);
+            throw $this->context->error("\${$store}->{$name} is not a public property of the store", $expression);
         }
 
         return $this->storeBase($store).'.'.$scope->browserProperty($name);
     }
 
     /** $this->cart->add(...): a method of the store, run in the browser (a #[Server] one only as a statement). */
-    private function storeCall(string $store, Expr\MethodCall|Expr\NullsafeMethodCall $e): string
+    private function storeCall(string $store, Expr\MethodCall|Expr\NullsafeMethodCall $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if (! $e->name instanceof Identifier) {
-            throw $c->error('Dynamic method names are not supported in the browser', $e);
+        if (! $expression->name instanceof Identifier) {
+            throw $context->error('Dynamic method names are not supported in the browser', $expression);
         }
 
-        $name = $e->name->toString();
-        $scope = $c->scope->store($store);
+        $name = $expression->name->toString();
+        $scope = $context->scope->store($store);
 
         if ($scope->isServerMethod($name)) {
-            throw $c->error("\${$store}->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $e);
+            throw $context->error("\${$store}->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $expression);
         }
 
         if (! $scope->isClientMethod($name)) {
-            throw $c->error("\${$store}->{$name}() is not a public method of the store", $e);
+            throw $context->error("\${$store}->{$name}() is not a public method of the store", $expression);
         }
 
-        return $this->storeBase($store).'.'.$scope->browserMethod($name).'('.implode(', ', $this->transpiler->calls->args($e->args)).')';
+        return $this->storeBase($store).'.'.$scope->browserMethod($name).'('.implode(', ', $this->transpiler->calls->args($expression->args)).')';
     }
 
     /**
@@ -304,10 +304,10 @@ final class ComponentAccess extends Part
      */
     public function component(mixed $arg, Node $node): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
         if (! $arg instanceof Arg) {
-            throw $c->error('->to() takes the component: Card::class or its name', $node);
+            throw $context->error('->to() takes the component: Card::class or its name', $node);
         }
 
         $value = $arg->value;
@@ -320,12 +320,12 @@ final class ComponentAccess extends Part
 
         /** A name written out is the browser's name for it (an obfuscated build); one worked out as it runs is not. */
         if ($class === null) {
-            return $value instanceof Scalar\String_ ? $c->string($c->scope->browserComponent($value->value)) : $this->transpiler->expr($value);
+            return $value instanceof Scalar\String_ ? $context->string($context->scope->browserComponent($value->value)) : $this->transpiler->expr($value);
         }
 
-        $name = $c->scope->componentName($class) ?? throw $c->error("{$class} is not a Fusion component", $node);
+        $name = $context->scope->componentName($class) ?? throw $context->error("{$class} is not a Fusion component", $node);
 
-        return $c->string($c->scope->browserComponent($name));
+        return $context->string($context->scope->browserComponent($name));
     }
 
     /**
@@ -335,20 +335,20 @@ final class ComponentAccess extends Part
      *
      * @return class-string|null
      */
-    public function browserApi(Expr $e): ?string
+    public function browserApi(Expr $expression): ?string
     {
-        if ($e instanceof Expr\StaticCall && $e->class instanceof Name && $e->name instanceof Identifier && $e->name->toString() === 'browser'
-            && in_array(ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\'), Catalog::FUSION, true)) {
+        if ($expression instanceof Expr\StaticCall && $expression->class instanceof Name && $expression->name instanceof Identifier && $expression->name->toString() === 'browser'
+            && in_array(ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\'), Catalog::FUSION, true)) {
             return Browser::class;
         }
 
-        if ($e instanceof Expr\Variable && is_string($e->name)) {
-            return $this->context->browserVariables[$e->name] ?? null;
+        if ($expression instanceof Expr\Variable && is_string($expression->name)) {
+            return $this->context->browserVariables[$expression->name] ?? null;
         }
 
-        if (($e instanceof Expr\MethodCall || $e instanceof Expr\NullsafeMethodCall) && $e->name instanceof Identifier
-            && ($api = $this->browserApi($e->var)) !== null && method_exists($api, $e->name->toString())) {
-            $type = (new ReflectionMethod($api, $e->name->toString()))->getReturnType();
+        if (($expression instanceof Expr\MethodCall || $expression instanceof Expr\NullsafeMethodCall) && $expression->name instanceof Identifier
+            && ($api = $this->browserApi($expression->var)) !== null && method_exists($api, $expression->name->toString())) {
+            $type = (new ReflectionMethod($api, $expression->name->toString()))->getReturnType();
             $name = $type instanceof ReflectionNamedType ? $type->getName() : null;
 
             return match (true) {
@@ -364,10 +364,10 @@ final class ComponentAccess extends Part
     /** $this->dispatch('event', ...$args or named: arguments). */
     public function dispatchArgs(array $args, Node $node): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
         if ($args === []) {
-            throw $c->error('dispatch() needs an event name', $node);
+            throw $context->error('dispatch() needs an event name', $node);
         }
 
         $name = $this->transpiler->expr(array_shift($args)->value);
@@ -376,16 +376,16 @@ final class ComponentAccess extends Part
 
         foreach ($args as $arg) {
             if ($arg->unpack) {
-                throw $c->error('Unpacking is not supported in dispatch()', $arg);
+                throw $context->error('Unpacking is not supported in dispatch()', $arg);
             }
 
             $arg->name !== null
-                ? $named[] = '['.$c->string($arg->name->toString()).', '.$this->transpiler->expr($arg->value).', false]'
+                ? $named[] = '['.$context->string($arg->name->toString()).', '.$this->transpiler->expr($arg->value).', false]'
                 : $positional[] = $this->transpiler->expr($arg->value);
         }
 
         if ($named !== [] && $positional !== []) {
-            throw $c->error('dispatch() takes either named or positional parameters', $node);
+            throw $context->error('dispatch() takes either named or positional parameters', $node);
         }
 
         return $name.', '.($named !== [] ? 'P.arrayLiteral(['.implode(', ', $named).'])' : '['.implode(', ', $positional).']');
@@ -408,47 +408,47 @@ final class ComponentAccess extends Part
      *
      * @param  class-string  $api
      */
-    private function browserCall(Expr\MethodCall|Expr\NullsafeMethodCall $e, string $api): string
+    private function browserCall(Expr\MethodCall|Expr\NullsafeMethodCall $expression, string $api): string
     {
-        $c = $this->context;
+        $context = $this->context;
         $short = 'Fusion::browser()'.($api === Browser::class ? '' : '->'.lcfirst(class_basename($api)).'()');
-        $methods = array_map(fn (ReflectionMethod $m) => $m->getName(), (new ReflectionClass($api))->getMethods(ReflectionMethod::IS_PUBLIC));
-        $name = $e->name instanceof Identifier ? $e->name->toString() : throw $c->error('Dynamic method names are not supported in the browser', $e);
+        $methods = array_map(fn (ReflectionMethod $reflected) => $reflected->getName(), (new ReflectionClass($api))->getMethods(ReflectionMethod::IS_PUBLIC));
+        $name = $expression->name instanceof Identifier ? $expression->name->toString() : throw $context->error('Dynamic method names are not supported in the browser', $expression);
 
         if (! in_array($name, $methods, true)) {
-            throw $c->error("{$short}->{$name}() does not exist: it has ".implode('(), ', $methods).'()', $e);
+            throw $context->error("{$short}->{$name}() does not exist: it has ".implode('(), ', $methods).'()', $expression);
         }
 
         $method = new ReflectionMethod($api, $name);
 
-        foreach ($e->args as $arg) {
+        foreach ($expression->args as $arg) {
             if (! $arg instanceof Arg || $arg->name !== null || $arg->unpack) {
-                throw $c->error("{$short}->{$name}() takes its arguments in order", $e);
+                throw $context->error("{$short}->{$name}() takes its arguments in order", $expression);
             }
         }
 
         [$required, $total] = [$method->getNumberOfRequiredParameters(), $method->getNumberOfParameters()];
 
-        if (count($e->args) < $required || count($e->args) > $total) {
-            $params = implode(', ', array_map(fn (ReflectionParameter $p) => '$'.$p->getName(), $method->getParameters()));
+        if (count($expression->args) < $required || count($expression->args) > $total) {
+            $params = implode(', ', array_map(fn (ReflectionParameter $parameter) => '$'.$parameter->getName(), $method->getParameters()));
             $count = ($required === $total ? $total : "{$required} to {$total}").($total === 1 ? ' argument' : ' arguments');
 
-            throw $c->error("{$short}->{$name}({$params}) takes {$count}", $e);
+            throw $context->error("{$short}->{$name}({$params}) takes {$count}", $expression);
         }
 
-        $args = $this->transpiler->calls->args($e->args);
+        $args = $this->transpiler->calls->args($expression->args);
 
-        foreach (array_slice($method->getParameters(), count($e->args)) as $param) {
-            $args[] = $this->transpiler->expressions->literal($param->getDefaultValue(), $e);
+        foreach (array_slice($method->getParameters(), count($expression->args)) as $param) {
+            $args[] = $this->transpiler->expressions->literal($param->getDefaultValue(), $expression);
         }
 
         if ($api === Browser::class) {
-            $c->uses['functions']['_browser_'.$name] = true;
+            $context->uses['functions']['_browser_'.$name] = true;
 
-            return 'P.fns._browser_'.$name.'('.implode(', ', [$this->transpiler->expr($e->var), ...$args]).')';
+            return 'P.fns._browser_'.$name.'('.implode(', ', [$this->transpiler->expr($expression->var), ...$args]).')';
         }
 
-        return $this->transpiler->expr($e->var).'.'.$name.'('.implode(', ', $args).')';
+        return $this->transpiler->expr($expression->var).'.'.$name.'('.implode(', ', $args).')';
     }
 
     /**
@@ -460,11 +460,11 @@ final class ComponentAccess extends Part
      */
     private function jsArgs(array $args): array
     {
-        $c = $this->context;
+        $context = $this->context;
         $compiled = $this->transpiler->calls->args($args);
 
-        if ($c->scope->names !== null && isset($args[0]) && $args[0] instanceof Arg && $args[0]->value instanceof Scalar\String_) {
-            $compiled[0] = $c->string($c->scope->names->script($args[0]->value->value, $c->scope->properties, [...$c->scope->clientMethods, ...$c->scope->serverMethods]));
+        if ($context->scope->names !== null && isset($args[0]) && $args[0] instanceof Arg && $args[0]->value instanceof Scalar\String_) {
+            $compiled[0] = $context->string($context->scope->names->script($args[0]->value->value, $context->scope->properties, [...$context->scope->clientMethods, ...$context->scope->serverMethods]));
         }
 
         return $compiled;

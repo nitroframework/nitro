@@ -327,7 +327,7 @@ final class ComponentCompiler
 
         $reflection = new ReflectionMethod($class, $method);
         $enum = enum_exists($class);
-        $instanceMethods = $enum ? array_values(array_map(fn (ReflectionMethod $m) => $m->getName(), array_filter((new ReflectionClass($class))->getMethods(), fn (ReflectionMethod $m) => ! $m->isStatic()))) : [];
+        $instanceMethods = $enum ? array_values(array_map(fn (ReflectionMethod $reflected) => $reflected->getName(), array_filter((new ReflectionClass($class))->getMethods(), fn (ReflectionMethod $reflected) => ! $reflected->isStatic()))) : [];
         $scope = new Scope(clientMethods: $instanceMethods, file: (string) $reflection->getFileName(), constants: (new ReflectionClass($class))->getConstants(), names: $this->names);
         $transpiler = new Transpiler($scope);
 
@@ -338,11 +338,11 @@ final class ComponentCompiler
                 $enum => $transpiler->enumMethod($node, $scope, $class),
                 default => throw new CompileException("{$class}::{$method}() is not static", $reflection->getFileName() ?: null, $reflection->getStartLine() ?: null),
             };
-        } catch (CompileException $e) {
+        } catch (CompileException $exception) {
             throw $this->brokenClassMethods[$key] = new CompileException(
-                "{$class}::{$method}() runs in the browser (browser code calls it) but cannot be compiled: {$e->reason}",
-                $e->sourceFile,
-                $e->sourceLine,
+                "{$class}::{$method}() runs in the browser (browser code calls it) but cannot be compiled: {$exception->reason}",
+                $exception->sourceFile,
+                $exception->sourceLine,
             );
         }
 
@@ -493,7 +493,7 @@ final class ComponentCompiler
                     'as' => $property->url->as ?? $real,
                     'history' => $property->url->history ?: null,
                     'keep' => $property->url->keep ?: null,
-                ], fn ($v) => $v !== null) + ($property->url->hasExcept() ? ['except' => Wire::encode($property->url->except)] : []);
+                ], fn ($value) => $value !== null) + ($property->url->hasExcept() ? ['except' => Wire::encode($property->url->except)] : []);
             }
 
             if ($property->remember) {
@@ -517,12 +517,12 @@ final class ComponentCompiler
 
         foreach ($meta->listeners as $event => $methods) {
             if (str_starts_with($event, 'echo')) {
-                $event = (string) preg_replace_callback('/\{([\w.]+)\}/', function (array $m) use ($meta, $scope, $event) {
-                    if (! $scope->isProperty(explode('.', $m[1])[0])) {
-                        throw new CompileException("#[On('{$event}')] on {$meta->class}: {{$m[1]}} names no public property: the channel reads the component's state.");
+                $event = (string) preg_replace_callback('/\{([\w.]+)\}/', function (array $match) use ($meta, $scope, $event) {
+                    if (! $scope->isProperty(explode('.', $match[1])[0])) {
+                        throw new CompileException("#[On('{$event}')] on {$meta->class}: {{$match[1]}} names no public property: the channel reads the component's state.");
                     }
 
-                    return '{'.$scope->browserPath($m[1]).'}';
+                    return '{'.$scope->browserPath($match[1]).'}';
                 }, $event);
             }
 
@@ -535,13 +535,13 @@ final class ComponentCompiler
     /** @return list<string> */
     private function listeners(ComponentMeta $meta): array
     {
-        return array_values(array_filter(array_merge(...array_values($meta->listeners) ?: [[]]), fn ($m) => ! $meta->isServerMethod($m)));
+        return array_values(array_filter(array_merge(...array_values($meta->listeners) ?: [[]]), fn ($method) => ! $meta->isServerMethod($method)));
     }
 
     /** updatedEmail() runs after fusion:model or $set changes $email, and updated($property, $value) after any change. */
     private function updatedHooks(ComponentMeta $meta): array
     {
-        return array_values(array_filter($meta->browserMethods, fn ($m) => preg_match('/^updated([A-Z]|$)/', $m) === 1));
+        return array_values(array_filter($meta->browserMethods, fn ($method) => preg_match('/^updated([A-Z]|$)/', $method) === 1));
     }
 
     /**
@@ -568,10 +568,10 @@ final class ComponentCompiler
 
             try {
                 $compiled[$name] = $transpiler->method($node, $scope->forFile($file));
-            } catch (CompileException $e) {
+            } catch (CompileException $exception) {
                 throw new CompileException(
                     "{$name}() runs in the browser (the view or another browser method uses it) but cannot be compiled: "
-                    .$e->getMessage().'. Mark it #[Server] if it needs the server.',
+                    .$exception->getMessage().'. Mark it #[Server] if it needs the server.',
                 );
             }
 
@@ -589,8 +589,8 @@ final class ComponentCompiler
 
         try {
             $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse((string) file_get_contents($file)) ?? [];
-        } catch (Throwable $e) {
-            throw new CompileException('Cannot parse the component: '.$e->getMessage(), $file);
+        } catch (Throwable $exception) {
+            throw new CompileException('Cannot parse the component: '.$exception->getMessage(), $file);
         }
 
         /** Names as the file's imports make them (Card::class: its full name), kept as written. */

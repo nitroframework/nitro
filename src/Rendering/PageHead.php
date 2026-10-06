@@ -81,8 +81,8 @@ final class PageHead
             $title = $this->portals->apart(fn () => $this->layoutTitle($layout, [...($meta->layout->data ?? []), 'title' => $meta->title]));
 
             return ['title' => $title, 'head' => $this->printed() ? $this->tags() : null];
-        } catch (\Throwable $e) {
-            throw new CompileException("#[Navigate('client')] on {$meta->class}: its title comes from its layout [{$layout}], which could not be rendered at build time ({$e->getMessage()}). Use #[Navigate('markup')].", $meta->file);
+        } catch (\Throwable $exception) {
+            throw new CompileException("#[Navigate('client')] on {$meta->class}: its title comes from its layout [{$layout}], which could not be rendered at build time ({$exception->getMessage()}). Use #[Navigate('markup')].", $meta->file);
         } finally {
             [$this->head, $this->printed] = $previous;
         }
@@ -144,8 +144,8 @@ final class PageHead
             $this->renderingTitle = false;
         }
 
-        return preg_match('/<title\b[^>]*>(.*?)<\/title>/is', $html, $m)
-            ? html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+        return preg_match('/<title\b[^>]*>(.*?)<\/title>/is', $html, $match)
+            ? html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')
             : null;
     }
 

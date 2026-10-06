@@ -102,8 +102,8 @@ final class BrowserClasses
         if (! isset(self::$parsed[$cached])) {
             try {
                 $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse((string) file_get_contents($file)) ?? [];
-            } catch (Throwable $e) {
-                throw new CompileException("Cannot parse {$class}: ".$e->getMessage(), $file);
+            } catch (Throwable $exception) {
+                throw new CompileException("Cannot parse {$class}: ".$exception->getMessage(), $file);
             }
 
             (new NodeTraverser(new NameResolver(null, ['replaceNodes' => false])))->traverse($ast);

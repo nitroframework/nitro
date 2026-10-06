@@ -57,20 +57,20 @@ final class Statements extends Part
         $source = $this->transpiler->expr($stmt->expr);
 
         return $this->loop($stmt, function ($label) use ($stmt, $source) {
-            $k = $this->context->temp();
-            $v = $this->context->temp();
-            $assign = ($stmt->keyVar !== null ? '$'.$stmt->keyVar->name." = {$k}; " : '').'$'.$stmt->valueVar->name." = {$v};\n";
+            $keyTemporary = $this->context->temp();
+            $valueTemporary = $this->context->temp();
+            $assign = ($stmt->keyVar !== null ? '$'.$stmt->keyVar->name." = {$keyTemporary}; " : '').'$'.$stmt->valueVar->name." = {$valueTemporary};\n";
 
-            return "{$label}: for (const [{$k}_, {$v}_] of P.iter({$source})) {\n"
-                ."{$k} = {$k}_; {$v} = {$v}_; {$assign}".$this->transpiler->stmts($stmt->stmts)."}\n";
+            return "{$label}: for (const [{$keyTemporary}_, {$valueTemporary}_] of P.iter({$source})) {\n"
+                ."{$keyTemporary} = {$keyTemporary}_; {$valueTemporary} = {$valueTemporary}_; {$assign}".$this->transpiler->stmts($stmt->stmts)."}\n";
         });
     }
 
     public function for(Stmt\For_ $stmt): string
     {
-        $init = implode(', ', array_map(fn ($e) => $this->transpiler->statementExpr($e), $stmt->init));
-        $cond = $stmt->cond === [] ? 'true' : 'P.bool(('.implode(', ', array_map(fn ($e) => $this->transpiler->expr($e), $stmt->cond)).'))';
-        $step = implode(', ', array_map(fn ($e) => $this->transpiler->statementExpr($e), $stmt->loop));
+        $init = implode(', ', array_map(fn ($expression) => $this->transpiler->statementExpr($expression), $stmt->init));
+        $cond = $stmt->cond === [] ? 'true' : 'P.bool(('.implode(', ', array_map(fn ($expression) => $this->transpiler->expr($expression), $stmt->cond)).'))';
+        $step = implode(', ', array_map(fn ($expression) => $this->transpiler->statementExpr($expression), $stmt->loop));
 
         return $this->loop($stmt, fn ($label) => "{$label}: for ({$init}; {$cond}; {$step}) {\n".$this->transpiler->stmts($stmt->stmts)."}\n");
     }

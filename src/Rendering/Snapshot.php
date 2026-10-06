@@ -60,12 +60,12 @@ final class Snapshot
                 $models[$name] = self::modelReference($value, $meta->name, $name);
                 $data[$name] = $value;
             } elseif ($value instanceof EloquentCollection) {
-                $references = $value->map(fn (Model $m) => self::modelReference($m, $meta->name, $name))->values()->all();
+                $references = $value->map(fn (Model $model) => self::modelReference($model, $meta->name, $name))->values()->all();
                 $classes = array_unique(array_column($references, 'class'));
 
                 /** One class (the usual): its keys. Several (a polymorphic relation's): each model's class and key, in order. */
                 $models[$name] = count($classes) > 1
-                    ? ['collection' => true, 'items' => array_map(fn (array $r) => [$r['class'], $r['key'], $r['connection']], $references)]
+                    ? ['collection' => true, 'items' => array_map(fn (array $reference) => [$reference['class'], $reference['key'], $reference['connection']], $references)]
                     : array_filter([
                         'collection' => true,
                         'class' => $value->isEmpty() ? null : get_class($value->first()),
@@ -73,7 +73,7 @@ final class Snapshot
                         'connection' => $value->first()?->getConnectionName(),
                         /** The relations every model has loaded: loaded again with them. */
                         'relations' => $value->getQueueableRelations(),
-                    ], fn ($v, $k) => $k !== 'relations' || $v !== [], ARRAY_FILTER_USE_BOTH);
+                    ], fn ($value, $key) => $key !== 'relations' || $value !== [], ARRAY_FILTER_USE_BOTH);
                 $data[$name] = $value;
             } else {
                 $data[$name] = $value;
@@ -88,7 +88,7 @@ final class Snapshot
             'errors' => $context->errors->toArray(),
             'deferred' => $context->deferred,
             'scroll' => $context->scroll,
-        ], fn ($v) => $v !== [] && $v !== null));
+        ], fn ($value) => $value !== [] && $value !== null));
     }
 
     private static function modelReference(Model $model, string $component, string $property): array
@@ -292,7 +292,7 @@ final class Snapshot
                 return new EloquentCollection;
             }
 
-            $models = $reference['class']::on($reference['connection'])->with($reference['relations'] ?? [])->whereKey($reference['keys'])->get()->keyBy(fn (Model $m) => $m->getKey());
+            $models = $reference['class']::on($reference['connection'])->with($reference['relations'] ?? [])->whereKey($reference['keys'])->get()->keyBy(fn (Model $model) => $model->getKey());
 
             return new EloquentCollection(array_values(array_filter(array_map(fn ($key) => $models[$key] ?? null, $reference['keys']))));
         }

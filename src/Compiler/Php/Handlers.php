@@ -31,62 +31,62 @@ use PhpParser\Node\Scalar;
 final class Handlers extends Part
 {
     /** One call of an event handler. */
-    public function handlerCall(Expr $e): string
+    public function handlerCall(Expr $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
         $component = $this->transpiler->component;
 
         /** A bare name ("save") is a method with no arguments. */
-        if ($e instanceof Expr\ConstFetch) {
-            $e = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($e->name->toString()), [], $e->getAttributes());
+        if ($expression instanceof Expr\ConstFetch) {
+            $expression = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($expression->name->toString()), [], $expression->getAttributes());
         }
 
-        if ($e instanceof Expr\FuncCall && $e->name instanceof Expr\Variable && is_string($e->name->name)) {
-            return $this->magicAction($e->name->name, $e);
+        if ($expression instanceof Expr\FuncCall && $expression->name instanceof Expr\Variable && is_string($expression->name->name)) {
+            return $this->magicAction($expression->name->name, $expression);
         }
 
         /** $parent->remove($id): a method of the component around this one (in the browser or on the server). */
-        if ($e instanceof Expr\MethodCall && $e->var instanceof Expr\Variable && $e->var->name === 'parent' && ! isset($c->locals['parent'])) {
-            if (! $e->name instanceof Identifier) {
-                throw $c->error('$parent takes a method name', $e);
+        if ($expression instanceof Expr\MethodCall && $expression->var instanceof Expr\Variable && $expression->var->name === 'parent' && ! isset($context->locals['parent'])) {
+            if (! $expression->name instanceof Identifier) {
+                throw $context->error('$parent takes a method name', $expression);
             }
 
-            return '$this.$parent('.$c->string($c->scope->browserMethod($e->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($e->args)).'])';
+            return '$this.$parent('.$context->string($context->scope->browserMethod($expression->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($expression->args)).'])';
         }
 
         /** Fusion::browser()->storage()->forget('draft'): a browser API, called from the view. */
-        if (($e instanceof Expr\MethodCall || $e instanceof Expr\NullsafeMethodCall) && $component->browserApi($e->var) !== null) {
-            return $this->transpiler->expr($e);
+        if (($expression instanceof Expr\MethodCall || $expression instanceof Expr\NullsafeMethodCall) && $component->browserApi($expression->var) !== null) {
+            return $this->transpiler->expr($expression);
         }
 
-        if ($e instanceof Expr\Variable && $e->name === 'refresh') {
+        if ($expression instanceof Expr\Variable && $expression->name === 'refresh') {
             return '$this.$refresh()';
         }
 
-        if ($e instanceof Expr\Variable && $e->name === 'reload') {
+        if ($expression instanceof Expr\Variable && $expression->name === 'reload') {
             return '$this.$reload([])';
         }
 
-        if ($e instanceof Expr\FuncCall && $e->name instanceof Name && ! str_contains($e->name->toString(), '\\')) {
-            $e = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($e->name->toString()), $e->args, $e->getAttributes());
+        if ($expression instanceof Expr\FuncCall && $expression->name instanceof Name && ! str_contains($expression->name->toString(), '\\')) {
+            $expression = new Expr\MethodCall(new Expr\Variable('this'), new Identifier($expression->name->toString()), $expression->args, $expression->getAttributes());
         }
 
         /** $cart->remove($i): a method of a store the component uses (a #[Server] one, a request). */
-        if ($e instanceof Expr\MethodCall && $component->storeOf($e->var) !== null) {
-            return $component->isStoreServerCall($e) ? $component->serverCall($e) : $component->methodCall($e);
+        if ($expression instanceof Expr\MethodCall && $component->storeOf($expression->var) !== null) {
+            return $component->isStoreServerCall($expression) ? $component->serverCall($expression) : $component->methodCall($expression);
         }
 
-        if (! $e instanceof Expr\MethodCall || ! $c->isThis($e->var) || ! $e->name instanceof Identifier) {
-            throw $c->error('An event handler is a method call, such as "save" or "remove($id)"', $e);
+        if (! $expression instanceof Expr\MethodCall || ! $context->isThis($expression->var) || ! $expression->name instanceof Identifier) {
+            throw $context->error('An event handler is a method call, such as "save" or "remove($id)"', $expression);
         }
 
-        $name = $e->name->toString();
+        $name = $expression->name->toString();
 
-        if ($c->scope->isServerMethod($name)) {
-            return $component->serverCall($e);
+        if ($context->scope->isServerMethod($name)) {
+            return $component->serverCall($expression);
         }
 
-        return $component->methodCall($e);
+        return $component->methodCall($expression);
     }
 
     /** A template expression renders: no assignments, no increments, no #[Server] calls. */
@@ -126,52 +126,52 @@ final class Handlers extends Part
     }
 
     /** $set, $toggle, $refresh, $reload, $loadMore, $dispatch (Globals::ACTIONS). */
-    private function magicAction(string $name, Expr\FuncCall $e): string
+    private function magicAction(string $name, Expr\FuncCall $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
         $component = $this->transpiler->component;
 
         if (! array_key_exists($name, Globals::ACTIONS)) {
-            throw $c->error("Unknown action \${$name}: handlers can use \$".implode(', $', array_keys(Globals::ACTIONS)), $e);
+            throw $context->error("Unknown action \${$name}: handlers can use \$".implode(', $', array_keys(Globals::ACTIONS)), $expression);
         }
 
         $arity = Globals::ACTIONS[$name];
 
-        if ($arity !== null && count($e->args) !== $arity) {
-            throw $c->error("\${$name} takes {$arity} argument(s)", $e);
+        if ($arity !== null && count($expression->args) !== $arity) {
+            throw $context->error("\${$name} takes {$arity} argument(s)", $expression);
         }
 
         /** The actions read their arguments by position; only the dispatches pass named parameters on. */
         if (! in_array($name, ['dispatch', 'dispatchTo', 'dispatchSelf'], true)) {
-            foreach ($e->args as $arg) {
+            foreach ($expression->args as $arg) {
                 if (! $arg instanceof Arg || $arg->name !== null || $arg->unpack) {
-                    throw $c->error("\${$name} takes its arguments in order: named arguments and ... are not accepted", $e);
+                    throw $context->error("\${$name} takes its arguments in order: named arguments and ... are not accepted", $expression);
                 }
             }
         }
 
         /** $dispatchTo('card', 'event', ...), $dispatchSelf('event', ...): Livewire's. */
         if ($name === 'dispatchTo') {
-            $to = $component->component($e->args[0] ?? null, $e);
+            $to = $component->component($expression->args[0] ?? null, $expression);
 
-            return '$this.$dispatch('.$component->dispatchArgs(array_slice($e->args, 1), $e).').to('.$to.')';
+            return '$this.$dispatch('.$component->dispatchArgs(array_slice($expression->args, 1), $expression).').to('.$to.')';
         }
 
         if ($name === 'dispatchSelf') {
-            return '$this.$dispatch('.$component->dispatchArgs($e->args, $e).').self()';
+            return '$this.$dispatch('.$component->dispatchArgs($expression->args, $expression).').self()';
         }
 
         /** $visit(url): a fusion:navigate visit there (the runtime's $redirect, as $this->redirect() in a method). */
         if ($name === 'visit') {
-            return '$this.$redirect('.implode(', ', $this->transpiler->calls->args($e->args)).')';
+            return '$this.$redirect('.implode(', ', $this->transpiler->calls->args($expression->args)).')';
         }
 
         $args = match ($name) {
-            'set' => [$this->propertyPath($e->args[0], $e), $this->transpiler->expr($e->args[1]->value)],
-            'toggle' => [$this->propertyPath($e->args[0], $e)],
-            'reload' => ['['.implode(', ', array_map(fn (Arg $a) => $component->propertyName($a, $e, '$reload'), $e->args)).']'],
-            'loadMore' => [$component->propertyName($e->args[0], $e, '$loadMore')],
-            'dispatch' => [$component->dispatchArgs($e->args, $e)],
+            'set' => [$this->propertyPath($expression->args[0], $expression), $this->transpiler->expr($expression->args[1]->value)],
+            'toggle' => [$this->propertyPath($expression->args[0], $expression)],
+            'reload' => ['['.implode(', ', array_map(fn (Arg $argument) => $component->propertyName($argument, $expression, '$reload'), $expression->args)).']'],
+            'loadMore' => [$component->propertyName($expression->args[0], $expression, '$loadMore')],
+            'dispatch' => [$component->dispatchArgs($expression->args, $expression)],
             default => [],
         };
 

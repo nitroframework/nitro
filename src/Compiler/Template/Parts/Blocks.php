@@ -28,25 +28,25 @@ final class Blocks extends Part
     /** Blade's @foreach($items as $key => $item) and @forelse, with $loop. */
     public function foreach(string $args, bool $forelse): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
 
-        if (! preg_match('/^\s*(.+)\s+as\s+(.*?)\s*$/is', $args, $m)) {
-            throw $c->error('Malformed @'.($forelse ? 'forelse' : 'foreach').': expected "$items as $item"');
+        if (! preg_match('/^\s*(.+)\s+as\s+(.*?)\s*$/is', $args, $match)) {
+            throw $context->error('Malformed @'.($forelse ? 'forelse' : 'foreach').': expected "$items as $item"');
         }
 
-        [, $iteratee, $iteration] = $m;
+        [, $iteratee, $iteration] = $match;
 
         if (! preg_match('/^\$(\w+)(?:\s*=>\s*\$(\w+))?$/', trim($iteration), $vars)) {
-            throw $c->error('@foreach must name its variables ($item or $key => $item)');
+            throw $context->error('@foreach must name its variables ($item or $key => $item)');
         }
 
         [$keyVar, $valueVar] = isset($vars[2]) ? [$vars[1], $vars[2]] : [null, $vars[1]];
 
         $data = $table->expression($table->expr($iteratee));
-        $parentLoop = in_array('loop', $c->locals, true);
+        $parentLoop = in_array('loop', $context->locals, true);
         /** $loop->parent is the loop around it: its state comes from that loop's data too. */
-        $loopSources = [$data, ...($parentLoop ? $c->sources['loop'] ?? [] : [])];
+        $loopSources = [$data, ...($parentLoop ? $context->sources['loop'] ?? [] : [])];
         $node = $this->compiler->tree->openBlock($forelse ? 'forelse' : 'foreach', [], true);
 
         $node->fields['i'] = [array_filter([
@@ -56,7 +56,7 @@ final class Blocks extends Part
             'item' => $table->declareFrom($valueVar, [$data]),
             'loop' => $table->declareFrom('loop', $loopSources),
             'parentLoop' => $parentLoop ? 1 : null,
-        ], fn ($v) => $v !== null)];
+        ], fn ($value) => $value !== null)];
     }
 
     /**
@@ -74,17 +74,17 @@ final class Blocks extends Part
     /** Blade's @for($i = 0; $i < 10; $i++): its iterations, worked out by the expression. */
     public function for(string $args): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
 
-        [$head, $variables] = $c->transpiler->templateFor($args, $c->scope, $c->locals, $c->line);
+        [$head, $variables] = $context->transpiler->templateFor($args, $context->scope, $context->locals, $context->line);
         $table->track();
-        $declare = $variables === [] ? '' : 'let '.implode(', ', array_map(fn ($v) => '$'.$v, $variables)).'; ';
-        $values = '['.implode(', ', array_map(fn ($v) => '$'.$v, $variables)).']';
+        $declare = $variables === [] ? '' : 'let '.implode(', ', array_map(fn ($variable) => '$'.$variable, $variables)).'; ';
+        $values = '['.implode(', ', array_map(fn ($variable) => '$'.$variable, $variables)).']';
 
         $code = $table->expression($this->iterations($declare.$head, $values, '@for'));
         $node = $this->compiler->tree->openBlock('for', [], true);
-        $node->fields['i'] = [['c' => 'for', 'code' => $code, 'vars' => array_map(fn ($v) => $table->declareFrom($v, [$code]), $variables)]];
+        $node->fields['i'] = [['c' => 'for', 'code' => $code, 'vars' => array_map(fn ($variable) => $table->declareFrom($variable, [$code]), $variables)]];
     }
 
     public function while(string $args): void
@@ -97,33 +97,33 @@ final class Blocks extends Part
     /** Blade's @break, @break(2), @break($condition); @continue likewise. */
     public function jump(string $keyword, ?string $args): void
     {
-        $c = $this->context;
-        $loops = array_values(array_filter($c->stack, fn ($frame) => $frame['loop'] ?? false));
+        $context = $this->context;
+        $loops = array_values(array_filter($context->stack, fn ($frame) => $frame['loop'] ?? false));
 
         if ($loops === []) {
-            throw $c->error("@{$keyword} outside of a loop");
+            throw $context->error("@{$keyword} outside of a loop");
         }
 
         /** Teleported content renders elsewhere: a loop around the @teleport is not around it there. */
-        $inner = array_slice($c->stack, (int) array_key_last(array_filter($c->stack, fn ($frame) => $frame['loop'] ?? false)));
+        $inner = array_slice($context->stack, (int) array_key_last(array_filter($context->stack, fn ($frame) => $frame['loop'] ?? false)));
 
         if (in_array('teleport', array_column($inner, 'kind'), true)) {
-            throw $c->error("@{$keyword} inside @teleport cannot leave a loop around the @teleport");
+            throw $context->error("@{$keyword} inside @teleport cannot leave a loop around the @teleport");
         }
 
         $node = new TemplateNode(['t' => 'b', 'c' => $keyword, 'levels' => 1]);
 
-        if ($args !== null && preg_match('/^\s*(-?\d+)\s*$/', $args, $m)) {
-            $levels = max(1, (int) $m[1]);
+        if ($args !== null && preg_match('/^\s*(-?\d+)\s*$/', $args, $match)) {
+            $levels = max(1, (int) $match[1]);
 
             if ($levels > count($loops)) {
-                throw $c->error("@{$keyword}({$levels}): not inside that many loops");
+                throw $context->error("@{$keyword}({$levels}): not inside that many loops");
             }
 
             $node->fields['levels'] = $levels;
         } else {
             if ($keyword === 'continue' && end($loops)['kind'] === 'switch') {
-                throw $c->error('@continue inside @switch: use @break');
+                throw $context->error('@continue inside @switch: use @break');
             }
 
             if ($args !== null) {
@@ -135,12 +135,12 @@ final class Blocks extends Part
          * Blade's @break leaves the loop where it is: an element opened inside the loop would end
          * without its end tag in the server's HTML (the browser then nests what follows in it).
          */
-        $targets = array_keys(array_filter($c->stack, fn ($frame) => $frame['loop'] ?? false));
+        $targets = array_keys(array_filter($context->stack, fn ($frame) => $frame['loop'] ?? false));
         $target = $targets[count($targets) - $node->fields['levels']];
 
-        foreach (array_slice($c->stack, $target + 1) as $frame) {
+        foreach (array_slice($context->stack, $target + 1) as $frame) {
             if ($frame['kind'] === 'element') {
-                throw $c->error("@{$keyword} inside <{$frame['tag']}> (line {$frame['line']}): Blade would leave the <{$frame['tag']}> without its end tag. Put the @{$keyword} outside the element");
+                throw $context->error("@{$keyword} inside <{$frame['tag']}> (line {$frame['line']}): Blade would leave the <{$frame['tag']}> without its end tag. Put the @{$keyword} outside the element");
             }
         }
 
@@ -157,17 +157,17 @@ final class Blocks extends Part
     /** @param  array<string, mixed>  $directive */
     public function case(array $directive): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $this->compiler->tree->flushText();
-        $top = end($c->stack);
+        $top = end($context->stack);
 
         if ($top['kind'] !== 'switch') {
-            throw $c->error('@'.($directive['c'] === 'case' ? 'case' : 'default').' outside of @switch');
+            throw $context->error('@'.($directive['c'] === 'case' ? 'case' : 'default').' outside of @switch');
         }
 
         $case = new TemplateNode(['t' => 'template', 'i' => [$directive]]);
         $top['node']->children[] = $case;
-        $c->stack[count($c->stack) - 1]['case'] = $case;
+        $context->stack[count($context->stack) - 1]['case'] = $case;
     }
 
     /** Text or directives between @switch and its first @case: Blade's PHP, where they cannot be. */
@@ -205,23 +205,23 @@ final class Blocks extends Part
      */
     public function teleport(string $args): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if ($c->state !== 'data') {
-            throw $c->error('@teleport goes between elements, not inside <script>, <style>, <textarea> or <title>');
+        if ($context->state !== 'data') {
+            throw $context->error('@teleport goes between elements, not inside <script>, <style>, <textarea> or <title>');
         }
 
         if (! preg_match('/^\s*([\'"])([A-Za-z0-9_-]+)\1\s*$/', $args, $name)) {
-            throw $c->error("@teleport takes the name of a @portal, as a string literal: @teleport('modals')");
+            throw $context->error("@teleport takes the name of a @portal, as a string literal: @teleport('modals')");
         }
 
-        if (in_array('teleport', array_column($c->stack, 'kind'), true)) {
-            throw $c->error('@teleport cannot be inside another @teleport');
+        if (in_array('teleport', array_column($context->stack, 'kind'), true)) {
+            throw $context->error('@teleport cannot be inside another @teleport');
         }
 
         $node = new TemplateNode(['t' => 'p', 'to' => $name[2]]);
         $this->compiler->tree->append($node);
-        $c->stack[] = ['kind' => 'teleport', 'node' => $node, 'line' => $c->line, 'locals' => $c->locals, 'sources' => $c->sources, 'loop' => false];
+        $context->stack[] = ['kind' => 'teleport', 'node' => $node, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources, 'loop' => false];
     }
 
     /** A loop's iterations as a list: each the values its variables have in it. */

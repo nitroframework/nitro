@@ -102,16 +102,16 @@ final class BladeInliner
         $source = (string) file_get_contents($file);
         $names = [];
 
-        if (preg_match_all('/@include(?:If|When|Unless)?\s*\((.*?)\)\s*$/m', $source, $m)) {
-            foreach ($m[1] as $args) {
+        if (preg_match_all('/@include(?:If|When|Unless)?\s*\((.*?)\)\s*$/m', $source, $match)) {
+            foreach ($match[1] as $args) {
                 if (preg_match_all('/([\'"])([\w.\-:\/]+)\1/', $args, $strings)) {
                     $names = [...$names, ...$strings[2]];
                 }
             }
         }
 
-        if (preg_match_all('/<\s*x[-:]([\w\-:.]+)/', $source, $m)) {
-            foreach ($m[1] as $component) {
+        if (preg_match_all('/<\s*x[-:]([\w\-:.]+)/', $source, $match)) {
+            foreach ($match[1] as $component) {
                 try {
                     $class = $component === 'slot' ? null : $this->tags->componentClass($component);
                 } catch (InvalidArgumentException) {
@@ -151,15 +151,15 @@ final class BladeInliner
         $length = strlen($source);
 
         while ($at < $length) {
-            if (! preg_match('/\{\{--|@verbatim\b|@(?:include(?:If|When|Unless)?)\s*\(|<\s*\/?\s*x[-:]|\x00SLOT(\d+)\x00/', $source, $m, PREG_OFFSET_CAPTURE, $at)) {
+            if (! preg_match('/\{\{--|@verbatim\b|@(?:include(?:If|When|Unless)?)\s*\(|<\s*\/?\s*x[-:]|\x00SLOT(\d+)\x00/', $source, $match, PREG_OFFSET_CAPTURE, $at)) {
                 $this->emit(substr($source, $at), $file, $line);
 
                 return;
             }
 
-            $found = $m[0][1];
+            $found = $match[0][1];
             $line = $this->emit(substr($source, $at, $found - $at), $file, $line);
-            $token = $m[0][0];
+            $token = $match[0][0];
 
             /** Blade's comments render nothing (Blade removes them before it reads components). */
             if ($token === '{{--') {
@@ -182,7 +182,7 @@ final class BladeInliner
             }
 
             if (str_starts_with($token, "\x00SLOT")) {
-                $this->slot((int) $m[1][0], $file, $line, $depth);
+                $this->slot((int) $match[1][0], $file, $line, $depth);
                 $at = $found + strlen($token);
 
                 continue;
@@ -223,10 +223,10 @@ final class BladeInliner
      */
     private function include(string $source, int $at, ?string $file, int $line, int $depth): array
     {
-        preg_match('/\G@(include(?:If|When|Unless)?)\s*\(/', $source, $m, 0, $at);
-        $open = $at + strlen($m[0]) - 1;
+        preg_match('/\G@(include(?:If|When|Unless)?)\s*\(/', $source, $match, 0, $at);
+        $open = $at + strlen($match[0]) - 1;
         $close = PhpSource::closing($source, $open, $file, $line);
-        $directive = $m[1];
+        $directive = $match[1];
         $args = PhpSource::arguments(substr($source, $open + 1, $close - $open - 1), "@{$directive}", $file, $line);
         [$condition, $view, $data] = match ($directive) {
             'include', 'includeIf' => [null, $args[0] ?? null, $args[1] ?? null],
@@ -273,24 +273,24 @@ final class BladeInliner
      */
     private function component(string $source, int $at, ?string $file, int $line, int $depth): array
     {
-        if (preg_match(ComponentTags::CLOSING, $source, $m, 0, $at)) {
-            throw new CompileException("{$m[0]} closes no <x-{$m[1]}>", $file, $line);
+        if (preg_match(ComponentTags::CLOSING, $source, $match, 0, $at)) {
+            throw new CompileException("{$match[0]} closes no <x-{$match[1]}>", $file, $line);
         }
 
-        if (preg_match(ComponentTags::SLOT, $source, $m, 0, $at)) {
+        if (preg_match(ComponentTags::SLOT, $source, $match, 0, $at)) {
             throw new CompileException('<x-slot> belongs inside a component tag', $file, $line);
         }
 
-        $selfClosing = preg_match(ComponentTags::SELF_CLOSING, $source, $m, 0, $at) === 1;
+        $selfClosing = preg_match(ComponentTags::SELF_CLOSING, $source, $match, 0, $at) === 1;
 
-        if (! $selfClosing && ! preg_match(ComponentTags::OPENING, $source, $m, 0, $at)) {
+        if (! $selfClosing && ! preg_match(ComponentTags::OPENING, $source, $match, 0, $at)) {
             throw new CompileException('This <x-...> tag cannot be read as a Blade component', $file, $line);
         }
 
-        $name = $m[1];
-        $attributeString = $m['attributes'];
-        $contentStart = $at + strlen($m[0]);
-        $contentLine = $line + substr_count($m[0], "\n");
+        $name = $match[1];
+        $attributeString = $match['attributes'];
+        $contentStart = $at + strlen($match[0]);
+        $contentLine = $line + substr_count($match[0], "\n");
         [$content, $after] = $selfClosing ? ['', $contentStart] : $this->contents($source, $contentStart, $name, $file, $line);
 
         $this->expandComponent($name, $attributeString, $content, $file, $contentLine, $depth);
@@ -309,23 +309,23 @@ final class BladeInliner
         $depth = 0;
         $at = $from;
 
-        while (preg_match('/<\s*\/?\s*x[-:]/', $source, $m, PREG_OFFSET_CAPTURE, $at)) {
-            $found = $m[0][1];
+        while (preg_match('/<\s*\/?\s*x[-:]/', $source, $match, PREG_OFFSET_CAPTURE, $at)) {
+            $found = $match[0][1];
 
-            if (preg_match(ComponentTags::SLOT_CLOSING, $source, $s, 0, $found) || preg_match(ComponentTags::SLOT, $source, $s, 0, $found)) {
-                $at = $found + strlen($s[0]);
-            } elseif (preg_match(ComponentTags::CLOSING, $source, $s, 0, $found)) {
+            if (preg_match(ComponentTags::SLOT_CLOSING, $source, $tagMatch, 0, $found) || preg_match(ComponentTags::SLOT, $source, $tagMatch, 0, $found)) {
+                $at = $found + strlen($tagMatch[0]);
+            } elseif (preg_match(ComponentTags::CLOSING, $source, $tagMatch, 0, $found)) {
                 if ($depth === 0) {
-                    return [substr($source, $from, $found - $from), $found + strlen($s[0])];
+                    return [substr($source, $from, $found - $from), $found + strlen($tagMatch[0])];
                 }
 
                 $depth--;
-                $at = $found + strlen($s[0]);
-            } elseif (preg_match(ComponentTags::SELF_CLOSING, $source, $s, 0, $found)) {
-                $at = $found + strlen($s[0]);
-            } elseif (preg_match(ComponentTags::OPENING, $source, $s, 0, $found)) {
+                $at = $found + strlen($tagMatch[0]);
+            } elseif (preg_match(ComponentTags::SELF_CLOSING, $source, $tagMatch, 0, $found)) {
+                $at = $found + strlen($tagMatch[0]);
+            } elseif (preg_match(ComponentTags::OPENING, $source, $tagMatch, 0, $found)) {
                 $depth++;
-                $at = $found + strlen($s[0]);
+                $at = $found + strlen($tagMatch[0]);
             } else {
                 $at = $found + 1;
             }
@@ -346,8 +346,8 @@ final class BladeInliner
 
         try {
             $class = $this->tags->componentClass($name);
-        } catch (InvalidArgumentException $e) {
-            throw new CompileException($e->getMessage(), $file, $line);
+        } catch (InvalidArgumentException $exception) {
+            throw new CompileException($exception->getMessage(), $file, $line);
         }
 
         if (class_exists($class)) {
@@ -429,10 +429,10 @@ final class BladeInliner
     private static function setAside(string $view): array
     {
         $kept = [];
-        $view = (string) preg_replace_callback('/\{\{--.*?--\}\}|(?<!@)@verbatim\b.*?@endverbatim\b/s', function (array $m) use (&$kept) {
-            $kept[] = $m[0];
+        $view = (string) preg_replace_callback('/\{\{--.*?--\}\}|(?<!@)@verbatim\b.*?@endverbatim\b/s', function (array $match) use (&$kept) {
+            $kept[] = $match[0];
 
-            return "\x00KEPT".(count($kept) - 1).str_repeat("\n", substr_count($m[0], "\n"))."\x00";
+            return "\x00KEPT".(count($kept) - 1).str_repeat("\n", substr_count($match[0], "\n"))."\x00";
         }, $view);
 
         return [$view, $kept];
@@ -445,7 +445,7 @@ final class BladeInliner
      */
     private static function putBack(string $view, array $kept): string
     {
-        return (string) preg_replace_callback('/\x00KEPT(\d+)\n*\x00/', fn (array $m) => $kept[(int) $m[1]], $view);
+        return (string) preg_replace_callback('/\x00KEPT(\d+)\n*\x00/', fn (array $match) => $kept[(int) $match[1]], $view);
     }
 
     /**
@@ -460,21 +460,21 @@ final class BladeInliner
         $at = 0;
         $depth = 0;
 
-        while (preg_match('/<\s*\/?\s*x[-:]/', $content, $m, PREG_OFFSET_CAPTURE, $at)) {
-            $found = $m[0][1];
+        while (preg_match('/<\s*\/?\s*x[-:]/', $content, $match, PREG_OFFSET_CAPTURE, $at)) {
+            $found = $match[0][1];
 
-            if ($depth === 0 && preg_match(ComponentTags::SLOT, $content, $s, 0, $found)) {
-                if (($s['boundName'] ?? '') !== '') {
+            if ($depth === 0 && preg_match(ComponentTags::SLOT, $content, $tagMatch, 0, $found)) {
+                if (($tagMatch['boundName'] ?? '') !== '') {
                     throw new CompileException('<x-slot :name> names its slot at run time: name it with a string', $file, $line);
                 }
 
-                $slotName = $this->tags->stripQuotes(($s['inlineName'] ?? '') ?: ($s['name'] ?? '')) ?: 'slot';
+                $slotName = $this->tags->stripQuotes(($tagMatch['inlineName'] ?? '') ?: ($tagMatch['name'] ?? '')) ?: 'slot';
 
-                if (str_contains($slotName, '-') && ($s['inlineName'] ?? '') !== '') {
+                if (str_contains($slotName, '-') && ($tagMatch['inlineName'] ?? '') !== '') {
                     $slotName = Str::camel($slotName);
                 }
 
-                $start = $found + strlen($s[0]);
+                $start = $found + strlen($tagMatch[0]);
                 [$inner, $end] = $this->slotContents($content, $start, $file, $line);
                 $slots[$slotName] = [trim($inner), $line + substr_count($content, "\n", 0, $start)];
                 $rest .= substr($content, $at, $found - $at);
@@ -483,16 +483,16 @@ final class BladeInliner
                 continue;
             }
 
-            if (preg_match(ComponentTags::CLOSING, $content, $s, 0, $found)) {
+            if (preg_match(ComponentTags::CLOSING, $content, $tagMatch, 0, $found)) {
                 $depth--;
-            } elseif (! preg_match(ComponentTags::SELF_CLOSING, $content, $s, 0, $found) && preg_match(ComponentTags::OPENING, $content, $s, 0, $found)) {
+            } elseif (! preg_match(ComponentTags::SELF_CLOSING, $content, $tagMatch, 0, $found) && preg_match(ComponentTags::OPENING, $content, $tagMatch, 0, $found)) {
                 $depth++;
             } else {
-                $s = [$m[0][0]];
+                $tagMatch = [$match[0][0]];
             }
 
-            $rest .= substr($content, $at, $found - $at + strlen($s[0]));
-            $at = $found + strlen($s[0]);
+            $rest .= substr($content, $at, $found - $at + strlen($tagMatch[0]));
+            $at = $found + strlen($tagMatch[0]);
         }
 
         return [$slots, $rest.substr($content, $at)];
@@ -504,22 +504,22 @@ final class BladeInliner
         $depth = 0;
         $at = $from;
 
-        while (preg_match('/<\s*\/?\s*x[-:]/', $content, $m, PREG_OFFSET_CAPTURE, $at)) {
-            $found = $m[0][1];
+        while (preg_match('/<\s*\/?\s*x[-:]/', $content, $match, PREG_OFFSET_CAPTURE, $at)) {
+            $found = $match[0][1];
 
-            if (preg_match(ComponentTags::SLOT_CLOSING, $content, $s, 0, $found)) {
+            if (preg_match(ComponentTags::SLOT_CLOSING, $content, $tagMatch, 0, $found)) {
                 if ($depth === 0) {
-                    return [substr($content, $from, $found - $from), $found + strlen($s[0])];
+                    return [substr($content, $from, $found - $from), $found + strlen($tagMatch[0])];
                 }
 
                 $depth--;
-            } elseif (preg_match(ComponentTags::SLOT, $content, $s, 0, $found)) {
+            } elseif (preg_match(ComponentTags::SLOT, $content, $tagMatch, 0, $found)) {
                 $depth++;
             } else {
-                $s = [$m[0][0]];
+                $tagMatch = [$match[0][0]];
             }
 
-            $at = $found + strlen($s[0]);
+            $at = $found + strlen($tagMatch[0]);
         }
 
         throw new CompileException('<x-slot> is not closed', $file, $line);
@@ -536,12 +536,12 @@ final class BladeInliner
             throw new CompileException('@aware reads a parent component at run time: pass the value as an attribute', $path, 1 + substr_count($view, "\n", 0, $aware[0][1]));
         }
 
-        if (! preg_match('/(?<!@)@props\s*\(/', $view, $m, PREG_OFFSET_CAPTURE)) {
+        if (! preg_match('/(?<!@)@props\s*\(/', $view, $match, PREG_OFFSET_CAPTURE)) {
             return [null, $view];
         }
 
-        $at = $m[0][1];
-        $open = $at + strlen($m[0][0]) - 1;
+        $at = $match[0][1];
+        $open = $at + strlen($match[0][0]) - 1;
         $line = 1 + substr_count($view, "\n", 0, $at);
         $close = PhpSource::closing($view, $open, $path, $line);
         $args = PhpSource::arguments(substr($view, $open + 1, $close - $open - 1), '@props', $path, $line);

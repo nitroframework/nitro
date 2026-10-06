@@ -37,8 +37,8 @@ final class FusionTags
         preg_match_all(self::NOT_MARKUP, $source, $skip, PREG_OFFSET_CAPTURE);
         $skip = array_map(fn (array $match) => [$match[1], $match[1] + strlen($match[0])], $skip[0]);
 
-        while (preg_match('/<\/?fusion:/i', $source, $m, PREG_OFFSET_CAPTURE, $cursor)) {
-            $at = $m[0][1];
+        while (preg_match('/<\/?fusion:/i', $source, $match, PREG_OFFSET_CAPTURE, $cursor)) {
+            $at = $match[0][1];
 
             foreach ($skip as [$start, $end]) {
                 if ($at >= $start && $at < $end) {

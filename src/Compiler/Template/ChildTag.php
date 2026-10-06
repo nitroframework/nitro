@@ -72,11 +72,11 @@ final class ChildTag
      */
     public static function parse(string $text, int $offset, int $number, ?string $file = null, int $line = 0): self
     {
-        if (! preg_match(self::PATTERN, $text, $m, 0, $offset) || strpos($text, $m[0], $offset) !== $offset) {
+        if (! preg_match(self::PATTERN, $text, $found, 0, $offset) || strpos($text, $found[0], $offset) !== $offset) {
             throw new CompileException('Malformed <fusion:...> tag', $file, $line);
         }
 
-        [$whole, $name, $attributes, $selfClosing] = $m;
+        [$whole, $name, $attributes, $selfClosing] = $found;
         $length = strlen($whole);
 
         $props = [];
@@ -155,7 +155,7 @@ final class ChildTag
                 }, preg_split('/\.(?![^{]*\}\})/', $value));
 
                 $root = array_shift($modelPath);
-                $props['$model'] = '$'.$root.implode('', array_map(fn ($k) => '['.(is_array($k) ? '('.$k['php'].')' : var_export($k, true)).']', $modelPath));
+                $props['$model'] = '$'.$root.implode('', array_map(fn ($segment) => '['.(is_array($segment) ? '('.$segment['php'].')' : var_export($segment, true)).']', $modelPath));
                 array_unshift($modelPath, $root);
                 $model = $value;
 
@@ -195,10 +195,10 @@ final class ChildTag
     /** Every child tag of a template, in order. @return list<array{0: int, 1: self}> offset => tag */
     public static function all(string $text): array
     {
-        preg_match_all(self::PATTERN, $text, $m, PREG_OFFSET_CAPTURE);
+        preg_match_all(self::PATTERN, $text, $matches, PREG_OFFSET_CAPTURE);
         $tags = [];
 
-        foreach ($m[0] as $number => [, $offset]) {
+        foreach ($matches[0] as $number => [, $offset]) {
             $tags[] = [$offset, self::parse($text, $offset, $number)];
         }
 

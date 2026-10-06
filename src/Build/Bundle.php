@@ -445,12 +445,12 @@ final class Bundle
                 $engine = $this->fusion->viewEngine($meta);
                 $viewFile = $engine->file($meta);
                 $definition = $compiler->compile($meta, $engine->compiledByFusion() ? $this->files->get($viewFile) : null, $viewFile);
-            } catch (CompileException $e) {
+            } catch (CompileException $exception) {
                 if ($build) {
-                    throw $e;
+                    throw $exception;
                 }
 
-                $broken[$name] = ['message' => $e->reason, 'file' => $e->sourceFile, 'line' => $e->sourceLine];
+                $broken[$name] = ['message' => $exception->reason, 'file' => $exception->sourceFile, 'line' => $exception->sourceLine];
 
                 continue;
             }
@@ -688,8 +688,8 @@ final class Bundle
             try {
                 $this->build();
                 $built = true;
-            } catch (RuntimeException $e) {
-                report($e);
+            } catch (RuntimeException $exception) {
+                report($exception);
             }
         }
 

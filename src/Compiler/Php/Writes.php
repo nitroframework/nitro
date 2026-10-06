@@ -34,19 +34,19 @@ final class Writes extends Part
     private const SIMPLE = '/^(\$\w+|-?\d+(\.\d+)?|"(?:[^"\\\\]|\\\\.)*")$/';
 
     /** $x = ...: an assignment; a variable given a Fusion::browser() API keeps its class, for the calls on it. */
-    public function assignment(Expr\Assign $e, bool $valueUsed): string
+    public function assignment(Expr\Assign $expression, bool $valueUsed): string
     {
-        if ($e->var instanceof Expr\Variable && is_string($e->var->name)) {
-            $api = $this->transpiler->component->browserApi($e->expr);
+        if ($expression->var instanceof Expr\Variable && is_string($expression->var->name)) {
+            $api = $this->transpiler->component->browserApi($expression->expr);
 
             if ($api !== null) {
-                $this->context->browserVariables[$e->var->name] = $api;
+                $this->context->browserVariables[$expression->var->name] = $api;
             } else {
-                unset($this->context->browserVariables[$e->var->name]);
+                unset($this->context->browserVariables[$expression->var->name]);
             }
         }
 
-        return $this->assign($e->var, $this->transpiler->expr($e->expr), $valueUsed);
+        return $this->assign($expression->var, $this->transpiler->expr($expression->expr), $valueUsed);
     }
 
     /**
@@ -55,71 +55,71 @@ final class Writes extends Part
      *
      * @return array{0: string, 1: list<string>}
      */
-    public function target(Expr $e): array
+    public function target(Expr $expression): array
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if ($e instanceof Expr\Variable) {
-            if (! is_string($e->name) || $e->name === 'this') {
-                throw $c->error('Cannot assign to this variable in the browser', $e);
+        if ($expression instanceof Expr\Variable) {
+            if (! is_string($expression->name) || $expression->name === 'this') {
+                throw $context->error('Cannot assign to this variable in the browser', $expression);
             }
 
-            if ($c->scope->variable !== null && ! isset($c->locals[$e->name])) {
-                throw $c->error('A template cannot assign to variables', $e);
+            if ($context->scope->variable !== null && ! isset($context->locals[$expression->name])) {
+                throw $context->error('A template cannot assign to variables', $expression);
             }
 
-            $c->locals[$e->name] = true;
+            $context->locals[$expression->name] = true;
 
-            return ['$'.$e->name, []];
+            return ['$'.$expression->name, []];
         }
 
-        if ($e instanceof Expr\PropertyFetch && $c->isThis($e->var) && $e->name instanceof Identifier) {
-            $name = $e->name->toString();
+        if ($expression instanceof Expr\PropertyFetch && $context->isThis($expression->var) && $expression->name instanceof Identifier) {
+            $name = $expression->name->toString();
 
-            if ($c->scope->isStore($name)) {
-                throw $c->error("\$this->{$name} is a store, shared with other components: change it through its methods (\$this->{$name}->add(...))", $e);
+            if ($context->scope->isStore($name)) {
+                throw $context->error("\$this->{$name} is a store, shared with other components: change it through its methods (\$this->{$name}->add(...))", $expression);
             }
 
-            if ($c->scope->isComputed($name)) {
-                throw $c->error("\$this->{$name} is #[Computed]: it is worked out from the state, change the properties it reads instead", $e);
+            if ($context->scope->isComputed($name)) {
+                throw $context->error("\$this->{$name} is #[Computed]: it is worked out from the state, change the properties it reads instead", $expression);
             }
 
-            if (! $c->scope->isProperty($name)) {
-                throw $c->error("\$this->{$name} is not a public property of the component", $e);
+            if (! $context->scope->isProperty($name)) {
+                throw $context->error("\$this->{$name} is not a public property of the component", $expression);
             }
 
-            if ($c->scope->isLocked($name)) {
-                throw $c->error("\$this->{$name} is #[Locked]: only the server (mount() or a #[Server] method) can change it", $e);
+            if ($context->scope->isLocked($name)) {
+                throw $context->error("\$this->{$name} is #[Locked]: only the server (mount() or a #[Server] method) can change it", $expression);
             }
 
-            return ['$this.'.$c->scope->browserProperty($name), []];
+            return ['$this.'.$context->scope->browserProperty($name), []];
         }
 
-        if ($e instanceof Expr\ArrayDimFetch) {
-            [$root, $path] = $this->target($e->var);
-            $path[] = $e->dim === null ? 'P.APPEND' : $this->transpiler->expr($e->dim);
+        if ($expression instanceof Expr\ArrayDimFetch) {
+            [$root, $path] = $this->target($expression->var);
+            $path[] = $expression->dim === null ? 'P.APPEND' : $this->transpiler->expr($expression->dim);
 
             /** $a[$a] = ...: PHP reads the key after null or false became an array, so the key is that array. */
-            if ($e->var instanceof Expr\Variable && $e->dim instanceof Expr\Variable && $e->var->name === $e->dim->name && count($path) === 1) {
+            if ($expression->var instanceof Expr\Variable && $expression->dim instanceof Expr\Variable && $expression->var->name === $expression->dim->name && count($path) === 1) {
                 $path = ["P.ownKey({$root})"];
             }
 
             return [$root, $path];
         }
 
-        if ($e instanceof Expr\PropertyFetch && $e->name instanceof Identifier) {
-            [$root, $path] = $this->target($e->var);
+        if ($expression instanceof Expr\PropertyFetch && $expression->name instanceof Identifier) {
+            [$root, $path] = $this->target($expression->var);
 
             if (! str_starts_with($root, '$this.')) {
-                throw $c->error('Assigning to a property of a value only works through a component property ($this->post->title = ...): values are copies in the browser', $e);
+                throw $context->error('Assigning to a property of a value only works through a component property ($this->post->title = ...): values are copies in the browser', $expression);
             }
 
-            $path[] = $c->string($e->name->toString());
+            $path[] = $context->string($expression->name->toString());
 
             return [$root, $path];
         }
 
-        throw $c->error('Cannot assign to this expression in the browser', $e);
+        throw $context->error('Cannot assign to this expression in the browser', $expression);
     }
 
     public function assign(Expr $var, string $value, bool $valueUsed): string
@@ -138,25 +138,25 @@ final class Writes extends Part
             return "{$root} = P.setIn({$root}, [".implode(', ', $path)."], {$value})";
         }
 
-        $t = $this->context->temp();
+        $temporary = $this->context->temp();
 
-        return "({$root} = P.setIn({$root}, [".implode(', ', $path)."], {$t} = {$value}), {$t})";
+        return "({$root} = P.setIn({$root}, [".implode(', ', $path)."], {$temporary} = {$value}), {$temporary})";
     }
 
-    public function assignOp(Expr\AssignOp $e, bool $valueUsed): string
+    public function assignOp(Expr\AssignOp $expression, bool $valueUsed): string
     {
-        [$root, $path] = $this->target($e->var);
+        [$root, $path] = $this->target($expression->var);
         [$root, $path, $prefix] = $this->stablePath($root, $path);
         /** ??= reads as isset() does (a missing key or offset gives the default); the others, after PHP's checks of where they write. */
-        $read = $e instanceof Expr\AssignOp\Coalesce ? 'P.peek' : 'P.getForUpdate';
+        $read = $expression instanceof Expr\AssignOp\Coalesce ? 'P.peek' : 'P.getForUpdate';
         $current = $path === [] ? $root : "{$read}({$root}, [".implode(', ', $path).'])';
-        $operand = $this->transpiler->expr($e->expr);
+        $operand = $this->transpiler->expr($expression->expr);
 
         /** ??= writes only where the value is missing: a value that is there is left as it is (a string's byte too). */
-        if ($e instanceof Expr\AssignOp\Coalesce) {
-            $t = $this->context->temp();
+        if ($expression instanceof Expr\AssignOp\Coalesce) {
+            $temporary = $this->context->temp();
 
-            return "({$prefix}{$t} = {$current}, {$t} !== null && {$t} !== undefined ? {$t} : ".$this->write($root, $path, $operand, true).')';
+            return "({$prefix}{$temporary} = {$current}, {$temporary} !== null && {$temporary} !== undefined ? {$temporary} : ".$this->write($root, $path, $operand, true).')';
         }
 
         /**
@@ -164,25 +164,25 @@ final class Writes extends Part
          * 10) and checks it (a string offset, a scalar).
          */
         if (! preg_match(self::SIMPLE, $operand)) {
-            $t = $this->context->temp();
-            $prefix .= "{$t} = {$operand}, ";
-            $operand = $t;
+            $temporary = $this->context->temp();
+            $prefix .= "{$temporary} = {$operand}, ";
+            $operand = $temporary;
         }
 
         $value = match (true) {
-            $e instanceof Expr\AssignOp\Plus => "P.add({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Minus => "P.sub({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Mul => "P.mul({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Div => "P.div({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Mod => "P.mod({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Pow => "P.pow({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\Concat => "P.concat({$current}, {$operand})",
-            $e instanceof Expr\AssignOp\BitwiseAnd => "(P.toInt({$current}) & P.toInt({$operand}))",
-            $e instanceof Expr\AssignOp\BitwiseOr => "(P.toInt({$current}) | P.toInt({$operand}))",
-            $e instanceof Expr\AssignOp\BitwiseXor => "(P.toInt({$current}) ^ P.toInt({$operand}))",
-            $e instanceof Expr\AssignOp\ShiftLeft => "(P.toInt({$current}) << P.toInt({$operand}))",
-            $e instanceof Expr\AssignOp\ShiftRight => "(P.toInt({$current}) >> P.toInt({$operand}))",
-            default => throw $this->context->error('Unsupported assignment operator', $e),
+            $expression instanceof Expr\AssignOp\Plus => "P.add({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Minus => "P.sub({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Mul => "P.mul({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Div => "P.div({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Mod => "P.mod({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Pow => "P.pow({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\Concat => "P.concat({$current}, {$operand})",
+            $expression instanceof Expr\AssignOp\BitwiseAnd => "(P.toInt({$current}) & P.toInt({$operand}))",
+            $expression instanceof Expr\AssignOp\BitwiseOr => "(P.toInt({$current}) | P.toInt({$operand}))",
+            $expression instanceof Expr\AssignOp\BitwiseXor => "(P.toInt({$current}) ^ P.toInt({$operand}))",
+            $expression instanceof Expr\AssignOp\ShiftLeft => "(P.toInt({$current}) << P.toInt({$operand}))",
+            $expression instanceof Expr\AssignOp\ShiftRight => "(P.toInt({$current}) >> P.toInt({$operand}))",
+            default => throw $this->context->error('Unsupported assignment operator', $expression),
         };
 
         $write = $this->write($root, $path, $value, $valueUsed);
@@ -190,13 +190,13 @@ final class Writes extends Part
         return $prefix === '' ? $write : "({$prefix}{$write})";
     }
 
-    public function increment(Expr\PreInc|Expr\PostInc|Expr\PreDec|Expr\PostDec $e, bool $valueUsed): string
+    public function increment(Expr\PreInc|Expr\PostInc|Expr\PreDec|Expr\PostDec $expression, bool $valueUsed): string
     {
-        [$root, $path] = $this->target($e->var);
+        [$root, $path] = $this->target($expression->var);
         [$root, $path, $prefix] = $this->stablePath($root, $path);
         $current = $path === [] ? $root : "P.getForUpdate({$root}, [".implode(', ', $path).'], true)';
-        $fn = $e instanceof Expr\PreInc || $e instanceof Expr\PostInc ? 'P.inc' : 'P.dec';
-        $post = $e instanceof Expr\PostInc || $e instanceof Expr\PostDec;
+        $fn = $expression instanceof Expr\PreInc || $expression instanceof Expr\PostInc ? 'P.inc' : 'P.dec';
+        $post = $expression instanceof Expr\PostInc || $expression instanceof Expr\PostDec;
 
         if (! $valueUsed) {
             $write = $this->write($root, $path, "{$fn}({$current})", false);
@@ -276,9 +276,9 @@ final class Writes extends Part
             return "{$root} = P.setIn({$root}, [".implode(', ', $path)."], {$value})";
         }
 
-        $t = $this->context->temp();
+        $temporary = $this->context->temp();
 
-        return "({$root} = P.setIn({$root}, [".implode(', ', $path)."], {$t} = {$value}), {$t})";
+        return "({$root} = P.setIn({$root}, [".implode(', ', $path)."], {$temporary} = {$value}), {$temporary})";
     }
 
     /**
@@ -296,9 +296,9 @@ final class Writes extends Part
             }
 
             if (! preg_match(self::SIMPLE, $key)) {
-                $t = $this->context->temp();
-                $prefix .= "{$t} = {$key}, ";
-                $path[$i] = $t;
+                $temporary = $this->context->temp();
+                $prefix .= "{$temporary} = {$key}, ";
+                $path[$i] = $temporary;
             }
         }
 

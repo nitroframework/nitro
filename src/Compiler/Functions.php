@@ -38,8 +38,8 @@ final class Functions
     {
         $source = (string) file_get_contents(self::all()[$name]);
 
-        return preg_match('~^// uses: (.+)$~m', $source, $m)
-            ? array_map('trim', explode(',', $m[1]))
+        return preg_match('~^// uses: (.+)$~m', $source, $match)
+            ? array_map('trim', explode(',', $match[1]))
             : [];
     }
 

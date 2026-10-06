@@ -127,15 +127,15 @@ final class Context
     // ------------------------------------------------------------ what a node is
 
     /** $this: the component, in the browser. */
-    public function isThis(Expr $e): bool
+    public function isThis(Expr $expression): bool
     {
-        return $e instanceof Expr\Variable && $e->name === 'this';
+        return $expression instanceof Expr\Variable && $expression->name === 'this';
     }
 
     /** $errors in a template (not a local of that name). */
-    public function isErrors(Expr $e): bool
+    public function isErrors(Expr $expression): bool
     {
-        return $e instanceof Expr\Variable && $e->name === 'errors' && $this->scope->variable !== null && ! isset($this->locals['errors']);
+        return $expression instanceof Expr\Variable && $expression->name === 'errors' && $this->scope->variable !== null && ! isset($this->locals['errors']);
     }
 
     /** A node's kind for an error message: "Foreach", "Goto". */

@@ -116,19 +116,19 @@ final class ComponentMeta
     {
         try {
             return self::readClass($class, $name, $defaultView, $page);
-        } catch (\Error $e) {
+        } catch (\Error $exception) {
             /**
              * The class's own code failing as it is read: an attribute PHP cannot make (repeated,
              * on the wrong target, wrong arguments), a default value naming a constant that is not
              * there. Where it is, as any compile error. An error in Fusion's own code is not this.
              */
-            $attribute = array_filter($e->getTrace(), fn (array $frame) => ($frame['class'] ?? null) === \ReflectionAttribute::class && $frame['function'] === 'newInstance') !== [];
+            $attribute = array_filter($exception->getTrace(), fn (array $frame) => ($frame['class'] ?? null) === \ReflectionAttribute::class && $frame['function'] === 'newInstance') !== [];
 
-            if ($attribute || ! str_starts_with(realpath($e->getFile()) ?: $e->getFile(), dirname(__DIR__))) {
-                throw new CompileException("{$class}: {$e->getMessage()}", (string) (new ReflectionClass($class))->getFileName());
+            if ($attribute || ! str_starts_with(realpath($exception->getFile()) ?: $exception->getFile(), dirname(__DIR__))) {
+                throw new CompileException("{$class}: {$exception->getMessage()}", (string) (new ReflectionClass($class))->getFileName());
             }
 
-            throw $e;
+            throw $exception;
         }
     }
 
@@ -226,8 +226,8 @@ final class ComponentMeta
 
         try {
             $view = ($reflection->getAttributes(View::class)[0] ?? null)?->newInstance();
-        } catch (\InvalidArgumentException $e) {
-            throw new CompileException("{$class}: {$e->getMessage()}", $file);
+        } catch (\InvalidArgumentException $exception) {
+            throw new CompileException("{$class}: {$exception->getMessage()}", $file);
         }
 
         if ($view !== null && $isStore) {
@@ -447,7 +447,7 @@ final class ComponentMeta
     /** @return list<string> */
     public function locked(): array
     {
-        return array_keys(array_filter($this->properties, fn (PropertyMeta $p) => $p->locked));
+        return array_keys(array_filter($this->properties, fn (PropertyMeta $property) => $property->locked));
     }
 
     /**

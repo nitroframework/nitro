@@ -48,13 +48,13 @@ final class AssetController
 
         try {
             $path = $path();
-        } catch (CompileException $e) {
+        } catch (CompileException $exception) {
             /** In development the page still renders; the console says what failed to compile. */
             if (! config('app.debug')) {
-                throw $e;
+                throw $exception;
             }
 
-            return $this->script('console.error('.json_encode('Fusion: '.$e->getMessage()).');', false);
+            return $this->script('console.error('.json_encode('Fusion: '.$exception->getMessage()).');', false);
         }
 
         return $this->script((string) file_get_contents($path), $request->query('v') === $bundle->tag());

@@ -51,7 +51,7 @@ final class PersistentMiddleware
 
         $middleware = array_values(array_filter(
             $this->router->gatherRouteMiddleware($route),
-            fn ($m) => is_string($m) && $this->rechecked(explode(':', $m, 2)[0])
+            fn ($entry) => is_string($entry) && $this->rechecked(explode(':', $entry, 2)[0])
         ));
 
         if ($middleware === []) {

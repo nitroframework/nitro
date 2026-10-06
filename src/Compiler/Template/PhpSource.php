@@ -54,8 +54,8 @@ final class PhpSource
     {
         try {
             $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php ('.$code.');') ?? [];
-        } catch (\PhpParser\Error $e) {
-            throw new CompileException('PHP syntax: '.$e->getRawMessage(), $file, $line);
+        } catch (\PhpParser\Error $exception) {
+            throw new CompileException('PHP syntax: '.$exception->getRawMessage(), $file, $line);
         }
 
         $stmt = $stmts[0] ?? null;
@@ -77,18 +77,18 @@ final class PhpSource
     {
         $depth = 0;
 
-        for ($i = $open, $n = strlen($source); $i < $n; $i++) {
-            $c = $source[$i];
+        for ($i = $open, $length = strlen($source); $i < $length; $i++) {
+            $context = $source[$i];
 
-            if ($c === '"' || $c === "'") {
-                for ($i++; $i < $n && $source[$i] !== $c; $i++) {
+            if ($context === '"' || $context === "'") {
+                for ($i++; $i < $length && $source[$i] !== $context; $i++) {
                     if ($source[$i] === '\\') {
                         $i++;
                     }
                 }
-            } elseif ($c === '(') {
+            } elseif ($context === '(') {
                 $depth++;
-            } elseif ($c === ')' && --$depth === 0) {
+            } elseif ($context === ')' && --$depth === 0) {
                 return $i;
             }
         }

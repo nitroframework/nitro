@@ -148,19 +148,19 @@ final class UpdateController
             /** Fusion::flash()'s data: from this call, or waiting since a redirect; a call that redirects leaves it for the page it goes to. */
             'flash' => $context->redirect === null ? $this->fusion()->flashForBrowser() : null,
             'effects' => array_filter([
-                'dispatches' => array_map(fn ($d) => array_filter([
-                    'event' => $d['event'],
-                    'params' => Wire::encode($d['params']),
-                    'to' => isset($d['to']) ? $this->fusion()->browserName($d['to']) : null,
-                    'self' => ($d['self'] ?? false) ?: null,
-                ], fn ($v) => $v !== null), $context->dispatches),
+                'dispatches' => array_map(fn ($dispatch) => array_filter([
+                    'event' => $dispatch['event'],
+                    'params' => Wire::encode($dispatch['params']),
+                    'to' => isset($dispatch['to']) ? $this->fusion()->browserName($dispatch['to']) : null,
+                    'self' => ($dispatch['self'] ?? false) ?: null,
+                ], fn ($value) => $value !== null), $context->dispatches),
                 'redirect' => $context->redirect,
                 /** Reading $fusion.<name> by the browser's names (an obfuscated build). */
                 'js' => array_map(fn (string $code) => $this->fusion()->names()?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code, $context->js),
                 /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
                 'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->fusion()->names()?->property($property) ?? $property, $context->reload)],
                 'returns' => $call !== null ? Wire::encode($returned) : null,
-            ], fn ($v) => $v !== null && $v !== []),
+            ], fn ($value) => $value !== null && $value !== []),
         ]);
     }
 
@@ -317,8 +317,8 @@ final class UpdateController
 
         try {
             $returned = $component->{$method}(...$arguments);
-        } catch (ValidationException $e) {
-            $context->errors = $e->validator->errors();
+        } catch (ValidationException $exception) {
+            $context->errors = $exception->validator->errors();
 
             return null;
         }

@@ -218,7 +218,7 @@ final class Transpiler
     private static function methodCalls(string $code): string
     {
         $tokens = array_slice(token_get_all('<?php '.$code), 1);
-        $blank = fn ($t) => is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true);
+        $blank = fn ($token) => is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true);
 
         /** The code's tokens without the blanks, as text, for what comes before and after one. */
         $texts = [];
@@ -289,9 +289,9 @@ final class Transpiler
         $this->context->loops = [];
 
         $for = $stmts[0];
-        $head = 'for ('.implode(', ', array_map(fn ($e) => $this->statementExpr($e), $for->init)).'; '
-            .($for->cond === [] ? 'true' : 'P.bool(('.implode(', ', array_map(fn ($e) => $this->expr($e), $for->cond)).'))').'; '
-            .implode(', ', array_map(fn ($e) => $this->statementExpr($e), $for->loop)).')';
+        $head = 'for ('.implode(', ', array_map(fn ($expression) => $this->statementExpr($expression), $for->init)).'; '
+            .($for->cond === [] ? 'true' : 'P.bool(('.implode(', ', array_map(fn ($expression) => $this->expr($expression), $for->cond)).'))').'; '
+            .implode(', ', array_map(fn ($expression) => $this->statementExpr($expression), $for->loop)).')';
 
         if ($this->context->usesTemporaries()) {
             throw new CompileException('@for is too complex for a template: compute the values in a method', $scope->file, $line);
@@ -317,7 +317,7 @@ final class Transpiler
     /** A statement, sent to the part that compiles it; those with no equivalent in the browser are errors here. */
     public function stmt(Stmt $stmt): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
         return match (true) {
             $stmt instanceof Stmt\Expression => $this->statementExpr($stmt->expr).";\n",
@@ -333,10 +333,10 @@ final class Transpiler
             $stmt instanceof Stmt\Unset_ => $this->statements->unset($stmt),
             $stmt instanceof Stmt\Nop => '',
             $stmt instanceof Stmt\Block => "{\n".$this->stmts($stmt->stmts)."}\n",
-            $stmt instanceof Stmt\Echo_ => throw $c->error('echo has no output in the browser: render values in the template', $stmt),
-            $stmt instanceof Stmt\TryCatch => throw $c->error('try/catch is not supported in browser code: move this code to a #[Server] method', $stmt),
-            $stmt instanceof Stmt\Global_, $stmt instanceof Stmt\Static_ => throw $c->error('global and static variables are not supported in the browser', $stmt),
-            default => throw $c->error(sprintf('%s is not supported in the browser', $c->describe($stmt)), $stmt),
+            $stmt instanceof Stmt\Echo_ => throw $context->error('echo has no output in the browser: render values in the template', $stmt),
+            $stmt instanceof Stmt\TryCatch => throw $context->error('try/catch is not supported in browser code: move this code to a #[Server] method', $stmt),
+            $stmt instanceof Stmt\Global_, $stmt instanceof Stmt\Static_ => throw $context->error('global and static variables are not supported in the browser', $stmt),
+            default => throw $context->error(sprintf('%s is not supported in the browser', $context->describe($stmt)), $stmt),
         };
     }
 
@@ -375,45 +375,45 @@ final class Transpiler
     }
 
     /** An expression, sent to the part that compiles it; those with no equivalent in the browser are errors here. */
-    public function expr(Expr $e): string
+    public function expr(Expr $expression): string
     {
-        $c = $this->context;
+        $context = $this->context;
 
         return match (true) {
-            $e instanceof Scalar\String_ => $c->string($c->updatedHook ? $c->scope->browserPath($e->value) : $e->value),
-            $e instanceof Scalar\Int_ => (string) $e->value,
-            $e instanceof Scalar\Float_ => $c->float($e->value),
-            $e instanceof Scalar\InterpolatedString => $this->expressions->interpolated($e),
-            $e instanceof Scalar\MagicConst => throw $c->error('Magic constants are not available in the browser', $e),
-            $e instanceof Expr\ConstFetch => $this->expressions->constant($e),
-            $e instanceof Expr\ClassConstFetch => $this->expressions->classConstant($e),
-            $e instanceof Expr\Variable => $this->expressions->variable($e),
-            $e instanceof Expr\Array_ => $this->expressions->array($e),
-            $e instanceof Expr\ArrayDimFetch => $this->expressions->dimFetch($e),
-            $e instanceof Expr\PropertyFetch, $e instanceof Expr\NullsafePropertyFetch => $this->component->propertyFetch($e),
-            $e instanceof Expr\MethodCall, $e instanceof Expr\NullsafeMethodCall => $this->component->methodCall($e),
-            $e instanceof Expr\FuncCall => $this->calls->funcCall($e),
-            $e instanceof Expr\Assign => $this->writes->assignment($e, true),
-            $e instanceof Expr\AssignOp => $this->writes->assignOp($e, true),
-            $e instanceof Expr\PreInc, $e instanceof Expr\PostInc, $e instanceof Expr\PreDec, $e instanceof Expr\PostDec => $this->writes->increment($e, true),
-            $e instanceof Expr\BinaryOp => $this->expressions->binary($e),
-            $e instanceof Expr\BooleanNot => '!P.bool('.$this->expr($e->expr).')',
-            $e instanceof Expr\UnaryMinus => 'P.neg('.$this->expr($e->expr).')',
-            $e instanceof Expr\UnaryPlus => 'P.toNum('.$this->expr($e->expr).')',
-            $e instanceof Expr\BitwiseNot => '(~P.toInt('.$this->expr($e->expr).'))',
-            $e instanceof Expr\Ternary => $this->expressions->ternary($e),
-            $e instanceof Expr\Cast => $this->expressions->cast($e),
-            $e instanceof Expr\Isset_ => $this->expressions->isset($e),
-            $e instanceof Expr\Empty_ => $this->expressions->empty($e),
-            $e instanceof Expr\Match_ => $this->expressions->match($e),
-            $e instanceof Expr\Closure => $this->functions->closure($e),
-            $e instanceof Expr\ArrowFunction => $this->functions->arrowFunction($e),
-            $e instanceof Expr\New_ => throw $c->error('Creating objects (new) is not supported in the browser: move this code to a #[Server] method', $e),
-            $e instanceof Expr\StaticCall => $this->calls->staticCall($e),
-            $e instanceof Expr\Throw_ => throw $c->error('throw is not supported in the browser: move this code to a #[Server] method', $e),
-            $e instanceof Expr\Instanceof_ => throw $c->error('instanceof is not supported in the browser (objects arrive as arrays)', $e),
-            $e instanceof Expr\ErrorSuppress => $this->expr($e->expr),
-            default => throw $c->error(sprintf('%s is not supported in the browser', $c->describe($e)), $e),
+            $expression instanceof Scalar\String_ => $context->string($context->updatedHook ? $context->scope->browserPath($expression->value) : $expression->value),
+            $expression instanceof Scalar\Int_ => (string) $expression->value,
+            $expression instanceof Scalar\Float_ => $context->float($expression->value),
+            $expression instanceof Scalar\InterpolatedString => $this->expressions->interpolated($expression),
+            $expression instanceof Scalar\MagicConst => throw $context->error('Magic constants are not available in the browser', $expression),
+            $expression instanceof Expr\ConstFetch => $this->expressions->constant($expression),
+            $expression instanceof Expr\ClassConstFetch => $this->expressions->classConstant($expression),
+            $expression instanceof Expr\Variable => $this->expressions->variable($expression),
+            $expression instanceof Expr\Array_ => $this->expressions->array($expression),
+            $expression instanceof Expr\ArrayDimFetch => $this->expressions->dimFetch($expression),
+            $expression instanceof Expr\PropertyFetch, $expression instanceof Expr\NullsafePropertyFetch => $this->component->propertyFetch($expression),
+            $expression instanceof Expr\MethodCall, $expression instanceof Expr\NullsafeMethodCall => $this->component->methodCall($expression),
+            $expression instanceof Expr\FuncCall => $this->calls->funcCall($expression),
+            $expression instanceof Expr\Assign => $this->writes->assignment($expression, true),
+            $expression instanceof Expr\AssignOp => $this->writes->assignOp($expression, true),
+            $expression instanceof Expr\PreInc, $expression instanceof Expr\PostInc, $expression instanceof Expr\PreDec, $expression instanceof Expr\PostDec => $this->writes->increment($expression, true),
+            $expression instanceof Expr\BinaryOp => $this->expressions->binary($expression),
+            $expression instanceof Expr\BooleanNot => '!P.bool('.$this->expr($expression->expr).')',
+            $expression instanceof Expr\UnaryMinus => 'P.neg('.$this->expr($expression->expr).')',
+            $expression instanceof Expr\UnaryPlus => 'P.toNum('.$this->expr($expression->expr).')',
+            $expression instanceof Expr\BitwiseNot => '(~P.toInt('.$this->expr($expression->expr).'))',
+            $expression instanceof Expr\Ternary => $this->expressions->ternary($expression),
+            $expression instanceof Expr\Cast => $this->expressions->cast($expression),
+            $expression instanceof Expr\Isset_ => $this->expressions->isset($expression),
+            $expression instanceof Expr\Empty_ => $this->expressions->empty($expression),
+            $expression instanceof Expr\Match_ => $this->expressions->match($expression),
+            $expression instanceof Expr\Closure => $this->functions->closure($expression),
+            $expression instanceof Expr\ArrowFunction => $this->functions->arrowFunction($expression),
+            $expression instanceof Expr\New_ => throw $context->error('Creating objects (new) is not supported in the browser: move this code to a #[Server] method', $expression),
+            $expression instanceof Expr\StaticCall => $this->calls->staticCall($expression),
+            $expression instanceof Expr\Throw_ => throw $context->error('throw is not supported in the browser: move this code to a #[Server] method', $expression),
+            $expression instanceof Expr\Instanceof_ => throw $context->error('instanceof is not supported in the browser (objects arrive as arrays)', $expression),
+            $expression instanceof Expr\ErrorSuppress => $this->expr($expression->expr),
+            default => throw $context->error(sprintf('%s is not supported in the browser', $context->describe($expression)), $expression),
         };
     }
 
@@ -431,8 +431,8 @@ final class Transpiler
 
         try {
             $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse($code) ?? [];
-        } catch (Throwable $e) {
-            throw new CompileException('Invalid PHP: '.$e->getMessage(), $this->context->scope->file, $line);
+        } catch (Throwable $exception) {
+            throw new CompileException('Invalid PHP: '.$exception->getMessage(), $this->context->scope->file, $line);
         }
 
         if ($imports !== '') {

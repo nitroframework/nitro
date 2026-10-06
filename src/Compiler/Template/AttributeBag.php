@@ -33,25 +33,25 @@ final class AttributeBag
             $entries[$attribute] = isset($fusion[$attribute]) ? ['fusion' => $fusion[$attribute]] : ['code' => $codes[$attribute]];
         }
 
-        $view = preg_replace_callback('/\{\{\s*(\$attributes\b(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $m) use ($entries, $frame, $path, $view) {
-            $bag = self::evaluate($m[1], $entries, $path, $view, $m[0]);
+        $view = preg_replace_callback('/\{\{\s*(\$attributes\b(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $frame, $path, $view) {
+            $bag = self::evaluate($match[1], $entries, $path, $view, $match[0]);
 
             return self::print($bag, $frame);
         }, $view);
 
         return preg_replace_callback('/\$attributes\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $found) use ($entries, $path, $view) {
-            $m = array_column($found, 0);
+            $match = array_column($found, 0);
             $line = 1 + substr_count($view, "\n", 0, $found[0][1]);
-            $args = PhpSource::arguments($m[2], '$attributes->'.$m[1].'()', $path, $line);
+            $args = PhpSource::arguments($match[2], '$attributes->'.$match[1].'()', $path, $line);
             $key = $args[0] ?? null;
 
             if (! $key instanceof Scalar\String_) {
-                throw new CompileException("\$attributes->{$m[1]}() takes the attribute's name as a string", $path, $line);
+                throw new CompileException("\$attributes->{$match[1]}() takes the attribute's name as a string", $path, $line);
             }
 
             $entry = $entries[$key->value] ?? null;
 
-            if ($m[1] === 'has') {
+            if ($match[1] === 'has') {
                 return $entry === null ? 'false' : 'true';
             }
 

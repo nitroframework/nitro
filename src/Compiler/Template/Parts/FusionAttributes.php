@@ -31,7 +31,7 @@ final class FusionAttributes extends Part
      */
     public function fusionAttribute(string $text, int $i, string $spec): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
         $parts = explode('.', $spec);
         $name = array_shift($parts);
@@ -47,7 +47,7 @@ final class FusionAttributes extends Part
 
             foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $modifier) {
                 if (! in_array($modifier, Globals::ATTRIBUTE_MODIFIERS[$name], true)) {
-                    throw $c->error(Globals::ATTRIBUTE_MODIFIERS[$name] === []
+                    throw $context->error(Globals::ATTRIBUTE_MODIFIERS[$name] === []
                         ? "fusion:{$name} takes no modifiers (.{$modifier})"
                         : "Unknown modifier .{$modifier} on fusion:{$name} (it takes .".implode(', .', Globals::ATTRIBUTE_MODIFIERS[$name]).')');
                 }
@@ -58,7 +58,7 @@ final class FusionAttributes extends Part
             }
 
             if ($name === 'dirty' && ! in_array($parts, Globals::LOADING_FORMS, true)) {
-                throw $c->error('fusion:dirty takes nothing or one of .remove, .class, .class.remove, .attr (not .'.implode('.', $parts).')');
+                throw $context->error('fusion:dirty takes nothing or one of .remove, .class, .class.remove, .attr (not .'.implode('.', $parts).')');
             }
 
             /** Passed through: the runtime reads it from the element (its value may contain {{ }}). */
@@ -68,7 +68,7 @@ final class FusionAttributes extends Part
                 return $this->compiler->html->openValue('fusion:'.$spec, $open[1], $i + strlen($open[0]));
             }
 
-            $c->tag->attributes[] = ['c' => 'fusion:'.$spec];
+            $context->tag->attributes[] = ['c' => 'fusion:'.$spec];
 
             return $i;
         }
@@ -81,18 +81,18 @@ final class FusionAttributes extends Part
         if (in_array($name, $this->compiler->attributes, true)) {
             foreach ($parts as $modifier) {
                 if (preg_match('/^[\w\-]+$/', $modifier) !== 1) {
-                    throw $c->error("fusion:{$name}: a modifier is a word (fusion:{$name}.top, fusion:{$name}.300ms)");
+                    throw $context->error("fusion:{$name}: a modifier is a word (fusion:{$name}.top, fusion:{$name}.300ms)");
                 }
             }
 
-            $c->tag->attributes[] = ['c' => 'fusion:h-directive'];
+            $context->tag->attributes[] = ['c' => 'fusion:h-directive'];
             $i += strlen('fusion:'.$spec);
 
             if (preg_match('/\G\s*=\s*(["\'])/', $text, $open, 0, $i)) {
                 return $this->compiler->html->openValue('fusion:'.$spec, $open[1], $i + strlen($open[0]));
             }
 
-            $c->tag->attributes[] = ['c' => 'fusion:'.$spec];
+            $context->tag->attributes[] = ['c' => 'fusion:'.$spec];
 
             return $i;
         }
@@ -100,7 +100,7 @@ final class FusionAttributes extends Part
         $hook = Globals::HOOKS[$name] ?? null;
 
         if ($hook === null && ! Globals::isEvent($name)) {
-            throw $c->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible, one of fusion:".implode(', fusion:', Globals::ATTRIBUTES)
+            throw $context->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible, one of fusion:".implode(', fusion:', Globals::ATTRIBUTES)
                 .', or add it to fusion.attributes and give it a Fusion.directive()');
         }
 
@@ -112,39 +112,39 @@ final class FusionAttributes extends Part
                     || ($name === 'visible' && preg_match('/^\d+px$/', $modifier) === 1);
 
             if (! $known) {
-                throw $c->error("Unknown modifier .{$modifier} on fusion:{$name}");
+                throw $context->error("Unknown modifier .{$modifier} on fusion:{$name}");
             }
         }
 
         /** A bare fusion:poll refreshes the component. */
         if ($name === 'poll' && ! preg_match('/\Gfusion:[\w\-.]+\s*=/', $text, $_, 0, $i)) {
-            $c->tag->attributes[] = ['c' => 'fusion:'.$spec, 'on' => ['e' => 'poll', 'm' => $parts, 'code' => $table->handler('$refresh')]];
+            $context->tag->attributes[] = ['c' => 'fusion:'.$spec, 'on' => ['e' => 'poll', 'm' => $parts, 'code' => $table->handler('$refresh')]];
 
             return $i + strlen('fusion:'.$spec);
         }
 
-        if (! preg_match('/\Gfusion:[\w\-.]+\s*=\s*("([^"]*)"|\'([^\']*)\')/', $text, $m, 0, $i)) {
+        if (! preg_match('/\Gfusion:[\w\-.]+\s*=\s*("([^"]*)"|\'([^\']*)\')/', $text, $match, 0, $i)) {
             /** An opening quote without its closing one here: Blade ({{ }}, @...) split the value. */
-            throw $c->error(preg_match('/\Gfusion:[\w\-.]+\s*=\s*["\']/', $text, $open, 0, $i)
+            throw $context->error(preg_match('/\Gfusion:[\w\-.]+\s*=\s*["\']/', $text, $open, 0, $i)
                 ? "fusion:{$name} takes a method call such as \"remove(\$item['id'])\", without {{ }} or directives"
                 : "fusion:{$name} needs a quoted handler, such as fusion:{$name}=\"save\"");
         }
 
-        $code = $m[2] !== '' ? $m[2] : ($m[3] ?? '');
+        $code = $match[2] !== '' ? $match[2] : ($match[3] ?? '');
 
         if (str_contains($code, '{{') || trim($code) === '') {
-            throw $c->error("fusion:{$name} takes a method call such as \"remove(\$item['id'])\", without {{ }}");
+            throw $context->error("fusion:{$name} takes a method call such as \"remove(\$item['id'])\", without {{ }}");
         }
 
         $decoded = html_entity_decode($code, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $c->tag->attributes[] = [
+        $context->tag->attributes[] = [
             'c' => 'fusion:'.$spec,
             /** An obfuscated build leaves the handler's text out of the page: the compiled code is what runs. */
-            'h' => $c->scope->names === null ? [['c' => $decoded]] : [],
+            'h' => $context->scope->names === null ? [['c' => $decoded]] : [],
             'on' => ['e' => $name, 'm' => $parts, 'code' => $table->handler($decoded)],
         ];
 
-        return $i + strlen($m[0]);
+        return $i + strlen($match[0]);
     }
 
     /**
@@ -178,25 +178,25 @@ final class FusionAttributes extends Part
 
     private function checkTransition(array $modifiers): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
         if (in_array('out-in', $modifiers, true) && in_array('in-out', $modifiers, true)) {
-            throw $c->error('fusion:transition takes one mode: .out-in or .in-out');
+            throw $context->error('fusion:transition takes one mode: .out-in or .in-out');
         }
 
         for ($i = 0; $i < count($modifiers); $i++) {
             $modifier = $modifiers[$i];
 
             if (! in_array($modifier, Globals::TRANSITION_MODIFIERS, true)) {
-                throw $c->error("Unknown modifier .{$modifier} on fusion:transition (it takes .".implode(', .', Globals::TRANSITION_MODIFIERS).')');
+                throw $context->error("Unknown modifier .{$modifier} on fusion:transition (it takes .".implode(', .', Globals::TRANSITION_MODIFIERS).')');
             }
 
             if ($modifier === 'duration' && preg_match('/^\d+m?s$/', $modifiers[$i + 1] ?? '') !== 1) {
-                throw $c->error('fusion:transition.duration needs a time: .duration.300ms or .duration.1s');
+                throw $context->error('fusion:transition.duration needs a time: .duration.300ms or .duration.1s');
             }
 
             if ($modifier === 'origin' && ! in_array($modifiers[$i + 1] ?? '', ['top', 'bottom', 'left', 'right', 'center'], true)) {
-                throw $c->error('fusion:transition.origin needs a side: .origin.top, .bottom, .left, .right or .center');
+                throw $context->error('fusion:transition.origin needs a side: .origin.top, .bottom, .left, .right or .center');
             }
 
             if ($modifier === 'duration' || $modifier === 'origin') {
@@ -208,33 +208,33 @@ final class FusionAttributes extends Part
     /** fusion:model="prop" or "prop.key": a public property that is not #[Locked]. */
     private function checkModel(string $text, int $i, array $modifiers): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
         foreach ($modifiers as $modifier) {
             if (! in_array($modifier, ['live', 'blur', 'change', 'lazy', 'debounce', 'number', 'trim', 'boolean'], true) && ! preg_match('/^\d+m?s$/', $modifier)) {
-                throw $c->error("Unknown modifier .{$modifier} on fusion:model");
+                throw $context->error("Unknown modifier .{$modifier} on fusion:model");
             }
         }
 
-        if (preg_match('/\Gfusion:[\w\-.]+\s*=\s*("([^"]*)"|\'([^\']*)\')/', $text, $m, 0, $i)) {
-            $path = $m[2] !== '' ? $m[2] : ($m[3] ?? '');
+        if (preg_match('/\Gfusion:[\w\-.]+\s*=\s*("([^"]*)"|\'([^\']*)\')/', $text, $match, 0, $i)) {
+            $path = $match[2] !== '' ? $match[2] : ($match[3] ?? '');
             $valid = preg_match('/^[A-Za-z_]\w*(\.[\w\-]+)*$/', $path) === 1;
-        } elseif (preg_match('/\Gfusion:[\w\-.]+\s*=\s*["\']([A-Za-z_]\w*\.[\w\-.]*)$/', $text, $m, 0, $i)) {
+        } elseif (preg_match('/\Gfusion:[\w\-.]+\s*=\s*["\']([A-Za-z_]\w*\.[\w\-.]*)$/', $text, $match, 0, $i)) {
             /** A path built with Blade (fusion:model="items.{{ $i }}.name"): the root is fixed, the rest rendered. */
-            $path = $m[1];
+            $path = $match[1];
             $valid = true;
         } else {
-            throw $c->error('fusion:model needs a property name, such as fusion:model="email" or "items.{{ $i }}.name"');
+            throw $context->error('fusion:model needs a property name, such as fusion:model="email" or "items.{{ $i }}.name"');
         }
 
         $root = explode('.', $path)[0];
 
-        if (! $valid || ! $c->scope->isProperty($root)) {
-            throw $c->error("fusion:model=\"{$path}\": {$root} is not a public property of the component");
+        if (! $valid || ! $context->scope->isProperty($root)) {
+            throw $context->error("fusion:model=\"{$path}\": {$root} is not a public property of the component");
         }
 
-        if ($c->scope->isLocked($root)) {
-            throw $c->error("fusion:model=\"{$path}\": {$root} is #[Locked], so the browser cannot change it");
+        if ($context->scope->isLocked($root)) {
+            throw $context->error("fusion:model=\"{$path}\": {$root} is #[Locked], so the browser cannot change it");
         }
     }
 }

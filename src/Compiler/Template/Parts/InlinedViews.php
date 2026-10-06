@@ -37,7 +37,7 @@ final class InlinedViews extends Part
      */
     public function inlined(string $name, ?string $args): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
         switch ($name) {
             case 'fusionScope':
@@ -49,32 +49,32 @@ final class InlinedViews extends Part
                     $vars[$var] = $this->parseReplacement($php);
                 }
 
-                $c->frameParents[$frame['id']] = $c->frames;
-                $c->frames[] = ['id' => $frame['id'], 'vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($c->locals)];
+                $context->frameParents[$frame['id']] = $context->frames;
+                $context->frames[] = ['id' => $frame['id'], 'vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($context->locals)];
 
                 break;
             case 'endfusionScope':
-                array_pop($c->frames);
+                array_pop($context->frames);
 
                 break;
             case 'fusionSlot':
             case 'fusionFrame':
-                $c->setAside[] = $c->frames;
-                $c->frames = $c->frameParents[(int) $args] ?? [];
+                $context->setAside[] = $context->frames;
+                $context->frames = $context->frameParents[(int) $args] ?? [];
 
                 if ($name === 'fusionSlot') {
-                    $c->slotText[] = strlen($c->text);
+                    $context->slotText[] = strlen($context->text);
                 }
 
                 break;
             case 'endfusionSlot':
             case 'endfusionFrame':
-                $c->frames = array_pop($c->setAside) ?? [];
+                $context->frames = array_pop($context->setAside) ?? [];
 
                 /** Blade trims what a slot renders: its trailing whitespace (a component's last newline) goes. */
                 if ($name === 'endfusionSlot') {
-                    $start = array_pop($c->slotText) ?? 0;
-                    $c->text = substr($c->text, 0, $start).rtrim(substr($c->text, $start));
+                    $start = array_pop($context->slotText) ?? 0;
+                    $context->text = substr($context->text, 0, $start).rtrim(substr($context->text, $start));
                 }
 
                 break;
@@ -87,25 +87,25 @@ final class InlinedViews extends Part
      */
     public function replacement(string $name): ?Expr
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        for ($i = count($c->frames) - 1; $i >= 0; $i--) {
-            $frame = $c->frames[$i];
+        for ($i = count($context->frames) - 1; $i >= 0; $i--) {
+            $frame = $context->frames[$i];
 
             if (array_key_exists($name, $frame['vars'])) {
                 return $frame['vars'][$name];
             }
 
-            if (in_array($name, array_slice($c->locals, $frame['mark']), true)) {
+            if (in_array($name, array_slice($context->locals, $frame['mark']), true)) {
                 return null;
             }
 
             if ($frame['isolated']) {
-                if ($c->inHandler || $name === 'errors') {
+                if ($context->inHandler || $name === 'errors') {
                     return null;
                 }
 
-                throw $c->error($name === 'this'
+                throw $context->error($name === 'this'
                     ? "{$frame['label']}: a Blade component has no \$this (it renders on its own); give it what it needs as attributes"
                     : "{$frame['label']} has no \${$name}: a Blade component sees its @props, its attributes and its slots, so pass \${$name} as an attribute");
             }
@@ -121,19 +121,19 @@ final class InlinedViews extends Part
      */
     public function componentAttribute(string $args): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
 
-        if (! preg_match('/^\s*\'((?:[^\'\\\\]|\\\\.)*)\'\s*,(.*)$/s', $args, $m)) {
-            throw $c->error('Malformed component attribute');
+        if (! preg_match('/^\s*\'((?:[^\'\\\\]|\\\\.)*)\'\s*,(.*)$/s', $args, $match)) {
+            throw $context->error('Malformed component attribute');
         }
 
-        $name = str_replace(["\\'", '\\\\'], ["'", '\\'], $m[1]);
-        $code = trim($m[2]);
+        $name = str_replace(["\\'", '\\\\'], ["'", '\\'], $match[1]);
+        $code = trim($match[2]);
         $true = $name === 'x-data' || str_starts_with($name, 'wire:') ? "''" : var_export($name, true);
         $value = "html_entity_decode(trim((string) (({$code}) === true ? {$true} : ({$code}))), ENT_QUOTES)";
 
-        $c->tag->attributes[] = [
+        $context->tag->attributes[] = [
             'c' => $name,
             'when' => $table->condition("({$code}) !== null && ({$code}) !== false"),
             'h' => [['e' => 1, 'code' => $table->expression('P.toStr('.$table->expr($value).')')]],
@@ -145,8 +145,8 @@ final class InlinedViews extends Part
     {
         try {
             $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php ('.$php.');') ?? [];
-        } catch (\PhpParser\Error $e) {
-            throw $this->context->error('Invalid PHP: '.$e->getRawMessage());
+        } catch (\PhpParser\Error $exception) {
+            throw $this->context->error('Invalid PHP: '.$exception->getRawMessage());
         }
 
         $stmts = VariableSubstitution::apply($stmts, fn (string $name) => $this->replacement($name));

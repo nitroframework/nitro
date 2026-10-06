@@ -25,7 +25,7 @@ final class Directives extends Part
 {
     public function directive(Token $token): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $tree = $this->compiler->tree;
         $table = $this->compiler->expressionTable;
         $blocks = $this->compiler->blocks;
@@ -33,11 +33,11 @@ final class Directives extends Part
         $args = $token->args;
 
         if (! in_array($name, Syntax::DIRECTIVES, true)) {
-            throw $c->error("@{$name} cannot render in the browser, so it is not supported in a Fusion component".
+            throw $context->error("@{$name} cannot render in the browser, so it is not supported in a Fusion component".
                 ' (use a child component or pass the data as a property)');
         }
 
-        if ($c->state === 'tag') {
+        if ($context->state === 'tag') {
             $this->tagDirective($name, $args);
 
             return;
@@ -49,9 +49,9 @@ final class Directives extends Part
             return;
         }
 
-        if ($c->state === 'value') {
+        if ($context->state === 'value') {
             if ($name !== 'json') {
-                throw $c->error("@{$name} cannot be used inside an attribute value: use @class, @style or an echo");
+                throw $context->error("@{$name} cannot be used inside an attribute value: use @class, @style or an echo");
             }
 
             $this->compiler->html->attributePart(['e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')]);
@@ -59,8 +59,8 @@ final class Directives extends Part
             return;
         }
 
-        if ($c->state === 'comment' || $c->state === 'endtag') {
-            throw $c->error("@{$name} cannot be used inside an HTML comment or an end tag");
+        if ($context->state === 'comment' || $context->state === 'endtag') {
+            throw $context->error("@{$name} cannot be used inside an HTML comment or an end tag");
         }
 
         $blocks->inSwitchBeforeCase($name);
@@ -103,7 +103,7 @@ final class Directives extends Part
             'json' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')])),
             /** Renders nothing: its imports apply to the whole view (TemplateCompiler::imports()). */
             'use' => $this->required($name, $args),
-            default => throw $c->error("@{$name} belongs inside a tag, such as <div @{$name}(...)>"),
+            default => throw $context->error("@{$name} belongs inside a tag, such as <div @{$name}(...)>"),
         };
     }
 
@@ -120,7 +120,7 @@ final class Directives extends Part
     /** @class, @style, @checked, ... inside a tag: attributes of it. */
     private function tagDirective(string $name, ?string $args): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
 
         if (in_array($name, Syntax::INLINED_TAG_DIRECTIVES, true)) {
@@ -130,10 +130,10 @@ final class Directives extends Part
         }
 
         if (! in_array($name, Syntax::ATTRIBUTE_DIRECTIVES, true)) {
-            throw $c->error("@{$name} cannot sit inside a tag: wrap the element in it, or use @class, @style, @disabled, @checked, ...");
+            throw $context->error("@{$name} cannot sit inside a tag: wrap the element in it, or use @class, @style, @disabled, @checked, ...");
         }
 
-        $c->tag->attributes[] = match ($name) {
+        $context->tag->attributes[] = match ($name) {
             'class' => ['c' => 'class', 'h' => [['e' => 1, 'code' => $table->expression('B.classes('.$table->expr($args ?? '[]').')')]]],
             'style' => ['c' => 'style', 'h' => [['e' => 1, 'code' => $table->expression('B.styles('.$table->expr($args ?? '[]').')')]]],
             default => ['c' => $name, 'when' => $table->condition($this->required($name, $args))],

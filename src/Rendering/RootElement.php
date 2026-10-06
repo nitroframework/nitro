@@ -19,7 +19,7 @@ final class RootElement
     {
         self::assertSingleRoot($html, $component);
 
-        if (! preg_match('/<([a-zA-Z][a-zA-Z0-9\-]*)/', $html, $m, PREG_OFFSET_CAPTURE)) {
+        if (! preg_match('/<([a-zA-Z][a-zA-Z0-9\-]*)/', $html, $match, PREG_OFFSET_CAPTURE)) {
             throw new RuntimeException("Fusion component [{$component}] must render a single root element.");
         }
 
@@ -29,7 +29,7 @@ final class RootElement
             $insert .= ' '.$name.'="'.htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
 
-        $at = $m[1][1] + strlen($m[1][0]);
+        $at = $match[1][1] + strlen($match[1][0]);
 
         return substr($html, 0, $at).$insert.substr($html, $at);
     }
@@ -43,7 +43,7 @@ final class RootElement
         $length = strlen($html);
 
         while ($offset < $length) {
-            if (! preg_match('/<!--.*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9\-:]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>/s', $html, $m, PREG_OFFSET_CAPTURE, $offset)) {
+            if (! preg_match('/<!--.*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9\-:]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>/s', $html, $match, PREG_OFFSET_CAPTURE, $offset)) {
                 $tail = substr($html, $offset);
 
                 if ($depth === 0 && trim($tail) !== '') {
@@ -53,21 +53,21 @@ final class RootElement
                 break;
             }
 
-            $between = substr($html, $offset, $m[0][1] - $offset);
+            $between = substr($html, $offset, $match[0][1] - $offset);
 
             if ($depth === 0 && trim($between) !== '') {
                 throw self::notSingle($component);
             }
 
-            $offset = $m[0][1] + strlen($m[0][0]);
+            $offset = $match[0][1] + strlen($match[0][0]);
 
-            if (str_starts_with($m[0][0], '<!--')) {
+            if (str_starts_with($match[0][0], '<!--')) {
                 continue;
             }
 
-            $tag = strtolower($m[2][0]);
-            $closing = $m[1][0] === '/';
-            $selfClosing = str_ends_with(rtrim($m[3][0]), '/') || in_array($tag, self::VOID, true);
+            $tag = strtolower($match[2][0]);
+            $closing = $match[1][0] === '/';
+            $selfClosing = str_ends_with(rtrim($match[3][0]), '/') || in_array($tag, self::VOID, true);
 
             if ($closing) {
                 $depth--;

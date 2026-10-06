@@ -33,18 +33,18 @@ final class ChildComponents extends Part
      */
     public function child(string $text, int $at): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
 
         /** Children are numbered by the server per view file: inlined, the numbers would not match. */
-        if ($c->frames !== []) {
-            throw $c->error("<fusion:...> inside {$c->frames[count($c->frames) - 1]['label']}: put Fusion children in the component's own view, not in an included view or a Blade component");
+        if ($context->frames !== []) {
+            throw $context->error("<fusion:...> inside {$context->frames[count($context->frames) - 1]['label']}: put Fusion children in the component's own view, not in an included view or a Blade component");
         }
 
-        $tag = ChildTag::parse($text, $at, $c->children++, $c->file, $c->line);
+        $tag = ChildTag::parse($text, $at, $context->children++, $context->file, $context->line);
 
         if ($tag->hydrate !== null) {
-            throw $c->error("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$tag->name}> is a child of this component, and starts with it");
+            throw $context->error("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$tag->name}> is a child of this component, and starts with it");
         }
 
         /**
@@ -52,7 +52,7 @@ final class ChildComponents extends Part
          * position (the runtime renders it again when it moves, rather than moving it).
          */
         if ($tag->key === null) {
-            foreach ($c->stack as $frame) {
+            foreach ($context->stack as $frame) {
                 if (in_array($frame['kind'], ['foreach', 'forelse'], true)) {
                     $frame['node']->fields['i'][0]['positional'] = 1;
                 }
@@ -62,8 +62,8 @@ final class ChildComponents extends Part
         if ($tag->model !== null) {
             $root = $tag->modelPath[0];
 
-            if (! $c->scope->isProperty($root) || $c->scope->isLocked($root)) {
-                throw $c->error("fusion:model on <fusion:{$tag->name}> binds \"{$tag->model}\": {$root} must be a public property of this component that the browser can change");
+            if (! $context->scope->isProperty($root) || $context->scope->isLocked($root)) {
+                throw $context->error("fusion:model on <fusion:{$tag->name}> binds \"{$tag->model}\": {$root} must be a public property of this component that the browser can change");
             }
         }
 
@@ -71,7 +71,7 @@ final class ChildComponents extends Part
         $dynamic = $tag->name === 'dynamic-component';
 
         if ($dynamic && ! isset($tag->props['is'])) {
-            throw $c->error('<fusion:dynamic-component> needs :is, the name of the component to render (as in <fusion:name>)');
+            throw $context->error('<fusion:dynamic-component> needs :is, the name of the component to render (as in <fusion:name>)');
         }
 
         $props = [];
@@ -82,18 +82,18 @@ final class ChildComponents extends Part
             }
 
             /** The child's properties by the browser's names for them (an obfuscated build); "$model" is the runtime's. */
-            $props[] = json_encode($name === '$model' || $dynamic ? $name : $c->scope->names?->property($name) ?? $name).': '.$table->expr($expression);
+            $props[] = json_encode($name === '$model' || $dynamic ? $name : $context->scope->names?->property($name) ?? $name).': '.$table->expr($expression);
         }
 
         $node = new TemplateNode(array_filter([
             't' => 'c',
-            'c' => $dynamic ? null : $c->scope->browserComponent($tag->name),
+            'c' => $dynamic ? null : $context->scope->browserComponent($tag->name),
             'is' => $dynamic ? $table->expression('P.toStr('.$table->expr($tag->props['is']).')') : null,
             'n' => $tag->number,
             'key' => $tag->key !== null ? $table->expression('P.toStr('.$table->expr($tag->key).')') : null,
             'props' => $table->expression('{'.implode(', ', $props).'}'),
             'model' => $tag->model === null ? null : $this->modelPath($tag->modelPath),
-        ], fn ($v) => $v !== null));
+        ], fn ($value) => $value !== null));
         $this->compiler->tree->append($node);
 
         /**
@@ -102,7 +102,7 @@ final class ChildComponents extends Part
          */
         if (! $tag->selfClosing) {
             $node->slots['default'] = new TemplateNode(['t' => 'r']);
-            $c->stack[] = ['kind' => 'child', 'node' => $node->slots['default'], 'child' => $node, 'tag' => $tag->name, 'line' => $c->line, 'locals' => $c->locals, 'sources' => $c->sources];
+            $context->stack[] = ['kind' => 'child', 'node' => $node->slots['default'], 'child' => $node, 'tag' => $tag->name, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources];
         }
 
         return $at + $tag->length;
@@ -145,42 +145,42 @@ final class ChildComponents extends Part
     /** <fusion:slot name="footer">: a named slot of the child tag around it. */
     public function slotOpen(string $text, int $at): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $this->compiler->tree->flushText();
 
-        if (! preg_match(substr(ChildTag::SLOT_PATTERN, 0, 1).'\G'.substr(ChildTag::SLOT_PATTERN, 1), $text, $m, 0, $at)) {
-            throw $c->error('<fusion:slot> needs a name: <fusion:slot name="footer">');
+        if (! preg_match(substr(ChildTag::SLOT_PATTERN, 0, 1).'\G'.substr(ChildTag::SLOT_PATTERN, 1), $text, $match, 0, $at)) {
+            throw $context->error('<fusion:slot> needs a name: <fusion:slot name="footer">');
         }
 
-        $top = end($c->stack);
+        $top = end($context->stack);
 
         if ($top['kind'] !== 'child') {
-            throw $c->error('<fusion:slot> belongs directly inside a <fusion:...> tag'.($top['kind'] === 'element' ? " (<{$top['tag']}> from line {$top['line']} is still open)" : ''));
+            throw $context->error('<fusion:slot> belongs directly inside a <fusion:...> tag'.($top['kind'] === 'element' ? " (<{$top['tag']}> from line {$top['line']} is still open)" : ''));
         }
 
-        $name = $m[1] !== '' ? $m[1] : $m[2];
+        $name = $match[1] !== '' ? $match[1] : $match[2];
         $slot = $top['child']->slots[$name] = new TemplateNode(['t' => 'r']);
-        $c->stack[] = ['kind' => 'slot', 'node' => $slot, 'name' => $name, 'line' => $c->line, 'locals' => $c->locals, 'sources' => $c->sources];
+        $context->stack[] = ['kind' => 'slot', 'node' => $slot, 'name' => $name, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources];
 
-        return $at + strlen($m[0]);
+        return $at + strlen($match[0]);
     }
 
     /** </fusion:slot> or </fusion:name>: the slot, or the child tag, ends. */
     public function childClose(string $text, int $at): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $this->compiler->tree->flushText();
 
-        if (! preg_match('/\G<\/fusion:([a-z0-9][a-z0-9\-.]*)\s*>/i', $text, $m, 0, $at)) {
-            throw $c->error('Malformed </fusion:...> tag');
+        if (! preg_match('/\G<\/fusion:([a-z0-9][a-z0-9\-.]*)\s*>/i', $text, $match, 0, $at)) {
+            throw $context->error('Malformed </fusion:...> tag');
         }
 
-        $name = strtolower($m[1]);
-        $top = end($c->stack);
+        $name = strtolower($match[1]);
+        $top = end($context->stack);
         $expected = $name === 'slot' ? 'slot' : 'child';
 
         if ($top['kind'] !== $expected || ($expected === 'child' && $top['tag'] !== $name)) {
-            throw $c->error("</fusion:{$name}> closes no <fusion:{$name}>".match ($top['kind']) {
+            throw $context->error("</fusion:{$name}> closes no <fusion:{$name}>".match ($top['kind']) {
                 'element' => " (<{$top['tag']}> from line {$top['line']} is still open)",
                 'child' => " (<fusion:{$top['tag']}> from line {$top['line']} is open)",
                 'slot' => " (<fusion:slot name=\"{$top['name']}\"> from line {$top['line']} is open)",
@@ -189,10 +189,10 @@ final class ChildComponents extends Part
             });
         }
 
-        array_pop($c->stack);
-        $c->locals = $top['locals'];
-        $c->sources = $top['sources'];
+        array_pop($context->stack);
+        $context->locals = $top['locals'];
+        $context->sources = $top['sources'];
 
-        return $at + strlen($m[0]);
+        return $at + strlen($match[0]);
     }
 }

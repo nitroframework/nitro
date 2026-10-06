@@ -48,22 +48,22 @@ final class Tree extends Part
     /** The static text read so far, as a text node (character references decoded, as the HTML parser does). */
     public function flushText(): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if ($c->text === '') {
+        if ($context->text === '') {
             return;
         }
 
-        $text = $c->text;
-        $c->text = '';
+        $text = $context->text;
+        $context->text = '';
         /** A slot's text read so far is out of the buffer: what the slot adds from now starts at 0. */
-        $c->slotText = array_map(fn () => 0, $c->slotText);
-        $top = end($c->stack);
+        $context->slotText = array_map(fn () => 0, $context->slotText);
+        $top = end($context->stack);
 
         /** Between @switch and its first @case: Blade's PHP, where only whitespace belongs. */
         if ($top['kind'] === 'switch' && $top['case'] === null) {
             if (trim($text) !== '') {
-                throw $c->error('Only @case and @default can follow @switch');
+                throw $context->error('Only @case and @default can follow @switch');
             }
 
             return;
@@ -75,7 +75,7 @@ final class Tree extends Part
             $text = (string) preg_replace('/\A\r?\n/', '', $text);
         }
 
-        if ($c->state !== 'raw') {
+        if ($context->state !== 'raw') {
             $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 
@@ -114,10 +114,10 @@ final class Tree extends Part
      */
     public function openBlock(string $kind, array $directive, bool $loop = false): TemplateNode
     {
-        $c = $this->context;
+        $context = $this->context;
         $node = new TemplateNode(['t' => 'template', 'i' => [$directive]]);
         $this->append($node);
-        $c->stack[] = ['kind' => $kind, 'node' => $node, 'line' => $c->line, 'locals' => $c->locals, 'sources' => $c->sources, 'loop' => $loop];
+        $context->stack[] = ['kind' => $kind, 'node' => $node, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources, 'loop' => $loop];
 
         return $node;
     }
@@ -130,42 +130,42 @@ final class Tree extends Part
      */
     public function branch(array $kinds, string $name, Closure $directive): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $this->flushText();
-        $top = end($c->stack);
+        $top = end($context->stack);
 
         if (! in_array($top['kind'], $kinds, true)) {
-            throw $c->error($top['kind'] === 'element'
+            throw $context->error($top['kind'] === 'element'
                 ? "<{$top['tag']}> (line {$top['line']}) must be closed before @{$name}"
-                : "@{$name} outside of ".implode('/', array_map(fn ($k) => "@{$k}", $kinds)));
+                : "@{$name} outside of ".implode('/', array_map(fn ($kind) => "@{$kind}", $kinds)));
         }
 
-        array_pop($c->stack);
-        $c->locals = $top['locals'];
-        $c->sources = $top['sources'] ?? $c->sources;
+        array_pop($context->stack);
+        $context->locals = $top['locals'];
+        $context->sources = $top['sources'] ?? $context->sources;
 
         $node = new TemplateNode(['t' => 'template', 'i' => [$directive()]]);
         $this->current()->children[] = $node;
-        $c->stack[] = ['kind' => $top['kind'], 'node' => $node, 'line' => $c->line, 'locals' => $c->locals, 'sources' => $c->sources, 'loop' => false];
+        $context->stack[] = ['kind' => $top['kind'], 'node' => $node, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources, 'loop' => false];
     }
 
     /** @param  list<string>  $kinds */
     public function closeBlock(array $kinds): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $this->flushText();
-        $top = end($c->stack);
+        $top = end($context->stack);
 
         if ($top['kind'] === 'element') {
-            throw $c->error("<{$top['tag']}> (line {$top['line']}) must be closed before @end{$kinds[0]}: open and close an element inside the same block");
+            throw $context->error("<{$top['tag']}> (line {$top['line']}) must be closed before @end{$kinds[0]}: open and close an element inside the same block");
         }
 
         if (! in_array($top['kind'], $kinds, true)) {
-            throw $c->error('Unexpected @end'.$kinds[0].($top['kind'] !== 'root' ? " (@{$top['kind']} from line {$top['line']} is still open)" : ''));
+            throw $context->error('Unexpected @end'.$kinds[0].($top['kind'] !== 'root' ? " (@{$top['kind']} from line {$top['line']} is still open)" : ''));
         }
 
-        array_pop($c->stack);
-        $c->locals = $top['locals'];
-        $c->sources = $top['sources'] ?? $c->sources;
+        array_pop($context->stack);
+        $context->locals = $top['locals'];
+        $context->sources = $top['sources'] ?? $context->sources;
     }
 }

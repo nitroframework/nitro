@@ -34,12 +34,12 @@ final class FunctionDefinitions extends Part
      */
     public function functionLike(array $params, array $stmts, string $name, bool $isMethod = false): string
     {
-        $c = $this->context;
-        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$c->locals, $c->temps, $c->loops, $c->browserVariables];
-        $c->locals = [];
-        $c->browserVariables = [];
-        $c->temps = [];
-        $c->loops = [];
+        $context = $this->context;
+        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$context->locals, $context->temps, $context->loops, $context->browserVariables];
+        $context->locals = [];
+        $context->browserVariables = [];
+        $context->temps = [];
+        $context->loops = [];
 
         $signature = [];
         $coercions = '';
@@ -47,27 +47,27 @@ final class FunctionDefinitions extends Part
         foreach ($params as $param) {
             $signature[] = $this->param($param);
             $coercions .= $this->coercion($param, $name);
-            $c->locals[$param->var->name] = true;
+            $context->locals[$param->var->name] = true;
         }
 
-        $paramNames = $c->locals;
+        $paramNames = $context->locals;
 
         foreach ($this->variablesIn($stmts) as $variable) {
-            $c->locals[$variable] = true;
+            $context->locals[$variable] = true;
         }
 
         $body = $this->transpiler->stmts($stmts);
-        $declared = array_diff_key($c->locals, $paramNames, ['this' => true]);
+        $declared = array_diff_key($context->locals, $paramNames, ['this' => true]);
 
         $head = $isMethod ? "const \$this = this;\n" : '';
 
         if ($declared !== []) {
-            $head .= 'let '.implode(', ', array_map(fn ($v) => '$'.$v, array_keys($declared))).";\n";
+            $head .= 'let '.implode(', ', array_map(fn ($variable) => '$'.$variable, array_keys($declared))).";\n";
         }
 
-        $head .= $c->declareTemps().$coercions;
+        $head .= $context->declareTemps().$coercions;
 
-        [$c->locals, $c->temps, $c->loops, $c->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
+        [$context->locals, $context->temps, $context->loops, $context->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
 
         return 'function ('.implode(', ', $signature).") {\n{$head}{$body}}";
     }
@@ -165,20 +165,20 @@ final class FunctionDefinitions extends Part
         return array_keys($found);
     }
 
-    public function closure(Expr\Closure $e): string
+    public function closure(Expr\Closure $expression): string
     {
         $captured = [];
 
-        foreach ($e->uses as $use) {
+        foreach ($expression->uses as $use) {
             if ($use->byRef) {
-                throw $this->context->error('Closures capturing by reference (use (&$x)) are not supported in the browser', $e);
+                throw $this->context->error('Closures capturing by reference (use (&$x)) are not supported in the browser', $expression);
             }
 
             $captured[] = '$'.$use->var->name;
         }
 
         $outerLocals = $this->context->locals;
-        $function = $this->functionWithCaptures($e->params, $e->stmts, array_map(fn ($c) => substr($c, 1), $captured));
+        $function = $this->functionWithCaptures($expression->params, $expression->stmts, array_map(fn ($context) => substr($context, 1), $captured));
         $this->context->locals = $outerLocals;
 
         if ($captured === []) {
@@ -190,22 +190,22 @@ final class FunctionDefinitions extends Part
         return "(({$list}) => {$function})({$list})";
     }
 
-    public function arrowFunction(Expr\ArrowFunction $e): string
+    public function arrowFunction(Expr\ArrowFunction $expression): string
     {
         /** Arrow functions capture the outer variables they use, by value. */
-        $params = array_map(fn (Param $p) => $p->var->name, $e->params);
-        $used = array_diff($this->variablesIn([$e->expr]), $params);
-        $captured = array_values(array_filter($used, fn ($v) => isset($this->context->locals[$v])));
+        $params = array_map(fn (Param $parameter) => $parameter->var->name, $expression->params);
+        $used = array_diff($this->variablesIn([$expression->expr]), $params);
+        $captured = array_values(array_filter($used, fn ($variable) => isset($this->context->locals[$variable])));
 
         $outerLocals = $this->context->locals;
-        $function = $this->functionWithCaptures($e->params, [new Stmt\Return_($e->expr)], $captured);
+        $function = $this->functionWithCaptures($expression->params, [new Stmt\Return_($expression->expr)], $captured);
         $this->context->locals = $outerLocals;
 
         if ($captured === []) {
             return "({$function})";
         }
 
-        $list = implode(', ', array_map(fn ($c) => '$'.$c, $captured));
+        $list = implode(', ', array_map(fn ($context) => '$'.$context, $captured));
 
         return "(({$list}) => {$function})({$list})";
     }
@@ -220,13 +220,13 @@ final class FunctionDefinitions extends Part
      */
     private function functionWithCaptures(array $params, array $stmts, array $captured): string
     {
-        $c = $this->context;
-        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$c->locals, $c->temps, $c->loops, $c->browserVariables];
-        $c->locals = array_fill_keys($captured, true);
+        $context = $this->context;
+        [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$context->locals, $context->temps, $context->loops, $context->browserVariables];
+        $context->locals = array_fill_keys($captured, true);
         /** A captured variable keeps its Fusion::browser() API. */
-        $c->browserVariables = array_intersect_key($c->browserVariables, $c->locals);
-        $c->temps = [];
-        $c->loops = [];
+        $context->browserVariables = array_intersect_key($context->browserVariables, $context->locals);
+        $context->temps = [];
+        $context->loops = [];
 
         $signature = [];
         $coercions = '';
@@ -234,25 +234,25 @@ final class FunctionDefinitions extends Part
         foreach ($params as $param) {
             $signature[] = $this->param($param);
             $coercions .= $this->coercion($param, '{closure}');
-            $c->locals[$param->var->name] = true;
+            $context->locals[$param->var->name] = true;
         }
 
-        $own = $c->locals;
+        $own = $context->locals;
 
         foreach ($this->variablesIn($stmts) as $variable) {
-            if (! isset($own[$variable]) && $c->scope->variable !== null && ($c->scope->variable)($variable) !== null) {
+            if (! isset($own[$variable]) && $context->scope->variable !== null && ($context->scope->variable)($variable) !== null) {
                 continue; // a template variable (component property), resolved when used
             }
 
-            $c->locals[$variable] = true;
+            $context->locals[$variable] = true;
         }
 
         $body = $this->transpiler->stmts($stmts);
-        $declared = array_diff_key($c->locals, $own, ['this' => true]);
-        $head = ($declared === [] ? '' : 'let '.implode(', ', array_map(fn ($v) => '$'.$v, array_keys($declared))).";\n")
-            .$c->declareTemps().$coercions;
+        $declared = array_diff_key($context->locals, $own, ['this' => true]);
+        $head = ($declared === [] ? '' : 'let '.implode(', ', array_map(fn ($variable) => '$'.$variable, array_keys($declared))).";\n")
+            .$context->declareTemps().$coercions;
 
-        [$c->locals, $c->temps, $c->loops, $c->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
+        [$context->locals, $context->temps, $context->loops, $context->browserVariables] = [$savedLocals, $savedTemps, $savedLoops, $savedApis];
 
         return 'function ('.implode(', ', $signature).") {\n{$head}{$body}}";
     }

@@ -63,8 +63,8 @@ final class Minifier
 
             try {
                 $process->run();
-            } catch (Throwable $e) {
-                throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$e->getMessage(), 0, $e);
+            } catch (Throwable $exception) {
+                throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$exception->getMessage(), 0, $exception);
             }
 
             if (! $process->isSuccessful()) {

@@ -105,59 +105,59 @@ final class TemplateCompiler
     /** "template: {...},\nexpressions: [...]": the render half of a component's definition. */
     public function compile(string $source, Scope $scope, ?string $file = null): string
     {
-        $c = $this->context;
-        $c->scope = $scope->withVariables($this->resolver(), $file);
-        $c->file = $file;
-        $c->transpiler = new Transpiler($c->scope);
-        $c->expressions = [];
-        $c->expressionSources = [];
-        $c->sources = [];
-        $c->locals = [];
-        $c->text = '';
-        $c->children = 0;
-        $c->eatNewline = false;
-        $c->state = 'data';
-        $c->tag = null;
-        $c->calledMethods = [];
-        $c->frames = [];
-        $c->frameParents = [];
-        $c->setAside = [];
-        $c->lineMap = [];
-        $c->inHandler = false;
-        $c->slotText = [];
+        $context = $this->context;
+        $context->scope = $scope->withVariables($this->resolver(), $file);
+        $context->file = $file;
+        $context->transpiler = new Transpiler($context->scope);
+        $context->expressions = [];
+        $context->expressionSources = [];
+        $context->sources = [];
+        $context->locals = [];
+        $context->text = '';
+        $context->children = 0;
+        $context->eatNewline = false;
+        $context->state = 'data';
+        $context->tag = null;
+        $context->calledMethods = [];
+        $context->frames = [];
+        $context->frameParents = [];
+        $context->setAside = [];
+        $context->lineMap = [];
+        $context->inHandler = false;
+        $context->slotText = [];
 
         /** @include and <x-components>: inlined (BladeInliner), their variables replaced as they are parsed. */
         if (BladeInliner::needed($source)) {
-            [$source, $c->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler'))))->expand($source, $file);
-            $c->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
+            [$source, $context->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler'))))->expand($source, $file);
+            $context->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
         }
 
         /** The view's use directives: for the whole view, as the PHP use statements Blade compiles them to. */
-        $c->transpiler->imports = self::imports($source);
+        $context->transpiler->imports = self::imports($source);
 
         try {
             $read = $this->read($source, $file);
 
             /** A method called on a value is checked later (ComponentCompiler): an inlined line is kept as where it came from. */
-            if ($c->lineMap !== []) {
+            if ($context->lineMap !== []) {
                 $classes = [];
 
-                foreach ($c->transpiler->uses['classes'] as $key => $true) {
+                foreach ($context->transpiler->uses['classes'] as $key => $true) {
                     [$class, $method] = BrowserClasses::split($key);
                     [$name, $calledIn, $line] = $class === '*' ? BrowserClasses::calledAt($method) : [null, null, null];
-                    $origin = $calledIn === $file && $line !== null ? ($c->lineMap[$line - 1] ?? null) : null;
+                    $origin = $calledIn === $file && $line !== null ? ($context->lineMap[$line - 1] ?? null) : null;
                     $classes[$origin === null ? $key : BrowserClasses::anyEnum((string) $name, $origin[0], $origin[1])] = $true;
                 }
 
-                $c->transpiler->uses['classes'] = $classes;
+                $context->transpiler->uses['classes'] = $classes;
             }
 
             return $read;
-        } catch (CompileException $e) {
+        } catch (CompileException $exception) {
             /** A line of the inlined source is reported where it came from. */
-            $origin = $e->sourceFile === $file && $e->sourceLine !== null ? ($c->lineMap[$e->sourceLine - 1] ?? null) : null;
+            $origin = $exception->sourceFile === $file && $exception->sourceLine !== null ? ($context->lineMap[$exception->sourceLine - 1] ?? null) : null;
 
-            throw $origin === null ? $e : new CompileException($e->reason, $origin[0], $origin[1]);
+            throw $origin === null ? $exception : new CompileException($exception->reason, $origin[0], $origin[1]);
         }
     }
 
@@ -246,34 +246,34 @@ final class TemplateCompiler
     /** The view's tokens, each sent to its part; then the checks that everything opened was closed. */
     private function read(string $source, ?string $file): string
     {
-        $c = $this->context;
+        $context = $this->context;
         $root = new TemplateNode(['t' => 'r']);
-        $c->stack = [['kind' => 'root', 'node' => $root, 'line' => 1, 'locals' => []]];
+        $context->stack = [['kind' => 'root', 'node' => $root, 'line' => 1, 'locals' => []]];
 
         $lexer = new Lexer(fn (string $name) => in_array($name, Syntax::DIRECTIVES, true) || ($this->isBladeDirective)($name), $file);
 
         foreach ($lexer->tokenize($source) as $token) {
-            $c->line = $token->line;
+            $context->line = $token->line;
 
             match ($token->kind) {
                 Token::TEXT, Token::VERBATIM => $this->html->textToken($token->value),
                 Token::ECHO => $this->expressionTable->echo($token->value, false),
                 Token::RAW => $this->expressionTable->echo($token->value, true),
                 Token::DIRECTIVE => $this->directives->directive($token),
-                default => throw $c->error("Unknown token {$token->kind}"),
+                default => throw $context->error("Unknown token {$token->kind}"),
             };
 
-            $c->eatNewline = $token->kind === Token::DIRECTIVE && ! in_array($token->value, Syntax::KEEPS_NEWLINE, true);
+            $context->eatNewline = $token->kind === Token::DIRECTIVE && ! in_array($token->value, Syntax::KEEPS_NEWLINE, true);
         }
 
-        if ($c->state === 'tag' || $c->state === 'value') {
-            throw new CompileException('A tag is not closed (missing ">")', $file, $c->tagLine);
+        if ($context->state === 'tag' || $context->state === 'value') {
+            throw new CompileException('A tag is not closed (missing ">")', $file, $context->tagLine);
         }
 
         $this->tree->flushText();
 
-        if (count($c->stack) > 1) {
-            $open = $c->stack[array_key_last($c->stack)];
+        if (count($context->stack) > 1) {
+            $open = $context->stack[array_key_last($context->stack)];
             $what = match ($open['kind']) {
                 'element' => "<{$open['tag']}>",
                 'child' => "<fusion:{$open['tag']}>",
@@ -284,11 +284,11 @@ final class TemplateCompiler
             throw new CompileException("{$what} is not closed", $file, $open['line']);
         }
 
-        $c->tree = $root->toArray();
+        $context->tree = $root->toArray();
 
         /** Clone mode: the static parts marked, for the browser to copy rather than create. */
         if ($this->cloneStatic) {
-            $c->tree = StaticParts::mark($c->tree);
+            $context->tree = StaticParts::mark($context->tree);
         }
 
         return $this->fragment();

@@ -73,7 +73,7 @@ final class PageRoutes
             $extra = array_values(array_filter($route->gatherMiddleware(), fn ($middleware) => $middleware !== 'web' && ! in_array($middleware, $web, true)));
             $problem = match (true) {
                 $route->parameterNames() !== [] => 'route parameters ({'.implode('}, {', $route->parameterNames()).'})',
-                $extra !== [] => 'middleware beyond the web group ('.implode(', ', array_map(fn ($m) => is_string($m) ? $m : get_debug_type($m), $extra)).')',
+                $extra !== [] => 'middleware beyond the web group ('.implode(', ', array_map(fn ($middleware) => is_string($middleware) ? $middleware : get_debug_type($middleware), $extra)).')',
                 default => null,
             };
 
@@ -96,7 +96,7 @@ final class PageRoutes
             $pattern .= match (true) {
                 preg_match('/^\{\w+\?\}$/', $segment) === 1 => '(?:/[^/]+)?',
                 preg_match('/^\{\w+\}$/', $segment) === 1 => '/[^/]+',
-                default => '/'.preg_replace_callback('/\{\w+\??\}|[^{]+/', fn (array $m) => $m[0][0] === '{' ? '[^/]+' : preg_quote($m[0], '#'), $segment),
+                default => '/'.preg_replace_callback('/\{\w+\??\}|[^{]+/', fn (array $match) => $match[0][0] === '{' ? '[^/]+' : preg_quote($match[0], '#'), $segment),
             };
         }
 

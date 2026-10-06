@@ -34,28 +34,28 @@ final class HtmlScanner extends Part
     /** A text token of the view, scanned from wherever the last one left the scanner. */
     public function textToken(string $text): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if ($c->eatNewline) {
+        if ($context->eatNewline) {
             $text = preg_replace('/\A\r?\n/', '', $text, 1, $eaten);
-            $c->line += $eaten;
+            $context->line += $eaten;
         }
 
         $length = strlen($text);
         $i = 0;
-        $c->scanned = 0;
+        $context->scanned = 0;
 
         while ($i < $length) {
             $this->lineAt($text, $i);
 
-            $i = match ($c->state) {
+            $i = match ($context->state) {
                 'data' => $this->data($text, $i),
                 'tag' => $this->tag($text, $i),
                 'value' => $this->value($text, $i),
                 'comment' => $this->commentText($text, $i),
                 'endtag' => $this->endTagText($text, $i),
                 'raw', 'rcdata' => $this->rawText($text, $i),
-                default => throw $c->error("Unknown scanner state {$c->state}"),
+                default => throw $context->error("Unknown scanner state {$context->state}"),
             };
         }
     }
@@ -78,11 +78,11 @@ final class HtmlScanner extends Part
     /** A quoted attribute value begins: the attribute is added, its value read in the "value" state. */
     public function openValue(string $name, string $quote, int $i): int
     {
-        $c = $this->context;
-        $c->tag->attributes[] = ['c' => $name, 'h' => []];
-        $c->attribute = count($c->tag->attributes) - 1;
-        $c->quote = $quote;
-        $c->state = 'value';
+        $context = $this->context;
+        $context->tag->attributes[] = ['c' => $name, 'h' => []];
+        $context->attribute = count($context->tag->attributes) - 1;
+        $context->quote = $quote;
+        $context->state = 'value';
 
         return $i;
     }
@@ -90,120 +90,120 @@ final class HtmlScanner extends Part
     /** HTML spans lines: errors and handlers report the line they are on, not the text's first. */
     private function lineAt(string $text, int $offset): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if ($offset > $c->scanned) {
-            $c->line += substr_count($text, "\n", $c->scanned, $offset - $c->scanned);
-            $c->scanned = $offset;
+        if ($offset > $context->scanned) {
+            $context->line += substr_count($text, "\n", $context->scanned, $offset - $context->scanned);
+            $context->scanned = $offset;
         }
     }
 
     private function data(string $text, int $i): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $tree = $this->compiler->tree;
         $children = $this->compiler->childComponents;
-        $lt = strpos($text, '<', $i);
+        $tagStart = strpos($text, '<', $i);
 
-        if ($lt === false) {
-            $c->text .= substr($text, $i);
+        if ($tagStart === false) {
+            $context->text .= substr($text, $i);
 
             return strlen($text);
         }
 
-        $c->text .= substr($text, $i, $lt - $i);
-        $this->lineAt($text, $lt);
+        $context->text .= substr($text, $i, $tagStart - $i);
+        $this->lineAt($text, $tagStart);
 
-        if (substr_compare($text, '<!--', $lt, 4) === 0) {
+        if (substr_compare($text, '<!--', $tagStart, 4) === 0) {
             $tree->flushText();
-            $c->comment = '';
-            $c->state = 'comment';
+            $context->comment = '';
+            $context->state = 'comment';
 
-            return $lt + 4;
+            return $tagStart + 4;
         }
 
-        if (substr_compare($text, '<fusion:slot', $lt, 12, true) === 0 && preg_match('/\G<fusion:slot[\s\/>]/i', $text, $_, 0, $lt)) {
-            return $children->slotOpen($text, $lt);
+        if (substr_compare($text, '<fusion:slot', $tagStart, 12, true) === 0 && preg_match('/\G<fusion:slot[\s\/>]/i', $text, $_, 0, $tagStart)) {
+            return $children->slotOpen($text, $tagStart);
         }
 
-        if (substr_compare($text, '<fusion:', $lt, 8, true) === 0) {
-            return $children->child($text, $lt);
+        if (substr_compare($text, '<fusion:', $tagStart, 8, true) === 0) {
+            return $children->child($text, $tagStart);
         }
 
-        if (substr_compare($text, '</fusion:', $lt, 9, true) === 0) {
-            return $children->childClose($text, $lt);
+        if (substr_compare($text, '</fusion:', $tagStart, 9, true) === 0) {
+            return $children->childClose($text, $tagStart);
         }
 
-        if (substr_compare($text, '</', $lt, 2) === 0) {
+        if (substr_compare($text, '</', $tagStart, 2) === 0) {
             $tree->flushText();
-            $c->endTag = '';
-            $c->state = 'endtag';
+            $context->endTag = '';
+            $context->state = 'endtag';
 
-            return $lt + 2;
+            return $tagStart + 2;
         }
 
-        if (preg_match('/\G<([a-zA-Z][a-zA-Z0-9\-]*)/', $text, $m, 0, $lt)) {
+        if (preg_match('/\G<([a-zA-Z][a-zA-Z0-9\-]*)/', $text, $match, 0, $tagStart)) {
             $tree->flushText();
-            $this->startTag($m[1]);
+            $this->startTag($match[1]);
 
-            return $lt + strlen($m[0]);
+            return $tagStart + strlen($match[0]);
         }
 
-        $c->text .= '<';
+        $context->text .= '<';
 
-        return $lt + 1;
+        return $tagStart + 1;
     }
 
     private function startTag(string $name): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $parent = $this->compiler->tree->element();
-        $ns = $parent['ns'] ?? 'html';
+        $namespace = $parent['ns'] ?? 'html';
 
-        if ($ns === 'html' && in_array(strtolower($name), ['svg', 'math'], true)) {
-            $ns = strtolower($name);
+        if ($namespace === 'html' && in_array(strtolower($name), ['svg', 'math'], true)) {
+            $namespace = strtolower($name);
         }
 
-        $tag = $ns === 'html' ? strtolower($name) : $name;
+        $tag = $namespace === 'html' ? strtolower($name) : $name;
 
         if ($tag === 'tr' && $parent !== null && $parent['tag'] === 'table') {
-            throw $c->error('Put the rows of a <table> inside <tbody>, <thead> or <tfoot> (the browser adds a <tbody> when it is missing)');
+            throw $context->error('Put the rows of a <table> inside <tbody>, <thead> or <tfoot> (the browser adds a <tbody> when it is missing)');
         }
 
-        $c->tag = new TemplateNode(['t' => 't', 'c' => $tag]);
-        $c->tagLine = $c->line;
-        $c->state = 'tag';
+        $context->tag = new TemplateNode(['t' => 't', 'c' => $tag]);
+        $context->tagLine = $context->line;
+        $context->state = 'tag';
     }
 
     /** The tag's ">" (or "/>"): the element opens, unless it is void or a self-closed SVG one. */
     private function finishTag(bool $selfClosing): void
     {
-        $c = $this->context;
+        $context = $this->context;
         $tree = $this->compiler->tree;
-        $node = $c->tag;
-        $c->tag = null;
+        $node = $context->tag;
+        $context->tag = null;
         $tree->current()->children[] = $node;
 
         $tag = $node->fields['c'];
         $parentNs = $tree->element()['ns'] ?? 'html';
-        $ns = $parentNs === 'html' && in_array($tag, ['svg', 'math'], true) ? $tag : $parentNs;
+        $namespace = $parentNs === 'html' && in_array($tag, ['svg', 'math'], true) ? $tag : $parentNs;
 
         if ($parentNs === 'html' && in_array(strtolower($tag), Syntax::CLOSES_P, true)) {
             $this->assertNoOpenP($tag);
         }
 
-        if (in_array($tag, Syntax::VOID, true) || ($selfClosing && $ns !== 'html')) {
-            $c->state = 'data';
+        if (in_array($tag, Syntax::VOID, true) || ($selfClosing && $namespace !== 'html')) {
+            $context->state = 'data';
 
             return;
         }
 
         /** The children of an SVG <foreignObject> are HTML again. */
-        $childNs = $ns === 'svg' && strtolower($tag) === 'foreignobject' ? 'html' : $ns;
-        $c->stack[] = ['kind' => 'element', 'node' => $node, 'line' => $c->tagLine, 'locals' => $c->locals, 'tag' => $tag, 'ns' => $childNs];
+        $childNs = $namespace === 'svg' && strtolower($tag) === 'foreignobject' ? 'html' : $namespace;
+        $context->stack[] = ['kind' => 'element', 'node' => $node, 'line' => $context->tagLine, 'locals' => $context->locals, 'tag' => $tag, 'ns' => $childNs];
 
         $lower = strtolower($tag);
-        $c->state = $ns !== 'html' ? 'data' : (in_array($lower, Syntax::RAW_TEXT, true) ? 'raw' : (in_array($lower, Syntax::RCDATA, true) ? 'rcdata' : 'data'));
+        $context->state = $namespace !== 'html' ? 'data' : (in_array($lower, Syntax::RAW_TEXT, true) ? 'raw' : (in_array($lower, Syntax::RCDATA, true) ? 'rcdata' : 'data'));
     }
 
     /**
@@ -212,9 +212,9 @@ final class HtmlScanner extends Part
      */
     private function assertNoOpenP(string $tag): void
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        foreach (array_reverse($c->stack) as $frame) {
+        foreach (array_reverse($context->stack) as $frame) {
             if (($frame['kind'] ?? null) !== 'element') {
                 continue;
             }
@@ -222,7 +222,7 @@ final class HtmlScanner extends Part
             $open = strtolower($frame['tag']);
 
             if ($open === 'p') {
-                throw $c->error("<{$tag}> inside <p> (line {$frame['line']}): the browser ends the <p> before a <{$tag}>, so it cannot be in one. Close the <p> first, or make it a <div>");
+                throw $context->error("<{$tag}> inside <p> (line {$frame['line']}): the browser ends the <p> before a <{$tag}>, so it cannot be in one. Close the <p> first, or make it a <div>");
             }
 
             if (in_array($open, Syntax::P_SCOPE, true) || ($frame['ns'] ?? 'html') !== 'html') {
@@ -233,10 +233,10 @@ final class HtmlScanner extends Part
 
     private function tag(string $text, int $i): int
     {
-        $c = $this->context;
+        $context = $this->context;
 
-        if (preg_match('/\G\s+/', $text, $m, 0, $i)) {
-            return $i + strlen($m[0]);
+        if (preg_match('/\G\s+/', $text, $match, 0, $i)) {
+            return $i + strlen($match[0]);
         }
 
         if (substr_compare($text, '/>', $i, 2) === 0) {
@@ -251,18 +251,18 @@ final class HtmlScanner extends Part
             return $i + 1;
         }
 
-        if (preg_match('/\Gfusion:([\w\-.]+)/', $text, $m, 0, $i)) {
-            return $this->compiler->fusionAttributes->fusionAttribute($text, $i, $m[1]);
+        if (preg_match('/\Gfusion:([\w\-.]+)/', $text, $match, 0, $i)) {
+            return $this->compiler->fusionAttributes->fusionAttribute($text, $i, $match[1]);
         }
 
-        if (preg_match('/\G([^\s"\'>\/=]+)(\s*=\s*)?/', $text, $m, 0, $i)) {
-            $name = ($this->compiler->tree->element()['ns'] ?? 'html') === 'html' && ! in_array($c->tag->fields['c'], ['svg', 'math'], true)
-                ? strtolower($m[1])
-                : $m[1];
-            $i += strlen($m[0]);
+        if (preg_match('/\G([^\s"\'>\/=]+)(\s*=\s*)?/', $text, $match, 0, $i)) {
+            $name = ($this->compiler->tree->element()['ns'] ?? 'html') === 'html' && ! in_array($context->tag->fields['c'], ['svg', 'math'], true)
+                ? strtolower($match[1])
+                : $match[1];
+            $i += strlen($match[0]);
 
-            if (($m[2] ?? '') === '') {
-                $c->tag->attributes[] = ['c' => $name];
+            if (($match[2] ?? '') === '') {
+                $context->tag->attributes[] = ['c' => $name];
 
                 return $i;
             }
@@ -272,10 +272,10 @@ final class HtmlScanner extends Part
             }
 
             /** An unquoted value runs to whitespace or >. */
-            preg_match('/\G[^\s>]*/', $text, $v, 0, $i);
-            $c->tag->attributes[] = ['c' => $name, 'h' => [['c' => html_entity_decode($v[0], ENT_QUOTES | ENT_HTML5, 'UTF-8')]]];
+            preg_match('/\G[^\s>]*/', $text, $valueMatch, 0, $i);
+            $context->tag->attributes[] = ['c' => $name, 'h' => [['c' => html_entity_decode($valueMatch[0], ENT_QUOTES | ENT_HTML5, 'UTF-8')]]];
 
-            return $i + strlen($v[0]);
+            return $i + strlen($valueMatch[0]);
         }
 
         return $i + 1;
@@ -283,25 +283,25 @@ final class HtmlScanner extends Part
 
     private function value(string $text, int $i): int
     {
-        $c = $this->context;
-        $end = strpos($text, $c->quote, $i);
+        $context = $this->context;
+        $end = strpos($text, $context->quote, $i);
         $static = $end === false ? substr($text, $i) : substr($text, $i, $end - $i);
 
         if ($static !== '') {
             $decoded = html_entity_decode($static, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
             /** fusion:model's property by the browser's name for it: the path's start (an obfuscated build). */
-            $attribute = $c->tag->attributes[$c->attribute];
+            $attribute = $context->tag->attributes[$context->attribute];
 
-            if ($c->scope->names !== null && ($attribute['c'] === 'fusion:model' || str_starts_with($attribute['c'], 'fusion:model.')) && $attribute['h'] === []) {
-                $decoded = $c->scope->browserPath($decoded);
+            if ($context->scope->names !== null && ($attribute['c'] === 'fusion:model' || str_starts_with($attribute['c'], 'fusion:model.')) && $attribute['h'] === []) {
+                $decoded = $context->scope->browserPath($decoded);
             }
 
             /** fusion:target's methods, and properties or paths (an upload's, fusion:dirty's), by the browser's names for them (an obfuscated build). */
-            if ($c->scope->names !== null && $c->tag->attributes[$c->attribute]['c'] === 'fusion:target') {
+            if ($context->scope->names !== null && $context->tag->attributes[$context->attribute]['c'] === 'fusion:target') {
                 $decoded = implode(',', array_map(fn (string $target) => match (true) {
-                    $c->scope->isClientMethod(trim($target)) || $c->scope->isServerMethod(trim($target)) => $c->scope->browserMethod(trim($target)),
-                    $c->scope->isProperty(explode('.', trim($target))[0]) => $c->scope->browserPath(trim($target)),
+                    $context->scope->isClientMethod(trim($target)) || $context->scope->isServerMethod(trim($target)) => $context->scope->browserMethod(trim($target)),
+                    $context->scope->isProperty(explode('.', trim($target))[0]) => $context->scope->browserPath(trim($target)),
                     default => trim($target),
                 }, explode(',', $decoded)));
             }
@@ -313,51 +313,51 @@ final class HtmlScanner extends Part
             return strlen($text);
         }
 
-        $c->state = 'tag';
+        $context->state = 'tag';
 
         return $end + 1;
     }
 
     private function commentText(string $text, int $i): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $end = strpos($text, '-->', $i);
 
         if ($end === false) {
-            $c->comment .= substr($text, $i);
+            $context->comment .= substr($text, $i);
 
             return strlen($text);
         }
 
-        $c->comment .= substr($text, $i, $end - $i);
-        $this->compiler->tree->current()->children[] = new TemplateNode(['t' => 'm', 'c' => $c->comment]);
-        $c->state = 'data';
+        $context->comment .= substr($text, $i, $end - $i);
+        $this->compiler->tree->current()->children[] = new TemplateNode(['t' => 'm', 'c' => $context->comment]);
+        $context->state = 'data';
 
         return $end + 3;
     }
 
     private function endTagText(string $text, int $i): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $end = strpos($text, '>', $i);
 
         if ($end === false) {
-            $c->endTag .= substr($text, $i);
+            $context->endTag .= substr($text, $i);
 
             return strlen($text);
         }
 
-        $c->endTag .= substr($text, $i, $end - $i);
-        $c->state = 'data';
-        $this->closeElement(trim($c->endTag));
+        $context->endTag .= substr($text, $i, $end - $i);
+        $context->state = 'data';
+        $this->closeElement(trim($context->endTag));
 
         return $end + 1;
     }
 
     private function closeElement(string $name): void
     {
-        $c = $this->context;
-        $top = end($c->stack);
+        $context = $this->context;
+        $top = end($context->stack);
         $html = ($top['ns'] ?? 'html') === 'html' || in_array(strtolower($name), ['svg', 'math'], true);
         $tag = $html ? strtolower($name) : $name;
 
@@ -367,35 +367,35 @@ final class HtmlScanner extends Part
         }
 
         if ($top['kind'] !== 'element') {
-            throw $c->error($top['kind'] === 'root'
+            throw $context->error($top['kind'] === 'root'
                 ? "</{$tag}> closes nothing that is open"
                 : "</{$tag}> closes an element opened outside the @{$top['kind']} of line {$top['line']}: open and close an element inside the same block");
         }
 
         if (strcasecmp($top['tag'], $tag) !== 0) {
-            throw $c->error("</{$tag}> does not match <{$top['tag']}> from line {$top['line']}: close every element, in order");
+            throw $context->error("</{$tag}> does not match <{$top['tag']}> from line {$top['line']}: close every element, in order");
         }
 
-        array_pop($c->stack);
+        array_pop($context->stack);
     }
 
     /** Inside <script>/<style> (raw) or <textarea>/<title>: text up to the end tag. */
     private function rawText(string $text, int $i): int
     {
-        $c = $this->context;
+        $context = $this->context;
         $tag = $this->compiler->tree->element()['tag'];
 
-        if (! preg_match('/<\/'.preg_quote($tag, '/').'\b/i', $text, $m, PREG_OFFSET_CAPTURE, $i)) {
-            $c->text .= substr($text, $i);
+        if (! preg_match('/<\/'.preg_quote($tag, '/').'\b/i', $text, $match, PREG_OFFSET_CAPTURE, $i)) {
+            $context->text .= substr($text, $i);
 
             return strlen($text);
         }
 
-        $at = $m[0][1];
-        $c->text .= substr($text, $i, $at - $i);
+        $at = $match[0][1];
+        $context->text .= substr($text, $i, $at - $i);
         $this->compiler->tree->flushText();
-        $c->endTag = '';
-        $c->state = 'endtag';
+        $context->endTag = '';
+        $context->state = 'endtag';
 
         return $at + 2;
     }
