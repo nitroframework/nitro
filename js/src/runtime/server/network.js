@@ -3,8 +3,8 @@
  * changed in the browser since, and the method. One call at a time per component (in order);
  * the answer replaces the state, keeping anything changed in the browser meanwhile.
  */
-import * as P from '../php.js';
-import { webUrl } from './navigate.js';
+import * as P from '../../php.js';
+import { webUrl } from '../navigation/navigate.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -46,7 +46,9 @@ export class Network {
         const href = url ? url() : window.location.href;
         if (href === null) return;
         const sent = new Map(component.data);
+        /** Plugins hear it as a call of $reload, and may add headers; Fusion's own are set after theirs. */
         const headers = {
+            ...this.runtime.plugins.request(component, '$reload', {}),
             Accept: 'application/json',
             'X-Fusion-Navigate': '1',
             'X-Fusion-Partial': component.id,
@@ -63,6 +65,7 @@ export class Network {
             throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
         } finally {
             if (!deferred) this.runtime.loading(component, '$reload', false);
+            this.runtime.plugins.response(component, '$reload', response?.status ?? 0);
         }
         if (component.destroyed) return;
 
@@ -126,10 +129,13 @@ export class Network {
         this.runtime.emit('fusion:request', { component: component.name, method });
         let response;
         try {
+            /** Plugins may add headers (Fusion.use(): on('request')); Fusion's own are set after theirs. */
+            const headers = this.runtime.plugins.request(component, method, {});
             response = await fetch(`${this.config.endpoint}/update`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
+                    ...headers,
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -144,6 +150,7 @@ export class Network {
         } finally {
             this.runtime.loading(component, method, false);
             this.runtime.emit('fusion:response', { component: component.name, method, status: response?.status ?? 0 });
+            this.runtime.plugins.response(component, method, response?.status ?? 0);
         }
 
         const text = await response.text();

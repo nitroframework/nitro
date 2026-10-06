@@ -9,7 +9,7 @@
  * after this (it reads what the loop reads), so a row being typed into keeps its field. An
  * iteration bound to its position (a child keyed by the loop's index) renders again when it moves.
  */
-import * as B from '../../blade.js';
+import * as B from '../../laravel/blade.js';
 import * as P from '../../php.js';
 import { createAnchorNode, nextAnchorNodeId, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';

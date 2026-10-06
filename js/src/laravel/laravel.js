@@ -6,7 +6,7 @@
  * What they need comes with the page (@fusionScripts, Fusion::globals()), and only for what the
  * compiled code names: those route definitions, those translations, that public config.
  */
-import { decode, entries, isArray, key as phpKey, toStr } from './php.js';
+import { decode, entries, isArray, key as phpKey, toStr } from '../php.js';
 
 export const globals = { url: '', asset: '', locale: 'en', routes: {}, lang: {}, config: {}, shared: [], once: {}, flash: [] };
 

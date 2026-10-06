@@ -13,8 +13,8 @@
  * fusion:loading with fusion:target="photo" shows. A file the server refuses (its rules) gives
  * the property's $errors message, as validate() would.
  */
-import * as P from '../php.js';
-import { ErrorBag } from './errors.js';
+import * as P from '../../php.js';
+import { ErrorBag } from '../component/errors.js';
 
 export function upload(runtime, config, component, el, path) {
     const files = Array.prototype.slice.call(el.files);

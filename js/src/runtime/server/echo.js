@@ -13,7 +13,7 @@
  * methods too, as a call). When the component leaves the page, its listeners stop; channels
  * stay joined, as other components may listen on them.
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 
 const PATTERN = /^echo(?:-(private|presence|notification))?:([^,]+)(?:,(.+))?$/;
 

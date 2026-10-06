@@ -5,7 +5,7 @@
  * (when); fusion:<event> marks the element for its handler. Attributes set the initial state of
  * inputs; their properties are what the page shows, so those follow.
  */
-import { modelAttribute } from '../model.js';
+import { modelAttribute } from '../dom/model.js';
 import { evaluate } from './call.js';
 
 /** The attributes the runtime puts on a component's root element: its render keeps them. */

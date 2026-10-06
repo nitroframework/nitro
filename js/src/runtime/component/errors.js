@@ -2,7 +2,7 @@
  * $errors in the browser: the validation messages of a component's last #[Server] call, with
  * the methods of Laravel's MessageBag that templates use.
  */
-import { decode, entries, isArray, toStr } from '../php.js';
+import { decode, entries, isArray, toStr } from '../../php.js';
 
 export class ErrorBag {
     /** @param {Map|Array|null} messages field => list of messages (as MessageBag::toArray()) */

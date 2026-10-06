@@ -13,8 +13,8 @@
  * A page with another build of Fusion (a deploy since this one loaded), or without
  * @fusionScripts, loads normally.
  */
-import { session } from '../blade.js';
-import { globals } from '../laravel.js';
+import { session } from '../../laravel/blade.js';
+import { globals } from '../../laravel/laravel.js';
 
 const lasting = (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || (el.tagName === 'LINK' && /\bstylesheet\b/i.test(el.rel));
 

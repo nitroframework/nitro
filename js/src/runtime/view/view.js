@@ -10,11 +10,11 @@
  * A component renders one root element. A block around it (an @if at the top of the view) is
  * no block of its own: when what it reads changes, the component makes its root again.
  */
-import { evaluate } from './view/call.js';
-import { cleanup } from './view/hydrate.js';
-import { directiveCodes, refreshSlots, renderTag, teleported } from './view/render.js';
-import { conditionOf } from './view/renderIf.js';
-import { createScope, dispose, keysOf, rootScope, run } from './view/scope.js';
+import { evaluate } from './call.js';
+import { cleanup } from './hydrate.js';
+import { directiveCodes, refreshSlots, renderTag, teleported } from './render.js';
+import { conditionOf } from './if.js';
+import { createScope, dispose, keysOf, rootScope, run } from './scope.js';
 
 /** The component's root element, built anew (nothing tracked): the template parity test's. */
 export function render(definition, $this, host, document) {

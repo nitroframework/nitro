@@ -7,9 +7,9 @@
  * renders again, in each of them, what reads that property, and works out their #[Computed]
  * values again. It has no element and no view.
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 import { ErrorBag } from './errors.js';
-import { readState } from './component.js';
+import { enumCase, enumValue, readState } from './component.js';
 
 export class Store {
     /**
@@ -34,6 +34,8 @@ export class Store {
         this.destroyed = false;
         /** component => the property holding this store: rendered again when it changes */
         this.subscribers = new Map();
+        /** plugins' listeners (listen()) */
+        this.listeners = new Set();
         this.notifying = false;
         this.ctx = this.context();
     }
@@ -46,8 +48,8 @@ export class Store {
         for (const [name, prop] of Object.entries(this.definition.props)) {
             Object.defineProperty(ctx, name, {
                 enumerable: true,
-                get: () => self.data.get(name) ?? null,
-                set: (value) => self.write(name, value, prop),
+                get: () => (prop.enum ? enumCase(self.runtime, prop, self.data.get(name)) : self.data.get(name) ?? null),
+                set: (value) => self.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
             });
         }
 
@@ -104,7 +106,7 @@ export class Store {
         this.changed();
     }
 
-    /** What reads it, in every component that uses it, renders again (once, after the change). */
+    /** What reads it, in every component that uses it, renders again (once, after the change); then the plugins' listeners hear it. */
     changed() {
         this.memo.clear();
         if (this.notifying) return;
@@ -115,7 +117,20 @@ export class Store {
                 if (component.destroyed) this.subscribers.delete(component);
                 else component.changed(property);
             }
+            for (const listener of this.listeners) {
+                try {
+                    listener();
+                } catch (error) {
+                    this.runtime.report(this, error);
+                }
+            }
         });
+    }
+
+    /** A plugin's listener (plugins.js): called after each change, once per change, wherever it came from. */
+    listen(listener) {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
     }
 
     subscribe(component, property) {

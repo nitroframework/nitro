@@ -3,19 +3,25 @@
  * chunks it loads when a page needs them), the components currently on the page, and the
  * services they share (events, models, network, navigation).
  */
-import { globals } from '../laravel.js';
+import { globals } from '../laravel/laravel.js';
 import * as P from '../php.js';
-import { Component, readState } from './component.js';
-import { ErrorBag } from './errors.js';
-import { Events } from './events.js';
-import { Hooks } from './hooks.js';
-import { islandsIn, whenToStart } from './islands.js';
-import { Broadcasts } from './echo.js';
-import { applyLoading, STYLE } from './loading.js';
-import { Model } from './model.js';
-import { Navigator, webUrl } from './navigate.js';
-import { Network } from './network.js';
-import { Store } from './store.js';
+import { Chunks } from './chunks.js';
+import { Component, readState } from './component/component.js';
+import { Directives } from './directives.js';
+import { Engines } from './view/engines.js';
+import { Plugins } from './plugins.js';
+import { ErrorBag } from './component/errors.js';
+import { Events } from './dom/events.js';
+import { Hooks } from './dom/hooks.js';
+import { islandsIn, whenToStart } from './dom/islands.js';
+import { Broadcasts } from './server/echo.js';
+import { applyLoading, STYLE } from './dom/loading.js';
+import { applyDirty, STYLE as DIRTY_STYLE } from './dom/dirty.js';
+import { Model } from './dom/model.js';
+import { Navigator, webUrl } from './navigation/navigate.js';
+import { Network } from './server/network.js';
+import { SharedData } from './component/shared.js';
+import { Store } from './component/store.js';
 
 /** sessionStorage: the page stale() loaded again, so it does not again. */
 const STALE = 'fusion:stale';
@@ -30,18 +36,21 @@ export class Runtime {
         this.storeDefinitions = new Map();
         this.stores = new Map();
         this.storeStates = new Map();
-        /** #[LazyLoad]: component => chunk; [path pattern, chunk] of the pages; chunk => its load */
-        this.lazyComponents = new Map();
-        this.lazyRoutes = [];
-        this.chunks = new Map();
+        /** #[Browser] classes: class => its compiled static methods, which browser code calls as Fusion.classes[class][method](). */
+        this.classes = Object.create(null);
+        /** #[LazyLoad] chunks, and the markup-first pages (chunks.js) */
+        this.chunks = new Chunks(this);
         this.instances = new Map();
         this.inflight = new WeakMap();
         /** Signed state of the children with mount() or #[Server] methods the server created for the page being rendered, by id. */
         this.provided = new Map();
-        /** Fusion::once() shared data the browser keeps between responses: key => {value, expires (ms or null)}. */
-        this.onceShared = new Map();
+        /** Shared, once and flash data from the server (shared.js) */
+        this.shared = new SharedData(this);
         this.events = new Events(this, this.document);
         this.hooks = new Hooks(this, window);
+        this.directives = new Directives(this);
+        this.engines = new Engines(this);
+        this.plugins = new Plugins(this);
         /** #[On('echo:...')]: broadcast events, through the application's Laravel Echo. */
         this.broadcasts = new Broadcasts(this, window);
         this.model = new Model(this, this.document);
@@ -55,6 +64,26 @@ export class Runtime {
     /** Called by app.js (and the chunks) for every compiled component. */
     define(name, definition) {
         this.definitions.set(name, definition);
+    }
+
+    /** Fusion.directive(name, directive): what runs a fusion:<name> attribute of the application's own (directives.js). */
+    directive(name, directive) {
+        this.directives.register(name, directive);
+    }
+
+    /** Fusion.engine(name, { load, mount }): a view engine (Vue, React, Solid) components can name (view/engines.js). */
+    engine(name, engine) {
+        this.engines.add(name, engine);
+    }
+
+    /** Fusion.use(plugin): a plugin, called with the API to hook into the runtime (plugins.js). */
+    use(plugin) {
+        this.plugins.use(plugin);
+    }
+
+    /** Fusion.visit(url): a fusion:navigate visit, as $visit() in a handler does. */
+    visit(url) {
+        return this.navigator.visit(String(url));
     }
 
     /** Fusion.store(name, definition): a store, from app.js. */
@@ -80,6 +109,7 @@ export class Runtime {
             if (!definition) throw new Error(`Fusion: store [${name}] is not compiled`);
             this.stores.set(name, new Store(this, definition, name, this.storeStates.get(name) ?? null));
             this.storeStates.delete(name);
+            this.plugins.madeStore(this.stores.get(name));
         }
         return this.stores.get(name);
     }
@@ -89,18 +119,17 @@ export class Runtime {
      * them ([path pattern, chunk]).
      */
     lazy(components, routes) {
-        this.lazyComponents = new Map(Object.entries(components));
-        this.lazyRoutes = routes.map(([pattern, group]) => [new RegExp(pattern), group]);
+        this.chunks.lazy(components, routes);
     }
 
     /** Called by app.js with the markup-first pages ([path pattern, page]): a visit renders them at once. */
     markupPages(routes) {
-        this.markup = routes.map(([pattern, name]) => [new RegExp(pattern), name]);
+        this.chunks.markupPages(routes);
     }
 
     /** The markup-first page a path shows, or null. */
     markupPage(path) {
-        return (this.markup ?? []).find(([pattern]) => pattern.test(path))?.[1] ?? null;
+        return this.chunks.markupPage(path);
     }
 
     /**
@@ -180,45 +209,14 @@ export class Runtime {
         return true;
     }
 
-    /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
-    load(group) {
-        /** Its components are here already (the page loaded the chunk with its own script tag). */
-        const inGroup = [...this.lazyComponents].filter(([, chunk]) => chunk === group).map(([name]) => name);
-        if (!this.chunks.has(group) && inGroup.length > 0 && inGroup.every((name) => this.definitions.has(name))) {
-            this.chunks.set(group, Promise.resolve());
-        }
-        if (!this.chunks.has(group)) {
-            this.chunks.set(group, new Promise((resolve, reject) => {
-                const script = this.document.createElement('script');
-                const pattern = this.config.chunks ?? `${this.config.endpoint}/app/{id}.js?v=${encodeURIComponent(this.config.bundle ?? '')}`;
-                script.src = pattern.replace('{id}', encodeURIComponent(group));
-                script.onload = () => resolve();
-                script.onerror = () => {
-                    this.chunks.delete(group);
-                    /** Gone with a deploy since the page loaded (a build's files are replaced): the page loads again. */
-                    this.stale();
-                    reject(new Error(`Fusion: the components of chunk [${group}] did not load`));
-                };
-                this.document.head.appendChild(script);
-            }));
-        }
-        return this.chunks.get(group);
-    }
-
     /** The chunks the components need that are not here yet: a promise, or null when none are missing. */
     require(names) {
-        const groups = new Set();
-        for (const name of names) {
-            if (!this.definitions.has(name) && this.lazyComponents.has(name)) groups.add(this.lazyComponents.get(name));
-        }
-        return groups.size ? Promise.all([...groups].map((group) => this.load(group))) : null;
+        return this.chunks.require(names);
     }
 
     /** A visit to the path: start loading the chunk of the page it renders, while its data loads. */
     preload(path) {
-        for (const [pattern, group] of this.lazyRoutes) {
-            if (pattern.test(path)) this.load(group).catch(() => {});
-        }
+        this.chunks.preload(path);
     }
 
     /**
@@ -233,7 +231,7 @@ export class Runtime {
         this.takeStores(globals.stores);
         if (!this.styled) {
             const style = this.document.createElement('style');
-            style.textContent = STYLE;
+            style.textContent = STYLE + DIRTY_STYLE;
             this.document.head.appendChild(style);
             this.styled = true;
         }
@@ -253,8 +251,8 @@ export class Runtime {
             /** A reload: what #[Remember] properties had in this history entry. */
             this.restoreRemembered(this.window.history.state?.fusionRemember);
             /** The page's once data, kept for the responses after it; its flash data, announced. */
-            this.withOnce(globals.shared, globals.once ?? {});
-            this.announceFlash(globals.flash);
+            this.shared.withOnce(globals.shared, globals.once ?? {});
+            this.shared.announceFlash(globals.flash);
         });
 
         for (const island of islands) {
@@ -555,7 +553,15 @@ export class Runtime {
         this.events.watch(component);
         this.model.sync(component);
         applyLoading(component, this.inflight.get(component) ?? new Set());
+        applyDirty(component);
         this.hooks.sync(component);
+        this.directives.sync(component);
+        this.plugins.rendered(component);
+    }
+
+    /** The state the server last signed changed (a response, a reload): fusion:dirty follows. */
+    unsavedChanged(component) {
+        if (!component.destroyed && component.el && !component.isStore) applyDirty(component);
     }
 
     loading(component, method, on) {
@@ -575,65 +581,14 @@ export class Runtime {
         applyLoading(component, methods);
     }
 
-    /**
-     * Fusion::share()'s data from the server (a #[Server] call's answer, a visited page). When it
-     * changed, what reads it ("$shared") renders again; `except` renders with its own update.
-     */
-    /**
-     * What a response brings besides state: Fusion::share()'s data (with the once data kept
-     * from earlier responses) and Fusion::flash()'s. Flash data belongs to the page it came with:
-     * a visit replaces it; a reload or a #[Server] call only when it brings some.
-     */
+    /** What a response brings besides state: shared, once and flash data (shared.js). */
     receive(answer, except = null, visit = false) {
-        /** A page's data (a visit, a partial reload): the stores its components use, for those not made yet. */
-        if (answer.fusion === 1 && answer.stores) this.takeStores(answer.stores);
-        if (answer.shared !== undefined) this.setShared(this.withOnce(answer.shared, answer.once ?? {}), except);
-        if (answer.flash === undefined || answer.flash === null) return;
-        const flash = P.decode(answer.flash);
-        if (visit || (flash instanceof Map && flash.size > 0)) this.setFlash(answer.flash, except);
-    }
-
-    /**
-     * Fusion::once(): the once data a response sent is kept; what it left out (the browser said it
-     * has it) is put back. Keys the response does not name as once are let go.
-     */
-    withOnce(shared, once) {
-        const decoded = P.decode(shared);
-        const data = decoded instanceof Map ? new Map(decoded) : new Map();
-        for (const [key, expires] of Object.entries(once)) {
-            if (data.has(key)) {
-                this.onceShared.set(key, { value: data.get(key), expires: expires === null ? null : expires * 1000 });
-            } else if (this.onceShared.has(key)) {
-                data.set(key, this.onceShared.get(key).value);
-            }
-        }
-        for (const key of [...this.onceShared.keys()]) {
-            if (!(key in once)) this.onceShared.delete(key);
-        }
-        return data.size === 0 && !(decoded instanceof Map) ? shared : P.encode(data);
+        this.shared.receive(answer, except, visit);
     }
 
     /** The once data the browser has and that has not expired: sent as X-Fusion-Once. */
     onceHeader() {
-        const now = Date.now();
-        return [...this.onceShared].filter(([, kept]) => kept.expires === null || kept.expires > now).map(([key]) => key).join(',');
-    }
-
-    /** Fusion::flash()'s data from a response: what reads it ("$flash") renders again, and fusion:flash announces it. */
-    setFlash(flash, except = null) {
-        if (JSON.stringify(flash) !== JSON.stringify(globals.flash)) {
-            globals.flash = flash;
-            for (const component of this.components()) {
-                component.dirty.add('$flash');
-                if (component !== except) component.update();
-            }
-        }
-        this.announceFlash(flash);
-    }
-
-    announceFlash(flash) {
-        const data = P.decode(flash ?? []);
-        if (data instanceof Map && data.size > 0) this.emit('fusion:flash', { flash: plain(data) });
+        return this.shared.onceHeader();
     }
 
     /**
@@ -653,15 +608,6 @@ export class Runtime {
             url.searchParams.set(P.toStr(component.scroll.get(name).get('pageName') ?? 'page'), P.toStr(next));
             return url.href;
         });
-    }
-
-    setShared(shared, except = null) {
-        if (JSON.stringify(shared) === JSON.stringify(globals.shared)) return;
-        globals.shared = shared;
-        for (const component of this.components()) {
-            component.dirty.add('$shared');
-            if (component !== except) component.update();
-        }
     }
 
     /** What a #[Server] call asked for besides the new state. */
@@ -730,11 +676,4 @@ function nameIn(envelope) {
 /** The server-rendered components under root (root included): their elements, with state. */
 function snapshotsIn(root) {
     return [...(root.matches?.('[fusion\\:snapshot]') ? [root] : []), ...root.querySelectorAll('[fusion\\:snapshot]')];
-}
-
-/** A PHP value as plain JavaScript (Maps as objects), for event listeners. */
-function plain(value) {
-    if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [key, plain(item)]));
-    if (Array.isArray(value)) return value.map(plain);
-    return value;
 }

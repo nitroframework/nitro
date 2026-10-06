@@ -8,11 +8,11 @@
  *   .trim                   trims the text
  *   .boolean                stores true/false
  *
- * On a file input it uploads the chosen files (runtime/upload.js) and binds what the server answers.
+ * On a file input it uploads the chosen files (runtime/server/upload.js) and binds what the server answers.
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 import { timing } from './events.js';
-import { upload } from './upload.js';
+import { upload } from '../server/upload.js';
 
 export function modelAttribute(el) {
     return el.getAttributeNames().find((n) => n === 'fusion:model' || n.startsWith('fusion:model.')) ?? null;

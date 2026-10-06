@@ -4,9 +4,11 @@
  * document is parsed.
  */
 import * as P from './php.js';
-import * as B from './blade.js';
-import { Progress } from './runtime/progress.js';
+import * as B from './laravel/blade.js';
+import { Progress } from './runtime/navigation/progress.js';
 import { Runtime } from './runtime/runtime.js';
+import { persist } from './plugins/persist.js';
+import { sync } from './plugins/sync.js';
 
 const script = document.currentScript;
 const config = {
@@ -32,6 +34,10 @@ Fusion.B = B;
 Fusion.progress = new Progress(window, config.progress);
 window.Fusion = Fusion;
 
+/** Fusion's own plugins: #[Persist] and #[Sync] on stores. */
+Fusion.use(persist);
+Fusion.use(sync);
+
 /**
  * Start once every deferred script (app.js defines the components) has run: that is when
  * DOMContentLoaded fires. A deferred script runs while readyState is already "interactive", so
@@ -41,6 +47,8 @@ let started = false;
 const start = () => {
     if (!started) {
         started = true;
+        /** Scripts that ran before the runtime register their Fusion.directive()s now, before any component starts. */
+        document.dispatchEvent(new CustomEvent('fusion:starting', { detail: { Fusion } }));
         Fusion.start();
     }
 };

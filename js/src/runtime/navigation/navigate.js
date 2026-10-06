@@ -34,9 +34,9 @@
  * #[Url] properties are kept in the query string (syncUrl()); the server reads them back when it
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 import { Swap } from './swap.js';
-import { readState } from './component.js';
+import { readState } from '../component/component.js';
 
 /**
  * A URL the browser may be sent to: http(s) only. A redirect can come from what a visitor typed

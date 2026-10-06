@@ -3,16 +3,30 @@
  * rendering into its root element.
  *
  * State changes go through property setters: a write to $this->prop schedules an update (in a
- * microtask) of what reads the property; the View (runtime/render.js) renders only that again.
+ * microtask) of what reads the property; its view (runtime/view/engines.js) renders only that again.
  * Arrays are values (every write builds a new one), so a change is always a new top-level value.
  * A new snapshot from the server renders all of it.
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 import { merge as mergeValues } from './merge.js';
 import { ErrorBag } from './errors.js';
-import { RUNTIME_ATTRIBUTES } from './view/renderAttributeValue.js';
-import { View } from './render.js';
-import { slotHasContent } from './view/render.js';
+import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
+import { slotHasContent } from '../view/render.js';
+
+/**
+ * An enum property (public Status $status): the state holds its value, as the server sends it and
+ * fusion:model writes it; compiled code reads the case (null for a value that names none).
+ */
+export function enumCase(runtime, prop, value) {
+    return value === null || value === undefined ? null : runtime.classes[prop.enum].tryFrom(value);
+}
+
+/** What compiled code assigns to an enum property: a case (stored as its value) or null, as PHP's type allows. */
+export function enumValue(prop, name, value) {
+    if (value instanceof P.EnumCase) return value.value;
+    if (value === null || value === undefined) return null;
+    throw new P.PhpError('TypeError', `Cannot assign ${P.typeName(value)} to property $${name}: it takes a case of its enum`);
+}
 
 /** The state inside a signed envelope: {name, id, data: Map, errors}. */
 export function readState(envelope) {
@@ -109,8 +123,8 @@ export class Component {
         for (const [name, prop] of Object.entries(this.definition.props)) {
             Object.defineProperty(ctx, name, {
                 enumerable: true,
-                get: () => self.data.get(name) ?? null,
-                set: (value) => self.write(name, value, prop),
+                get: () => (prop.enum ? enumCase(self.runtime, prop, self.data.get(name)) : self.data.get(name) ?? null),
+                set: (value) => self.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
             });
         }
 
@@ -143,7 +157,7 @@ export class Component {
             $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
         });
         Object.defineProperty(ctx, '$errors', { get: () => self.errors });
-        /** Fusion::browser(): what its APIs (js/functions/_browser_*.js) need of the component. */
+        /** Fusion::browser(): what its APIs (js/functions/browser/_browser_*.js) need of the component. */
         Object.defineProperty(ctx, '$browser', { get: () => self.browser() });
         /** $slots->has('footer') and $slot->isEmpty() in its view. */
         ctx.$slots = { has: (name) => slotHasContent(self.slots[P.toStr(name)]) };
@@ -172,7 +186,7 @@ export class Component {
             removed: (node) => this.runtime.forget(node),
             id: this.id,
         };
-        return new View(this.definition, this.ctx, host, this.el.ownerDocument);
+        return this.runtime.engines.view(this.definition, this.ctx, host, this.el.ownerDocument);
     }
 
     /** The parent rendered this child's tag again: its slots now come from there. */
@@ -258,7 +272,14 @@ export class Component {
     /** $set('form.email', 'x') and fusion:model: a property or a key under it. */
     setPath(path, value) {
         const [root, ...keys] = String(path).split('.');
-        this.ctx[root] = keys.length ? P.setIn(this.data.get(root) ?? null, keys, value) : value;
+        const prop = this.definition.props[root];
+        if (prop?.enum && !keys.length) {
+            /** fusion:model or $set on an enum property: its value as the page has it (the server checks it names a case); the hooks get the case. */
+            this.write(root, value instanceof P.EnumCase ? value.value : value, prop);
+            value = this.ctx[root];
+        } else {
+            this.ctx[root] = keys.length ? P.setIn(this.data.get(root) ?? null, keys, value) : value;
+        }
         const hook = 'updated' + root.charAt(0).toUpperCase() + root.slice(1);
         if (typeof this.definition.methods[hook] === 'function') {
             this.ctx[hook](value, keys.length ? keys.join('.') : null);
@@ -470,6 +491,8 @@ export class Component {
         this.update();
         /** The server changed what fusion:model binds: the parent follows. */
         if (modelChanged) this.modelChanged(modelable);
+        /** Its changes are the server's now, though nothing may have rendered again. */
+        this.runtime.unsavedChanged(this);
     }
 
     /**
@@ -481,6 +504,7 @@ export class Component {
         if (state.id !== this.id || state.name !== this.name) return;
         this.snapshot = envelope;
         this.serverData = new Map(state.data);
+        this.runtime.unsavedChanged(this);
     }
 
     /**
@@ -531,6 +555,7 @@ export class Component {
         const modelChanged = modelable && this.dirty.has(modelable);
         this.update();
         if (modelChanged) this.modelChanged(modelable);
+        this.runtime.unsavedChanged(this);
     }
 
     /**
@@ -548,6 +573,18 @@ export class Component {
     nextPage(name) {
         const position = this.scroll.get(name);
         return position instanceof Map ? position.get('nextPage') ?? null : null;
+    }
+
+    /**
+     * The properties (or paths: "form.email") whose value here is not the one the server last
+     * signed: of those given, or of all. Locked ones never change here.
+     *
+     * @param {string[]|null} paths
+     */
+    unsaved(paths = null) {
+        const read = (map, path) => path.split('.').slice(1).reduce((v, k) => P.get(v, k), map.get(path.split('.')[0]) ?? null);
+        const names = paths ?? [...this.data.keys()].filter((name) => !this.definition.props[name]?.locked);
+        return names.filter((path) => !sameValue(read(this.data, path), read(this.serverData, path)));
     }
 
     /** Values changed in the browser since the last snapshot (sent with the next #[Server] call). */

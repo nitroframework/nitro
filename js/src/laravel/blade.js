@@ -3,7 +3,7 @@
  * $loop (View\Concerns\ManagesLoops), @class / @style (Arr::toCssClasses / toCssStyles),
  * @csrf (csrf_field) and @method (method_field).
  */
-import { bool, count, entries, isArray, toStr } from './php.js';
+import { bool, count, entries, isArray, toStr } from '../php.js';
 
 /** Blade's loop state for one @foreach: what addLoop() sets up. */
 export function loop(data, parent) {

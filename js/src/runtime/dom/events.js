@@ -75,7 +75,8 @@ export class Events {
             if (keys.length && !keys.some((k) => event.key === KEYS[k])) return;
             for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;
         }
-        if (m.includes('prevent')) event.preventDefault();
+        /** fusion:submit never lets the browser post the form: the handler is what submitting does. */
+        if (m.includes('prevent') || event.type === 'submit') event.preventDefault();
         if (!this.answers.has(event)) this.answers.set(event, new Map());
         const answers = this.answers.get(event);
         if (!answers.has(el)) answers.set(el, this.confirmed(el));

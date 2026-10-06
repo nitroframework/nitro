@@ -3,7 +3,7 @@
  * merged into the one the page has, by the rule it came with. Mirrors Merge::apply() in PHP, on
  * PHP values as the runtime holds them (lists are Arrays, other arrays Maps).
  */
-import * as P from '../php.js';
+import * as P from '../../php.js';
 
 /** @param {{mode: string, path: ?string, match: string[]}} rule */
 export function merge(current, value, rule) {
