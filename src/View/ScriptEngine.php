@@ -11,8 +11,9 @@ use Nitro\Fusion\Component;
  * them with the engine Fusion.engine() registered. The server renders the element they mount
  * in, marked with the component's state like any other.
  *
- * Fusion's own frameworks are its adapters (View\Adapters: Vue, React, Solid); an engine of the
- * app's own (fusion.views) is a ScriptEngine as it is.
+ * Each fusion.views entry names its adapter: Fusion's (View\Adapters: Vue, React, Solid) know
+ * their framework's files and where a view keeps its <php> block. An entry without one, for a
+ * framework of the app's own, is a ScriptEngine as it is.
  */
 class ScriptEngine implements ViewEngine
 {

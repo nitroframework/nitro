@@ -561,7 +561,9 @@ export class Runtime {
 
     /** The state the server last signed changed (a response, a reload): fusion:dirty follows. */
     unsavedChanged(component) {
-        if (!component.destroyed && component.el && !component.isStore) applyDirty(component);
+        if (component.destroyed || !component.el || component.isStore) return;
+        applyDirty(component);
+        component.view?.saved?.();
     }
 
     loading(component, method, on) {

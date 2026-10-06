@@ -1,25 +1,30 @@
 /**
- * A view written for a JavaScript framework (Vue, React, Solid): the app's build compiles it; its
- * engine, registered with Fusion.engine(name, { load, mount }), loads it and mounts it in the
- * element the server rendered. The component keeps the state; the view reads it through a handle,
- * and hears what changed.
+ * A view written for a JavaScript framework: Vue, React, Solid, or one of the app's own.
  *
- *   load(view)                  the view's module, by its name ('cart/badge'): a promise
- *   mount(module, el, handle)   mounts it in el; returns { update(names), unmount() } (both optional)
+ * The app's Vite builds the view; its engine, registered with Fusion.engine(name, { load, mount }),
+ * loads it and mounts it in the element the server rendered. The component keeps the state, as
+ * it does for a Blade view. The view reads and changes it through a handle, and is told what
+ * changed. The adapters (js/adapters) build on this handle; an engine of the app's own may use
+ * it directly.
  *
- * The handle speaks the PHP's names (an obfuscated build's aliases stay inside) and plain data
- * (plain.js: a PHP array is an array or an object):
+ *   load(view)                    the view's module, by its name ('cart/badge'): a promise
+ *   mount(module, el, handle)     mounts it in el, and returns { update(names), unmount() }
  *
- *   handle.get(path)            a property's value ("form.email": a key under it), or a #[Computed] one's
- *   handle.set(path, value)     a property, or a key under it, set as fusion:model sets one
- *   handle.call(method, ...args) a method: a browser one runs here and returns its value; a
- *                               #[Server] one returns a promise of its value
- *   handle.errors()             the validation messages, by field
- *   handle.dispatch(event, ...params)   an event, as $this->dispatch() sends one
- *   handle.properties, .methods, .server, .computed   the names
- *   handle.component            the component (as Fusion.find() gives it)
+ * The handle speaks the PHP's names (an obfuscated build's aliases never reach the view) and
+ * plain data (plain.js: a PHP array is an array or an object, and turns back into one):
  *
- * update(names) gets what changed, by those names ($errors: the messages).
+ *   handle.get(path)              a property's value ("form.email": a key under it), or a #[Computed] one
+ *   handle.set(path, value)       writes a property, or a key under it, as fusion:model does
+ *   handle.call(method, ...args)  a browser method runs here and returns its value; a #[Server]
+ *                                 one returns a promise of its value
+ *   handle.errors()               the validation messages, by field
+ *   handle.unsaved()              the properties changed here that the server has not seen yet
+ *   handle.dispatch(event, ...)   an event, as $this->dispatch() sends one
+ *   handle.properties, .methods, .server, .computed    the names
+ *   handle.component              the component itself, as Fusion.find() gives it
+ *
+ * update(names) is told what changed, by the PHP's names: "$errors" for the messages, "$unsaved"
+ * when the server has taken the changes (nothing else may have changed then).
  */
 import * as P from '../../php.js';
 import { fromPlain, toPlain } from './plain.js';
@@ -37,6 +42,7 @@ export class ScriptView {
         this.handle = this.makeHandle();
     }
 
+    /** The server rendered the element; the view mounts in it (server rendering is for later). */
     hydrate(el) {
         this.mount(el);
     }
@@ -48,11 +54,14 @@ export class ScriptView {
     }
 
     update(names) {
-        if (this.mounted?.update) {
-            const byName = this.phpNames();
-            this.mounted.update([...names].map((name) => (name === '*' ? '*' : byName.get(name) ?? name)));
-        }
+        const byName = this.phpNames();
+        this.notify([...names].map((name) => (name === '*' ? '*' : byName.get(name) ?? name)));
         return true;
+    }
+
+    /** The server has taken what changed here: what is unsaved is worked out again. */
+    saved() {
+        this.notify(['$unsaved']);
     }
 
     refreshSlots() {}
@@ -78,7 +87,11 @@ export class ScriptView {
             .catch((error) => this.runtime.report(this.runtime.find(this.host.id), error));
     }
 
-    /** The PHP's names by the browser's (an obfuscated build's aliases). */
+    notify(names) {
+        this.mounted?.update?.(names);
+    }
+
+    /** The PHP's names, by the browser's (an obfuscated build's aliases). */
     phpNames() {
         this.byName ??= new Map(Object.entries(this.definition.names?.properties ?? {}).map(([php, browser]) => [browser, php]));
         return this.byName;
@@ -86,57 +99,63 @@ export class ScriptView {
 
     makeHandle() {
         const names = this.definition.names ?? {};
-        const name = (kind, php) => names[kind]?.[php];
+        const browserName = (kind, php) => names[kind]?.[php];
         const $this = this.$this;
         const runtime = this.runtime;
         const id = this.host.id;
         const component = () => runtime.find(id);
+        const phpNames = this.phpNames();
+        const phpPath = (path) => {
+            const [root, ...keys] = String(path).split('.');
+            return [phpNames.get(root) ?? root, ...keys].join('.');
+        };
         const property = (path) => {
             const [root, ...keys] = String(path).split('.');
-            const browser = name('properties', root);
+            const browser = browserName('properties', root);
             if (browser === undefined) throw new Error(`Fusion: [${root}] is not a property of this component`);
             return [browser, keys];
         };
-        const phpNames = this.phpNames();
 
         return {
             properties: Object.keys(names.properties ?? {}),
             methods: Object.keys(names.methods ?? {}),
             server: Object.keys(names.server ?? {}),
             computed: Object.keys(names.computed ?? {}),
+
             get component() {
                 return component();
             },
-            /** A property's value ("form.email": a key under it), or a #[Computed] one's, as plain data. */
+
             get(path) {
-                if (name('computed', path) !== undefined) return toPlain($this.$computed(name('computed', path)));
+                if (browserName('computed', path) !== undefined) return toPlain($this.$computed(browserName('computed', path)));
                 const [browser, keys] = property(path);
                 return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);
             },
-            /** Set a property, or a key under it ("form.email"), from plain data. */
+
             set(path, value) {
                 const [browser, keys] = property(path);
                 const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
                 $this.$set([browser, ...keys].join('.'), fromPlain(value, current));
             },
-            /** A browser method runs here and returns its value; a #[Server] one returns a promise of it. */
+
             call(method, ...args) {
                 const values = args.map((arg) => fromPlain(arg));
-                if (name('server', method) !== undefined) return $this.$call(name('server', method), values).then(toPlain);
-                const browser = name('methods', method);
+                if (browserName('server', method) !== undefined) return $this.$call(browserName('server', method), values).then(toPlain);
+                const browser = browserName('methods', method);
                 if (browser === undefined) throw new Error(`Fusion: [${method}] is not a method of this component`);
                 return toPlain($this[browser](...values));
             },
-            /** The validation messages, by field ("form.email"). */
+
             errors() {
                 const messages = {};
-                for (const [field, list] of component()?.errors.messages ?? []) {
-                    const [root, ...keys] = field.split('.');
-                    messages[[phpNames.get(root) ?? root, ...keys].join('.')] = [...list];
-                }
+                for (const [field, list] of component()?.errors.messages ?? []) messages[phpPath(field)] = [...list];
                 return messages;
             },
-            /** An event, as $this->dispatch() sends one. */
+
+            unsaved() {
+                return (component()?.unsaved() ?? []).map(phpPath);
+            },
+
             dispatch(event, ...params) {
                 component()?.dispatch(event, params.map((param) => fromPlain(param)));
             },
