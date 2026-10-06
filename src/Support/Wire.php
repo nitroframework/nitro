@@ -4,6 +4,9 @@ namespace Nitro\Fusion\Support;
 
 use BackedEnum;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Enumerable;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use JsonException;
 use Nitro\Fusion\Upload;
@@ -13,6 +16,8 @@ use Nitro\Fusion\Upload;
  * {"$m": [[key, value], ...]}: plain JSON objects would lose PHP's key order (integer keys are
  * reordered by JavaScript) and the difference between 5 and "5" keys. Mirrors encode()/decode()
  * in js/src/php.js, which decodes these into JavaScript Maps.
+ *
+ * A model travels as {"$o": attributes}: the browser reads ->name on it, and on no other array.
  *
  * An upload travels as {"$u": {...}}, its signed reference (Upload::toWire()): decoding one checks
  * the signature, so a value from the browser can only name an upload this application received.
@@ -55,11 +60,41 @@ final class Wire
             return $value->value;
         }
 
+        if ($value instanceof Model) {
+            return ['$o' => self::encode(self::model($value))];
+        }
+
+        /** A collection's items as they are: its models stay models. */
+        if ($value instanceof Enumerable) {
+            return self::encode($value->all());
+        }
+
         if ($value instanceof Arrayable) {
             return self::encode($value->toArray());
         }
 
         throw new InvalidArgumentException(sprintf('A value of type %s cannot be sent to the browser.', get_debug_type($value)));
+    }
+
+    /**
+     * A model as the view sees it: toArray() (its visible attributes and loaded relations), with
+     * each relation still its model or collection, so those are marked too.
+     *
+     * @return array<string, mixed>
+     */
+    private static function model(Model $model): array
+    {
+        $array = $model->toArray();
+
+        foreach ($model->getRelations() as $name => $related) {
+            $key = $model::$snakeAttributes ? Str::snake($name) : $name;
+
+            if (array_key_exists($key, $array)) {
+                $array[$key] = $related;
+            }
+        }
+
+        return $array;
     }
 
     /**
@@ -73,6 +108,11 @@ final class Wire
 
         if (count($value) === 1 && array_key_exists('$u', $value)) {
             return Upload::fromWire($value['$u']);
+        }
+
+        /** A model the browser had: its attributes (the server reads a model property again from the database). */
+        if (count($value) === 1 && array_key_exists('$o', $value)) {
+            return self::decode($value['$o']);
         }
 
         if (count($value) === 1 && isset($value['$m']) && is_array($value['$m']) && array_is_list($value['$m'])) {

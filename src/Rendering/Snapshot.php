@@ -13,8 +13,7 @@ use Closure;
 use Nitro\Fusion\Build\Obfuscator;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Merge;
-use Nitro\Fusion\State;
-use Nitro\Fusion\Support\Hooks;
+use Nitro\Fusion\State\ComponentState;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -27,13 +26,13 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * bytes of the state, so nothing in it (the component's name, a locked property, the models it
  * refers to) can be changed without the server noticing.
  *
- * Models are sent as their attributes (what the view shows) and remembered by class and key:
+ * Models are sent as their attributes (what the view shows, Wire marks them as models) and remembered by class and key:
  * the server always reads them again from the database, never from what the browser returns.
  */
 final class Snapshot
 {
     /**
-     * @param  array<string, mixed>  $data  property => value (PHP values; models as attribute arrays)
+     * @param  array<string, mixed>  $data  property => value (PHP values: models as they are when captured, their attributes when read back)
      * @param  array<string, mixed>  $memo  models, errors, the page route (for persistent middleware)
      */
     public function __construct(
@@ -44,13 +43,13 @@ final class Snapshot
     ) {
     }
 
+    /** The component's state as it is: the caller runs its dehydrate hooks first (Features::dehydrate()). */
     public static function capture(Component $component, ComponentMeta $meta, array $memo = []): self
     {
-        Hooks::dehydrate($component);
         $data = [];
         $models = [];
 
-        foreach (State::of($component) as $name => $value) {
+        foreach (ComponentState::of($component) as $name => $value) {
             $property = $meta->property($name);
 
             if ($property === null) {
@@ -59,7 +58,7 @@ final class Snapshot
 
             if ($value instanceof Model) {
                 $models[$name] = self::modelReference($value, $meta->name, $name);
-                $data[$name] = $value->toArray();
+                $data[$name] = $value;
             } elseif ($value instanceof EloquentCollection) {
                 $references = $value->map(fn (Model $m) => self::modelReference($m, $meta->name, $name))->values()->all();
                 $classes = array_unique(array_column($references, 'class'));
@@ -67,13 +66,15 @@ final class Snapshot
                 /** One class (the usual): its keys. Several (a polymorphic relation's): each model's class and key, in order. */
                 $models[$name] = count($classes) > 1
                     ? ['collection' => true, 'items' => array_map(fn (array $r) => [$r['class'], $r['key'], $r['connection']], $references)]
-                    : [
+                    : array_filter([
                         'collection' => true,
                         'class' => $value->isEmpty() ? null : get_class($value->first()),
                         'keys' => array_column($references, 'key'),
                         'connection' => $value->first()?->getConnectionName(),
-                    ];
-                $data[$name] = $value->toArray();
+                        /** The relations every model has loaded: loaded again with them. */
+                        'relations' => $value->getQueueableRelations(),
+                    ], fn ($v, $k) => $k !== 'relations' || $v !== [], ARRAY_FILTER_USE_BOTH);
+                $data[$name] = $value;
             } else {
                 $data[$name] = $value;
             }
@@ -96,7 +97,9 @@ final class Snapshot
             throw new LogicException("Fusion component [{$component}]: \${$property} holds an unsaved model; only saved models can be part of the state.");
         }
 
-        return ['class' => get_class($model), 'key' => $model->getKey(), 'connection' => $model->getConnectionName()];
+        $relations = $model->getQueueableRelations();
+
+        return ['class' => get_class($model), 'key' => $model->getKey(), 'connection' => $model->getConnectionName(), ...($relations === [] ? [] : ['relations' => $relations])];
     }
 
     /**
@@ -246,6 +249,8 @@ final class Snapshot
             $component->{$name} = match (true) {
                 in_array($property->kind, [PropertyMeta::MODEL, PropertyMeta::COLLECTION], true) => isset($models[$name]) ? self::loadModels($models[$name], $property->nullable) : null,
                 isset($merges[$name]) => Merge::apply($component->{$name}, $this->data[$name], $merges[$name]),
+                /** An enum: the case its value names (the state carries the value). */
+                $property->kind === PropertyMeta::ENUM => $property->cast($this->data[$name]),
                 default => $this->data[$name],
             };
         }
@@ -262,7 +267,7 @@ final class Snapshot
      * the rows gone since. A single model whose row is gone: null for a nullable property (the
      * component can tell, and the view show it), a 404 otherwise.
      *
-     * @param  array{collection?: bool, class?: class-string<Model>|null, key?: int|string, keys?: list<int|string>, items?: list<array{0: class-string<Model>, 1: int|string, 2: ?string}>, connection?: ?string}  $reference
+     * @param  array{collection?: bool, class?: class-string<Model>|null, key?: int|string, keys?: list<int|string>, items?: list<array{0: class-string<Model>, 1: int|string, 2: ?string}>, connection?: ?string, relations?: list<string>}  $reference
      * @return Model|EloquentCollection<int, Model>|null
      */
     private static function loadModels(array $reference, bool $nullable = false): Model|EloquentCollection|null
@@ -287,12 +292,12 @@ final class Snapshot
                 return new EloquentCollection;
             }
 
-            $models = $reference['class']::on($reference['connection'])->whereKey($reference['keys'])->get()->keyBy(fn (Model $m) => $m->getKey());
+            $models = $reference['class']::on($reference['connection'])->with($reference['relations'] ?? [])->whereKey($reference['keys'])->get()->keyBy(fn (Model $m) => $m->getKey());
 
             return new EloquentCollection(array_values(array_filter(array_map(fn ($key) => $models[$key] ?? null, $reference['keys']))));
         }
 
-        $query = $reference['class']::on($reference['connection']);
+        $query = $reference['class']::on($reference['connection'])->with($reference['relations'] ?? []);
 
         return $nullable ? $query->find($reference['key']) : $query->findOrFail($reference['key']);
     }
