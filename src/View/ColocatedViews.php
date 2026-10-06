@@ -52,10 +52,9 @@ final class ColocatedViews
     private ?array $components = null;
 
     /**
-     * @param  array<string, array{path: string, extensions: list<string>}>  $engines  fusion.views
      * @param  string  $directory  where the classes are written
      */
-    public function __construct(private readonly array $engines, private readonly string $directory)
+    public function __construct(private readonly ViewEngines $engines, private readonly string $directory)
     {
     }
 
@@ -73,9 +72,9 @@ final class ColocatedViews
 
         $this->components = [];
 
-        foreach ($this->engines as $engine => $config) {
-            foreach ((array) $config['path'] as $path) {
-                $this->scan((string) $engine, rtrim((string) $path, '/\\'), array_values((array) $config['extensions']));
+        foreach ($this->engines->scripts() as $engine) {
+            foreach ($engine->paths() as $path) {
+                $this->scan($engine, rtrim($path, '/\\'));
             }
         }
 
@@ -83,25 +82,24 @@ final class ColocatedViews
     }
 
     /**
-     * One of an engine's paths: its views with a <php> block, a component each (a name another
-     * path had already is its).
-     *
-     * @param  list<string>  $extensions
+     * One of an engine's paths: its views that hold their component's PHP (as the engine writes
+     * it), a component each (a name another path had already is its).
      */
-    private function scan(string $engine, string $root, array $extensions): void
+    private function scan(ScriptEngine $engine, string $root): void
     {
         if (! is_dir($root)) {
             return;
         }
 
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)) as $file) {
-            if (! in_array($file->getExtension(), $extensions, true)) {
+            if (! in_array($file->getExtension(), $engine->extensions(), true)) {
                 continue;
             }
 
             $source = (string) file_get_contents($file->getPathname());
+            $block = str_contains($source, '<php>') ? $engine->phpBlock($source, $file->getPathname()) : null;
 
-            if (! str_contains($source, '<php>')) {
+            if ($block === null) {
                 continue;
             }
 
@@ -111,30 +109,27 @@ final class ColocatedViews
                 continue;
             }
 
-            $class = self::NAMESPACE.'\\'.self::studly($engine).'\\'.implode('\\', array_map(self::studly(...), explode('/', $view)));
+            $class = self::NAMESPACE.'\\'.self::studly($engine->name()).'\\'.implode('\\', array_map(self::studly(...), explode('/', $view)));
             $this->components[str_replace('/', '.', $view)] = $class;
-            $this->load($class, $engine, $view, $file->getPathname(), $source);
+            $this->load($class, $engine->name(), $view, $file->getPathname(), $block);
         }
     }
 
     /**
-     * The class for a view's block, as written to its file: its line numbers the view's.
+     * The class for a view's PHP block (its code, and the line it starts on in the view), as
+     * written to its file: its line numbers the view's.
+     *
+     * @param  array{0: string, 1: int}  $block
      */
-    public static function generate(string $class, string $engine, string $view, string $file, string $source): string
+    public static function generate(string $class, string $engine, string $view, string $file, array $block): string
     {
-        $block = self::block($source, $file);
-
-        if ($block === null) {
-            throw new CompileException('No <php> block', $file);
-        }
-
         [$code, $line] = $block;
         $parser = (new ParserFactory)->createForNewestSupportedVersion();
 
         try {
             $statements = $parser->parse("<?php\n".$code) ?? [];
-        } catch (\PhpParser\Error $e) {
-            throw new CompileException('The <php> block is not valid PHP: '.$e->getRawMessage(), $file, $line + $e->getStartLine() - 2);
+        } catch (\PhpParser\Error $exception) {
+            throw new CompileException('The <php> block is not valid PHP: '.$exception->getRawMessage(), $file, $line + $exception->getStartLine() - 2);
         }
 
         $anonymous = (new NodeFinder)->findFirst($statements, fn (Node $node) => $node instanceof Expr\New_ && $node->class instanceof Stmt\Class_);
@@ -147,7 +142,7 @@ final class ColocatedViews
         $offset = strlen("<?php\n");
         $text = substr($code, $body->getStartFilePos() - $offset, $body->getEndFilePos() - $body->getStartFilePos() + 1);
         $short = substr($class, strrpos($class, '\\') + 1);
-        $text = (string) preg_replace('/\bclass\b/', '#[\\Nitro\\Fusion\\Attributes\\View('.$engine.': '.var_export($view, true).')] final class '.$short, $text, 1);
+        $text = (string) preg_replace('/\bclass\b/', '#[\\Nitro\\Fusion\\Attributes\\View('.var_export($view, true).', engine: '.var_export($engine, true).')] final class '.$short, $text, 1);
 
         if ($body->extends === null) {
             $text = (string) preg_replace('/(final class '.$short.')/', '$1 extends Component', $text, 1);
@@ -181,31 +176,17 @@ final class ColocatedViews
     }
 
     /**
-     * A view's PHP block: its code and the line it starts on; null when it has none.
+     * Write a view's class when the view is newer than it, and load it.
      *
-     * @return array{0: string, 1: int}|null
+     * @param  array{0: string, 1: int}  $block
      */
-    public static function block(string $source, string $file): ?array
-    {
-        $pattern = preg_match('/\.(jsx|tsx|js|ts)$/', $file) === 1
-            ? '/\/\*\s*<php>(.*?)<\/php>\s*\*\//s'
-            : '/<php>(.*?)<\/php>/s';
-
-        if (preg_match($pattern, $source, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
-        }
-
-        return [$match[1][0], substr_count($source, "\n", 0, $match[1][1]) + 1];
-    }
-
-    /** Write a view's class when the view is newer than it, and load it. */
-    private function load(string $class, string $engine, string $view, string $file, string $source): void
+    private function load(string $class, string $engine, string $view, string $file, array $block): void
     {
         $path = $this->directory.DIRECTORY_SEPARATOR.str_replace('\\', DIRECTORY_SEPARATOR, substr($class, strlen(self::NAMESPACE) + 1)).'.php';
 
         if (! is_file($path) || filemtime($path) < filemtime($file)) {
             @mkdir(dirname($path), 0777, true);
-            file_put_contents($path, self::generate($class, $engine, $view, $file, $source), LOCK_EX);
+            file_put_contents($path, self::generate($class, $engine, $view, $file, $block), LOCK_EX);
         }
 
         if (! class_exists($class, false)) {

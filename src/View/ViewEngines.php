@@ -23,4 +23,19 @@ final class ViewEngines
     {
         return $this->engines[$meta->engine] ?? throw new LogicException("Fusion component [{$meta->name}]: no view engine [{$meta->engine}].");
     }
+
+    public function named(string $name): ?ViewEngine
+    {
+        return $this->engines[$name] ?? null;
+    }
+
+    /**
+     * The engines for JavaScript frameworks: the adapters and the app's own.
+     *
+     * @return list<ScriptEngine>
+     */
+    public function scripts(): array
+    {
+        return array_values(array_filter($this->engines, fn (ViewEngine $engine) => $engine instanceof ScriptEngine));
+    }
 }

@@ -21,7 +21,10 @@ use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\View\Adapters\ReactAdapter;
+use Nitro\Fusion\View\Adapters\SolidAdapter;
+use Nitro\Fusion\View\Adapters\VueAdapter;
 use Nitro\Fusion\View\BladeEngine;
 use Nitro\Fusion\View\ColocatedViews;
 use Nitro\Fusion\View\ScriptEngine;
@@ -44,14 +47,19 @@ class FusionServiceProvider extends ServiceProvider
             $engines = new ViewEngines;
             $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler')));
 
+            /** Fusion's adapters for its frameworks; any other name in fusion.views, an engine of the app's own. */
+            $adapters = ['vue' => VueAdapter::class, 'react' => ReactAdapter::class, 'solid' => SolidAdapter::class];
+
             foreach ((array) $app->make('config')->get('fusion.views', []) as $name => $view) {
-                $engines->add(new ScriptEngine((string) $name, array_values((array) $view['path']), array_values((array) $view['extensions'])));
+                $paths = array_values((array) $view['path']);
+                $extensions = array_values((array) $view['extensions']);
+                $engines->add(isset($adapters[$name]) ? new $adapters[$name]($paths, $extensions) : new ScriptEngine((string) $name, $paths, $extensions));
             }
 
             return $engines;
         });
 
-        $this->app->scoped(Renderer::class, fn (Application $app) => new Renderer($app->make('view'), $app->make(ViewEngines::class)));
+        $this->app->scoped(ComponentRenderer::class, fn (Application $app) => new ComponentRenderer($app->make('view'), $app->make(ViewEngines::class)));
 
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
             (array) $app->make('config')->get('fusion.components'),
@@ -63,7 +71,7 @@ class FusionServiceProvider extends ServiceProvider
 
         /** Components written in their Vue, React or Solid views: their classes go with the compiled bundle. */
         $this->app->scoped(ColocatedViews::class, fn (Application $app) => new ColocatedViews(
-            (array) $app->make('config')->get('fusion.views', []),
+            $app->make(ViewEngines::class),
             rtrim((string) $app->make('config')->get('fusion.compiled'), '/\\').DIRECTORY_SEPARATOR.'views',
         ));
 
@@ -71,7 +79,7 @@ class FusionServiceProvider extends ServiceProvider
             $app,
             $app->make('config')->get('fusion', []),
             $app->make(Registry::class),
-            $app->make(Renderer::class),
+            $app->make(ComponentRenderer::class),
         ));
 
         $this->app->scoped(Bundle::class, fn (Application $app) => new Bundle(

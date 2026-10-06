@@ -22,7 +22,7 @@ final class Portals
     /** @var list<string> the @teleport blocks being rendered, innermost last: their portal names */
     private array $teleporting = [];
 
-    public function __construct(private readonly Renderer $renderer)
+    public function __construct(private readonly ComponentRenderer $renderer)
     {
     }
 
@@ -77,7 +77,7 @@ final class Portals
     {
         foreach ($this->portals as $name => $scope) {
             $contents = $scope['contents'];
-            usort($contents, fn (array $a, array $b) => [$a['order'], $a['seq']] <=> [$b['order'], $b['seq']]);
+            usort($contents, fn (array $left, array $right) => [$left['order'], $left['seq']] <=> [$right['order'], $right['seq']]);
             $name = e($name);
             $body = str_replace("PORTAL_{$name}<i id=\"portal_{$name}_end\"", implode('', array_column($contents, 'html'))."<i id=\"portal_{$name}_end\"", $body);
         }

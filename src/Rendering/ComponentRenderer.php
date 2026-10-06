@@ -8,10 +8,13 @@ use Nitro\Fusion\Component;
 use Nitro\Fusion\View\ViewEngines;
 
 /**
- * Renders components on the server: their view by its engine (View\ViewEngines), the root
- * element marked with the id, name and signed state the browser takes over.
+ * Renders one component on the server: a child in another's view, an island in a Blade view,
+ * or a page (Http\PageResponses then puts a page in its layout). Its view is rendered by its
+ * engine (View\ViewEngines); its root element is marked with the id, name and signed state the
+ * browser takes over. It knows which component is rendering, for the children and teleported
+ * content inside it.
  */
-final class Renderer
+final class ComponentRenderer
 {
     /** @var list<Component> components being rendered, innermost last */
     private array $stack = [];

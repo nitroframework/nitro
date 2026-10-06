@@ -17,7 +17,7 @@ use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Merge;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
-use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\State\SharedData;
 use Symfony\Component\HttpFoundation\Response;
@@ -36,7 +36,7 @@ final class PageResponses
     public function __construct(
         private readonly Fusion $fusion,
         private readonly Container $app,
-        private readonly Renderer $renderer,
+        private readonly ComponentRenderer $renderer,
         private readonly PageHead $head,
         private readonly Portals $portals,
         private readonly SharedData $data,

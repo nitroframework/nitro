@@ -7,6 +7,8 @@ use Illuminate\Filesystem\Filesystem;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ViewEngines;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -45,10 +47,10 @@ class BuildCommand extends Command
 
         try {
             $bundle->build(static: true, report: $this->report(...));
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException $exception) {
             $this->bar?->clear();
             $this->newLine();
-            $this->components->error(($this->component !== null && $this->step === 'compiling' ? "Compiling {$this->component}: " : '').$e->getMessage());
+            $this->components->error(($this->component !== null && $this->step === 'compiling' ? "Compiling {$this->component}: " : '').$exception->getMessage());
 
             return self::FAILURE;
         }
@@ -142,9 +144,12 @@ class BuildCommand extends Command
             return '';
         }
 
-        $known = ['blade' => 'Blade', 'vue' => 'Vue', 'react' => 'React', 'solid' => 'Solid'];
-        $label = fn (string $engine) => $known[$engine] ?? ucfirst($engine);
-        uksort($engines, fn (string $a, string $b) => [array_search($a, array_keys($known), true) === false, array_search($a, array_keys($known), true), $a] <=> [array_search($b, array_keys($known), true) === false, array_search($b, array_keys($known), true), $b]);
+        /** Blade first, then the engines as fusion.views lists them; each by its label. */
+        $registry = $this->laravel->make(ViewEngines::class);
+        $order = ['blade', ...array_map(fn (ScriptEngine $engine) => $engine->name(), $registry->scripts())];
+        $position = fn (string $engine) => array_search($engine, $order, true) === false ? PHP_INT_MAX : (int) array_search($engine, $order, true);
+        uksort($engines, fn (string $left, string $right) => $position($left) <=> $position($right));
+        $label = fn (string $engine) => $registry->named($engine)?->label() ?? ucfirst($engine);
 
         return ' ('.implode(', ', array_map(fn (string $engine, int $count) => "{$count} {$label($engine)}", array_keys($engines), $engines)).')';
     }

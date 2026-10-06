@@ -34,6 +34,11 @@ final class BladeEngine implements ViewEngine
         return 'blade';
     }
 
+    public function label(): string
+    {
+        return 'Blade';
+    }
+
     public function file(ComponentMeta $meta): string
     {
         return $this->views->getFinder()->find($meta->view);
@@ -114,12 +119,12 @@ final class BladeEngine implements ViewEngine
 
                 include $__path;
             })->call($component);
-        } catch (Throwable $e) {
+        } catch (Throwable $exception) {
             while (ob_get_level() > $level) {
                 ob_end_clean();
             }
 
-            throw $e;
+            throw $exception;
         } finally {
             $this->views->decrementRender();
         }

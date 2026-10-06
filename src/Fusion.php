@@ -18,7 +18,7 @@ use Nitro\Fusion\Http\Scripts;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
-use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\Rendering\Tags;
 use Nitro\Fusion\Rendering\UnplaceableComponent;
 use Nitro\Fusion\State\SharedData;
@@ -95,7 +95,7 @@ final class Fusion
         private readonly Container $app,
         private readonly array $config,
         private readonly Registry $registry,
-        private readonly Renderer $renderer,
+        private readonly ComponentRenderer $renderer,
     ) {
         $this->tags = new Tags($this, $renderer);
         $this->portals = new Portals($renderer);
@@ -193,13 +193,13 @@ final class Fusion
             }
 
             $tag = (string) preg_replace('/(\sfusion:(?:'.$handlers.')(?:\.[\w\-.]+)?)\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '$1=""', $tag[0]);
-            $tag = (string) preg_replace_callback('/(\sfusion:model(?:\.[\w\-.]+)?\s*=\s*)(["\'])(.*?)\2/', fn (array $m) => $m[1].$m[2].$path($m[3]).$m[2], $tag);
+            $tag = (string) preg_replace_callback('/(\sfusion:model(?:\.[\w\-.]+)?\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].$path($match[3]).$match[2], $tag);
 
-            return (string) preg_replace_callback('/(\sfusion:target\s*=\s*)(["\'])(.*?)\2/', fn (array $m) => $m[1].$m[2].implode(',', array_map($target, explode(',', $m[3]))).$m[2], $tag);
+            return (string) preg_replace_callback('/(\sfusion:target\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].implode(',', array_map($target, explode(',', $match[3]))).$match[2], $tag);
         }, $html);
     }
 
-    public function renderer(): Renderer
+    public function renderer(): ComponentRenderer
     {
         return $this->renderer;
     }
@@ -615,19 +615,19 @@ final class Fusion
 
         try {
             return $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $this->stateKey(), $memo));
-        } catch (\Throwable $e) {
+        } catch (\Throwable $exception) {
             /**
              * The state may hold what the browser changed: props from it that do not fit a child
              * (its mount() parameters, its typed properties), or a dynamic component's name that
              * names none, are the request's fault, not the server's. Anything else is a real error.
              */
-            for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
+            for ($cause = $exception; $cause !== null; $cause = $cause->getPrevious()) {
                 if ($cause instanceof UnplaceableComponent || ($cause instanceof \TypeError && preg_match('/::mount\(\): Argument #\d+|^Cannot assign .+ to property .+ of type /', $cause->getMessage()) === 1)) {
-                    throw new \Symfony\Component\HttpKernel\Exception\HttpException(403, 'A child\'s props, from the state the browser sent, do not fit it.', $e);
+                    throw new \Symfony\Component\HttpKernel\Exception\HttpException(403, 'A child\'s props, from the state the browser sent, do not fit it.', $exception);
                 }
             }
 
-            throw $e;
+            throw $exception;
         } finally {
             $this->renderingFor = $previous;
         }

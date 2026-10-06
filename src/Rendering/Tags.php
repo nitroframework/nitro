@@ -21,7 +21,7 @@ final class Tags
      */
     private array $tags = [];
 
-    public function __construct(private readonly Fusion $fusion, private readonly Renderer $renderer)
+    public function __construct(private readonly Fusion $fusion, private readonly ComponentRenderer $renderer)
     {
     }
 

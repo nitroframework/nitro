@@ -49,13 +49,18 @@ src/Compiler      PHP -> JavaScript
   ComponentCompiler class + view -> Fusion.define(...), compiling only what the browser reaches
   Globals           everything a component can use without declaring it, in one table
 src/Rendering     the server side of a component
-  Renderer          the view rendered by its engine, the root element marked
-src/View          view engines: what a component's view is written in (ViewEngine, chosen by
-                  ViewEngines); BladeEngine renders Blade with $this bound and isolated loops
+  ComponentRenderer one component (a child, an island, a page) rendered by its view engine,
+                    the root element marked with its id, name and signed state
   Snapshot          the signed state sent to the browser and verified when it comes back
   Tags              <fusion:...> tags with content and their slots
   Portals           @portal and @teleport
   PageHead          the page's <head> (@fusionHead) and the layout's title
+src/View          view engines: what a component's view is written in (ViewEngine, chosen by
+                  ViewEngines). BladeEngine renders Blade with $this bound and isolated loops;
+                  ScriptEngine, a JavaScript framework's view, which the app's Vite builds;
+                  ColocatedViews makes a class of the PHP a view holds
+  Adapters/         VueAdapter, ReactAdapter, SolidAdapter: each framework's files, label and
+                    how its views hold their PHP (the browser's side: js/adapters/)
 src/Http          the endpoint: UpdateController (#[Server] calls), PersistentMiddleware, assets
   PageResponses     a routed page's answer: HTML, a visit's data, the 409, partial reloads
   Scripts           @fusionScripts and the browser's globals
@@ -77,6 +82,9 @@ js/src/runtime/   the components in the page (runtime.js), lazy chunks, plugins,
   view/             view engines (engines.js: the contract, Fusion.engine()); Blade's View, rendering
                     and hydrating the compiled tree, blocks, transitions
 js/src/plugins/   Fusion's own plugins: #[Persist], #[Sync]
+js/adapters/      vue.js, react.js, solid.js: a framework's view given the component (useFusion()),
+                  imported by the app's Vite as nitro-fusion/vue, /react, /solid
+js/vite.js        Fusion's Vite plugin: those names, one copy of each framework, <php> blocks
 js/functions/     PHP functions a bundle includes when its components call them, by category
                   (array, string, math, regex, ctype, url), Laravel's Str (str), browser APIs
 ```

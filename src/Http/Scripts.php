@@ -7,7 +7,7 @@ use Illuminate\Support\HtmlString;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Rendering\PageHead;
-use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\Support\Wire;
 
@@ -21,7 +21,7 @@ final class Scripts
     public function __construct(
         private readonly Fusion $fusion,
         private readonly Container $app,
-        private readonly Renderer $renderer,
+        private readonly ComponentRenderer $renderer,
         private readonly PageHead $head,
         private readonly SharedData $data,
     ) {
@@ -89,7 +89,7 @@ final class Scripts
                     'uri' => $route->uri(),
                     'bindings' => $route->bindingFields() === [] ? null : $route->bindingFields(),
                     'domain' => $route->getDomain(),
-                ], fn ($v) => $v !== null);
+                ], fn ($value) => $value !== null);
             }
         }
 

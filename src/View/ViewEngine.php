@@ -16,9 +16,12 @@ interface ViewEngine
     /** Its name, as a component names it: 'blade', 'vue', 'react', 'solid'. */
     public function name(): string;
 
+    /** Its name for people: 'Blade', 'Vue' (fusion:build says what views are written in). */
+    public function label(): string;
+
     /**
      * The component's HTML on the server: its root element, not yet marked with its id, name
-     * and state (Renderer marks it).
+     * and state (ComponentRenderer marks it).
      */
     public function render(Component $component, ComponentMeta $meta): string;
 
