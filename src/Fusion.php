@@ -11,18 +11,22 @@ use InvalidArgumentException;
 use Nitro\Fusion\Browser\Browser;
 use Nitro\Fusion\Browser\BrowserOnlyException;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Compiler\Template\ChildTag;
 use Nitro\Fusion\Http\PageResponses;
 use Nitro\Fusion\Http\Scripts;
+use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\Renderer;
-use Nitro\Fusion\Rendering\Snapshot;
 use Nitro\Fusion\Rendering\Tags;
 use Nitro\Fusion\Rendering\UnplaceableComponent;
 use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\Support\Hooks;
+use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\Support\Registry;
+use Nitro\Fusion\View\ViewEngine;
+use Nitro\Fusion\View\ViewEngines;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -37,6 +41,7 @@ use Symfony\Component\HttpFoundation\Response;
  *   Http\PageResponses      a routed page's answer, visits, partial reloads, merge and deferred props
  *   Http\Scripts            @fusionScripts and the browser's globals
  *   State\SharedData        shared, once and flash data
+ *   State\Stores            this request's stores, and their signed states for the browser
  */
 final class Fusion
 {
@@ -71,11 +76,6 @@ final class Fusion
     /** The page the components being rendered belong to, when it is not this request's (childrenOf()). */
     private ?array $renderingFor = null;
 
-    /** @var array<string, Store> this request's stores, by name: one each, shared by the components that use it */
-    private array $stores = [];
-
-    /** @var array<string, array<string, mixed>> the page each store the browser sent was made for (its signed memo) */
-    private array $storeMemos = [];
 
     private readonly Tags $tags;
 
@@ -89,6 +89,8 @@ final class Fusion
 
     private readonly Scripts $scripts;
 
+    private readonly Stores $stores;
+
     public function __construct(
         private readonly Container $app,
         private readonly array $config,
@@ -101,6 +103,7 @@ final class Fusion
         $this->data = new SharedData($app);
         $this->pages = new PageResponses($this, $app, $renderer, $this->head, $this->portals, $this->data);
         $this->scripts = new Scripts($this, $app, $renderer, $this->head, $this->data);
+        $this->stores = new Stores($this, $app);
     }
 
     public function config(string $key, mixed $default = null): mixed
@@ -199,6 +202,12 @@ final class Fusion
     public function renderer(): Renderer
     {
         return $this->renderer;
+    }
+
+    /** What renders, compiles and watches the component's view: Blade, or a JavaScript framework. */
+    public function viewEngine(ComponentMeta $meta): ViewEngine
+    {
+        return $this->app->make(ViewEngines::class)->of($meta);
     }
 
     /** The key that signs component state: derived from the application key. */
@@ -336,7 +345,12 @@ final class Fusion
         $dynamic = $name === 'dynamic-component';
 
         if ($dynamic) {
-            $is = $props['is'] ?? throw new InvalidArgumentException('<fusion:dynamic-component> needs :is, the name of the component to render');
+            if (! array_key_exists('is', $props)) {
+                throw new InvalidArgumentException('<fusion:dynamic-component> needs :is, the name of the component to render');
+            }
+
+            /** null names none, as "" does (the browser reads it as a string). */
+            $is = $props['is'] ?? '';
             unset($props['is']);
 
             if (! is_string($is)) {
@@ -480,7 +494,7 @@ final class Fusion
         return $meta;
     }
 
-    // ------------------------------------------------------------ stores
+    // ------------------------------------------------------------ stores (State\Stores)
 
     /**
      * This request's store of a class: the same one for every component that uses it, made with
@@ -488,26 +502,7 @@ final class Fusion
      */
     public function store(string $class): Store
     {
-        $meta = $this->meta($class);
-
-        if (! $meta->store) {
-            throw new InvalidArgumentException("{$meta->class} is not a store (a class extending ".Store::class.').');
-        }
-
-        if (! isset($this->stores[$meta->name])) {
-            /** @var Store $store */
-            $store = $this->app->make($meta->class);
-            $store->fusion()->id = $meta->name;
-            $store->fusion()->name = $meta->name;
-            $this->stores[$meta->name] = $store;
-            Hooks::call($store, 'boot');
-
-            if ($meta->hasMount) {
-                $this->app->call([$store, 'mount']);
-            }
-        }
-
-        return $this->stores[$meta->name];
+        return $this->stores->store($class);
     }
 
     /**
@@ -518,16 +513,13 @@ final class Fusion
      */
     public function adoptStore(Store $store, array $memo = []): void
     {
-        $this->stores[$store->fusion()->name] = $store;
-        $this->storeMemos[$store->fusion()->name] = $memo;
+        $this->stores->adopt($store, $memo);
     }
 
     /** The component's store properties (public Cart $cart), given this request's stores. */
     public function giveStores(Component $component, ComponentMeta $meta): void
     {
-        foreach ($meta->stores as $property => $class) {
-            $component->{$property} = $this->store($class);
-        }
+        $this->stores->give($component, $meta);
     }
 
     /**
@@ -538,15 +530,7 @@ final class Fusion
      */
     public function storeSnapshots(): array
     {
-        $snapshots = [];
-
-        foreach ($this->stores as $name => $store) {
-            $meta = $this->meta($name);
-            $memo = $this->storeMemos[$name] ?? $this->pageMemo();
-            $snapshots[$this->browserName($name)] = json_decode(Snapshot::capture($store, $meta, $memo)->toJson($this->stateKey(), $this->browserName($name), $this->names()), true);
-        }
-
-        return $snapshots;
+        return $this->stores->snapshots();
     }
 
     /**
@@ -560,7 +544,7 @@ final class Fusion
         $component->fusion()->id = $id;
         $component->fusion()->name = $meta->name;
         $this->giveStores($component, $meta);
-        Hooks::call($component, 'boot');
+        $this->features()->boot($component);
 
         /** fusion:model on its tag: the parent's value, for its #[Modelable] property (once mounted). */
         $model = array_key_exists('$model', $props) ? [$props['$model']] : null;
@@ -571,18 +555,23 @@ final class Fusion
         }
 
         if ($meta->hasMount) {
-            $this->applyUrl($component, $meta);
+            $this->features()->mounting($component);
             $this->app->call([$component, 'mount'], $props);
         } else {
             foreach ($props as $prop => $value) {
-                if ($meta->property($prop) === null) {
+                if (($property = $meta->property($prop)) === null) {
                     throw new InvalidArgumentException("Fusion component [{$meta->name}] has no public property \${$prop}.");
                 }
 
-                $component->{$prop} = $value;
+                /** An enum property given its value (a child the browser placed): the case it names. */
+                if ($property->kind === PropertyMeta::ENUM && ! $property->accepts($value)) {
+                    throw new InvalidArgumentException("Fusion component [{$meta->name}]: \${$prop} takes a case of {$property->types[0]}.");
+                }
+
+                $component->{$prop} = $property->kind === PropertyMeta::ENUM ? $property->cast($value) : $value;
             }
 
-            $this->applyUrl($component, $meta);
+            $this->features()->mounting($component);
         }
 
         if ($model !== null) {
@@ -592,33 +581,10 @@ final class Fusion
         return $component;
     }
 
-    /**
-     * #[Url] properties from the request's query string, when the component is created (before
-     * mount(), so mount() sees them). A value that does not fit the property's type is ignored.
-     */
-    public function applyUrl(Component $component, ComponentMeta $meta): void
+    /** The server lifecycle (this request's): the components' own hooks, then the features'. */
+    public function features(): Features
     {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-
-        if (! $request instanceof Request) {
-            return;
-        }
-
-        $query = $request->query->all();
-
-        foreach ($meta->properties as $name => $property) {
-            $key = $property->url === null ? null : ($property->url->as ?? $name);
-
-            if ($key === null || ! array_key_exists($key, $query)) {
-                continue;
-            }
-
-            [$fits, $value] = $property->fromQuery($query[$key]);
-
-            if ($fits) {
-                $component->{$name} = $value;
-            }
-        }
+        return $this->app->make(Features::class);
     }
 
     /** Whether the component's view places a child with mount(), which only the server can create. */

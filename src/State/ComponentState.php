@@ -1,7 +1,9 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro\Fusion\State;
 
+use Nitro\Fusion\Component;
+use Nitro\Fusion\Store;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionProperty;
@@ -10,7 +12,7 @@ use ReflectionProperty;
  * A component's state: its public, non-static properties, but those holding a store (a store's
  * state is its own, shared by the components that use it).
  */
-final class State
+final class ComponentState
 {
     /** @return array<string, mixed> */
     public static function of(Component $component): array

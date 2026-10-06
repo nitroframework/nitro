@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use JsonException;
@@ -17,9 +16,7 @@ use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Rendering\Snapshot;
-use Nitro\Fusion\State;
 use Nitro\Fusion\Store;
-use Nitro\Fusion\Support\Hooks;
 use Nitro\Fusion\Support\Naming;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -115,18 +112,18 @@ final class UpdateController
         $storesValid = $this->restoreStores($component, $meta, $payload['stores'] ?? [], $request);
 
         if (! $component instanceof Store || isset($snapshot)) {
-            Hooks::call($component, 'boot');
+            $this->fusion()->features()->boot($component);
         }
 
-        Hooks::call($component, 'hydrate');
+        $this->fusion()->features()->hydrate($component);
 
         $changed = $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
 
         $returned = null;
         $call = $payload['call'] ?? null;
 
-        /** What the browser changed, against its #[Validate] rules: a failure keeps the method from running. */
-        $valid = $this->validateUpdates($component, $meta, $changed) && $storesValid;
+        /** What the browser changed, as the features check it (#[Validate]'s rules): a failure keeps the method from running. */
+        $valid = $this->fusion()->features()->updated($component, $changed) && $storesValid;
 
         if ($valid && $call !== null) {
             $returned = $this->call($component, $meta, $call);
@@ -136,6 +133,7 @@ final class UpdateController
         $asked = ($payload['children'] ?? false) === true && $this->fusion()->placesServerChildren($meta);
         /** Not from a state that failed its rules: the view would render what they are there to keep out. */
         $children = $valid && ($asked || $this->fusion()->placesMountedChildren($meta)) ? $this->fusion()->childrenOf($component, $meta, $memo) : null;
+        $this->fusion()->features()->dehydrate($component);
         $next = Snapshot::capture($component, $meta, $memo);
         $context = $component->fusion();
 
@@ -204,14 +202,14 @@ final class UpdateController
                 $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($storeMeta->properties));
                 $snapshot->restore($store, $storeMeta);
                 $this->fusion()->adoptStore($store, array_intersect_key($snapshot->memo, ['route' => true]));
-                Hooks::call($store, 'boot');
-                Hooks::call($store, 'hydrate');
+                $this->fusion()->features()->boot($store);
+                $this->fusion()->features()->hydrate($store);
             } else {
                 $store = $this->fusion()->store($storeMeta->class);
             }
 
             $changed = $this->applyUpdates($store, $storeMeta, $entry['updates'] ?? []);
-            $valid = $this->validateUpdates($store, $storeMeta, $changed) && $valid;
+            $valid = $this->fusion()->features()->updated($store, $changed) && $valid;
             $component->{$property} = $store;
         }
 
@@ -289,30 +287,6 @@ final class UpdateController
         return $changed;
     }
 
-    /**
-     * #[Validate]: the properties the browser changed, against their rules. Whether they pass;
-     * when one fails, its messages are the component's $errors (the method does not run).
-     *
-     * @param  list<string>  $changed
-     */
-    private function validateUpdates(Component $component, ComponentMeta $meta, array $changed): bool
-    {
-        [$rules, $attributes] = $meta->rulesFor($changed);
-
-        if ($rules === []) {
-            return true;
-        }
-
-        $validator = Validator::make(State::of($component), $rules, [], $attributes);
-
-        if ($validator->fails()) {
-            $component->fusion()->errors = $validator->errors();
-
-            return false;
-        }
-
-        return true;
-    }
 
     private function call(Component $component, ComponentMeta $meta, mixed $call): mixed
     {
@@ -338,13 +312,20 @@ final class UpdateController
         $context = $component->fusion();
         $context->errors = new \Illuminate\Support\MessageBag;
 
+        $features = $this->fusion()->features();
+        $features->calling($component, $method, $arguments);
+
         try {
-            return $component->{$method}(...$arguments);
+            $returned = $component->{$method}(...$arguments);
         } catch (ValidationException $e) {
             $context->errors = $e->validator->errors();
 
             return null;
         }
+
+        $features->called($component, $method, $returned);
+
+        return $returned;
     }
 
     /**

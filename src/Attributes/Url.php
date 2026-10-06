@@ -3,6 +3,10 @@
 namespace Nitro\Fusion\Attributes;
 
 use Attribute;
+use Illuminate\Http\Request;
+use Nitro\Fusion\Component;
+use Nitro\Fusion\FeatureAttribute;
+use Nitro\Fusion\Fusion;
 
 /**
  * A property kept in the query string, as Livewire's #[Url]: the page reads it from the URL when
@@ -19,7 +23,7 @@ use Attribute;
  * value given as except. A value from the URL that does not fit the property's type is ignored.
  */
 #[Attribute(Attribute::TARGET_PROPERTY)]
-final class Url
+final class Url extends FeatureAttribute
 {
     public function __construct(
         public readonly ?string $as = null,
@@ -32,5 +36,24 @@ final class Url
     public function hasExcept(): bool
     {
         return ! $this->except instanceof NoValue;
+    }
+
+    /** The value from the request's query string, when the component is created (before mount(), so mount() sees it). */
+    public function mounting(Component $component): void
+    {
+        $request = app()->bound('request') ? app('request') : null;
+        $name = (string) $this->target();
+        $key = $this->as ?? $name;
+
+        if (! $request instanceof Request || ! $request->query->has($key)) {
+            return;
+        }
+
+        $property = app(Fusion::class)->meta($component::class)->property($name);
+        [$fits, $value] = $property?->fromQuery($request->query->all()[$key]) ?? [false, null];
+
+        if ($fits) {
+            $component->{$name} = $value;
+        }
     }
 }

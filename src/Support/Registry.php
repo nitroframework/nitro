@@ -1,9 +1,11 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro\Fusion\Support;
 
+use Closure;
 use FilesystemIterator;
-use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\Component;
+use Nitro\Fusion\Store;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
@@ -31,6 +33,8 @@ final class Registry
         private readonly array $pagesAt,
         private readonly ?string $cache = null,
         private readonly ?array $storesAt = null,
+        /** @var (Closure(): array<string, class-string<Component>>)|null components written in their views (ViewColocatedViews) */
+        private readonly ?Closure $colocated = null,
     ) {
     }
 
@@ -120,6 +124,7 @@ final class Registry
 
             if (is_array($cached) && isset($cached['components'], $cached['directories']) && $cached['directories'] === $this->directories()) {
                 $this->components += $cached['components'];
+                $this->components += $this->colocated === null ? [] : ($this->colocated)();
 
                 return;
             }
@@ -152,6 +157,9 @@ final class Registry
                 }
             }
         }
+
+        /** Those written in their views (their classes made as their views change). */
+        $this->components += $this->colocated === null ? [] : ($this->colocated)();
     }
 
     /** The list for bootstrap/cache (written by fusion:build), and when its directories last changed. */

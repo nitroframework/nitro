@@ -5,6 +5,7 @@ namespace Nitro\Fusion;
 use Closure;
 use Illuminate\Support\Facades\Validator;
 use Nitro\Fusion\Rendering\Context;
+use Nitro\Fusion\State\ComponentState;
 use Nitro\Fusion\Support\PendingDispatch;
 use ReflectionClass;
 use ReflectionProperty;
@@ -152,7 +153,7 @@ abstract class Component
             $attributes += $named;
         }
 
-        return Validator::make(State::of($this), $rules, $messages, $attributes)->validate();
+        return Validator::make(ComponentState::of($this), $rules, $messages, $attributes)->validate();
     }
 
     /**

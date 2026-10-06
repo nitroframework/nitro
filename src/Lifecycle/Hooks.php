@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Fusion\Lifecycle;
 
 use Nitro\Fusion\Component;
 
@@ -21,21 +21,11 @@ final class Hooks
 
     public const BROWSER = ['mounted', 'destroyed'];
 
+    /** The component's own hook, when it has it (Features runs it, then the features'). */
     public static function call(Component $component, string $hook): void
     {
         if (method_exists($component, $hook)) {
             $component->{$hook}();
-        }
-    }
-
-    /** dehydrate(), once per request (a navigate visit may take its snapshot twice). */
-    public static function dehydrate(Component $component): void
-    {
-        $context = $component->fusion();
-
-        if (! $context->dehydrated) {
-            $context->dehydrated = true;
-            self::call($component, 'dehydrate');
         }
     }
 }

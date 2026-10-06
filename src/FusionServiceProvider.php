@@ -20,7 +20,13 @@ use Nitro\Fusion\Http\FillPortals;
 use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
+use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\Renderer;
+use Nitro\Fusion\View\BladeEngine;
+use Nitro\Fusion\View\ColocatedViews;
+use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ViewEngines;
+use Nitro\Fusion\Support\Registry;
 use Nitro\Fusion\Testing\AssertableFusion;
 
 /**
@@ -34,13 +40,31 @@ class FusionServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(dirname(__DIR__).'/config/fusion.php', 'fusion');
         $this->mergeConfigFrom(dirname(__DIR__).'/config/nprogress.php', 'nprogress');
 
-        $this->app->scoped(Renderer::class, fn (Application $app) => new Renderer($app->make('view')));
+        $this->app->scoped(ViewEngines::class, function (Application $app) {
+            $engines = new ViewEngines;
+            $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler')));
+
+            foreach ((array) $app->make('config')->get('fusion.views', []) as $name => $view) {
+                $engines->add(new ScriptEngine((string) $name, array_values((array) $view['path']), array_values((array) $view['extensions'])));
+            }
+
+            return $engines;
+        });
+
+        $this->app->scoped(Renderer::class, fn (Application $app) => new Renderer($app->make('view'), $app->make(ViewEngines::class)));
 
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
             (array) $app->make('config')->get('fusion.components'),
             (array) $app->make('config')->get('fusion.pages'),
             $app->bootstrapPath('cache/fusion.php'),
             $app->make('config')->get('fusion.stores'),
+            fn () => $app->make(ColocatedViews::class)->components(),
+        ));
+
+        /** Components written in their Vue, React or Solid views: their classes go with the compiled bundle. */
+        $this->app->scoped(ColocatedViews::class, fn (Application $app) => new ColocatedViews(
+            (array) $app->make('config')->get('fusion.views', []),
+            rtrim((string) $app->make('config')->get('fusion.compiled'), '/\\').DIRECTORY_SEPARATOR.'views',
         ));
 
         $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion(
@@ -52,7 +76,6 @@ class FusionServiceProvider extends ServiceProvider
 
         $this->app->scoped(Bundle::class, fn (Application $app) => new Bundle(
             $app->make(Fusion::class),
-            $app->make('view'),
             $app->make('blade.compiler'),
             $app->make('files'),
             (string) $app->make('config')->get('fusion.compiled'),
@@ -63,6 +86,12 @@ class FusionServiceProvider extends ServiceProvider
             obfuscate: (bool) $app->make('config')->get('fusion.build.obfuscate', true),
             rendering: (string) $app->make('config')->get('fusion.rendering', 'clone'),
             navigation: (string) $app->make('config')->get('fusion.navigation', 'data'),
+        ));
+
+        /** The server lifecycle: Fusion's own features, then the application's (fusion.features). */
+        $this->app->scoped(Features::class, fn (Application $app) => new Features(
+            $app,
+            (array) $app->make('config')->get('fusion.features', []),
         ));
 
         $this->app->bind(PersistentMiddleware::class, fn (Application $app) => new PersistentMiddleware(
