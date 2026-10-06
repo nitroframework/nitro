@@ -19,7 +19,8 @@ final class Functions
         if (self::$files === null) {
             self::$files = [];
 
-            foreach (glob(dirname(__DIR__, 2).'/js/functions/*.js') ?: [] as $file) {
+            /** By category (array/, string/, regex/, ...): a function is known by its name, wherever it is. */
+            foreach (glob(dirname(__DIR__, 2).'/js/functions/*/*.js') ?: [] as $file) {
                 self::$files[basename($file, '.js')] = $file;
             }
         }

@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Php;
 
 use Nitro\Fusion\Browser\Browser;
+use Nitro\Fusion\Compiler\BrowserClasses;
 use Nitro\Fusion\Compiler\Globals;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -17,7 +18,7 @@ use ReflectionParameter;
 
 /**
  * The component, from its compiled code: Fusion's component model, not general PHP. In the
- * browser, $this is the live component (js/src/runtime/component.js):
+ * browser, $this is the live component (js/src/runtime/component/component.js):
  *
  *  - $this->prop reads the component's state ($this.prop), by the browser's name of an
  *    obfuscated build (Scope::browserProperty()); a #[Computed] property is $this.$computed(),
@@ -32,7 +33,7 @@ use ReflectionParameter;
  *    slots the parent passed), and an Upload's methods ($photo->temporaryUrl())
  *  - Fusion::browser() and what it returns (src/Browser: clipboard, storage, canvas, sockets):
  *    each call checked against the PHP class's method and its parameters, the PHP defaults filled
- *    in, and the browser function (js/functions/_browser_*.js) included in the bundle when called
+ *    in, and the browser function (js/functions/browser/_browser_*.js) included in the bundle when called
  *
  * Methods of other objects do not exist in the browser: data from the server arrives as arrays.
  * Every component method named here is recorded in $calledMethods, so the ComponentCompiler
@@ -55,6 +56,15 @@ final class ComponentAccess extends Part
         /** $this->cart->count, or $cart->count in a template: a member of a store the component uses. */
         if (($store = $this->storeOf($e->var)) !== null) {
             return $this->storeMember($store, $name, $e);
+        }
+
+        /** In an enum's method: the case's ->name and ->value. */
+        if ($c->enumCase && $c->isThis($e->var)) {
+            if ($name !== 'name' && ($name !== 'value' || ! is_subclass_of((string) $c->class, \BackedEnum::class))) {
+                throw $c->error("Undefined property {$c->class}::\${$name}", $e);
+            }
+
+            return '$this.'.$name;
         }
 
         if ($c->isThis($e->var)) {
@@ -156,15 +166,29 @@ final class ComponentAccess extends Part
             return $this->storeCall($store, $e);
         }
 
-        if (! $c->isThis($e->var)) {
-            throw $c->error('Only methods of the component ($this->method()) can be called in the browser, and an Upload\'s ('.implode('(), ', Globals::UPLOAD_METHODS).'()); data from the server arrives as arrays', $e);
-        }
-
         if (! $e->name instanceof Identifier) {
             throw $c->error('Dynamic method names are not supported in the browser', $e);
         }
 
         $name = $e->name->toString();
+
+        /**
+         * $status->label() on a value: in the browser, only an enum case has methods. The method is
+         * compiled for the #[Browser] enums the code reaches, and one of them must have it
+         * (ComponentCompiler); data from the server arrives as arrays.
+         */
+        if (! $c->isThis($e->var)) {
+            $at = $c->error('', $e);
+            $c->uses['classes'][BrowserClasses::anyEnum($name, $at->sourceFile, $at->sourceLine)] = true;
+            $call = 'P.enumCall('.$this->transpiler->expr($e->var).', '.$c->string($c->scope->browserMethod($name)).', ['.implode(', ', $calls->args($e->args)).'])';
+
+            return $e instanceof Expr\NullsafeMethodCall ? '('.$this->transpiler->expr($e->var).' === null ? null : '.$call.')' : $call;
+        }
+
+        /** In an enum's method: another of its methods, on the same case. */
+        if ($c->enumCase && ! $c->scope->isClientMethod($name)) {
+            throw $c->error("Call to undefined method {$c->class}::{$name}()", $e);
+        }
 
         if ($c->scope->isServerMethod($name)) {
             throw $c->error("\$this->{$name}() runs on the server: call it as a statement, its return value is not available in the browser", $e);
@@ -379,7 +403,7 @@ final class ComponentAccess extends Part
 
     /**
      * A call on a Fusion::browser() API, checked against its PHP class (src/Browser): on the
-     * Browser, one of js/functions/_browser_*.js, in the bundle when called; on what that
+     * Browser, one of js/functions/browser/_browser_*.js, in the bundle when called; on what that
      * returns, its method. Arguments left out get the PHP method's defaults.
      *
      * @param  class-string  $api

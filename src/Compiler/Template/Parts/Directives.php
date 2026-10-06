@@ -101,6 +101,8 @@ final class Directives extends Part
             'csrf' => $tree->append($this->hiddenInput('_token', $table->expression('B.session.token'), ['autocomplete' => 'off'])),
             'method' => $tree->append($this->hiddenInput('_method', $table->expression('P.toStr('.$table->expr($this->required($name, $args)).')'))),
             'json' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')])),
+            /** Renders nothing: its imports apply to the whole view (TemplateCompiler::imports()). */
+            'use' => $this->required($name, $args),
             default => throw $c->error("@{$name} belongs inside a tag, such as <div @{$name}(...)>"),
         };
     }

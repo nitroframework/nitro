@@ -2,10 +2,12 @@
 
 namespace Nitro\Fusion\Compiler;
 
+use BackedEnum;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Nitro\Fusion\Attributes\Url;
 use Nitro\Fusion\Upload;
+use ReflectionEnum;
 use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
@@ -19,6 +21,7 @@ use ReflectionUnionType;
  *   collection  an Eloquent collection of models, likewise
  *   upload      a file the browser uploaded (Nitro\Fusion\Upload): set from the browser with a
  *               signed reference only (Wire::decode checks it), so it is not locked
+ *   enum        a backed enum: the browser holds its value, and may send any of its cases' values
  */
 final class PropertyMeta
 {
@@ -29,6 +32,8 @@ final class PropertyMeta
     public const COLLECTION = 'collection';
 
     public const UPLOAD = 'upload';
+
+    public const ENUM = 'enum';
 
     private const SCALARS = ['int', 'float', 'string', 'bool', 'array', 'mixed', 'null'];
 
@@ -84,16 +89,26 @@ final class PropertyMeta
                 $kind = self::MODEL;
             } elseif (is_a($name, EloquentCollection::class, true) && count($types) === 1) {
                 $kind = self::COLLECTION;
+            } elseif (enum_exists($name) && count($types) === 1) {
+                if (! is_subclass_of($name, BackedEnum::class)) {
+                    throw new CompileException("\${$property->getName()} is a {$name}, a pure enum: it has no value to send to the browser (make it a backed enum: enum ".class_basename($name).': string)', $file, $property->getDeclaringClass()->getStartLine());
+                }
+
+                if (! BrowserClasses::isEnum($name)) {
+                    throw new CompileException("\${$property->getName()} is a {$name}: the browser holds it as one of its cases, so mark {$name} #[Browser]", $file, $property->getDeclaringClass()->getStartLine());
+                }
+
+                $kind = self::ENUM;
             } else {
                 throw new CompileException(
-                    "\${$property->getName()} is a {$name}: component properties hold null, bool, int, float, string, array, an Eloquent model, an Eloquent collection or an Upload",
+                    "\${$property->getName()} is a {$name}: component properties hold null, bool, int, float, string, array, a backed enum, an Eloquent model, an Eloquent collection or an Upload",
                     $file,
                     $property->getDeclaringClass()->getStartLine()
                 );
             }
         }
 
-        if ($url !== null && ($kind !== self::VALUE || $locked)) {
+        if ($url !== null && (! in_array($kind, [self::VALUE, self::ENUM], true) || $locked)) {
             throw new CompileException("\${$property->getName()} is #[Url]: the URL sets it, so it is a plain value the browser can change (not #[Locked], not a model)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
@@ -101,7 +116,7 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Uploads]: it is an array the browser sends files to (public array \${$property->getName()} = []), not #[Locked]", $file, $property->getDeclaringClass()->getStartLine());
         }
 
-        if ($remember && ($kind !== self::VALUE || $locked)) {
+        if ($remember && (! in_array($kind, [self::VALUE, self::ENUM], true) || $locked)) {
             throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
@@ -110,7 +125,7 @@ final class PropertyMeta
             $kind,
             $types,
             $nullable,
-            $locked || ! in_array($kind, [self::VALUE, self::UPLOAD], true),
+            $locked || ! in_array($kind, [self::VALUE, self::UPLOAD, self::ENUM], true),
             $property->hasDefaultValue(),
             $property->hasDefaultValue() ? $property->getDefaultValue() : null,
             $url,
@@ -127,6 +142,12 @@ final class PropertyMeta
      */
     public function fromQuery(mixed $raw): array
     {
+        if ($this->kind === self::ENUM) {
+            $case = is_string($raw) ? $this->case($raw) : null;
+
+            return $case === null ? [false, null] : [true, $case];
+        }
+
         if ($this->kind !== self::VALUE) {
             return [false, null];
         }
@@ -158,6 +179,32 @@ final class PropertyMeta
      * from the browser only with a value of its own type (ints are accepted for floats).
      */
     /** Whether an array from the browser has an Upload in it, at any depth. */
+    /**
+     * An enum property's case for a value from the browser (or the case itself): the value must
+     * be of the enum's backing type, as the browser sends it ("1" for an int one is the query
+     * string's way of writing 1). Null when it names no case.
+     */
+    public function case(mixed $value): ?BackedEnum
+    {
+        /** @var class-string<BackedEnum> $enum */
+        $enum = $this->types[0];
+
+        if ($value instanceof $enum) {
+            return $value;
+        }
+
+        $intBacked = (string) (new ReflectionEnum($enum))->getBackingType() === 'int';
+
+        if ($intBacked && is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            $value = (int) $value;
+        }
+
+        return match (true) {
+            $intBacked && is_int($value), ! $intBacked && is_string($value) => $enum::tryFrom($value),
+            default => null,
+        };
+    }
+
     public static function holdsUpload(mixed $value): bool
     {
         if ($value instanceof Upload) {
@@ -180,6 +227,10 @@ final class PropertyMeta
         /** An upload property takes an Upload (Wire::decode made it from a reference it checked) or null. */
         if ($this->kind === self::UPLOAD) {
             return $value instanceof Upload || ($value === null && $this->nullable);
+        }
+
+        if ($this->kind === self::ENUM) {
+            return $value === null ? $this->nullable : $this->case($value) !== null;
         }
 
         if ($this->kind !== self::VALUE) {
@@ -221,9 +272,13 @@ final class PropertyMeta
         return false;
     }
 
-    /** A value accepted for a float property is stored as a float. */
+    /** A value accepted for a float property is stored as a float; one for an enum property, as its case. */
     public function cast(mixed $value): mixed
     {
+        if ($this->kind === self::ENUM) {
+            return $value === null ? null : $this->case($value);
+        }
+
         $floatOnly = in_array('float', $this->types, true) && ! in_array('int', $this->types, true);
 
         return is_int($value) && $floatOnly ? (float) $value : $value;

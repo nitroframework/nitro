@@ -12,17 +12,21 @@ use Nitro\Fusion\Attributes\Locked;
 use Nitro\Fusion\Attributes\Modelable;
 use Nitro\Fusion\Attributes\Navigate;
 use Nitro\Fusion\Attributes\On;
+use Nitro\Fusion\Attributes\Persist;
 use Nitro\Fusion\Attributes\Remember;
 use Nitro\Fusion\Attributes\Server;
+use Nitro\Fusion\Attributes\Sync;
 use Nitro\Fusion\Attributes\Title;
 use Nitro\Fusion\Attributes\Uploads;
 use Nitro\Fusion\Attributes\Url;
 use Nitro\Fusion\Attributes\Validate;
 use Nitro\Fusion\Attributes\View;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\State;
+use Nitro\Fusion\FeatureAttribute;
+use Nitro\Fusion\State\ComponentState;
 use Nitro\Fusion\Store;
 use Nitro\Fusion\Support\Naming;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -80,6 +84,12 @@ final class ComponentMeta
         public readonly array $stores = [],
         /** A store (extends Store): state components share, with no view. */
         public readonly bool $store = false,
+        /** @var list<string> a store's properties kept in localStorage (#[Persist]) */
+        public readonly array $persist = [],
+        /** @var list<string> a store's properties shared with the browser's other tabs (#[Sync]) */
+        public readonly array $sync = [],
+        /** What its view is written in (View\ViewEngine): 'blade', or a JavaScript framework's. */
+        public readonly string $engine = 'blade',
     ) {
     }
 
@@ -134,14 +144,14 @@ final class ComponentMeta
         $properties = [];
         $modelable = null;
         $rules = [];
-        $stores = State::stores($class);
+        $stores = ComponentState::stores($class);
         $isStore = $reflection->isSubclassOf(Store::class);
 
         if ($isStore) {
             self::assertStore($reflection, $stores, $file);
         }
 
-        foreach (State::properties($class) as $property) {
+        foreach (ComponentState::properties($class) as $property) {
             $url = ($property->getAttributes(Url::class)[0] ?? null)?->newInstance();
 
             /** #[Validate]: rules for the property itself, or rules by key when given with string keys (an array's). */
@@ -191,6 +201,13 @@ final class ComponentMeta
                 $computed[] = self::computed($method, $properties, $file);
             }
 
+            /** An attribute that works as a feature runs around a #[Server] call: on a browser method, it would never run. */
+            $handler = $method->getAttributes(FeatureAttribute::class, ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
+
+            if ($handler !== null && $method->getAttributes(Server::class) === []) {
+                throw new CompileException('#['.class_basename($handler->getName())."] on {$methodName}(): it runs around a #[Server] method's call, and {$methodName}() runs in the browser; mark it #[Server]", $file, $method->getStartLine());
+            }
+
             if ($method->getAttributes(Server::class) !== []) {
                 if (! $method->isPublic() || in_array($methodName, self::LIFECYCLE, true)) {
                     throw new CompileException("#[Server] {$methodName}() must be a public method that is not a lifecycle hook", $file, $method->getStartLine());
@@ -207,7 +224,16 @@ final class ComponentMeta
             }
         }
 
-        $view = $reflection->getAttributes(View::class)[0] ?? null;
+        try {
+            $view = ($reflection->getAttributes(View::class)[0] ?? null)?->newInstance();
+        } catch (\InvalidArgumentException $e) {
+            throw new CompileException("{$class}: {$e->getMessage()}", $file);
+        }
+
+        if ($view !== null && $isStore) {
+            throw new CompileException("{$class} is a store: it has no view, so no #[View]", $file);
+        }
+
         $layout = $reflection->getAttributes(Layout::class)[0] ?? null;
         $title = $reflection->getAttributes(Title::class)[0] ?? null;
         $lazy = ($reflection->getAttributes(LazyLoad::class)[0] ?? null)?->newInstance();
@@ -251,7 +277,7 @@ final class ComponentMeta
             $class,
             $name,
             $file,
-            $view?->newInstance()->name ?? $defaultView,
+            $view->name ?? $defaultView,
             $properties,
             $server,
             $browser,
@@ -270,7 +296,48 @@ final class ComponentMeta
             $rules,
             $stores,
             $isStore,
+            self::kept($reflection, Persist::class, '#[Persist]', $properties, $isStore, $file),
+            self::kept($reflection, Sync::class, '#[Sync]', $properties, $isStore, $file),
+            $view->engine ?? 'blade',
         );
+    }
+
+    /**
+     * #[Persist] and #[Sync]: a store's properties the browser keeps or shares. On the store, every
+     * property the browser can change; on a property, that one, which the browser must be able to
+     * change (not #[Locked]). A component's state is its own: they are for stores.
+     *
+     * @param  ReflectionClass<Component>  $reflection
+     * @param  class-string  $attribute
+     * @param  array<string, PropertyMeta>  $properties
+     * @return list<string>
+     */
+    private static function kept(ReflectionClass $reflection, string $attribute, string $label, array $properties, bool $isStore, string $file): array
+    {
+        $onClass = $reflection->getAttributes($attribute) !== [];
+        $kept = [];
+
+        foreach ($properties as $name => $property) {
+            $onProperty = $reflection->hasProperty($name) && $reflection->getProperty($name)->getAttributes($attribute) !== [];
+
+            if (! $onClass && ! $onProperty) {
+                continue;
+            }
+
+            if ($onProperty && $property->locked) {
+                throw new CompileException("{$label} on \${$name} of {$reflection->getName()}: it is #[Locked], so only the server sets it", $file);
+            }
+
+            if (! $property->locked) {
+                $kept[] = $name;
+            }
+        }
+
+        if (($onClass || $kept !== []) && ! $isStore) {
+            throw new CompileException("{$label} is for stores: {$reflection->getName()} is a component, whose state is its own. Keep what outlasts it in a store", $file);
+        }
+
+        return $kept;
     }
 
     /**
@@ -404,7 +471,7 @@ final class ComponentMeta
             }
         }
 
-        foreach (State::properties($class) as $property) {
+        foreach (ComponentState::properties($class) as $property) {
             foreach ([Url::class => '#[Url]', Remember::class => '#[Remember]', Modelable::class => '#[Modelable]', Uploads::class => '#[Uploads]'] as $attribute => $label) {
                 if ($property->getAttributes($attribute) !== []) {
                     throw new CompileException("{$label} is for components: \${$property->getName()} of the store {$class} cannot have it", $file);

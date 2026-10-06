@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Php;
 
 use Illuminate\Support\Str;
+use Nitro\Fusion\Compiler\BrowserClasses;
 use Nitro\Fusion\Compiler\Functions as JsFunctions;
 use Nitro\Fusion\Compiler\Globals;
 use PhpParser\Node;
@@ -11,6 +12,7 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
+use ReflectionMethod;
 
 /**
  * Calls to functions: PHP's functions, Laravel's helpers and Str::, and a closure in a variable.
@@ -130,7 +132,8 @@ final class Calls extends Part
     /**
      * Str::slug($title): Laravel's Str helpers, ported to js/functions (Str_slug). Str is the
      * Illuminate\Support\Str class, as a view (Blade's alias) or a use statement names it.
-     * Fusion::browser() is the component's browser APIs.
+     * Fusion::browser() is the component's browser APIs. A #[Browser] class's static methods
+     * (browserClassCall()).
      */
     public function staticCall(Expr\StaticCall $e): string
     {
@@ -144,8 +147,19 @@ final class Calls extends Part
             return '$this.$browser';
         }
 
+        /** In a #[Browser] class's method, self:: and static:: are that class. */
+        if ($this->context->class !== null && $e->class instanceof Name && in_array($e->class->toLowerString(), ['self', 'static'], true)) {
+            $class = $this->context->class;
+        }
+
+        if ($class !== null && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
+            return $this->browserClassCall($class, $e);
+        }
+
         if (! in_array($class, ['Str', Str::class], true) || ! $e->name instanceof Identifier) {
-            throw $this->context->error('Static calls are not supported in the browser (Str:: is): move this code to a #[Server] method', $e);
+            throw $this->context->error($class !== null && class_exists($class)
+                ? "{$class}::{$this->methodName($e)}() is not a browser method: mark {$class} #[Browser] to use its static methods in the browser, or move this code to a #[Server] method"
+                : 'Static calls are not supported in the browser (Str:: and #[Browser] classes are): move this code to a #[Server] method', $e);
         }
 
         $function = 'Str_'.$e->name->toString();
@@ -157,6 +171,65 @@ final class Calls extends Part
         $this->context->uses['functions'][$function] = true;
 
         return 'P.fns.'.$function.'('.implode(', ', $this->args($e->args)).')';
+    }
+
+    /**
+     * Money::format($cents): a static method of a #[Browser] class or enum, compiled with the
+     * bundle (ComponentCompiler::compileClasses()) and called as Fusion.classes[class][method]. A
+     * private or protected one only from its own class. An enum's cases(), from() and tryFrom()
+     * are the runtime's (P.defineEnum()).
+     *
+     * @param  class-string  $class
+     */
+    private function browserClassCall(string $class, Expr\StaticCall $e): string
+    {
+        if (! $e->name instanceof Identifier) {
+            throw $this->context->error("{$class}'s method must be named, not computed, in the browser", $e);
+        }
+
+        $name = $e->name->toString();
+        $scope = $this->context->scope;
+        $target = 'Fusion.classes['.json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).']';
+
+        if (BrowserClasses::isEnum($class)) {
+            $this->context->uses['classes'][BrowserClasses::definition($class)] = true;
+
+            /** An enum's own: cases(), and a backed enum's from() and tryFrom(). */
+            $builtin = strtolower($name);
+
+            if (in_array($builtin, ['cases', 'from', 'tryfrom'], true)) {
+                if ($builtin !== 'cases' && ! is_subclass_of($class, \BackedEnum::class)) {
+                    throw $this->context->error("{$class} is a pure enum: it has no {$name}()", $e);
+                }
+
+                return $target.'.'.($builtin === 'tryfrom' ? 'tryFrom' : $builtin).'('.implode(', ', $this->args($e->args)).')';
+            }
+        }
+
+        if (! method_exists($class, $name)) {
+            throw $this->context->error("Call to undefined method {$class}::{$name}()", $e);
+        }
+
+        $method = new ReflectionMethod($class, $name);
+        $name = $method->getName();
+
+        if (! $method->isStatic()) {
+            throw $this->context->error("{$class}::{$name}() is not static: a #[Browser] class's static methods run in the browser", $e);
+        }
+
+        if (! $method->isPublic() && $this->context->class !== $class) {
+            throw $this->context->error("{$class}::{$name}() is not public", $e);
+        }
+
+        $this->context->uses['classes'][BrowserClasses::key($class, $name)] = true;
+
+        return $target.'['.json_encode($scope->browserMethod($name), JSON_THROW_ON_ERROR).']'
+            .'('.implode(', ', $this->args($e->args)).')';
+    }
+
+    private function methodName(Expr\StaticCall $e): string
+    {
+        return $e->name instanceof Identifier ? $e->name->toString() : '...';
     }
 
     /**

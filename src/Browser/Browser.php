@@ -5,7 +5,7 @@ namespace Nitro\Fusion\Browser;
 /**
  * The browser's APIs, from a component's browser methods: Fusion::browser()->clipboard()->write($text).
  *
- * The compiler turns each call into the matching JavaScript (js/functions/_browser_*.js); a bundle
+ * The compiler turns each call into the matching JavaScript (js/functions/browser/_browser_*.js); a bundle
  * has only the APIs its components use. These classes describe the API for the compiler, editors
  * and static analysis: called on the server, they throw.
  */

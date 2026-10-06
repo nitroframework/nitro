@@ -56,8 +56,17 @@ final class Context
      */
     public ?Closure $substitute = null;
 
-    /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>} what the Laravel helpers name, and the functions of js/functions called */
-    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => []];
+    /** A view's imports (its use directives), as PHP use statements ("use App\Enums\Status;"). Set by the TemplateCompiler. */
+    public string $imports = '';
+
+    /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called */
+    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => []];
+
+    /** @var class-string|null compiling a #[Browser] class's or enum's method: the class (self::, static::) */
+    public ?string $class = null;
+
+    /** Compiling an enum's instance method: $this is the case (its ->name, ->value and methods). */
+    public bool $enumCase = false;
 
     /** Compiling updated(): its string literals that name a property are the browser's names (an obfuscated build). */
     public bool $updatedHook = false;

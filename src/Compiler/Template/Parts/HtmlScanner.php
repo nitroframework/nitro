@@ -297,11 +297,11 @@ final class HtmlScanner extends Part
                 $decoded = $c->scope->browserPath($decoded);
             }
 
-            /** fusion:target's methods, and properties (an upload's), by the browser's names for them (an obfuscated build). */
+            /** fusion:target's methods, and properties or paths (an upload's, fusion:dirty's), by the browser's names for them (an obfuscated build). */
             if ($c->scope->names !== null && $c->tag->attributes[$c->attribute]['c'] === 'fusion:target') {
                 $decoded = implode(',', array_map(fn (string $target) => match (true) {
                     $c->scope->isClientMethod(trim($target)) || $c->scope->isServerMethod(trim($target)) => $c->scope->browserMethod(trim($target)),
-                    $c->scope->isProperty(trim($target)) => $c->scope->browserProperty(trim($target)),
+                    $c->scope->isProperty(explode('.', trim($target))[0]) => $c->scope->browserPath(trim($target)),
                     default => trim($target),
                 }, explode(',', $decoded)));
             }

@@ -9,9 +9,6 @@ use Nitro\Fusion\Compiler\CompileException;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
-use PhpParser\ParserFactory;
-use PhpParser\PhpVersion;
-use PhpParser\PrettyPrinter\Standard;
 
 /**
  * Blade's @include and anonymous components (<x-name>) in a Fusion view, for the browser: before
@@ -29,10 +26,8 @@ use PhpParser\PrettyPrinter\Standard;
  *
  * As Blade's: an included view sees the variables around it, a component only its own (its
  * @props, its attributes, $slot and the named slots, $errors). A component's $attributes is
- * worked out here, as ComponentAttributeBag works it out: {{ $attributes }}, ->merge([...]),
- * ->class([...]), ->only([...]), ->except([...]), ->get(), ->has(); each attribute is left out when
- * its value is null or false (@fusionAttr). Whitespace follows Blade: the newline after @include
- * and after a component tag is dropped (PHP's "?>"), a slot is trimmed.
+ * worked out as ComponentAttributeBag works it out (AttributeBag). Whitespace follows Blade: the
+ * newline after @include and after a component tag is dropped (PHP's "?>"), a slot is trimmed.
  *
  * Not inlined: class-based components (their class renders on the server only), dynamic view
  * names, <fusion:...> children inside an inlined view. Each is a CompileException.
@@ -230,9 +225,9 @@ final class BladeInliner
     {
         preg_match('/\G@(include(?:If|When|Unless)?)\s*\(/', $source, $m, 0, $at);
         $open = $at + strlen($m[0]) - 1;
-        $close = $this->closing($source, $open, $file, $line);
+        $close = PhpSource::closing($source, $open, $file, $line);
         $directive = $m[1];
-        $args = $this->arguments(substr($source, $open + 1, $close - $open - 1), "@{$directive}", $file, $line);
+        $args = PhpSource::arguments(substr($source, $open + 1, $close - $open - 1), "@{$directive}", $file, $line);
         [$condition, $view, $data] = match ($directive) {
             'include', 'includeIf' => [null, $args[0] ?? null, $args[1] ?? null],
             'includeWhen' => [$args[0] ?? null, $args[1] ?? null, $args[2] ?? null],
@@ -254,7 +249,7 @@ final class BladeInliner
             $path = null;
         }
 
-        $vars = $data === null ? [] : $this->literalArray($data, "@{$directive}'s data", $file, $line);
+        $vars = $data === null ? [] : PhpSource::literalArray($data, "@{$directive}'s data", $file, $line);
         $after = $close + 1;
         $next = $line + substr_count($source, "\n", $at, $after - $at);
 
@@ -266,7 +261,7 @@ final class BladeInliner
         }
 
         $this->files[$path] = true;
-        $this->out .= ($condition !== null ? '@if('.$this->print($condition).')' : '').'@fusionScope('.$this->frame($vars, false, $view->value).')';
+        $this->out .= ($condition !== null ? '@if('.PhpSource::print($condition).')' : '').'@fusionScope('.$this->frame($vars, false, $view->value).')';
         $this->inline((string) file_get_contents($path), $path, 1, $depth + 1);
         $this->out .= '@endfusionScope'.($condition !== null ? '@endif' : '');
 
@@ -413,7 +408,7 @@ final class BladeInliner
         }
 
         $view = $this->slotsIn($view, $slots, $id, $path, $file);
-        $view = $this->attributesIn($view, $bagCodes, $fusion, $bag, $id, $path);
+        $view = AttributeBag::render($view, $bagCodes, $fusion, $bag, $id, $path);
 
         if (preg_match('/\$attributes\b/', $view, $left, PREG_OFFSET_CAPTURE)) {
             throw new CompileException('$attributes is used in a way the browser cannot render: use {{ $attributes }}, ->merge([...]), ->class([...]), ->only([...]), ->except([...]) in a tag, or ->get() and ->has()', $path, 1 + substr_count($view, "\n", 0, $left[0][1]));
@@ -548,8 +543,8 @@ final class BladeInliner
         $at = $m[0][1];
         $open = $at + strlen($m[0][0]) - 1;
         $line = 1 + substr_count($view, "\n", 0, $at);
-        $close = $this->closing($view, $open, $path, $line);
-        $args = $this->arguments(substr($view, $open + 1, $close - $open - 1), '@props', $path, $line);
+        $close = PhpSource::closing($view, $open, $path, $line);
+        $args = PhpSource::arguments(substr($view, $open + 1, $close - $open - 1), '@props', $path, $line);
 
         if (! ($args[0] ?? null) instanceof Expr\Array_) {
             throw new CompileException('@props takes an array: @props([\'type\' => \'info\', \'message\'])', $path, $line);
@@ -573,7 +568,7 @@ final class BladeInliner
                     throw new CompileException('@props names each prop with a string', $path, $line);
                 }
 
-                $props[$item->key->value] = $this->print($item->value);
+                $props[$item->key->value] = PhpSource::print($item->value);
             }
         }
 
@@ -702,181 +697,7 @@ final class BladeInliner
         $this->out .= '@endfusionSlot';
     }
 
-    /**
-     * {{ $attributes... }} in a tag: the attributes it prints, worked out from the bag (as
-     * ComponentAttributeBag), and ->get() / ->has() elsewhere.
-     *
-     * @param  array<string, string>  $codes  attribute => the variable holding its value ($__fa0)
-     * @param  array<string, string>  $fusion  fusion: attribute => as written
-     * @param  array<string, string>  $bag  attribute => PHP
-     */
-    private function attributesIn(string $view, array $codes, array $fusion, array $bag, int $frame, string $path): string
-    {
-        $entries = [];
-
-        foreach (array_keys($bag) as $attribute) {
-            $entries[$attribute] = isset($fusion[$attribute]) ? ['fusion' => $fusion[$attribute]] : ['code' => $codes[$attribute]];
-        }
-
-        $view = preg_replace_callback('/\{\{\s*(\$attributes\b(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $m) use ($entries, $frame, $path, $view) {
-            $bag = $this->evaluateBag($m[1], $entries, $path, $view, $m[0]);
-
-            return $this->printAttributes($bag, $frame);
-        }, $view);
-
-        return preg_replace_callback('/\$attributes\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $found) use ($entries, $path, $view) {
-            $m = array_column($found, 0);
-            $line = 1 + substr_count($view, "\n", 0, $found[0][1]);
-            $args = $this->arguments($m[2], '$attributes->'.$m[1].'()', $path, $line);
-            $key = $args[0] ?? null;
-
-            if (! $key instanceof Scalar\String_) {
-                throw new CompileException("\$attributes->{$m[1]}() takes the attribute's name as a string", $path, $line);
-            }
-
-            $entry = $entries[$key->value] ?? null;
-
-            if ($m[1] === 'has') {
-                return $entry === null ? 'false' : 'true';
-            }
-
-            if ($entry === null) {
-                return isset($args[1]) ? $this->print($args[1]) : 'null';
-            }
-
-            return $entry['code'] ?? var_export(html_entity_decode(trim($entry['fusion']), ENT_QUOTES), true);
-        }, $view, flags: PREG_OFFSET_CAPTURE);
-    }
-
-    /**
-     * $attributes and its methods, run here on the attributes' names (their values are code).
-     *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
-     * @return array<string, array{code?: string, fusion?: string}>
-     */
-    private function evaluateBag(string $php, array $entries, string $path, string $view, string $echo): array
-    {
-        $line = 1 + substr_count($view, "\n", 0, (int) strpos($view, $echo));
-        $calls = [];
-
-        for ($expr = $this->expression($php, $path, $line); $expr instanceof Expr\MethodCall; $expr = $expr->var) {
-            array_unshift($calls, $expr);
-        }
-
-        if (! $expr instanceof Expr\Variable || $expr->name !== 'attributes') {
-            throw new CompileException("{{ {$php} }} is not a use of \$attributes the browser can render", $path, $line);
-        }
-
-        foreach ($calls as $call) {
-            $method = $call->name instanceof Node\Identifier ? $call->name->toString() : '';
-            $args = array_map(fn ($arg) => $arg->value, $call->getArgs());
-
-            $entries = match ($method) {
-                'merge' => $this->merge($entries, $this->literalArray($args[0] ?? new Expr\Array_(), '$attributes->merge()', $path, $line)),
-                'class' => $this->merge($entries, ['class' => $this->cssClasses($args[0] ?? null, $path, $line)]),
-                'only' => array_intersect_key($entries, array_flip($this->names($args[0] ?? null, $path, $line))),
-                'except' => array_diff_key($entries, array_flip($this->names($args[0] ?? null, $path, $line))),
-                default => throw new CompileException("\$attributes->{$method}() is not supported in the browser (merge, class, only, except, get, has are)", $path, $line),
-            };
-        }
-
-        return $entries;
-    }
-
-    /**
-     * ComponentAttributeBag::merge(): defaults (escaped) first, the tag's attributes over them;
-     * class and style are appended to their defaults.
-     *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
-     * @param  array<string, string>  $defaults  attribute => PHP
-     * @return array<string, array{code?: string, fusion?: string}>
-     */
-    private function merge(array $entries, array $defaults): array
-    {
-        $escaped = [];
-
-        foreach ($defaults as $attribute => $code) {
-            $escaped[$attribute] = "(is_null({$code}) || is_bool({$code}) ? ({$code}) : htmlspecialchars((string) ({$code}), ENT_QUOTES, 'UTF-8', true))";
-        }
-
-        $appendable = [];
-        $others = [];
-
-        foreach ($entries as $attribute => $entry) {
-            if ($attribute === 'class' || $attribute === 'style') {
-                $value = $entry['code'] ?? var_export(html_entity_decode(trim($entry['fusion']), ENT_QUOTES), true);
-                $value = $attribute === 'style' ? "(str_ends_with((string) ({$value}), ';') ? ({$value}) : ({$value}).';')" : $value;
-                $default = $escaped[$attribute] ?? "''";
-                $appendable[$attribute] = ['code' => "implode(' ', array_unique(array_filter([{$default}, {$value}])))"];
-            } else {
-                $others[$attribute] = $entry;
-            }
-        }
-
-        return array_merge(array_map(fn (string $code) => ['code' => $code], $escaped), $appendable, $others);
-    }
-
-    /** Arr::toCssClasses() of a literal list, as PHP: [$class => $when, 'always'] => "always when-true". */
-    private function cssClasses(?Expr $list, string $path, int $line): string
-    {
-        $items = $list instanceof Expr\Array_ ? $list->items : ($list === null ? [] : [new Node\ArrayItem($list)]);
-        $parts = [];
-
-        foreach ($items as $item) {
-            if ($item === null) {
-                continue;
-            }
-
-            $parts[] = $item->key === null || $item->key instanceof Scalar\Int_
-                ? $this->print($item->value)
-                : '('.$this->print($item->value).' ? '.$this->print($item->key).' : null)';
-        }
-
-        return "implode(' ', array_filter([".implode(', ', $parts).'], fn ($c) => $c !== null))';
-    }
-
-    /** @return list<string> names from ->only() / ->except(): a string or a literal list of them */
-    private function names(?Expr $arg, string $path, int $line): array
-    {
-        $items = $arg instanceof Expr\Array_ ? array_map(fn ($i) => $i?->value, $arg->items) : [$arg];
-        $names = [];
-
-        foreach ($items as $item) {
-            if (! $item instanceof Scalar\String_) {
-                throw new CompileException('->only() and ->except() take attribute names as strings', $path, $line);
-            }
-
-            $names[] = $item->value;
-        }
-
-        return $names;
-    }
-
-    /**
-     * The attributes as the bag prints them (ComponentAttributeBag::__toString): a null or false
-     * value leaves the attribute out, true writes its name (x-data and wire: an empty value).
-     *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
-     */
-    private function printAttributes(array $entries, int $frame): string
-    {
-        $out = '';
-
-        foreach ($entries as $attribute => $entry) {
-            if (isset($entry['fusion'])) {
-                /** Written where the tag is: its handler reads the variables there. */
-                $out .= " @fusionFrame({$frame}) {$entry['fusion']} @endfusionFrame";
-
-                continue;
-            }
-
-            $out .= ' @fusionAttr('.var_export($attribute, true).', '.$entry['code'].')';
-        }
-
-        return $out;
-    }
-
-    // ------------------------------------------------------------ PHP
+    // ------------------------------------------------------------ frames
 
     /**
      * A frame's description for @fusionScope: its variables (name => PHP, read where the region
@@ -887,84 +708,6 @@ final class BladeInliner
     private function frame(array $vars, bool $isolated, string $label, ?int $id = null): string
     {
         return base64_encode(json_encode(['id' => $id ?? ++$this->frames, 'vars' => $vars, 'isolated' => $isolated, 'label' => $label], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    }
-
-    /** @return array<string, string> a literal array with string keys: key => the value's PHP */
-    private function literalArray(Expr $array, string $what, ?string $file, int $line): array
-    {
-        if (! $array instanceof Expr\Array_) {
-            throw new CompileException("{$what} must be a literal array (['name' => \$value]) so that it can be compiled for the browser", $file, $line);
-        }
-
-        $values = [];
-
-        foreach ($array->items as $item) {
-            if ($item === null || ! $item->key instanceof Scalar\String_ || $item->unpack) {
-                throw new CompileException("{$what} names each value with a string key", $file, $line);
-            }
-
-            $values[$item->key->value] = $this->print($item->value);
-        }
-
-        return $values;
-    }
-
-    /** @return list<Expr> the arguments of a directive or call, parsed */
-    private function arguments(string $code, string $what, ?string $file, int $line): array
-    {
-        $call = $this->expression('f('.$code.')', $file, $line);
-
-        if (! $call instanceof Expr\FuncCall) {
-            throw new CompileException("Malformed {$what}", $file, $line);
-        }
-
-        return array_map(fn ($arg) => $arg->value, $call->getArgs());
-    }
-
-    private function expression(string $code, ?string $file, int $line): Expr
-    {
-        try {
-            $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php ('.$code.');') ?? [];
-        } catch (\PhpParser\Error $e) {
-            throw new CompileException('PHP syntax: '.$e->getRawMessage(), $file, $line);
-        }
-
-        $stmt = $stmts[0] ?? null;
-
-        if (! $stmt instanceof Node\Stmt\Expression) {
-            throw new CompileException('Expected an expression', $file, $line);
-        }
-
-        return $stmt->expr;
-    }
-
-    private function print(Expr $expr): string
-    {
-        return (new Standard)->prettyPrintExpr($expr);
-    }
-
-    /** Where a "(" is closed, strings and nested parentheses skipped. */
-    private function closing(string $source, int $open, ?string $file, int $line): int
-    {
-        $depth = 0;
-
-        for ($i = $open, $n = strlen($source); $i < $n; $i++) {
-            $c = $source[$i];
-
-            if ($c === '"' || $c === "'") {
-                for ($i++; $i < $n && $source[$i] !== $c; $i++) {
-                    if ($source[$i] === '\\') {
-                        $i++;
-                    }
-                }
-            } elseif ($c === '(') {
-                $depth++;
-            } elseif ($c === ')' && --$depth === 0) {
-                return $i;
-            }
-        }
-
-        throw new CompileException('A directive\'s "(" is not closed', $file, $line);
     }
 
     private function exampleView(): string

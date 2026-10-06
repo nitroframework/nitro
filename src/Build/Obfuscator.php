@@ -104,6 +104,12 @@ final class Obfuscator
         return $root.(isset($parts[1]) ? '.'.$parts[1] : '');
     }
 
+    /** A #[Browser] class's name in the browser (the browser never sends it back). */
+    public function browserClass(string $class): string
+    {
+        return 'k'.substr(hash_hmac('sha256', 'class:'.$class, $this->key), 0, 9);
+    }
+
     /** A component's or page's name in the browser. */
     public function component(string $name): string
     {

@@ -36,6 +36,13 @@ final class ChildTag
         /** fusion:model="path": the parent's property (path) its #[Modelable] property is bound to. */
         public readonly ?string $model = null,
         /**
+         * That path's segments: a key, or ['php' => $expression] for a {{ }} segment
+         * (fusion:model="lines.{{ $i }}.qty").
+         *
+         * @var list<string|array{php: string}>
+         */
+        public readonly array $modelPath = [],
+        /**
          * An island's start (fusion:hydrate, fusion:static): "idle", "visible" ("visible:200px"),
          * "interaction", "media:(query)" or "static". Null: it starts with the page.
          */
@@ -75,6 +82,7 @@ final class ChildTag
         $props = [];
         $key = null;
         $model = null;
+        $modelPath = [];
         $hydrate = null;
 
         preg_match_all('/([:\w\-.]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/', $attributes, $matches, PREG_SET_ORDER);
@@ -93,7 +101,9 @@ final class ChildTag
             $bound = str_starts_with($attribute, ':');
             $prop = ltrim($attribute, ':');
 
-            if (str_contains($value, '{{') || str_contains($value, '{!!')) {
+            $isModel = $prop === 'fusion:model' || str_starts_with($prop, 'fusion:model.');
+
+            if (! $isModel && (str_contains($value, '{{') || str_contains($value, '{!!'))) {
                 throw new CompileException("Use :{$prop}=\"\$value\" to pass a value to <fusion:{$name}>, not {{ }}", $file, $line);
             }
 
@@ -126,15 +136,27 @@ final class ChildTag
 
             /**
              * fusion:model="form.email" on a child: its #[Modelable] property is bound to this
-             * path of the parent. The parent's value travels as the "$model" prop.
+             * path of the parent, a segment of which may be {{ }} ("lines.{{ $i }}.qty"). The
+             * parent's value travels as the "$model" prop.
              */
-            if ($prop === 'fusion:model' || str_starts_with($prop, 'fusion:model.')) {
-                if (! preg_match('/^[A-Za-z_]\w*(\.[\w\-]+)*$/', $value)) {
-                    throw new CompileException("fusion:model on <fusion:{$name}> names a property of this component (or a key under it): \"{$value}\" is not one", $file, $line);
+            if ($isModel) {
+                if ($bound || ! preg_match('/^[A-Za-z_]\w*(\.([\w\-]+|\{\{(?:(?!\}\}).)+\}\}))*$/s', $value)) {
+                    throw new CompileException("fusion:model on <fusion:{$name}> names a property of this component, or a key under it (form.email, lines.{{ \$i }}.qty): \"{$value}\" is not one", $file, $line);
                 }
 
-                $parts = explode('.', $value);
-                $props['$model'] = '$'.array_shift($parts).implode('', array_map(fn ($k) => '['.var_export($k, true).']', $parts));
+                $modelPath = array_map(function (string $segment) use ($name, $file, $line) {
+                    if (! str_starts_with($segment, '{{')) {
+                        return $segment;
+                    }
+
+                    $php = trim(substr($segment, 2, -2));
+
+                    return self::isExpression($php) ? ['php' => $php] : throw new CompileException("fusion:model on <fusion:{$name}>: {$segment} is not a PHP expression", $file, $line);
+                }, preg_split('/\.(?![^{]*\}\})/', $value));
+
+                $root = array_shift($modelPath);
+                $props['$model'] = '$'.$root.implode('', array_map(fn ($k) => '['.(is_array($k) ? '('.$k['php'].')' : var_export($k, true)).']', $modelPath));
+                array_unshift($modelPath, $root);
                 $model = $value;
 
                 continue;
@@ -143,7 +165,7 @@ final class ChildTag
             $props[self::camel($prop)] = $expression;
         }
 
-        return new self(strtolower($name), $props, $key, $number, $length, $selfClosing !== '', $model, $hydrate);
+        return new self(strtolower($name), $props, $key, $number, $length, $selfClosing !== '', $model, $modelPath, $hydrate);
     }
 
     /**

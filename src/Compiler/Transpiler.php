@@ -18,6 +18,8 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
 use PhpParser\Node\Stmt;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
 use Throwable;
@@ -69,8 +71,11 @@ final class Transpiler
      */
     public ?Closure $substitute = null;
 
-    /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>} what the Laravel helpers name, and the functions of js/functions called; bound to Context */
-    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => []];
+    /** A view's imports (its use directives), as PHP use statements: its expressions' names resolve through them. Set by the TemplateCompiler; bound to Context. */
+    public string $imports = '';
+
+    /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called; bound to Context */
+    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => []];
 
     private readonly Context $context;
 
@@ -96,6 +101,7 @@ final class Transpiler
         $this->calledMethods = &$this->context->calledMethods;
         $this->uses = &$this->context->uses;
         $this->substitute = &$this->context->substitute;
+        $this->imports = &$this->context->imports;
 
         $this->statements = new Statements($this, $this->context);
         $this->expressions = new Expressions($this, $this->context);
@@ -117,6 +123,37 @@ final class Transpiler
         $this->context->tempCounter = 0;
         /** updated($property, $value): the runtime passes the property by the browser's name (an obfuscated build), so a property named in it is too. */
         $this->context->updatedHook = $scope->names !== null && $method->name->toString() === 'updated';
+
+        return $this->functions->functionLike($method->params, $method->stmts ?? [], $method->name->toString(), isMethod: true);
+    }
+
+    /**
+     * A static method of a #[Browser] class, as `function (...) { ... }`: no component, its
+     * class's constants as self::X, its class's methods as self::method().
+     *
+     * @param  class-string  $class
+     */
+    public function staticMethod(Stmt\ClassMethod $method, Scope $scope, string $class): string
+    {
+        $this->context->scope = $scope;
+        $this->context->tempCounter = 0;
+        $this->context->class = $class;
+
+        return $this->functions->functionLike($method->params, $method->stmts ?? [], $method->name->toString());
+    }
+
+    /**
+     * An instance method of a #[Browser] enum, as `function (...) { ... }` called with the case as
+     * `this`: $this->name, $this->value, $this->method(), $this itself (match ($this) {...}).
+     *
+     * @param  class-string  $enum
+     */
+    public function enumMethod(Stmt\ClassMethod $method, Scope $scope, string $enum): string
+    {
+        $this->context->scope = $scope;
+        $this->context->tempCounter = 0;
+        $this->context->class = $enum;
+        $this->context->enumCase = true;
 
         return $this->functions->functionLike($method->params, $method->stmts ?? [], $method->name->toString(), isMethod: true);
     }
@@ -385,10 +422,22 @@ final class Transpiler
     /** @return list<Stmt> */
     private function parse(string $code, int $line): array
     {
+        /** A view's imports: its use statements first, on the same line (the code keeps its line numbers). */
+        $imports = $this->context->imports;
+
+        if ($imports !== '') {
+            $code = '<?php '.$imports.' '.substr($code, strlen('<?php '));
+        }
+
         try {
             $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse($code) ?? [];
         } catch (Throwable $e) {
             throw new CompileException('Invalid PHP: '.$e->getMessage(), $this->context->scope->file, $line);
+        }
+
+        if ($imports !== '') {
+            (new NodeTraverser(new NameResolver(null, ['replaceNodes' => false])))->traverse($stmts);
+            $stmts = array_values(array_filter($stmts, fn (Stmt $stmt) => ! $stmt instanceof Stmt\Use_ && ! $stmt instanceof Stmt\GroupUse));
         }
 
         return $this->context->substitute === null ? $stmts : VariableSubstitution::apply($stmts, $this->context->substitute);

@@ -51,6 +51,7 @@ final class Lexer
                 $this->startsWith('{{{') => $this->echo(Token::ECHO, '{{{', '}}}'),
                 $this->startsWith('{{') => $this->echo(Token::ECHO, '{{', '}}'),
                 $source[$this->position] === '@' => $this->at(),
+                $this->startsWith('<fusion:') && $this->childTag() => null,
                 default => $this->character(),
             };
         }
@@ -153,9 +154,25 @@ final class Lexer
     }
 
     /** Plain text, up to the next place a Blade construct could start ({ or @). */
+    /**
+     * A child's tag (<fusion:name ...>) is text as a whole, {{ }} in it too: ChildTag reads it as
+     * the server's Blade precompiler does (fusion:model="lines.{{ $i }}.qty").
+     */
+    private function childTag(): bool
+    {
+        if (! preg_match(substr(ChildTag::PATTERN, 0, 1).'\G'.substr(ChildTag::PATTERN, 1), $this->source, $m, 0, $this->position)) {
+            return false;
+        }
+
+        $this->text .= $m[0];
+        $this->advance($this->position + strlen($m[0]));
+
+        return true;
+    }
+
     private function character(): void
     {
-        $next = strcspn($this->source, '{@', $this->position + 1) + $this->position + 1;
+        $next = strcspn($this->source, '{@<', $this->position + 1) + $this->position + 1;
         $this->text .= substr($this->source, $this->position, $next - $this->position);
         $this->advance($next);
     }

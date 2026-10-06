@@ -77,6 +77,12 @@ final class Scope
         return $this->names?->method($name) ?? $name;
     }
 
+    /** A #[Browser] class's name in the browser. */
+    public function browserClass(string $class): string
+    {
+        return $this->names?->browserClass($class) ?? $class;
+    }
+
     /** A property's name in the browser. */
     public function browserProperty(string $name): string
     {

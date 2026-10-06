@@ -20,7 +20,7 @@ final class Syntax
         'if', 'elseif', 'else', 'endif', 'unless', 'endunless', 'isset', 'endisset', 'empty', 'endempty',
         'foreach', 'endforeach', 'forelse', 'endforelse', 'for', 'endfor', 'while', 'endwhile',
         'break', 'continue', 'switch', 'case', 'default', 'endswitch', 'error', 'enderror',
-        'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json',
+        'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json', 'use',
         'teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred',
         /** BladeInliner's, around an inlined @include or <x-component> (not written in views). */
         'fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot', 'fusionFrame', 'endfusionFrame', 'fusionAttr',

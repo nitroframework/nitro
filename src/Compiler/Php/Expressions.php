@@ -2,11 +2,15 @@
 
 namespace Nitro\Fusion\Compiler\Php;
 
+use Nitro\Fusion\Compiler\BrowserClasses;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
+use ReflectionClass;
+use ReflectionClassConstant;
+use UnitEnum;
 
 /**
  * Expressions that read values: literals, strings with "{$interpolation}", constants, variables,
@@ -44,8 +48,23 @@ final class Expressions extends Part
             is_array($value) => array_is_list($value)
                 ? '['.implode(', ', array_map(fn ($v) => $this->literal($v, $node), $value)).']'
                 : 'P.arrayLiteral(['.implode(', ', array_map(fn ($k, $v) => '['.$this->literal($k, $node).', '.$this->literal($v, $node).']', array_keys($value), $value)).'])',
+            $value instanceof UnitEnum => $this->enumCase($value, $node),
             default => throw $this->context->error(sprintf('A constant of type %s cannot be used in the browser', get_debug_type($value)), $node),
         };
+    }
+
+    /** Status::Paid: the case, one object per case in the browser (Fusion.classes[enum].$cases). */
+    public function enumCase(UnitEnum $case, Node $node): string
+    {
+        $enum = $case::class;
+
+        if (! BrowserClasses::isEnum($enum)) {
+            throw $this->context->error("{$enum}::{$case->name} is a case of {$enum}: mark {$enum} #[Browser] to use its cases in the browser", $node);
+        }
+
+        $this->context->uses['classes'][BrowserClasses::definition($enum)] = true;
+
+        return 'Fusion.classes['.json_encode($this->context->scope->browserClass($enum), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).'].$cases['.json_encode($case->name, JSON_THROW_ON_ERROR).']';
     }
 
     public function interpolated(Scalar\InterpolatedString $e): string
@@ -76,8 +95,27 @@ final class Expressions extends Part
     /** self::CONSTANT / static::CONSTANT: the component's constant, as its value. */
     public function classConstant(Expr\ClassConstFetch $e): string
     {
+        $class = $e->class instanceof Name ? ltrim(($e->class->getAttribute('resolvedName') ?? $e->class)->toString(), '\\') : null;
+
+        /** A #[Browser] class's constant (Money::CURRENCY): its value. An enum's case (Status::Paid): the case. */
+        if ($class !== null && $e->name instanceof Identifier && ! in_array(strtolower($class), ['self', 'static'], true) && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
+            $name = $e->name->toString();
+
+            if (! (new ReflectionClass($class))->hasConstant($name)) {
+                throw $this->context->error("Undefined constant {$class}::{$name}", $e);
+            }
+
+            if (! (new ReflectionClassConstant($class, $name))->isPublic() && $this->context->class !== $class) {
+                throw $this->context->error("{$class}::{$name} is not public", $e);
+            }
+
+            return $this->literal(constant($class.'::'.$name), $e);
+        }
+
         if (! $e->class instanceof Name || ! in_array($e->class->toLowerString(), ['self', 'static'], true) || ! $e->name instanceof Identifier) {
-            throw $this->context->error('Only self::CONSTANT and static::CONSTANT of the component can be used in the browser', $e);
+            throw $this->context->error($class !== null && class_exists($class)
+                ? "{$class}'s ".(enum_exists($class) ? 'cases' : 'constants')." are not in the browser: mark {$class} #[Browser], or move this code to a #[Server] method"
+                : 'Only self::CONSTANT of the component and the constants of #[Browser] classes can be used in the browser', $e);
         }
 
         $name = $e->name->toString();
@@ -99,6 +137,11 @@ final class Expressions extends Part
         }
 
         if ($e->name === 'this') {
+            /** In an enum's method, $this is the case: a value like any other (match ($this) {...}). */
+            if ($c->enumCase) {
+                return '$this';
+            }
+
             throw $c->error('$this can only be used as $this->property or $this->method() in the browser', $e);
         }
 

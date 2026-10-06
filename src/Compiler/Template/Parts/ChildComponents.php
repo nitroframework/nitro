@@ -60,7 +60,7 @@ final class ChildComponents extends Part
         }
 
         if ($tag->model !== null) {
-            $root = explode('.', $tag->model)[0];
+            $root = $tag->modelPath[0];
 
             if (! $c->scope->isProperty($root) || $c->scope->isLocked($root)) {
                 throw $c->error("fusion:model on <fusion:{$tag->name}> binds \"{$tag->model}\": {$root} must be a public property of this component that the browser can change");
@@ -92,7 +92,7 @@ final class ChildComponents extends Part
             'n' => $tag->number,
             'key' => $tag->key !== null ? $table->expression('P.toStr('.$table->expr($tag->key).')') : null,
             'props' => $table->expression('{'.implode(', ', $props).'}'),
-            'model' => $tag->model === null ? null : $c->scope->browserPath($tag->model),
+            'model' => $tag->model === null ? null : $this->modelPath($tag->modelPath),
         ], fn ($v) => $v !== null));
         $this->compiler->tree->append($node);
 
@@ -106,6 +106,40 @@ final class ChildComponents extends Part
         }
 
         return $at + $tag->length;
+    }
+
+    /**
+     * A child's fusion:model path in the browser: the path, or, with {{ }} segments, the index of
+     * the expression that builds it as the view renders.
+     *
+     * @param  list<string|array{php: string}>  $segments
+     */
+    private function modelPath(array $segments): string|int
+    {
+        $path = $this->context->scope->browserProperty(array_shift($segments));
+        $parts = [];
+
+        foreach ($segments as $segment) {
+            if (is_string($segment)) {
+                $path .= '.'.$segment;
+
+                continue;
+            }
+
+            $parts[] = json_encode($path.'.');
+            $parts[] = 'P.toStr('.$this->compiler->expressionTable->expr($segment['php']).')';
+            $path = '';
+        }
+
+        if ($parts === []) {
+            return $path;
+        }
+
+        if ($path !== '') {
+            $parts[] = json_encode($path);
+        }
+
+        return $this->compiler->expressionTable->expression(implode(' + ', $parts));
     }
 
     /** <fusion:slot name="footer">: a named slot of the child tag around it. */

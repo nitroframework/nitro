@@ -47,8 +47,18 @@ final class FusionAttributes extends Part
 
             foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $modifier) {
                 if (! in_array($modifier, Globals::ATTRIBUTE_MODIFIERS[$name], true)) {
-                    throw $c->error("Unknown modifier .{$modifier} on fusion:{$name} (it takes .".implode(', .', Globals::ATTRIBUTE_MODIFIERS[$name]).')');
+                    throw $c->error(Globals::ATTRIBUTE_MODIFIERS[$name] === []
+                        ? "fusion:{$name} takes no modifiers (.{$modifier})"
+                        : "Unknown modifier .{$modifier} on fusion:{$name} (it takes .".implode(', .', Globals::ATTRIBUTE_MODIFIERS[$name]).')');
                 }
+            }
+
+            if ($name === 'loading') {
+                $this->checkLoading($parts);
+            }
+
+            if ($name === 'dirty' && ! in_array($parts, Globals::LOADING_FORMS, true)) {
+                throw $c->error('fusion:dirty takes nothing or one of .remove, .class, .class.remove, .attr (not .'.implode('.', $parts).')');
             }
 
             /** Passed through: the runtime reads it from the element (its value may contain {{ }}). */
@@ -63,10 +73,35 @@ final class FusionAttributes extends Part
             return $i;
         }
 
+        /**
+         * The application's own (fusion.attributes): passed through as written, its value rendered
+         * like any attribute's ({{ }} too), any modifiers; the element is marked for the runtime,
+         * which runs the Fusion.directive() of that name on it.
+         */
+        if (in_array($name, $this->compiler->attributes, true)) {
+            foreach ($parts as $modifier) {
+                if (preg_match('/^[\w\-]+$/', $modifier) !== 1) {
+                    throw $c->error("fusion:{$name}: a modifier is a word (fusion:{$name}.top, fusion:{$name}.300ms)");
+                }
+            }
+
+            $c->tag->attributes[] = ['c' => 'fusion:h-directive'];
+            $i += strlen('fusion:'.$spec);
+
+            if (preg_match('/\G\s*=\s*(["\'])/', $text, $open, 0, $i)) {
+                return $this->compiler->html->openValue('fusion:'.$spec, $open[1], $i + strlen($open[0]));
+            }
+
+            $c->tag->attributes[] = ['c' => 'fusion:'.$spec];
+
+            return $i;
+        }
+
         $hook = Globals::HOOKS[$name] ?? null;
 
         if ($hook === null && ! Globals::isEvent($name)) {
-            throw $c->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible or one of fusion:".implode(', fusion:', Globals::ATTRIBUTES));
+            throw $c->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible, one of fusion:".implode(', fusion:', Globals::ATTRIBUTES)
+                .', or add it to fusion.attributes and give it a Fusion.directive()');
         }
 
         foreach ($parts as $modifier) {
@@ -118,6 +153,29 @@ final class FusionAttributes extends Part
      *
      * @param  list<string>  $modifiers
      */
+    /**
+     * fusion:loading's modifiers: .delay (with a time: .delay.500ms) first, if any, then one of
+     * Globals::LOADING_FORMS.
+     *
+     * @param  list<string>  $modifiers
+     */
+    private function checkLoading(array $modifiers): void
+    {
+        $form = $modifiers;
+
+        if (($form[0] ?? null) === 'delay') {
+            array_shift($form);
+
+            if (preg_match('/^\d+(ms|s)$/', $form[0] ?? '') === 1) {
+                array_shift($form);
+            }
+        }
+
+        if (! in_array($form, Globals::LOADING_FORMS, true)) {
+            throw $this->context->error('fusion:loading takes .delay (.delay.500ms) first if it waits, then nothing or one of .remove, .class, .class.remove, .attr (not .'.implode('.', $modifiers).')');
+        }
+    }
+
     private function checkTransition(array $modifiers): void
     {
         $c = $this->context;

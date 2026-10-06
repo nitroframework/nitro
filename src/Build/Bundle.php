@@ -6,18 +6,14 @@ use Closure;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Routing\Router;
 use Illuminate\View\Compilers\BladeCompiler;
-use Illuminate\View\Factory as ViewFactory;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentCompiler;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Functions;
-use Nitro\Fusion\Compiler\Template\BladeInliner;
-use Nitro\Fusion\Compiler\Template\ComponentTags;
+use Nitro\Fusion\Compiler\Globals;
 use Nitro\Fusion\Fusion;
 use ReflectionClass;
 use RuntimeException;
-use Symfony\Component\Process\Process;
-use Throwable;
 
 /**
  * The browser's copy of the application's components: app.js with every component compiled, and
@@ -38,6 +34,9 @@ use Throwable;
  * @fusionScripts points at them. Their names carry the version, and a chunk is named by a hash
  * of its group, as Vite names its chunks. Without them (a change since the build, or none), the
  * Fusion routes serve the files.
+ *
+ * Its parts: Minifier (esbuild, and its cache), PageRoutes (the Route::fusion() pages as the
+ * browser matches them), BrowserClassFiles (the #[Browser] classes the version counts).
  */
 final class Bundle
 {
@@ -48,8 +47,14 @@ final class Bundle
     /** @var array<string, string>|null the components in chunks (name => group): lazy() */
     private ?array $lazy = null;
 
-    /** @var array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, chunks: array<string, string>} what the last compile's helpers named */
-    private array $lastUses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'chunks' => []];
+    private readonly Minifier $minifier;
+
+    private readonly PageRoutes $pageRoutes;
+
+    private readonly BrowserClassFiles $browserClasses;
+
+    /** @var array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, classes: list<string>, chunks: array<string, string>} what the last compile's helpers named */
+    private array $lastUses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => [], 'chunks' => []];
 
     /**
      * @param  array{node?: string, root?: string}  $esbuild  the node binary, and the directory
@@ -57,7 +62,6 @@ final class Bundle
      */
     public function __construct(
         private readonly Fusion $fusion,
-        private readonly ViewFactory $views,
         private readonly BladeCompiler $blade,
         private readonly Filesystem $files,
         private readonly string $directory,
@@ -81,6 +85,10 @@ final class Bundle
         if (! in_array($navigation, ['data', 'markup'], true)) {
             throw new \InvalidArgumentException("fusion.navigation is 'data' or 'markup', not '{$navigation}'");
         }
+
+        $this->minifier = new Minifier($files, $directory.DIRECTORY_SEPARATOR.'minified', $esbuild);
+        $this->pageRoutes = new PageRoutes($fusion, $router);
+        $this->browserClasses = new BrowserClassFiles($files, $directory);
     }
 
     /** Whether a visit to the page renders it at once (markup first, or client): its #[Navigate], or fusion.navigation. */
@@ -105,39 +113,11 @@ final class Bundle
         $fields = ['markup' => $this->fusion->pageLayout($meta)];
 
         if ($meta->navigate === 'client') {
-            $this->assertClientRoutes($meta);
+            $this->pageRoutes->assertClient($meta);
             $fields['client'] = $this->fusion->clientHead($meta);
         }
 
         return $fields;
-    }
-
-    /**
-     * A client page's routes must need nothing from the server either: no middleware beyond the
-     * web group, and no parameters to bind.
-     *
-     * @throws CompileException
-     */
-    private function assertClientRoutes(ComponentMeta $meta): void
-    {
-        $web = $this->router?->getMiddlewareGroups()['web'] ?? [];
-
-        foreach ($this->pageRoutes() as [, $name, $route]) {
-            if ($name !== $meta->name) {
-                continue;
-            }
-
-            $extra = array_values(array_filter($route->gatherMiddleware(), fn ($middleware) => $middleware !== 'web' && ! in_array($middleware, $web, true)));
-            $problem = match (true) {
-                $route->parameterNames() !== [] => 'route parameters ({'.implode('}, {', $route->parameterNames()).'})',
-                $extra !== [] => 'middleware beyond the web group ('.implode(', ', array_map(fn ($m) => is_string($m) ? $m : get_debug_type($m), $extra)).')',
-                default => null,
-            };
-
-            if ($problem !== null) {
-                throw new CompileException("#[Navigate('client')] on {$meta->class}: its route /".ltrim($route->uri(), '/')." has {$problem}, which only the server can check. Use #[Navigate('markup')].", $meta->file);
-            }
-        }
     }
 
     /**
@@ -165,9 +145,9 @@ final class Bundle
                 continue;
             }
 
-            $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);
+            $engine = $this->fusion->viewEngine($this->fusion->meta($name));
 
-            if (str_contains((string) $this->files->get($view), '<fusion:dynamic-component')) {
+            if ($engine->compiledByFusion() && str_contains((string) $this->files->get($engine->file($this->fusion->meta($name))), '<fusion:dynamic-component')) {
                 return true;
             }
         }
@@ -186,7 +166,9 @@ final class Bundle
             /** Clone mode marks the templates' static parts: another build than create mode's. */
             .($this->rendering === 'clone' ? 'rendering:clone' : '')
             /** Markup-first pages carry their layout and are listed by path: another build. */
-            .'navigation:'.$this->navigation), 0, 16);
+            .'navigation:'.$this->navigation
+            /** The application's own fusion: attributes: a view using one compiles only once it is listed. */
+            .'attributes:'.implode(',', $this->customAttributes())), 0, 16);
     }
 
     /**
@@ -363,10 +345,12 @@ final class Bundle
     /** Remove the compiled files, and the published ones. */
     public function clear(): void
     {
-        /** Fusion's files only (app-*, the minified cache): the directory's own, such as a .gitignore, stay. */
+        /** Fusion's files only (app-*, classes.json, the minified cache): the directory's own, such as a .gitignore, stay. */
         foreach ($this->files->glob($this->directory.DIRECTORY_SEPARATOR.'app-*') as $file) {
             $this->files->delete($file);
         }
+
+        $this->browserClasses->clear();
 
         $this->files->deleteDirectory($this->directory.DIRECTORY_SEPARATOR.'minified');
         $this->publish([]);
@@ -435,6 +419,7 @@ final class Bundle
             cloneStatic: $this->rendering === 'clone',
             atOnce: $this->rendersAtOnce(...),
             meta: fn (string $class) => $this->fusion->meta($class),
+            attributes: $this->customAttributes(),
         );
         $main = [];
         $chunks = [];
@@ -456,8 +441,10 @@ final class Bundle
                     continue;
                 }
 
-                $viewFile = $this->views->getFinder()->find($meta->view);
-                $definition = $compiler->compile($meta, $this->files->get($viewFile), $viewFile);
+                /** A view Fusion compiles is read here; one the app's build compiles is only named. */
+                $engine = $this->fusion->viewEngine($meta);
+                $viewFile = $engine->file($meta);
+                $definition = $compiler->compile($meta, $engine->compiledByFusion() ? $this->files->get($viewFile) : null, $viewFile);
             } catch (CompileException $e) {
                 if ($build) {
                     throw $e;
@@ -492,7 +479,7 @@ final class Bundle
         /** Markup-first pages by path: a visit renders the page at once, before its data. */
         $markup = [];
 
-        foreach ($this->pageRoutes() as [$pattern, $name]) {
+        foreach ($this->pageRoutes->all() as [$pattern, $name]) {
             if ($this->markupFirst($this->fusion->meta($name))) {
                 $markup[] = [$pattern, $names?->component($name) ?? $name];
             }
@@ -501,6 +488,18 @@ final class Bundle
         if ($markup !== []) {
             $main[] = '// #[Navigate(\'markup\')] and #[Navigate(\'client\')]: path => page, rendered at once on a visit'."\n"
                 .'Fusion.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
+        }
+
+        /** The #[Browser] classes' methods the components reach, in the main bundle: any chunk may call them. */
+        $classes = $compiler->compileClasses();
+
+        if ($classes !== '') {
+            array_unshift($main, $classes);
+        }
+
+        /** Which #[Browser] classes the components reach: when the recorded ones change, so does the version. */
+        if ($this->browserClasses->record($compiler->compiledClasses())) {
+            $this->version = null;
         }
 
         /** Viewi's: the PHP functions the components call (and those they use), in the main bundle. */
@@ -514,7 +513,10 @@ final class Bundle
             $files[$group] = $this->wrap($definitions);
         }
 
-        $this->lastUses = $this->checked($compiler->uses) + ['chunks' => $lazy, 'broken' => (object) $broken];
+        /** The #[Browser] classes: what was compiled for them (methods, and enums by "Enum::"). */
+        $uses = $this->checked($compiler->uses);
+        $uses['classes'] = $compiler->compiledClasses();
+        $this->lastUses = $uses + ['chunks' => $lazy, 'broken' => (object) $broken];
 
         return $files;
     }
@@ -523,7 +525,7 @@ final class Bundle
      * What the compiled code's Laravel helpers name (route names, translation keys, config keys):
      * @fusionScripts ships their values with the page.
      *
-     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, chunks: array<string, string>} (chunks: component => the chunk it is in)
+     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, classes: list<string>, chunks: array<string, string>} (chunks: component => the chunk it is in)
      */
     public function uses(): array
     {
@@ -566,8 +568,8 @@ final class Bundle
     /**
      * The uses, sorted; config() only for the keys the application made public.
      *
-     * @param  array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>}  $uses
-     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>}
+     * @param  array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>}  $uses
+     * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, classes: list<string>}
      */
     private function checked(array $uses): array
     {
@@ -599,6 +601,17 @@ final class Bundle
     private function usesPath(): string
     {
         return $this->directory.DIRECTORY_SEPARATOR.'app-'.$this->version().'.uses.json';
+    }
+
+    /**
+     * The application's own fusion: attributes (fusion.attributes), checked: a name that is not
+     * one, or is Fusion's own, fails every compile with the reason.
+     *
+     * @return list<string>
+     */
+    private function customAttributes(): array
+    {
+        return Globals::customAttributes((array) $this->fusion->config('attributes', []));
     }
 
     /** Whether Blade compiles @name (a built-in directive or one the application registered). */
@@ -650,67 +663,13 @@ final class Bundle
         $lazy = $this->lazy();
         $routes = [];
 
-        foreach ($lazy === [] ? [] : $this->pageRoutes() as [$pattern, $name]) {
+        foreach ($lazy === [] ? [] : $this->pageRoutes->all() as [$pattern, $name]) {
             if (isset($lazy[$name])) {
                 $routes[] = [$pattern, $lazy[$name]];
             }
         }
 
         return $routes;
-    }
-
-    /**
-     * Every Route::fusion() page reached with GET, as [path pattern, page name, route] (routes on
-     * a domain left out: their path alone does not say the page).
-     *
-     * @return list<array{0: string, 1: string, 2: \Illuminate\Routing\Route}>
-     */
-    private function pageRoutes(): array
-    {
-        if ($this->router === null) {
-            return [];
-        }
-
-        $pages = [];
-
-        foreach ($this->fusion->registry()->all() as $name => $class) {
-            $pages[ltrim($class, '\\')] = $name;
-        }
-
-        $routes = [];
-
-        foreach ($this->router->getRoutes()->getRoutes() as $route) {
-            $controller = $route->getAction('controller');
-            $class = is_string($controller) ? ltrim(explode('@', $controller)[0], '\\') : null;
-
-            if ($class === null || ! isset($pages[$class]) || $route->getDomain() !== null || ! in_array('GET', $route->methods(), true)) {
-                continue;
-            }
-
-            $routes[] = [$this->pattern($route->uri()), $pages[$class], $route];
-        }
-
-        return $routes;
-    }
-
-    /** A route's path as a JavaScript regular expression: each {parameter} one path segment. */
-    private function pattern(string $uri): string
-    {
-        $pattern = '';
-
-        foreach (explode('/', trim($uri, '/')) as $segment) {
-            if ($segment === '') {
-                continue;
-            }
-
-            $pattern .= match (true) {
-                preg_match('/^\{\w+\?\}$/', $segment) === 1 => '(?:/[^/]+)?',
-                preg_match('/^\{\w+\}$/', $segment) === 1 => '/[^/]+',
-                default => '/'.preg_replace_callback('/\{\w+\??\}|[^{]+/', fn (array $m) => $m[0][0] === '{' ? '[^/]+' : preg_quote($m[0], '#'), $segment),
-            };
-        }
-
-        return '^'.($pattern === '' ? '/' : $pattern).'/?$';
     }
 
     /**
@@ -734,21 +693,31 @@ final class Bundle
             }
         }
 
-        $paths = ['' => $this->pathFor($this->version(), '', $built)];
-
-        foreach ($this->groups() as $group) {
-            $paths[$group] = $this->pathFor($this->version(), $group, $built);
-        }
+        $paths = $this->paths($built);
 
         if (! $built && array_filter([...$paths, $this->usesPath()], fn (string $path) => ! $this->files->exists($path)) !== []) {
             $files = [];
 
+            /** Compiling can change the version (the #[Browser] classes it reaches): the files go under the new one. */
             foreach ($this->compileAll() as $group => $code) {
                 $files[$this->pathFor($this->version(), $group)] = $code;
             }
             $files[$this->usesPath()] = $this->usesJson();
 
             $this->write($files);
+            $paths = $this->paths($built);
+        }
+
+        return $paths;
+    }
+
+    /** @return array<string, string> group => its file, '' the main bundle */
+    private function paths(bool $built): array
+    {
+        $paths = ['' => $this->pathFor($this->version(), '', $built)];
+
+        foreach ($this->groups() as $group) {
+            $paths[$group] = $this->pathFor($this->version(), $group, $built);
         }
 
         return $paths;
@@ -765,7 +734,9 @@ final class Bundle
         $files = $this->files->allFiles(dirname(__DIR__).DIRECTORY_SEPARATOR.'Compiler');
         $files = array_map(fn ($file) => $file->getPathname(), $files);
 
-        $inliner = new BladeInliner($this->views, new ComponentTags($this->blade));
+        /** The #[Browser] classes the last compile reached (BrowserClassFiles). */
+        $files = [...$files, ...$this->browserClasses->all()];
+
 
         foreach ($this->fusion->registry()->all() as $name => $class) {
             for ($reflection = new ReflectionClass($class); $reflection !== false; $reflection = $reflection->getParentClass()) {
@@ -777,9 +748,9 @@ final class Bundle
                 continue;
             }
 
-            $view = $this->views->getFinder()->find($this->fusion->meta($name)->view);
-            /** And the views it includes or uses as <x-components>: they are inlined into it. */
-            $files = [...$files, $view, ...$inliner->dependencies($view)];
+            /** And its view's files (a Blade view's: those it includes or uses as <x-components>, inlined into it). */
+            $meta = $this->fusion->meta($name);
+            $files = [...$files, ...$this->fusion->viewEngine($meta)->files($meta)];
         }
 
         sort($files);
@@ -828,63 +799,7 @@ final class Bundle
      */
     public function minifyAll(array $chunks, int &$minified = 0, bool $prune = false): array
     {
-        $root = $this->esbuild['root'] ?? getcwd();
-        $script = dirname(__DIR__, 2).'/resources/minify.cjs';
-        $cache = $this->directory.DIRECTORY_SEPARATOR.'minified';
-        $tool = hash('sha256', (string) @file_get_contents($script).(string) @file_get_contents($root.'/node_modules/esbuild/package.json'));
-
-        $out = [];
-        $keys = [];
-        $missing = [];
-
-        foreach ($chunks as $name => $code) {
-            $keys[$name] = $cache.DIRECTORY_SEPARATOR.hash('sha256', $tool."\0".$code).'.js';
-
-            if ($this->files->exists($keys[$name])) {
-                $out[$name] = (string) $this->files->get($keys[$name]);
-            } else {
-                $missing[$name] = $code;
-            }
-        }
-
-        $minified = count($missing);
-
-        if ($missing !== []) {
-            $process = new Process([$this->esbuild['node'] ?? 'node', $script, '--batch'], $root, null, json_encode((object) $missing, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), 300);
-
-            try {
-                $process->run();
-            } catch (Throwable $e) {
-                throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$e->getMessage(), 0, $e);
-            }
-
-            if (! $process->isSuccessful()) {
-                $error = trim($process->getErrorOutput()) ?: trim($process->getOutput());
-
-                throw new RuntimeException('fusion:build could not minify the components with esbuild: '
-                    .($error !== '' ? $error : 'node exited with '.$process->getExitCode()).'.');
-            }
-
-            $this->files->ensureDirectoryExists($cache);
-
-            foreach (json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR) as $name => $code) {
-                $out[$name] = $code;
-                $this->files->put($keys[$name], $code);
-            }
-        }
-
-        /** A build's cache keeps what it used: a chunk that changed leaves its old minified code behind. */
-        if ($prune) {
-            $used = array_map(fn (string $path) => basename($path), $keys);
-
-            foreach ($this->files->glob($cache.DIRECTORY_SEPARATOR.'*.js') as $old) {
-                if (! in_array(basename($old), $used, true)) {
-                    $this->files->delete($old);
-                }
-            }
-        }
-
-        return array_replace($chunks, $out);
+        return $this->minifier->minify($chunks, $minified, $prune);
     }
 
     /**

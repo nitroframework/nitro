@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Template;
 
 use Closure;
+use Nitro\Fusion\Compiler\BrowserClasses;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\Globals;
 use Nitro\Fusion\Compiler\Scope;
@@ -29,7 +30,7 @@ use Nitro\Fusion\Compiler\Transpiler;
  * Blade's blocks are template nodes carrying their directive (@if: {c: "if", code}, @foreach:
  * {c: "foreach", forData, key, item, loop}, ...). An expression gets the component and the
  * template's variables in scope ($item, $loop, ...) as arguments, by position. The browser
- * builds the DOM from the tree (runtime/render.js); the server renders the same view with Blade,
+ * builds the DOM from the tree (runtime/view/view.js); the server renders the same view with Blade,
  * and the tree yields the same DOM.
  *
  * Only what can render in the browser is accepted: echoes, the control-flow directives, the
@@ -78,8 +79,14 @@ final class TemplateCompiler
      * @param  Closure(string): bool  $isBladeDirective
      * @param  bool  $cloneStatic  clone mode (fusion.rendering = 'clone'): the static parts are marked for the browser to copy (StaticParts)
      */
-    public function __construct(private readonly Closure $isBladeDirective, private readonly bool $cloneStatic = false)
-    {
+    /**
+     * @param  list<string>  $attributes  the application's own fusion: attributes (fusion.attributes, checked by Globals::customAttributes())
+     */
+    public function __construct(
+        private readonly Closure $isBladeDirective,
+        private readonly bool $cloneStatic = false,
+        public readonly array $attributes = [],
+    ) {
         $this->context = new Context;
 
         /** The ComponentCompiler reads this on the TemplateCompiler; the parts, on the Context. */
@@ -125,14 +132,70 @@ final class TemplateCompiler
             $c->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
         }
 
+        /** The view's use directives: for the whole view, as the PHP use statements Blade compiles them to. */
+        $c->transpiler->imports = self::imports($source);
+
         try {
-            return $this->read($source, $file);
+            $read = $this->read($source, $file);
+
+            /** A method called on a value is checked later (ComponentCompiler): an inlined line is kept as where it came from. */
+            if ($c->lineMap !== []) {
+                $classes = [];
+
+                foreach ($c->transpiler->uses['classes'] as $key => $true) {
+                    [$class, $method] = BrowserClasses::split($key);
+                    [$name, $calledIn, $line] = $class === '*' ? BrowserClasses::calledAt($method) : [null, null, null];
+                    $origin = $calledIn === $file && $line !== null ? ($c->lineMap[$line - 1] ?? null) : null;
+                    $classes[$origin === null ? $key : BrowserClasses::anyEnum((string) $name, $origin[0], $origin[1])] = $true;
+                }
+
+                $c->transpiler->uses['classes'] = $classes;
+            }
+
+            return $read;
         } catch (CompileException $e) {
             /** A line of the inlined source is reported where it came from. */
             $origin = $e->sourceFile === $file && $e->sourceLine !== null ? ($c->lineMap[$e->sourceLine - 1] ?? null) : null;
 
             throw $origin === null ? $e : new CompileException($e->reason, $origin[0], $origin[1]);
         }
+    }
+
+    /**
+     * A view's use directives, as the PHP use statements Blade compiles them to
+     * (CompilesUseStatements). The directive takes a class ('App\Enums\Status'), a class and an
+     * alias ('App\Enums\Status', 'S'), a group ('App\Enums\{Status, Priority}'), or a function or
+     * a constant ('function App\helpers\money').
+     */
+    public static function imports(string $source): string
+    {
+        preg_match_all('/(?<![\w@])@use[ \t]*(\((?:[^()]+|(?1))*\))/', $source, $matches);
+        $statements = [];
+
+        foreach ($matches[1] as $expression) {
+            $expression = trim((string) preg_replace('/[()]/', '', $expression), " '\"");
+
+            if (str_contains($expression, '{')) {
+                [$path, $alias] = [$expression, ''];
+            } else {
+                $segments = explode(',', $expression);
+                $path = trim($segments[0], " '\"");
+                $alias = isset($segments[1]) ? ' as '.trim($segments[1], " '\"") : '';
+            }
+
+            $modifier = '';
+
+            foreach (['function ', 'const '] as $kind) {
+                if (str_starts_with($path, $kind)) {
+                    $modifier = $kind;
+                    $path = explode(' ', $path, 2)[1];
+                }
+            }
+
+            $statements[] = 'use '.$modifier.'\\'.ltrim($path, '\\').$alias.';';
+        }
+
+        return implode(' ', $statements);
     }
 
     /**
@@ -152,7 +215,7 @@ final class TemplateCompiler
     /**
      * What the template's Laravel helpers name: route names, translation keys, config keys.
      *
-     * @return array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>}
+     * @return array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>}
      */
     public function uses(): array
     {

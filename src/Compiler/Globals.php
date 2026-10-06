@@ -61,7 +61,7 @@ final class Globals
     public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload', 'hasMore'];
 
     /** fusion: attributes that are not events (the runtime reads them from the DOM). */
-    public const ATTRIBUTES = ['model', 'key', 'loading', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];
+    public const ATTRIBUTES = ['model', 'key', 'loading', 'dirty', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];
 
     /**
      * fusion:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
@@ -69,18 +69,31 @@ final class Globals
      * of them only), .duration.300ms, .origin.top (bottom, left, right, center); .out-in / .in-out
      * (Vue's modes) and .move (Vue's <TransitionGroup>: rows slide to their new places).
      */
+    /**
+     * fusion:loading: shown while loading, or .remove (hidden), .class / .class.remove (classes
+     * added or removed), .attr (an attribute set). Any of them can wait first: .delay (200ms),
+     * .delay.500ms, .delay.1s. fusion:dirty (changes the server has not seen) takes the same
+     * forms, without .delay.
+     */
+    public const LOADING_FORMS = [[], ['remove'], ['class'], ['class', 'remove'], ['attr']];
+
     public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin', 'out-in', 'in-out', 'move'];
 
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
      * fusion:navigate.keypress starts the visit on mouse down, fusion:navigate.preserve-scroll
      * keeps the scroll position, fusion:current.exact matches the path only,
-     * fusion:confirm.prompt asks for a word to be typed.
+     * fusion:confirm.prompt asks for a word to be typed. fusion:loading's, fusion:model's and
+     * fusion:transition's are checked by their own rules (LOADING_FORMS); the others take none.
      */
     public const ATTRIBUTE_MODIFIERS = [
         'navigate' => ['keypress', 'preserve-scroll'],
         'current' => ['exact'],
         'confirm' => ['prompt'],
+        'key' => [],
+        'target' => [],
+        'ignore' => [],
+        'ref' => [],
     ];
 
     /**
@@ -110,9 +123,36 @@ final class Globals
         'shift', 'ctrl', 'alt', 'meta', 'debounce', 'throttle',
     ];
 
+    /** fusion: names the runtime puts on elements itself (and fusion:h-..., its handlers' marks). */
+    public const RUNTIME = ['id', 'name', 'page', 'snapshot', 'placeholder', 'hydrate', 'static'];
+
     public static function isAttribute(string $name): bool
     {
         return in_array($name, self::ATTRIBUTES, true);
+    }
+
+    /**
+     * The application's own fusion: attributes (fusion.attributes): lowercase names, words joined
+     * by hyphens, none of Fusion's own.
+     *
+     * @param  array<mixed>  $names
+     * @return list<string>
+     *
+     * @throws CompileException
+     */
+    public static function customAttributes(array $names): array
+    {
+        foreach ($names as $name) {
+            if (! is_string($name) || preg_match('/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/', $name) !== 1) {
+                throw new CompileException('fusion.attributes: '.json_encode($name).' is not an attribute name (lowercase words joined by hyphens, such as "tooltip" or "auto-size")');
+            }
+
+            if (self::isAttribute($name) || self::isEvent($name) || isset(self::HOOKS[$name]) || in_array($name, self::RUNTIME, true) || str_starts_with($name, 'h-')) {
+                throw new CompileException("fusion.attributes: fusion:{$name} is Fusion's own; give yours another name");
+            }
+        }
+
+        return array_values(array_unique($names));
     }
 
     public static function isEvent(string $name): bool
