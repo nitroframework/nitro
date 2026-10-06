@@ -120,6 +120,13 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
+        /** A default PHP cannot work out (an undefined constant) is the class's error, not Fusion's. */
+        try {
+            $default = $property->hasDefaultValue() ? $property->getDefaultValue() : null;
+        } catch (\Error $exception) {
+            throw new CompileException("\${$property->getName()}'s default: {$exception->getMessage()}", $file, $property->getDeclaringClass()->getStartLine());
+        }
+
         return new self(
             $property->getName(),
             $kind,
@@ -127,7 +134,7 @@ final class PropertyMeta
             $nullable,
             $locked || ! in_array($kind, [self::VALUE, self::UPLOAD, self::ENUM], true),
             $property->hasDefaultValue(),
-            $property->hasDefaultValue() ? $property->getDefaultValue() : null,
+            $default,
             $url,
             $remember,
             $uploads,
