@@ -313,12 +313,29 @@ return [
     | registers each engine (fusionVue(), fusionReact(), fusionSolid()).
     | A view may hold its component's PHP itself: a <php> block.
     |
+    | The adapter is the engine's server side: it names the framework and
+    | finds a view's <php> block. An entry of your own, for another
+    | framework, may name an adapter class of yours (extending
+    | Nitro\Fusion\View\ScriptEngine) or none, for views that hold no PHP.
+    |
     */
 
     'views' => [
-        'vue' => ['path' => [resource_path('views/vue'), resource_path('js/vue')], 'extensions' => ['vue']],
-        'react' => ['path' => [resource_path('views/react'), resource_path('js/react')], 'extensions' => ['jsx', 'tsx']],
-        'solid' => ['path' => [resource_path('views/solid'), resource_path('js/solid')], 'extensions' => ['jsx', 'tsx']],
+        'vue' => [
+            'adapter' => Nitro\Fusion\View\Adapters\VueAdapter::class,
+            'path' => [resource_path('views/vue'), resource_path('js/vue')],
+            'extensions' => ['vue'],
+        ],
+        'react' => [
+            'adapter' => Nitro\Fusion\View\Adapters\ReactAdapter::class,
+            'path' => [resource_path('views/react'), resource_path('js/react')],
+            'extensions' => ['jsx', 'tsx'],
+        ],
+        'solid' => [
+            'adapter' => Nitro\Fusion\View\Adapters\SolidAdapter::class,
+            'path' => [resource_path('views/solid'), resource_path('js/solid')],
+            'extensions' => ['jsx', 'tsx'],
+        ],
     ],
 
     /*

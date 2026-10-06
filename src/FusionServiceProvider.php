@@ -22,9 +22,6 @@ use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
-use Nitro\Fusion\View\Adapters\ReactAdapter;
-use Nitro\Fusion\View\Adapters\SolidAdapter;
-use Nitro\Fusion\View\Adapters\VueAdapter;
 use Nitro\Fusion\View\BladeEngine;
 use Nitro\Fusion\View\ColocatedViews;
 use Nitro\Fusion\View\ScriptEngine;
@@ -47,13 +44,8 @@ class FusionServiceProvider extends ServiceProvider
             $engines = new ViewEngines;
             $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler')));
 
-            /** Fusion's adapters for its frameworks; any other name in fusion.views, an engine of the app's own. */
-            $adapters = ['vue' => VueAdapter::class, 'react' => ReactAdapter::class, 'solid' => SolidAdapter::class];
-
             foreach ((array) $app->make('config')->get('fusion.views', []) as $name => $view) {
-                $paths = array_values((array) $view['path']);
-                $extensions = array_values((array) $view['extensions']);
-                $engines->add(isset($adapters[$name]) ? new $adapters[$name]($paths, $extensions) : new ScriptEngine((string) $name, $paths, $extensions));
+                $engines->add($this->scriptEngine($app, (string) $name, (array) $view));
             }
 
             return $engines;
@@ -158,6 +150,31 @@ class FusionServiceProvider extends ServiceProvider
             $this->publishes([dirname(__DIR__).'/config/fusion.php' => config_path('fusion.php')], 'fusion-config');
             $this->publishes([dirname(__DIR__).'/config/nprogress.php' => config_path('nprogress.php')], ['fusion-config', 'nprogress-config']);
         }
+    }
+
+    /**
+     * The engine for a fusion.views entry: its adapter (Fusion's VueAdapter, or a class of the
+     * app's own), made by the container so it may take what it needs; without one, a plain
+     * ScriptEngine, whose views the app's JavaScript renders as it likes.
+     *
+     * @param  array{path: string|list<string>, extensions: string|list<string>, adapter?: class-string<ScriptEngine>}  $view
+     */
+    private function scriptEngine(Application $app, string $name, array $view): ScriptEngine
+    {
+        $paths = array_values((array) $view['path']);
+        $extensions = array_values((array) $view['extensions']);
+
+        if (! isset($view['adapter'])) {
+            return new ScriptEngine($name, $paths, $extensions);
+        }
+
+        $engine = $app->make($view['adapter'], ['paths' => $paths, 'extensions' => $extensions]);
+
+        if (! $engine instanceof ScriptEngine || $engine->name() !== $name) {
+            throw new InvalidArgumentException("fusion.views.{$name}: the adapter [{$view['adapter']}] is not a view engine named [{$name}]. An adapter extends Nitro\\Fusion\\View\\ScriptEngine, as VueAdapter does.");
+        }
+
+        return $engine;
     }
 
     private function routes(): void
