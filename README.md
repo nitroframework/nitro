@@ -251,6 +251,107 @@ class Cart extends Component
 - **`$this->reset('prop', ...)`** puts properties back to their defaults; **`$this->redirect($url)`**
   goes to another page.
 
+### Browser classes
+
+Code several components share, such as formatting money or a pricing rule, goes in a class of its
+own marked `#[Browser]`. Browser methods and views can call its static methods and read its
+constants:
+
+```php
+use Nitro\Fusion\Attributes\Browser;
+
+#[Browser]
+final class Money
+{
+    public const CURRENCY = '£';
+
+    public static function format(int $pence): string
+    {
+        return self::CURRENCY.number_format($pence / 100, 2);
+    }
+}
+```
+
+```php
+public function label(): string                          // a browser method
+{
+    return Money::format($this->total);
+}
+```
+
+```blade
+@use('App\Support\Money')
+
+<p>{{ Money::format($price) }}</p>
+```
+
+- **Compiled under the same rules** as a component's browser methods: no database, no clock, no
+  server. A method that breaks one fails the build, with its file and line.
+- **Only what the browser reaches** is compiled: the methods browser code calls, and what those
+  call in turn (`self::`, other `#[Browser]` classes). Private methods and constants work inside
+  their class.
+- **Constants** travel as their values.
+- **On the server**, it is an ordinary PHP class: `#[Server]` methods, controllers and jobs use it
+  as they would any other.
+- **In views**, `@use` imports a class as in any Blade view: `@use('App\Support\Money')`, with an
+  alias (`@use('App\Support\Money', 'Cash')`) or a group (`@use('App\Enums\{Status, Priority}')`).
+  It applies to the whole view, as a PHP `use` statement does; an included view's applies too.
+  The full name (`\App\Support\Money::format(...)`) works without it.
+- **Not yet supported:** instances (`new Money(...)`) and static properties.
+
+#### Enums
+
+An enum marked `#[Browser]` works in the browser as in PHP: its cases, `cases()`, `from()`,
+`tryFrom()`, its methods and its static methods. A component property can hold one.
+
+```php
+#[Browser]
+enum Status: string
+{
+    case Draft = 'draft';
+    case Paid = 'paid';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Draft => 'Draft',
+            self::Paid => 'Paid',
+        };
+    }
+}
+
+class Order extends Component
+{
+    public Status $status = Status::Draft;
+
+    public function pay(): void                           // browser
+    {
+        $this->status = Status::Paid;
+    }
+}
+```
+
+```blade
+@use('App\Enums\Status')
+
+<select fusion:model="status">
+    @foreach (Status::cases() as $case)
+        <option value="{{ $case->value }}">{{ $case->label() }}</option>
+    @endforeach
+</select>
+<p>{{ $status->label() }}</p>
+```
+
+- **A case is one object** in the browser, so `===`, `match` and `in_array(..., true)` compare cases
+  as PHP does, and `->name` and `->value` read as in PHP.
+- **An enum property** travels as its value: `fusion:model` sets it from an `<option>`'s value, and
+  the server makes the case of it. The browser may set only one of its cases' values, of its
+  backing type; any other value is refused (403). It must be a backed enum marked `#[Browser]`.
+  `#[Url]` and `#[Remember]` work on it.
+- **Methods called on a value** (`$case->label()`) are compiled for the `#[Browser]` enums the code
+  uses. A method no such enum has fails the build: in the browser, data from the server arrives as
+  arrays, so only an enum case has methods.
+
 ### Lifecycle hooks
 
 | Hook | Runs |
@@ -266,6 +367,87 @@ class Cart extends Component
 
 `$this->js('...')` runs JavaScript after the next render, with `$fusion` (the component), `$refs`
 (its `fusion:ref` elements) and `$el`.
+
+### Features
+
+A feature runs around every component on the server, where one component's hooks cannot: an audit
+of every `#[Server]` call, a tenant set on every component, a check before any method runs. Extend
+`Nitro\Fusion\Feature`, override the hooks it needs, and list it in `config/fusion.php`:
+
+```php
+use Nitro\Fusion\Component;
+use Nitro\Fusion\Feature;
+
+class AuditCalls extends Feature
+{
+    public function __construct(private readonly Request $request) {}
+
+    public function called(Component $component, string $method, mixed $result): void
+    {
+        Log::info('fusion call', ['component' => $component::class, 'method' => $method, 'ip' => $this->request->ip()]);
+    }
+}
+```
+
+```php
+// config/fusion.php
+'features' => [AuditCalls::class],
+```
+
+| Hook | Runs |
+| --- | --- |
+| `boot($component)` | every request, when the component is made or restored |
+| `mounting($component)` | a new component, before `mount()` (with its tag's props set, when it has no `mount()`) |
+| `hydrate($component)` | a `#[Server]` call, once the state is restored |
+| `updated($component, $changed)` | a `#[Server]` call, once the browser's changes are set; `false` keeps the method from running |
+| `calling($component, $method, $arguments)` | before a `#[Server]` method |
+| `called($component, $method, $result)` | after a `#[Server]` method returned |
+| `dehydrate($component)` | before the state goes to the browser, once per request |
+
+- **Order:** each hook runs after the component's own method of that name (`boot()`, `hydrate()`,
+  `dehydrate()`), and after Fusion's own, `#[Url]` and `#[Validate]`, which are features too:
+  `updated()` sees what `#[Validate]` found in `$component->fusion()->errors`.
+- **Made by the container** once per request, so a constructor can take services.
+- **Stores** run them too: they are components.
+- **`updated()`** runs for every feature, even after one returned `false`; an error it adds to
+  `$component->fusion()->errors` reaches the browser as a validation message.
+
+#### Attributes that work as features
+
+A feature can also be an attribute, which runs only for the components that have it, where it is
+placed. Extend `Nitro\Fusion\FeatureAttribute` (a `Feature`); `$this->target()` is the property or
+method it is on:
+
+```php
+#[Attribute(Attribute::TARGET_METHOD)]
+class Throttle extends FeatureAttribute
+{
+    public function __construct(public int $perMinute = 10) {}
+
+    public function calling(Component $component, string $method, array $arguments): void
+    {
+        $key = 'fusion:'.$component::class.':'.$method.':'.request()->ip();
+        abort_if(RateLimiter::tooManyAttempts($key, $this->perMinute), 429);
+        RateLimiter::hit($key);
+    }
+}
+
+class Contact extends Component
+{
+    #[Server]
+    #[Throttle(perMinute: 3)]
+    public function send(): void { ... }
+}
+```
+
+- **On a method**, `calling()` and `called()` run for that method only. It must be a `#[Server]`
+  method: on a browser method, which never reaches the server, the attribute fails the build.
+- **On a property**, `updated()` runs only when the browser changed that property.
+- **On the class**, and for the other hooks anywhere, they run always.
+- **Order:** attributes run after the component's own hooks and before `#[Validate]` and the
+  features listed in `config/fusion.php`, so a property's `updated()` can tidy a value before it
+  is validated. Each component gets its own instance, made from the attribute's arguments (not by
+  the container). Fusion's `#[Url]` is one.
 
 ### Events
 
@@ -404,6 +586,75 @@ The value is a method name, a call (`remove($index)`), or one of the actions bel
 | `fusion:ref="chart"` | The element, as `$refs.chart` in `$this->js()` and for `Fusion::browser()->canvas('chart')` |
 | `fusion:transition` | Animates the element as it enters and leaves (see [Transitions](#transitions)) |
 
+### Your own attributes
+
+An attribute of your own, such as a tooltip or a textarea that grows, is listed in
+`config/fusion.php` and run by a directive of the same name in your JavaScript:
+
+```php
+// config/fusion.php
+'attributes' => ['tooltip'],
+```
+
+```js
+Fusion.directive('tooltip', ({ el, value, modifiers, component }) => {
+    const tip = makeTooltip(el, value, modifiers.includes('top') ? 'top' : 'bottom');
+    return () => tip.remove();
+});
+```
+
+```blade
+<button fusion:tooltip.top="Saved {{ $count }} times">Save</button>
+```
+
+- **The directive runs** when the element appears, again when the attribute's value or modifiers
+  change (the view renders the value, `{{ }}` and all), and not on renders that leave them as they
+  are. The function it returns cleans up before it runs again and when the element goes.
+- **It gets** `el`, `value` (a string; `@json(...)` in it passes data), `modifiers` (any words:
+  `.top`, `.300ms`) and `component`. `component.dispatch(event, ...params)` dispatches an event as
+  `$this->dispatch()` does, so `#[On]` methods, browser or `#[Server]`, hear it.
+- **Registering:** a script that runs after `@fusionScripts` calls `Fusion.directive()` directly;
+  one that runs before it (a module in the `<head>`) registers in a `fusion:starting` listener on
+  `document`, which fires before any component starts. A directive registered later still runs on
+  the elements already on the page.
+- **An unlisted `fusion:` attribute** fails the build. A name of Fusion's own (`fusion:click`,
+  `fusion:model`, ...) cannot be listed.
+
+### Plugins
+
+A plugin hooks into the runtime in the browser. `Fusion.use()` calls it once with the plugin API:
+
+```js
+Fusion.use(({ on, directive }) => {
+    on('request', ({ headers }) => {
+        headers['X-Tenant'] = document.body.dataset.tenant;
+    });
+    on('store', (store) => {
+        store.onChange(() => console.log(store.name, store.get('items')));
+    });
+});
+```
+
+| Hook | Called with |
+| --- | --- |
+| `component` | a component that started in the page: `{ name, el, dispatch(event, ...params) }` |
+| `render` | the same, after each render of the component |
+| `store` | a store made in this tab: `{ name, persist, sync, get(property), set(property, value), onChange(listener) }` |
+| `request` | before a `#[Server]` call (or a partial reload, as `$reload`): `{ component, method, headers }`; a header added is sent, Fusion's own cannot be changed |
+| `response` | when its answer came: `{ component, method, status }` (0: none came) |
+
+- **`on()`** returns a function that removes the listener. A `component` or `store` listener
+  hears those already there too, so a plugin can be used after the page started.
+- **A store's values** are JSON-safe, as the server sends them (an associative array as
+  `{"$m": [[key, value], ...]}`). `set()` is the browser's own change, checked by the server on the
+  next call; a `#[Locked]` property refuses it.
+- **Names** are the browser's: in an obfuscated build, methods and properties go by their aliases.
+- **A listener that throws** is reported (`fusion:error`); the others still run.
+- **`directive()`** is `Fusion.directive()` (see [Your own attributes](#your-own-attributes)).
+- A plugin used twice runs once. Register plugins as directives are: directly after
+  `@fusionScripts`, or in a `fusion:starting` listener.
+- `#[Persist]` and `#[Sync]` are Fusion's own plugins, built on this API only.
+
 ## Stores
 
 A component's properties are its own. When several components need the same state (a cart a
@@ -478,6 +729,34 @@ A store has no view, is never placed or routed, and cannot use what belongs to a
 page (`#[On]`, `#[Url]`, `#[Remember]`, `#[Modelable]`, uploads) or hold another store. A store is
 in the browser: like any public property, its state is public, and its `#[Server]` methods check
 what they rely on. Classes in `App\Fusion\Stores` are named `stores::cart` (`fusion.stores`).
+
+### Keeping and sharing a store
+
+```php
+#[Persist]
+class Cart extends Store
+{
+    #[Sync]
+    public array $items = [];
+
+    #[Locked]
+    public string $madeBy = '';
+}
+```
+
+- **`#[Persist]`** keeps the store's values in the browser's localStorage, so they outlast a reload
+  and a closed tab. When the store is made, the values kept are set as the browser's own changes.
+- **`#[Sync]`** shares them with the site's other open tabs: a change in one is set in the others.
+  A tab opened later starts from the server's state, or with `#[Persist]` from the values kept.
+- **On the store**, they cover every property the browser can change; **on a property**, that one.
+  A `#[Locked]` property is the server's: it is left out, and either attribute on it fails the build.
+  They are for stores only: a component's state is its own.
+- **Checked like any change.** The browser holds these values, so a visitor can change them: the
+  server checks them on the next call (their type, `#[Locked]`, `#[Validate]`) as it checks every
+  change from the browser. Read what must be true (prices, stock) from the database in `#[Server]`
+  methods.
+- Without localStorage (blocked, a private window) or BroadcastChannel, the store works as without
+  them. Both are Fusion's own plugins (see [Plugins](#plugins)).
 
 ## Pages
 
@@ -1114,6 +1393,7 @@ of views and browser methods.
 | `middleware` | `['web']` | Middleware for the endpoint |
 | `components` | `App\Fusion\Components` | Namespace, path and view path of components |
 | `pages` | `App\Fusion\Pages` | Namespace, path and view path of pages |
+| `stores` | `App\Fusion\Stores` | Namespace and path of stores |
 | `layout` | `components.layouts.app` | The layout of pages without `#[Layout]` |
 | `head` | `'%s'`, no description or image | `@fusionHead`'s defaults: the title format, the description and the link-preview image |
 | `persistent_middleware` | auth, can, verified, ... | Page middleware checked again on each `#[Server]` call |
@@ -1128,6 +1408,8 @@ of views and browser methods.
 | `minify_on_change` | `true` | Minify when recompiling during development (`FUSION_MINIFY_ON_CHANGE`) |
 | `rendering` | `'clone'` | How the browser creates elements: `'clone'` or `'create'` |
 | `navigation` | `'data'` | How a visit shows a page: `'data'` (data first) or `'markup'` (markup first); `#[Navigate]` per page |
+| `attributes` | `[]` | Your own `fusion:` attributes, each run by a `Fusion.directive()` (see [Your own attributes](#your-own-attributes)) |
+| `features` | `[]` | Classes that run around every component on the server (see [Features](#features)) |
 | `esbuild` | | The Node binary (`FUSION_NODE`) and where esbuild is installed |
 
 ## Testing your application

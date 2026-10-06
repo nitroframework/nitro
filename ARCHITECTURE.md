@@ -49,7 +49,9 @@ src/Compiler      PHP -> JavaScript
   ComponentCompiler class + view -> Fusion.define(...), compiling only what the browser reaches
   Globals           everything a component can use without declaring it, in one table
 src/Rendering     the server side of a component
-  Renderer          Blade render with $this bound, isolated loops, the root element marked
+  Renderer          the view rendered by its engine, the root element marked
+src/View          view engines: what a component's view is written in (ViewEngine, chosen by
+                  ViewEngines); BladeEngine renders Blade with $this bound and isolated loops
   Snapshot          the signed state sent to the browser and verified when it comes back
   Tags              <fusion:...> tags with content and their slots
   Portals           @portal and @teleport
@@ -57,15 +59,26 @@ src/Rendering     the server side of a component
 src/Http          the endpoint: UpdateController (#[Server] calls), PersistentMiddleware, assets
   PageResponses     a routed page's answer: HTML, a visit's data, the 409, partial reloads
   Scripts           @fusionScripts and the browser's globals
-src/State         SharedData: shared, once and flash data
+src/State         ComponentState (a component's state), SharedData (shared, once and flash data),
+                  Stores (this request's stores)
+src/Lifecycle     the server lifecycle: the components' own hooks, then the features (#[Validate],
+                  attributes that work as features, fusion.features)
 src/Blade         <fusion:name /> tags in any view (a Blade precompiler)
 src/Build         app.js: every component compiled, versioned by its sources
 Fusion            the application's entry point: config, registry, components and mounting them,
                   the signing keys, an obfuscated build's names; the parts above behind its methods
-js/src/php.js     PHP semantics in JavaScript (values, operators, the functions)
-js/src/blade.js   Blade's helpers ($loop, @class, @style, @csrf, ...)
-js/src/runtime/   components in the page: state, render + morph, events, models, network,
-                  navigation, loading states, $errors
+js/src/php.js     PHP semantics in JavaScript (values, operators, the functions), in js/src/php/
+js/src/laravel/   blade.js (Blade's helpers: $loop, @class, @style, @csrf, ...), laravel.js
+js/src/runtime/   the components in the page (runtime.js), lazy chunks, plugins, directives
+  component/        a component, a store, shared data, merge props, $errors
+  dom/              events, fusion:model, poll / init / visible, loading states, islands
+  server/           #[Server] calls and reloads, uploads, broadcasting
+  navigation/       fusion:navigate visits, page swaps, the progress bar
+  view/             view engines (engines.js: the contract, Fusion.engine()); Blade's View, rendering
+                    and hydrating the compiled tree, blocks, transitions
+js/src/plugins/   Fusion's own plugins: #[Persist], #[Sync]
+js/functions/     PHP functions a bundle includes when its components call them, by category
+                  (array, string, math, regex, ctype, url), Laravel's Str (str), browser APIs
 ```
 
 ## Faithful to PHP
