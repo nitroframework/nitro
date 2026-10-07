@@ -23,7 +23,9 @@
  *
  * Rules that fail are not a failed call: the method answers, and `errors` has the messages.
  *
- * The adapters stay small: they turn these into Vue refs, a React store or a Solid store.
+ * The adapters stay small: they turn these into Vue refs, a React store or a Solid store. The
+ * same binding renders the view on the server (adapters/server): there the handle is made of
+ * the state the server sent, so the first HTML is what the browser's first render gives.
  */
 
 /** How long a call runs before it is `slow`, as fusion:loading.delay waits. */
@@ -37,20 +39,21 @@ const SLOW_AFTER = 200;
  * @param {string} name           the engine's name, as #[View(vue: ...)] names it
  * @param {object} views          path => loader, or path => module
  * @param {string[]} extensions   the view files' extensions
- * @param {Function} mount        (view, el, component) => { update(names), unmount() }
+ * @param {Function} mount        (view, el, handle, { hydrate }) => { update(names), unmount() }:
+ *                                hydrate when el holds the view's server-rendered HTML
  */
 export function register(name, views, extensions, mount) {
     const engine = {
-        load: (view) => load(views, view, extensions, name),
-        mount: (view, el, handle) => mount(view, el, handle),
+        load: (view) => findView(views, view, extensions, name),
+        mount: (view, el, handle, options = {}) => mount(view, el, handle, { hydrate: Boolean(options.hydrate) }),
     };
 
     if (window.Fusion?.engine) window.Fusion.engine(name, engine);
     else document.addEventListener('fusion:starting', ({ detail }) => detail.Fusion.engine(name, engine), { once: true });
 }
 
-/** A view's module, by its name ('cart/badge' is .../cart/badge.vue). */
-function load(views, view, extensions, engine) {
+/** A view's module, by its name ('cart/badge' is .../cart/badge.vue): in the browser, and in the render service. */
+export function findView(views, view, extensions, engine) {
     const path = Object.keys(views).find((key) => {
         const match = /^(.*)\.(\w+)$/.exec(key);
         return match !== null && extensions.includes(match[2]) && (match[1].endsWith(`/${view}`) || match[1] === view);

@@ -23,34 +23,51 @@
  * core's (core.js); this adapter only makes it React's: a store React subscribes to.
  */
 import { createContext, createElement, useContext, useSyncExternalStore } from 'react';
-import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import { connect, register } from './core.js';
 
 const FusionContext = createContext(null);
 
 /** Register the React engine with Fusion: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */
 export function fusionReact(views, { wrap } = {}) {
-    register('react', views, ['jsx', 'tsx', 'js', 'ts'], (View, el, handle) => mount(View, el, handle, wrap));
+    register('react', views, ['jsx', 'tsx', 'js', 'ts'], (View, el, handle, options) => mount(View, el, handle, wrap, options));
 }
 
 /** Inside a Fusion component's React view: the component, as its view gets it in its props. */
 export function useFusion() {
     const store = useContext(FusionContext);
     if (!store) throw new Error('Fusion: useFusion() is for the view of a Fusion component (#[View(react: ...)])');
-    return useSyncExternalStore(store.subscribe, store.snapshot);
+    return useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
 }
 
-function mount(View, el, handle, wrap) {
-    const store = snapshots(connect(handle));
-    const Root = () => createElement(View, useSyncExternalStore(store.subscribe, store.snapshot));
-    const root = createRoot(el);
-    const view = createElement(FusionContext.Provider, { value: store }, createElement(Root));
-    root.render(wrap ? wrap(view) : view);
+function mount(View, el, handle, wrap, { hydrate }) {
+    const { element, store } = tree(View, handle, wrap);
+    /**
+     * hydrateRoot() takes over the server's HTML in el; createRoot() renders into an empty one,
+     * at once (flushSync): React would otherwise render a frame later, after the page has shown
+     * the empty element.
+     */
+    const root = hydrate ? hydrateRoot(el, element) : createRoot(el);
+    if (!hydrate) flushSync(() => root.render(element));
 
     return {
         update: (names) => store.changed(names),
         unmount: () => root.unmount(),
     };
+}
+
+/**
+ * The React element for a view and its component: in the browser, and in the render service
+ * (adapters/server/react.js), so both render the same.
+ */
+export function tree(View, handle, wrap) {
+    const store = snapshots(connect(handle));
+    /** The server snapshot is the same one: what the server rendered is the browser's first render. */
+    const Root = () => createElement(View, useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot));
+    const element = createElement(FusionContext.Provider, { value: store }, createElement(Root));
+
+    return { element: wrap ? wrap(element) : element, store };
 }
 
 /** The component as React reads it: an immutable snapshot, made again whenever something changes. */

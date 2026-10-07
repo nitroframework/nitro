@@ -227,6 +227,13 @@ export class Navigator {
             if (visit !== this.visiting) return;
         }
 
+        /** Its Vue, React and Solid views' modules: the page shows with them rendered, not filling in after it. */
+        const views = this.runtime.preloadViews(this.runtime.pageComponents(page));
+        if (views) {
+            await views;
+            if (visit !== this.visiting) return;
+        }
+
         go(target);
         /** Fusion::share()'s data for this page, before it renders (components outside it follow). */
         this.runtime.receive(page, null, true);
@@ -267,6 +274,8 @@ export class Navigator {
                 return null;
             }
         }
+        /** Its Vue, React and Solid views' modules, so it renders complete. */
+        await this.runtime.preloadViews([name]);
         /** A newer visit started while the chunk loaded, or the page is no longer there: nothing to render into. */
         if (visit !== this.visiting || !current.isConnected) return null;
         const definition = this.runtime.definitions.get(name);

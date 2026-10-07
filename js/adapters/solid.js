@@ -27,7 +27,7 @@
  */
 import { createComponent, createContext, mergeProps, useContext } from 'solid-js';
 import { createMutable, createStore, reconcile } from 'solid-js/store';
-import { render } from 'solid-js/web';
+import { hydrate, render } from 'solid-js/web';
 import { connect, register } from './core.js';
 
 const FusionContext = createContext(null);
@@ -44,22 +44,37 @@ export function useFusion() {
     return fusion;
 }
 
-function mount(View, el, handle) {
+function mount(View, el, handle, { hydrate: fromServer }) {
+    const { root, component } = view(View, handle);
+    /**
+     * hydrate() takes over the server's HTML in el (the views are built hydratable); render()
+     * fills an empty one. Each view is its own Solid root, its hydration keyed by its component's
+     * id (the render service's renderId), and Solid's page-wide hydration state is set up here
+     * when the page has none (its generateHydrationScript()).
+     */
+    if (fromServer) globalThis._$HY ??= { events: [], completed: new WeakSet(), r: {}, fe() {} };
+    const dispose = fromServer ? hydrate(root, el, { renderId: handle.id }) : render(root, el);
+
+    return { update: (names) => component.changed(names), unmount: dispose };
+}
+
+/**
+ * A view and its component, as Solid renders them: in the browser, and in the render service
+ * (adapters/server/solid.js), so both render the same.
+ */
+export function view(View, handle) {
     const component = connect(handle, { status: (initial) => createMutable(initial) });
     const [values, setValues] = createStore(component.read());
     /** Changed in place, value by value: what stayed the same keeps its elements. */
     component.subscribe(() => setValues(reconcile(component.read())));
     const props = mergeProps(values, component.functions);
 
-    const dispose = render(
-        () => createComponent(FusionContext.Provider, {
-            value: props,
-            get children() {
-                return createComponent(View, props);
-            },
-        }),
-        el,
-    );
+    const root = () => createComponent(FusionContext.Provider, {
+        value: props,
+        get children() {
+            return createComponent(View, props);
+        },
+    });
 
-    return { update: (names) => component.changed(names), unmount: dispose };
+    return { root, component };
 }

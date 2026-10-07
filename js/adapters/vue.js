@@ -21,14 +21,14 @@
  * `errors` and `unsaved` as refs. The behaviour is the shared core's (core.js); this adapter
  * only makes it Vue's.
  */
-import { computed, createApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
+import { computed, createApp, createSSRApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
 import { connect, register } from './core.js';
 
 const KEY = Symbol('fusion');
 
 /** Register the Vue engine with Fusion: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */
 export function fusionVue(views, { setup } = {}) {
-    register('vue', views, ['vue'], (view, el, handle) => mount(view, el, handle, setup));
+    register('vue', views, ['vue'], (view, el, handle, options) => mount(view, el, handle, setup, options));
 }
 
 /** In a Fusion component's Vue view: the component, as refs and functions. */
@@ -38,13 +38,9 @@ export function useFusion() {
     return fusion;
 }
 
-function mount(view, el, handle, setup) {
-    const scope = effectScope();
-    const fusion = scope.run(() => bind(handle));
-    /** The view with the component's names for its template: a copy, so its own setup() stays its own. */
-    const app = createApp({ ...view, mixins: [...(view.mixins ?? []), fusion.mixin] });
-    app.provide(KEY, fusion.api);
-    setup?.(app);
+function mount(view, el, handle, setup, { hydrate }) {
+    const { app, fusion, scope } = createView(view, handle, { setup, ssr: hydrate });
+    /** An app made with createSSRApp() takes over the server's HTML in el rather than replacing it. */
     app.mount(el);
 
     return {
@@ -56,10 +52,26 @@ function mount(view, el, handle, setup) {
     };
 }
 
+/**
+ * The Vue app for a view and its component: in the browser, and in the render service
+ * (adapters/server/vue.js), so both render the same. `ssr`: made to hydrate, or to render to a
+ * string, with createSSRApp().
+ */
+export function createView(view, handle, { setup, ssr = false } = {}) {
+    const scope = effectScope();
+    const fusion = scope.run(() => bind(handle));
+    /** The view with the component's names for its template: a copy, so its own setup() stays its own. */
+    const app = (ssr ? createSSRApp : createApp)({ ...view, mixins: [...(view.mixins ?? []), fusion.mixin] });
+    app.provide(KEY, fusion.api);
+    setup?.(app);
+
+    return { app, fusion, scope };
+}
+
 /** The component as Vue holds it: a ref per property, kept in step both ways; derived values that follow. */
 function bind(handle) {
     const component = connect(handle, { status: (initial) => reactive(initial) });
-    const raw = rawUploads(window.Fusion?.P?.Upload);
+    const raw = rawUploads(globalThis.Fusion?.P?.Upload);
     const tick = shallowRef(0);
     const values = {};
     let syncing = false;

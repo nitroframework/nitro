@@ -8,7 +8,9 @@
  * it directly.
  *
  *   load(view)                    the view's module, by its name ('cart/badge'): a promise
- *   mount(module, el, handle)     mounts it in el, and returns { update(names), unmount() }
+ *   mount(module, el, handle, { hydrate })
+ *                                 mounts it in el, and returns { update(names), unmount() };
+ *                                 hydrate: el holds the view's server-rendered HTML, to take over
  *
  * The handle speaks the PHP's names (an obfuscated build's aliases never reach the view) and
  * plain data (plain.js: a PHP array is an array or an object, and turns back into one):
@@ -20,6 +22,7 @@
  *   handle.errors()               the validation messages, by field
  *   handle.unsaved()              the properties changed here that the server has not seen yet
  *   handle.dispatch(event, ...)   an event, as $this->dispatch() sends one
+ *   handle.id                     the component's id on the page
  *   handle.properties, .methods, .server, .computed    the names
  *   handle.component              the component itself, as Fusion.find() gives it
  *
@@ -30,8 +33,9 @@ import * as P from '../../php.js';
 import { fromPlain, toPlain } from './plain.js';
 
 export class ScriptView {
-    constructor(runtime, engine, definition, $this, host) {
+    constructor(runtime, views, engine, definition, $this, host) {
         this.runtime = runtime;
+        this.views = views;
         this.engine = engine;
         this.definition = definition;
         this.$this = $this;
@@ -42,14 +46,18 @@ export class ScriptView {
         this.handle = this.makeHandle();
     }
 
-    /** The server rendered the element; the view mounts in it (server rendering is for later). */
+    /**
+     * The server rendered the element. With server rendering (fusion.ssr) the view's HTML is in
+     * it (fusion:rendered): the engine hydrates it, taking over the elements that are there.
+     * Without, it is empty, and the view mounts in it.
+     */
     hydrate(el) {
-        this.mount(el);
+        this.mount(el, { hydrate: el.hasAttribute('fusion:rendered') });
     }
 
     create() {
         const el = this.runtime.document.createElement('div');
-        this.mount(el);
+        this.mount(el, { hydrate: false });
         return el;
     }
 
@@ -76,15 +84,30 @@ export class ScriptView {
         this.mounted = null;
     }
 
-    mount(el) {
+    /**
+     * The view in el. Its module loaded already (a visit loads the new page's first): in a
+     * microtask, once its component is in place but before the browser paints, so the view
+     * shows with the page. Otherwise once the module is here.
+     */
+    mount(el, options) {
         this.el = el;
-        Promise.resolve()
-            .then(() => this.engine.load(this.definition.view))
-            .then((module) => {
-                if (this.disposed || this.el !== el) return;
-                this.mounted = this.engine.mount(module, el, this.handle) ?? null;
-            })
-            .catch((error) => this.runtime.report(this.runtime.find(this.host.id), error));
+        const { engine, view } = this.definition;
+        const attach = (module) => {
+            if (this.disposed || this.el !== el) return;
+            try {
+                this.mounted = this.engine.mount(module, el, this.handle, options) ?? null;
+            } catch (error) {
+                this.runtime.report(this.runtime.find(this.host.id), error);
+            }
+        };
+
+        const module = this.views.loaded(engine, view);
+        if (module !== undefined) {
+            queueMicrotask(() => attach(module));
+            return;
+        }
+
+        this.views.load(engine, view).then(attach, (error) => this.runtime.report(this.runtime.find(this.host.id), error));
     }
 
     notify(names) {
@@ -117,6 +140,7 @@ export class ScriptView {
         };
 
         return {
+            id,
             properties: Object.keys(names.properties ?? {}),
             methods: Object.keys(names.methods ?? {}),
             server: Object.keys(names.server ?? {}),

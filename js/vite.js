@@ -6,7 +6,9 @@
  *
  *     export default defineConfig({ plugins: [laravel(...), fusion(), vue(), react(), ...] });
  *
- *  - 'nitro-fusion/vue', 'nitro-fusion/react' and 'nitro-fusion/solid' name Fusion's adapters
+ *  - 'nitro-fusion/vue', 'nitro-fusion/react' and 'nitro-fusion/solid' name Fusion's adapters;
+ *    'nitro-fusion/ssr' and 'nitro-fusion/{vue,react,solid}/server' the render service's parts,
+ *    for the app's SSR entry (vite build --ssr)
  *  - one Vue, React and Solid: the adapters' imports resolve to the app's own
  *  - a .vue file's <php> block (its component's PHP, which Fusion reads on the server) is left
  *    out of what Vue compiles; its lines stay, blank, so Vue's line numbers are the file's. In a
@@ -14,7 +16,10 @@
  */
 import { fileURLToPath } from 'node:url';
 
-const adapter = (name) => fileURLToPath(new URL(`./adapters/${name}.js`, import.meta.url));
+const file = (path) => fileURLToPath(new URL(`./adapters/${path}.js`, import.meta.url));
+
+/** Each name exactly: 'nitro-fusion/vue' is not a prefix of 'nitro-fusion/vue/server'. */
+const exactly = (name, path) => ({ find: new RegExp(`^${name.replace(/\//g, '\\/')}$`), replacement: file(path) });
 
 export default function fusion() {
     return {
@@ -23,11 +28,15 @@ export default function fusion() {
 
         config: () => ({
             resolve: {
-                alias: {
-                    'nitro-fusion/vue': adapter('vue'),
-                    'nitro-fusion/react': adapter('react'),
-                    'nitro-fusion/solid': adapter('solid'),
-                },
+                alias: [
+                    exactly('nitro-fusion/vue', 'vue'),
+                    exactly('nitro-fusion/react', 'react'),
+                    exactly('nitro-fusion/solid', 'solid'),
+                    exactly('nitro-fusion/vue/server', 'server/vue'),
+                    exactly('nitro-fusion/react/server', 'server/react'),
+                    exactly('nitro-fusion/solid/server', 'server/solid'),
+                    exactly('nitro-fusion/ssr', 'server/serve'),
+                ],
                 dedupe: ['vue', 'react', 'react-dom', 'solid-js'],
             },
         }),

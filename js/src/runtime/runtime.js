@@ -219,6 +219,11 @@ export class Runtime {
         this.chunks.preload(path);
     }
 
+    /** The modules of the JavaScript views these components place: a promise once they are here, null for none (view/engines.js). */
+    preloadViews(names) {
+        return this.engines.preload(names);
+    }
+
     /**
      * Take over the server-rendered components under root (once the chunks they need are here).
      * Islands with fusion:hydrate, and the components inside them, wait for their moment (not
