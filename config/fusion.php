@@ -303,14 +303,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Views in Vue, React and Solid
+    | Views in Vue, React, Solid and Svelte
     |--------------------------------------------------------------------------
     |
-    | A component's view can be a Vue, React or Solid component instead of
-    | Blade: #[View(vue: 'cart/badge')] is cart/badge.vue in one of the vue
-    | paths. Where each engine's views are (the first that has the file),
-    | and their extensions. Your app's Vite builds them; your JavaScript
-    | registers each engine (fusionVue(), fusionReact(), fusionSolid()).
+    | A component's view can be a Vue, React, Solid or Svelte component
+    | instead of Blade: #[View(vue: 'cart/badge')] is cart/badge.vue in one
+    | of the vue paths. Where each engine's views are (the first that has
+    | the file), and their extensions. Your app's Vite builds them; your
+    | JavaScript registers each engine (fusionVue(), fusionReact(),
+    | fusionSolid(), fusionSvelte()).
     | A view may hold its component's PHP itself: a <php> block.
     |
     | The adapter is the engine's server side: it names the framework and
@@ -335,6 +336,11 @@ return [
             'adapter' => Nitro\Fusion\View\Adapters\SolidAdapter::class,
             'path' => [resource_path('views/solid'), resource_path('js/solid')],
             'extensions' => ['jsx', 'tsx'],
+        ],
+        'svelte' => [
+            'adapter' => Nitro\Fusion\View\Adapters\SvelteAdapter::class,
+            'path' => [resource_path('views/svelte'), resource_path('js/svelte')],
+            'extensions' => ['svelte'],
         ],
     ],
 
