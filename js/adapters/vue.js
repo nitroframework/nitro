@@ -20,6 +20,9 @@
  * In <script setup>, useFusion() gives the same: properties and values as refs, the functions,
  * `errors` and `unsaved` as refs. The behaviour is the shared core's (core.js); this adapter
  * only makes it Vue's.
+ *
+ * Vue 3's public API only (createApp, createSSRApp, ref, reactive, computed, watch, effectScope,
+ * inject, markRaw; vue/server-renderer's renderToString), so a Vue release changes nothing here.
  */
 import { computed, createApp, createSSRApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
 import { connect, register } from './core.js';

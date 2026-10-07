@@ -21,6 +21,10 @@
  *
  * useFusion() gives the same to any component inside the view. The behaviour is the shared
  * core's (core.js); this adapter only makes it React's: a store React subscribes to.
+ *
+ * React 18 and 19's public API only (createElement, createContext, useContext,
+ * useSyncExternalStore; react-dom's flushSync, createRoot, hydrateRoot; react-dom/server's
+ * renderToString), so a React release changes nothing here.
  */
 import { createContext, createElement, useContext, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';

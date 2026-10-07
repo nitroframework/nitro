@@ -24,6 +24,10 @@
  * useFusion() gives the same to any component inside the view. The behaviour is the shared
  * core's (core.js); this adapter only makes it Solid's: a store that changes only where the
  * component's state did, so only those parts of the page update.
+ *
+ * Solid's public API only (createComponent, createContext, useContext, mergeProps; solid-js/store's
+ * createStore, createMutable, reconcile; solid-js/web's render, hydrate, renderToString), so a
+ * Solid release changes nothing here.
  */
 import { createComponent, createContext, mergeProps, useContext } from 'solid-js';
 import { createMutable, createStore, reconcile } from 'solid-js/store';

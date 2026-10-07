@@ -23,7 +23,9 @@
  *
  * Rules that fail are not a failed call: the method answers, and `errors` has the messages.
  *
- * The adapters stay small: they turn these into Vue refs, a React store or a Solid store. The
+ * The adapters stay small: they turn these into Vue refs, a React store, a Solid store or Svelte
+ * $state, each through its framework's public API alone, so a framework's release asks nothing
+ * of Fusion beyond running the parity tests against it. The
  * same binding renders the view on the server (adapters/server): there the handle is made of
  * the state the server sent, so the first HTML is what the browser's first render gives.
  */
