@@ -312,8 +312,10 @@ export class Navigator {
      * one that cannot render without its data; the visit then waits for the data as usual.
      */
     async renderEarly(current, url, push, options, visit) {
-        const name = this.runtime.markupPage(url.pathname);
-        if (name === null) return null;
+        /** The page, and for a client page the properties its route's parameters fill from the URL. */
+        const match = this.runtime.markupMatch(url.pathname);
+        if (match === null) return null;
+        const { name, props } = match;
         const waiting = this.runtime.require([name]);
         if (waiting) {
             try {
@@ -334,7 +336,7 @@ export class Navigator {
             this.saveRemembered();
             this.rememberScroll();
         }
-        const early = this.runtime.renderEarly(current, name, definition);
+        const early = this.runtime.renderEarly(current, name, definition, props);
         if (!early) return null;
         if (push) this.window.history.pushState({}, '', url.href);
         else this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);

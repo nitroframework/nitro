@@ -60,9 +60,38 @@ final class PageResponses
         if ($meta->hasMount) {
             /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
             [$component, 'mount'](...array_values($parameters));
+        } else {
+            $this->fillFromRoute($component, $meta, $parameters);
         }
 
         return $this->respond($component, $meta);
+    }
+
+    /**
+     * A page without mount(): each route parameter into its public property of the same name, as
+     * a client page (#[Navigate('client')]) takes them from the URL in the browser. A value that
+     * is not of the property's type (/chapters/abc for an int) is no such page: 404.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    private function fillFromRoute(Component $component, ComponentMeta $meta, array $parameters): void
+    {
+        foreach ($parameters as $name => $value) {
+            $property = $meta->property((string) $name);
+
+            if ($property === null) {
+                continue;
+            }
+
+            $types = array_values(array_diff($property->types, ['null']));
+            $component->{$name} = match (true) {
+                $value === null && $property->nullable => null,
+                ! is_string($value) || count($types) !== 1 => $value,
+                $types[0] === 'int' => filter_var($value, FILTER_VALIDATE_INT) !== false ? (int) $value : abort(404),
+                $types[0] === 'float' => is_numeric($value) ? (float) $value : abort(404),
+                default => $value,
+            };
+        }
     }
 
     /**

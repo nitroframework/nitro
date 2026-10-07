@@ -24,12 +24,34 @@ export class Chunks {
 
     /** From app.js: the markup-first pages ([path pattern, page]). */
     markupPages(routes) {
-        this.markup = routes.map(([pattern, name]) => [new RegExp(pattern), name]);
+        this.markup = routes.map(([pattern, name, parameters = {}]) => [new RegExp(pattern), name, parameters]);
     }
 
     /** The markup-first page a path shows, or null. */
     markupPage(path) {
-        return this.markup.find(([pattern]) => pattern.test(path))?.[1] ?? null;
+        return this.markupMatch(path)?.name ?? null;
+    }
+
+    /**
+     * The markup-first page a path shows, with what a client page takes from it: each route
+     * parameter as its property's type (prop => value), as the server reads them. Null for no
+     * page, or a parameter that is not of its type (/chapters/abc for an int): the server answers that.
+     */
+    markupMatch(path) {
+        for (const [pattern, name, parameters] of this.markup) {
+            const match = pattern.exec(path);
+            if (!match) continue;
+            const props = {};
+            for (const [parameter, { prop, type }] of Object.entries(parameters)) {
+                const raw = match.groups?.[parameter];
+                if (raw === undefined) continue;
+                const value = typed(decodeURIComponent(raw), type);
+                if (value === undefined) return null;
+                props[prop] = value;
+            }
+            return { name, props };
+        }
+        return null;
     }
 
     /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
@@ -73,4 +95,15 @@ export class Chunks {
             if (pattern.test(path)) this.load(group).catch(() => {});
         }
     }
+}
+
+/**
+ * A route parameter as its property's type, as the server reads it (FILTER_VALIDATE_INT,
+ * is_numeric): an int only from digits, with a sign and no leading zero; a float from a number;
+ * undefined when it is not one.
+ */
+function typed(value, type) {
+    if (type === 'int') return /^[+-]?(0|[1-9]\d*)$/.test(value) ? Number(value) : undefined;
+    if (type === 'float') return value.trim() !== '' && Number.isFinite(Number(value)) ? Number(value) : undefined;
+    return value;
 }

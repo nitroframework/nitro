@@ -479,9 +479,13 @@ final class Bundle
         /** Markup-first pages by path: a visit renders the page at once, before its data. */
         $markup = [];
 
-        foreach ($this->pageRoutes->all() as [$pattern, $name]) {
-            if ($this->markupFirst($this->fusion->meta($name))) {
-                $markup[] = [$pattern, $names?->component($name) ?? $name];
+        foreach ($this->pageRoutes->all() as [$pattern, $name, $route]) {
+            $meta = $this->fusion->meta($name);
+
+            if ($this->markupFirst($meta)) {
+                /** A client page takes its route's parameters from the URL: which property each fills, and its type. */
+                $parameters = $meta->navigate === 'client' ? $this->pageRoutes->clientParameters($meta, $route, $names) : [];
+                $markup[] = $parameters === [] ? [$pattern, $names?->component($name) ?? $name] : [$pattern, $names?->component($name) ?? $name, $parameters];
             }
         }
 
