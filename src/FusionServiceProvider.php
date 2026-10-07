@@ -15,6 +15,7 @@ use Nitro\Fusion\Blade\FusionTags;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Console\BuildCommand;
 use Nitro\Fusion\Console\ClearCommand;
+use Nitro\Fusion\Console\SsrCommand;
 use Nitro\Fusion\Http\AssetController;
 use Nitro\Fusion\Http\FillPortals;
 use Nitro\Fusion\Http\PersistentMiddleware;
@@ -25,6 +26,9 @@ use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\View\BladeEngine;
 use Nitro\Fusion\View\ColocatedViews;
 use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ServerRendering\NodeRenderer;
+use Nitro\Fusion\View\ServerRendering\NullRenderer;
+use Nitro\Fusion\View\ServerRendering\ServerRenderer;
 use Nitro\Fusion\View\ViewEngines;
 use Nitro\Fusion\Support\Registry;
 use Nitro\Fusion\Testing\AssertableFusion;
@@ -39,6 +43,21 @@ class FusionServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(dirname(__DIR__).'/config/fusion.php', 'fusion');
         $this->mergeConfigFrom(dirname(__DIR__).'/config/nprogress.php', 'nprogress');
+
+        /** JavaScript views in the first HTML (fusion.ssr): the app's render service, or none. Per request: a service that failed is not asked again. */
+        $this->app->scoped(ServerRenderer::class, function (Application $app) {
+            $ssr = (array) $app->make('config')->get('fusion.ssr', []);
+
+            if (! ($ssr['enabled'] ?? false)) {
+                return new NullRenderer;
+            }
+
+            return new NodeRenderer(
+                (string) ($ssr['url'] ?? 'http://127.0.0.1:13714'),
+                (float) ($ssr['timeout'] ?? 2),
+                $app->bound('log') ? $app->make('log') : null,
+            );
+        });
 
         $this->app->scoped(ViewEngines::class, function (Application $app) {
             $engines = new ViewEngines;
@@ -145,7 +164,7 @@ class FusionServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             /** fusion:build is its own step (as `vite build` is), not part of `optimize`. */
-            $this->commands([BuildCommand::class, ClearCommand::class]);
+            $this->commands([BuildCommand::class, ClearCommand::class, SsrCommand::class]);
 
             $this->publishes([dirname(__DIR__).'/config/fusion.php' => config_path('fusion.php')], 'fusion-config');
             $this->publishes([dirname(__DIR__).'/config/nprogress.php' => config_path('nprogress.php')], ['fusion-config', 'nprogress-config']);
@@ -163,12 +182,13 @@ class FusionServiceProvider extends ServiceProvider
     {
         $paths = array_values((array) $view['path']);
         $extensions = array_values((array) $view['extensions']);
+        $server = $app->make(ServerRenderer::class);
 
         if (! isset($view['adapter'])) {
-            return new ScriptEngine($name, $paths, $extensions);
+            return new ScriptEngine($name, $paths, $extensions, $server);
         }
 
-        $engine = $app->make($view['adapter'], ['paths' => $paths, 'extensions' => $extensions]);
+        $engine = $app->make($view['adapter'], ['paths' => $paths, 'extensions' => $extensions, 'server' => $server]);
 
         if (! $engine instanceof ScriptEngine || $engine->name() !== $name) {
             throw new InvalidArgumentException("fusion.views.{$name}: the adapter [{$view['adapter']}] is not a view engine named [{$name}]. An adapter extends Nitro\\Fusion\\View\\ScriptEngine, as VueAdapter does.");

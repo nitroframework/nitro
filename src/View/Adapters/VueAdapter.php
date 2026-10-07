@@ -3,6 +3,8 @@
 namespace Nitro\Fusion\View\Adapters;
 
 use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ServerRendering\NullRenderer;
+use Nitro\Fusion\View\ServerRendering\ServerRenderer;
 
 /**
  * Vue: #[View(vue: 'cart/badge')] is cart/badge.vue in resources/views/vue or resources/js/vue.
@@ -15,9 +17,9 @@ final class VueAdapter extends ScriptEngine
      * @param  list<string>  $paths
      * @param  list<string>  $extensions
      */
-    public function __construct(array $paths, array $extensions = ['vue'])
+    public function __construct(array $paths, array $extensions = ['vue'], ServerRenderer $server = new NullRenderer)
     {
-        parent::__construct('vue', $paths, $extensions);
+        parent::__construct('vue', $paths, $extensions, $server);
     }
 
     public function label(): string

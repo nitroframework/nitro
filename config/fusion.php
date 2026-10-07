@@ -340,6 +340,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Server rendering for Vue, React and Solid views
+    |--------------------------------------------------------------------------
+    |
+    | On, a page's first HTML has its JavaScript views rendered in it, and
+    | the browser hydrates them. Your app's render service renders them: its
+    | SSR bundle (nitro-fusion/ssr), started with php artisan fusion:ssr.
+    | When it is not running, or a view fails there, the browser renders
+    | the view, as it does with this off. Blade views are always rendered
+    | on the server.
+    |
+    */
+
+    'ssr' => [
+        'enabled' => env('FUSION_SSR', false),
+        'url' => env('FUSION_SSR_URL', 'http://127.0.0.1:13714'),
+        /** Seconds a view may take to render before the browser is left to render it. */
+        'timeout' => 2,
+        /** What fusion:ssr runs: the bundle `vite build --ssr` made. */
+        'bundle' => base_path('bootstrap/ssr/ssr.js'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Features
     |--------------------------------------------------------------------------
     |

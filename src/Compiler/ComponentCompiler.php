@@ -75,7 +75,7 @@ final class ComponentCompiler
     private function compileStoreDefinition(ComponentMeta $meta): string
     {
         $scope = ($this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName))->withNames($this->names);
-        $public = array_values(array_filter($meta->browserMethods, fn (string $name) => (new ReflectionMethod($meta->class, $name))->isPublic()));
+        $public = $meta->publicMethods();
         $methods = $this->methods($meta, $scope, [...$public, ...$meta->computed]);
 
         $this->names?->assertDistinct([...$meta->browserMethods, ...$meta->serverMethods], 'method');
@@ -379,7 +379,7 @@ final class ComponentCompiler
         $hooks = array_values(array_intersect(Hooks::BROWSER, [...$meta->browserMethods, ...$meta->serverMethods]));
 
         /** A view the app's build compiles may call any public method (and they the others they call). */
-        $public = array_values(array_filter($meta->browserMethods, fn (string $method) => (new \ReflectionMethod($meta->class, $method))->isPublic()));
+        $public = $meta->publicMethods();
 
         $methods = $this->methods($meta, $scope, [
             /** What the view calls: a Blade view's, those it names; another's, the public ones. */

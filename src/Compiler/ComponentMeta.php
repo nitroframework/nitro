@@ -371,6 +371,17 @@ final class ComponentMeta
     }
 
     /**
+     * The methods a view the app's build compiles may call: the public ones that run in the
+     * browser (the private ones are the class's own business).
+     *
+     * @return list<string>
+     */
+    public function publicMethods(): array
+    {
+        return array_values(array_filter($this->browserMethods, fn (string $method) => (new ReflectionMethod($this->class, $method))->isPublic()));
+    }
+
+    /**
      * The parameters of a #[Server] method, each with what it takes from the browser:
      *   'value'    a scalar or an array, checked against its type
      *   'model'    an Eloquent model, from its key, as route model binding resolves one

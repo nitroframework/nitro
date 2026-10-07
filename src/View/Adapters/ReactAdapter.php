@@ -3,6 +3,8 @@
 namespace Nitro\Fusion\View\Adapters;
 
 use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ServerRendering\NullRenderer;
+use Nitro\Fusion\View\ServerRendering\ServerRenderer;
 
 /**
  * React: #[View(react: 'chart')] is chart.jsx (or .tsx) in resources/views/react or
@@ -15,9 +17,9 @@ final class ReactAdapter extends ScriptEngine
      * @param  list<string>  $paths
      * @param  list<string>  $extensions
      */
-    public function __construct(array $paths, array $extensions = ['jsx', 'tsx'])
+    public function __construct(array $paths, array $extensions = ['jsx', 'tsx'], ServerRenderer $server = new NullRenderer)
     {
-        parent::__construct('react', $paths, $extensions);
+        parent::__construct('react', $paths, $extensions, $server);
     }
 
     public function label(): string

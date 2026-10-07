@@ -3,6 +3,8 @@
 namespace Nitro\Fusion\View\Adapters;
 
 use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Fusion\View\ServerRendering\NullRenderer;
+use Nitro\Fusion\View\ServerRendering\ServerRenderer;
 
 /**
  * Solid: #[View(solid: 'clock')] is clock.jsx (or .tsx) in resources/views/solid or
@@ -15,9 +17,9 @@ final class SolidAdapter extends ScriptEngine
      * @param  list<string>  $paths
      * @param  list<string>  $extensions
      */
-    public function __construct(array $paths, array $extensions = ['jsx', 'tsx'])
+    public function __construct(array $paths, array $extensions = ['jsx', 'tsx'], ServerRenderer $server = new NullRenderer)
     {
-        parent::__construct('solid', $paths, $extensions);
+        parent::__construct('solid', $paths, $extensions, $server);
     }
 
     public function label(): string

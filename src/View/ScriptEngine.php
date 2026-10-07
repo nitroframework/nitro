@@ -5,11 +5,15 @@ namespace Nitro\Fusion\View;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Component;
+use Nitro\Fusion\View\ServerRendering\NullRenderer;
+use Nitro\Fusion\View\ServerRendering\ServerRenderer;
+use Nitro\Fusion\View\ServerRendering\ViewState;
 
 /**
  * Views written for a JavaScript framework: the app's Vite builds them, and the browser mounts
  * them with the engine Fusion.engine() registered. The server renders the element they mount
- * in, marked with the component's state like any other.
+ * in, marked with the component's state like any other; with server rendering on, the view's
+ * HTML is in it too, and the browser hydrates it.
  *
  * Each fusion.views entry names its adapter: Fusion's (View\Adapters: Vue, React, Solid) know
  * their framework's files and where a view keeps its <php> block. An entry without one, for a
@@ -20,9 +24,14 @@ class ScriptEngine implements ViewEngine
     /**
      * @param  list<string>  $paths  where its views are, in the order looked in (fusion.views)
      * @param  list<string>  $extensions  their file extensions, in the order looked for
+     * @param  ServerRenderer  $server  renders a view for the first HTML (fusion.ssr), or leaves it to the browser
      */
-    public function __construct(protected readonly string $name, protected readonly array $paths, protected readonly array $extensions)
-    {
+    public function __construct(
+        protected readonly string $name,
+        protected readonly array $paths,
+        protected readonly array $extensions,
+        protected readonly ServerRenderer $server = new NullRenderer,
+    ) {
     }
 
     public function name(): string
@@ -77,16 +86,16 @@ class ScriptEngine implements ViewEngine
     }
 
     /**
-     * The element the view mounts in: the browser renders it, from the state on it.
-     *
-     * Planned: server rendering, where this asks a Node service for the view's HTML with the
-     * component's state, and the browser's engine hydrates it instead of mounting.
+     * The element the view mounts in. With server rendering, the view's HTML is inside it and
+     * the element says so (fusion:rendered): the browser hydrates it. Without, or when the view
+     * cannot be rendered here, it is empty and the browser renders the view into it.
      */
     public function render(Component $component, ComponentMeta $meta): string
     {
         $this->file($meta);
+        $html = $this->server->render(ViewState::of($component, $meta));
 
-        return '<div></div>';
+        return $html === null ? '<div></div>' : '<div fusion:rendered>'.$html.'</div>';
     }
 
     /**
