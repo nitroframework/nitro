@@ -281,10 +281,14 @@ abstract class Component
      * A routed page (Route::fusion()) is dispatched as a controller: Laravel (and Nitro) resolve
      * mount()'s route parameters, bindings included, and call this.
      *
+     * The router keeps one controller instance per route for the life of the process, so the page
+     * is a new instance each time: under a long-running server (Octane), one request's state never
+     * reaches the next.
+     *
      * @internal
      */
     final public function callAction(string $method, array $parameters): mixed
     {
-        return app(Fusion::class)->page($this, $parameters);
+        return app(Fusion::class)->page(app()->make(static::class), $parameters);
     }
 }
