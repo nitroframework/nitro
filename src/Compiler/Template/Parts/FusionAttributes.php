@@ -45,7 +45,12 @@ final class FusionAttributes extends Part
                 $this->checkTransition($parts);
             }
 
-            foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $modifier) {
+            foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $index => $modifier) {
+                /** fusion:navigate.prefetch.60s: how long the prefetched page is kept. */
+                if ($name === 'navigate' && ($parts[$index - 1] ?? null) === 'prefetch' && preg_match('/^\d+(ms|s)$/', $modifier) === 1) {
+                    continue;
+                }
+
                 if (! in_array($modifier, Globals::ATTRIBUTE_MODIFIERS[$name], true)) {
                     throw $context->error(Globals::ATTRIBUTE_MODIFIERS[$name] === []
                         ? "fusion:{$name} takes no modifiers (.{$modifier})"

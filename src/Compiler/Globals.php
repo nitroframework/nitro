@@ -82,12 +82,13 @@ final class Globals
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
      * fusion:navigate.keypress starts the visit on mouse down, fusion:navigate.preserve-scroll
-     * keeps the scroll position, fusion:current.exact matches the path only,
+     * keeps the scroll position, fusion:navigate.prefetch asks for the page while the pointer rests
+     * on the link (.prefetch.60s: kept that long), fusion:current.exact matches the path only,
      * fusion:confirm.prompt asks for a word to be typed. fusion:loading's, fusion:model's and
      * fusion:transition's are checked by their own rules (LOADING_FORMS); the others take none.
      */
     public const ATTRIBUTE_MODIFIERS = [
-        'navigate' => ['keypress', 'preserve-scroll'],
+        'navigate' => ['keypress', 'preserve-scroll', 'prefetch'],
         'current' => ['exact'],
         'confirm' => ['prompt'],
         'key' => [],

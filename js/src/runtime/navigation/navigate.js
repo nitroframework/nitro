@@ -20,6 +20,11 @@
  * up (the click): the page is on its way during the press. The click that follows is the same
  * visit. Touch keeps the tap (a finger going down may be a scroll), and so does the keyboard.
  *
+ * fusion:navigate.prefetch asks for the page's data once the pointer has rested on the link (or the
+ * keyboard focused it), so the click finds it here; .prefetch.60s keeps it longer than 30s. Back and
+ * forward show the pages visited in the last five minutes without asking again. Both are in memory
+ * only, and any #[Server] call forgets them (pages.js).
+ *
  * fusion:current="active" on a link adds the class while the link points at the current page
  * (fusion:current.exact: the same path only).
  *
@@ -35,7 +40,12 @@
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
 import * as P from '../../php.js';
+import { PageCache } from './pages.js';
 import { Swap } from './swap.js';
+
+/** How long the pointer rests on a link before its page is prefetched: passing over a menu asks for nothing. */
+const HOVER_DELAY = 75;
+const PREFETCH_FOR = 30_000;
 import { readState } from '../component/component.js';
 
 /**
@@ -69,6 +79,14 @@ export class Navigator {
         this.document.addEventListener('pointerdown', (e) => this.press(e));
         this.document.addEventListener('pointerup', () => this.window.setTimeout(() => (this.pressed = null)));
         this.document.addEventListener('click', (e) => this.click(e));
+
+        /** Prefetched and visited pages; a #[Server] call may have changed what they show. */
+        this.pages = new PageCache();
+        this.hoverTimer = null;
+        this.document.addEventListener('mouseover', (e) => this.hover(e));
+        this.document.addEventListener('mouseout', () => this.window.clearTimeout(this.hoverTimer));
+        this.document.addEventListener('focusin', (e) => this.hover(e));
+        window.addEventListener('fusion:request', () => this.pages.clear());
         window.addEventListener('popstate', (e) => {
             /** The entry left is no longer the current one: a #[Remember] save waiting to retry would land on this one. */
             window.clearTimeout(this.rememberTimer);
@@ -89,7 +107,8 @@ export class Navigator {
      * preserve-scroll); null when the browser should handle it.
      */
     target(event) {
-        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+        /** A focus event has no button: it counts as the main one. */
+        if (event.defaultPrevented || (event.button ?? 0) !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
         const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
         const attribute = link ? [...link.attributes].find((a) => a.name === 'fusion:navigate' || a.name.startsWith('fusion:navigate.')) : null;
         if (!attribute) return null;
@@ -97,6 +116,25 @@ export class Navigator {
         const url = new URL(link.href, this.window.location.href);
         const modifiers = attribute.name.split('.').slice(1);
         return url.origin === this.window.location.origin ? { link, url, modifiers } : null;
+    }
+
+    /** The pointer on a fusion:navigate.prefetch link (or the keyboard's focus): its page asked for after a moment. */
+    hover(event) {
+        this.window.clearTimeout(this.hoverTimer);
+        const found = this.target(event);
+        if (!found || !found.modifiers.includes('prefetch')) return;
+        this.hoverTimer = this.window.setTimeout(() => this.prefetch(found.url, prefetchFor(found.modifiers)), event.type === 'focusin' ? 0 : HOVER_DELAY);
+    }
+
+    /**
+     * The page's data asked for ahead of the click, kept for ms. Only for a page this one renders
+     * in place (its data, not HTML), and not for one a visit renders at once anyway (markup, client).
+     */
+    prefetch(url, ms = PREFETCH_FOR) {
+        if (!this.document.querySelector('[fusion\\:page]') || this.runtime.markupPage(url.pathname) !== null) return;
+        if (this.pages.prefetching(url.href)) return;
+        this.runtime.preload(url.pathname);
+        this.pages.prefetch(url.href, this.fetch(url, true), ms);
     }
 
     press(event) {
@@ -183,8 +221,18 @@ export class Navigator {
             else if (push) this.leave(target);
         };
 
-        /** The page's data (a Fusion page answers with it, any other with its HTML); or its HTML. */
-        let answer = await this.fetch(url, current !== null, early?.id);
+        /**
+         * The page's data (a Fusion page answers with it, any other with its HTML); or its HTML.
+         * Prefetched for a link, or, going back or forward, the page as it was visited: not asked
+         * again. A page rendered early asks with its id, so it is not taken from there.
+         */
+        const kept = current !== null && !early ? await this.pages.take(url.href, !push) : null;
+        let answer = kept ?? await this.fetch(url, current !== null, early?.id);
+        /**
+         * Kept for back and forward as the server sent it (fetched, or the prefetch taken), even
+         * when a newer visit has started: it is that URL's page.
+         */
+        if (!early) this.pages.visited(answer.url.href, answer);
         if (visit !== this.visiting) return; // a newer visit started
 
         /** A Fusion page in another layout: its HTML. */
@@ -399,6 +447,12 @@ export class Navigator {
             on ? link.setAttribute('aria-current', 'page') : link.removeAttribute('aria-current');
         }
     }
+}
+
+/** How long a link's prefetched page is kept: .prefetch.60s, .prefetch.500ms; 30 seconds by default. */
+function prefetchFor(modifiers) {
+    const match = /^(\d+)(ms|s)$/.exec(modifiers[modifiers.indexOf('prefetch') + 1] ?? '');
+    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : PREFETCH_FOR;
 }
 
 /**
