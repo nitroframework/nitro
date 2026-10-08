@@ -154,6 +154,7 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | A component's and a store's state in the browser: defaults, what changed, the `$this` properties | `runtime/component/snapshot.js`, `runtime/component/context.js` |
 | Every request the runtime sends (visits, reloads, calls, uploads) | `runtime/server/request.js` |
 | Cached results (`#[Cached]`): their keys, the tags' versions, `Fusion::expire()` | `State/MethodCache`; `mount()` and `#[Server]` calls ask it where they run |
+| What a component that failed shows (its `fallback()`, `fusion.fallbacks.view`, Fusion's message) | `Rendering/Fallbacks` (placed on the server, a failed call's answer, the browser's default); `fail()` in `runtime/component/component.js` shows it |
 
 ## The seams: where a new feature goes
 

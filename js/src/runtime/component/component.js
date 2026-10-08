@@ -10,7 +10,7 @@
 import * as P from '../../php.js';
 import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
 import { componentHook, propertyHooks } from './hooks.js';
-import { SIGNALS } from '../protocol.js';
+import { ATTRIBUTES, SIGNALS } from '../protocol.js';
 import { defaultsOf, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
 import { contextOf, enumCase } from './context.js';
 import { ErrorBag } from './errors.js';
@@ -60,6 +60,8 @@ export class Component {
         this.model = null;
         this.scheduled = false;
         this.destroyed = false;
+        /** It failed and shows its fallback (fail()): it renders no more. */
+        this.failed = false;
         /** Renders of what changed so far (fusion:visible: whether a call changed anything). */
         this.renders = 0;
         this.ctx = contextOf(this);
@@ -338,14 +340,31 @@ export class Component {
         this.el = root;
     }
 
+    /**
+     * It failed (a render here, a #[Server] call): the fallback's HTML in place of its view, marked
+     * for the runtime to leave alone. It keeps its state; it renders no more until the page loads again.
+     */
+    fail(html) {
+        this.failed = true;
+        if (!this.el) return;
+        for (const node of [...this.el.childNodes]) this.runtime.forget(node);
+        const fallback = this.el.ownerDocument.createElement('div');
+        fallback.setAttribute(ATTRIBUTES.fallback, '');
+        fallback.innerHTML = html;
+        this.el.replaceChildren(fallback);
+    }
+
     /** Run a render, then what follows it: the children it placed, handlers, models, hooks. False when it failed. */
     rendering(render) {
+        if (this.failed) return false;
         this.placed = [];
         this.autofocus = null;
         try {
             render();
         } catch (error) {
             this.runtime.report(this, error);
+            /** With fallbacks on (@fusionScripts gives the default), it shows in the component's place. */
+            if (typeof this.runtime.config.fallback === 'string') this.fail(this.runtime.config.fallback);
             return false;
         }
 

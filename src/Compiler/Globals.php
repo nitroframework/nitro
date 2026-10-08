@@ -134,7 +134,7 @@ final class Globals
     ];
 
     /** fusion: names the runtime puts on elements itself (and fusion:h-..., its handlers' marks). */
-    public const RUNTIME = ['id', 'name', 'page', 'placeholder', 'hydrate', 'static'];
+    public const RUNTIME = ['id', 'name', 'page', 'placeholder', 'hydrate', 'static', 'fallback'];
 
     public static function isAttribute(string $name): bool
     {

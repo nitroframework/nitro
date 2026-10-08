@@ -189,6 +189,12 @@ final class ComponentRenderer
         }
     }
 
+    /** Whether a render is collecting children's states (a call's, a visit's): only those go to the browser, not HTML. */
+    public function collecting(): bool
+    {
+        return $this->collected !== null;
+    }
+
     /**
      * Indexes of the loops the current component's view is inside (for child keys).
      *

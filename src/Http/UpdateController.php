@@ -6,6 +6,7 @@ use BackedEnum;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +21,7 @@ use Nitro\Fusion\Component;
 use Nitro\Fusion\Http\IncomingState;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\Rendering\Fallbacks;
 use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\State\Snapshot;
@@ -124,14 +126,21 @@ final class UpdateController
         /** What the browser changed, as the features check it (#[Validate]'s rules): a failure keeps the method from running. */
         $valid = $this->features()->updated($component, $changed) && $storesValid;
 
-        if ($valid && $call !== null) {
-            $returned = $this->call($component, $meta, $call);
-        }
+        try {
+            if ($valid && $call !== null) {
+                $returned = $this->call($component, $meta, $call);
+            }
 
-        /** Asked for (a child made in the browser), or a view placing children with mount(): its new state may place one, which only the server can create. */
-        $asked = ($payload['children'] ?? false) === true && app(ServerChildren::class)->placedBy($meta);
-        /** Not from a state that failed its rules: the view would render what they are there to keep out. */
-        $children = $valid && ($asked || app(ServerChildren::class)->placedBy($meta, mountOnly: true)) ? app(ComponentRenderer::class)->childrenOf($component, $meta, $memo) : null;
+            /** Asked for (a child made in the browser), or a view placing children with mount(): its new state may place one, which only the server can create. */
+            $asked = ($payload['children'] ?? false) === true && app(ServerChildren::class)->placedBy($meta);
+            /** Not from a state that failed its rules: the view would render what they are there to keep out. */
+            $children = $valid && ($asked || app(ServerChildren::class)->placedBy($meta, mountOnly: true)) ? app(ComponentRenderer::class)->childrenOf($component, $meta, $memo) : null;
+        } catch (Throwable $exception) {
+            /** With fallbacks on, the browser shows the component's fallback in its place (Fallbacks). */
+            $answer = app(Fallbacks::class)->failedCall($component, $exception);
+
+            throw $answer === null ? $exception : new HttpResponseException($answer);
+        }
         $this->features()->dehydrate($component);
         $next = Snapshot::capture($component, $meta, $memo);
         $context = $component->fusion();

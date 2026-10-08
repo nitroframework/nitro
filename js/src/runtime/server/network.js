@@ -128,6 +128,9 @@ export class Network {
 
         const text = await response.text();
         if (!response.ok) {
+            /** With fallbacks on, a call that failed answers with the component's fallback: it shows in its place. */
+            const fallback = fallbackIn(text);
+            if (fallback !== null) component.fail(fallback);
             throw new ServerCallError(`${method ?? '$refresh'}(): the server answered ${response.status}`, response.status, text);
         }
 
@@ -176,6 +179,16 @@ export class Network {
         if (component.snapshot === null && !component.destroyed) {
             throw new ServerCallError(`[${component.name}] was not placed by its parent's view on the server, so it has no signed state for its #[Server] methods`, 0, '');
         }
+    }
+}
+
+/** The fallback a failed call's answer carries (Rendering\Fallbacks), null when it has none. */
+function fallbackIn(text) {
+    try {
+        const fallback = JSON.parse(text)?.fallback;
+        return typeof fallback === 'string' ? fallback : null;
+    } catch {
+        return null;
     }
 }
 

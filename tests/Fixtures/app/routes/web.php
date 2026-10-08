@@ -69,6 +69,7 @@ Route::get('/flash-and-redirect', function () {
 });
 
 Route::get('/embed', fn () => view('embed'));
+Route::get('/fallbacks', fn () => view('fallbacks'));
 
 /** Vue for the browser tests: its global build, then the fixture's .vue views and the adapter (js/test/support/build-adapters.mjs). */
 Route::get('/_test/vue.js', fn () => response(

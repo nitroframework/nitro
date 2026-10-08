@@ -25,8 +25,9 @@ export function isRuntimeScript(script) {
 
 /**
  * What @fusionScripts tells the runtime on its script: the endpoint, app.js's version (bundle),
- * where a chunk is ({id} for its name), the page's CSRF token, and the progress bar's options
- * (config/nprogress.php; null when it is off).
+ * where a chunk is ({id} for its name), the page's CSRF token, the progress bar's options
+ * (config/nprogress.php; null when it is off), and with fallbacks on, what a component that fails
+ * to render shows (Rendering\Fallbacks; null when they are off).
  */
 export function configOf(script) {
     return {
@@ -35,6 +36,7 @@ export function configOf(script) {
         chunks: script.dataset.chunks ?? '',
         csrf: script.dataset.csrf ?? '',
         progress: script.dataset.progress ? JSON.parse(script.dataset.progress) : null,
+        fallback: script.dataset.fallback ?? null,
     };
 }
 

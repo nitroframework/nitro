@@ -15,6 +15,8 @@ namespace Nitro\Fusion\Support;
  *   hydrate()              each #[Server] call, once the state is restored, before the browser's changes
  *   dehydrate()            every request, last, before the state goes to the browser
  *   exception($e)          a #[Server] method threw: handled, unless the hook throws it again
+ *   fallback($e)           it failed (to start, to render, a call) and fallbacks are on: what shows
+ *                          in its place (a view, HTML, or text); Rendering\Fallbacks asks it
  *
  * In the browser, called by the runtime (compiled; #[Server] where noted, a request when it runs):
  *
@@ -36,6 +38,8 @@ final class ComponentHooks
 
     public const EXCEPTION = 'exception';
 
+    public const FALLBACK = 'fallback';
+
     public const MOUNTED = 'mounted';
 
     public const RENDERED = 'rendered';
@@ -43,7 +47,7 @@ final class ComponentHooks
     public const DESTROYED = 'destroyed';
 
     /** Called on the server by Fusion. */
-    public const SERVER = [self::BOOT, self::MOUNT, self::HYDRATE, self::DEHYDRATE, self::EXCEPTION];
+    public const SERVER = [self::BOOT, self::MOUNT, self::HYDRATE, self::DEHYDRATE, self::EXCEPTION, self::FALLBACK];
 
     /** Called in the browser by the runtime. */
     public const BROWSER = [self::MOUNTED, self::RENDERED, self::DESTROYED];

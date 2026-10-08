@@ -158,6 +158,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Fallbacks
+    |--------------------------------------------------------------------------
+    |
+    | A component that fails (its mount(), its view, a #[Server] call, its
+    | render in the browser) shows a fallback in its place, and the rest of
+    | the page works on; the error goes to Laravel's exception handler. The
+    | fallback is the component's fallback() when it has one, else `view`,
+    | else a short message with a link that loads the page again.
+    |
+    | enabled: null (the default) is on when APP_DEBUG is off: in development
+    | you see the error itself.
+    |
+    */
+
+    'fallbacks' => [
+        'enabled' => env('FUSION_FALLBACKS'),
+        'view' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Uploads
     |--------------------------------------------------------------------------
     |

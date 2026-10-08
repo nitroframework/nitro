@@ -23,6 +23,7 @@
         "serverHtml": "fusion:rendered",
         "hydrate": "fusion:hydrate",
         "static": "fusion:static",
+        "fallback": "fusion:fallback",
         "handler": "fusion:h-",
         "directive": "fusion:h-directive",
         "globals": "data-fusion-globals",
@@ -38,7 +39,8 @@
         "call": ["snapshot", "children", "stores", "shared", "once", "flash", "effects"],
         "page": ["fusion", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
         "effects": ["dispatches", "redirect", "js", "reload", "returns"],
-        "dispatch": ["event", "params", "to", "self"]
+        "dispatch": ["event", "params", "to", "self"],
+        "failed": ["message", "fallback"]
     },
     "globals": ["url", "asset", "locale", "routes", "lang", "config", "shared", "once", "flash", "stores"],
     "signals": {

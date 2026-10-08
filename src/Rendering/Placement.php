@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Rendering;
 
+use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Registry;
+use Throwable;
 
 /**
  * A component placed in a view and rendered on the server: <fusion:name /> in a page, a layout or
@@ -34,6 +36,7 @@ final class Placement
         private readonly Stores $stores,
         private readonly PageData $pageData,
         private readonly MethodCache $cache,
+        private readonly Fallbacks $fallbacks,
     ) {
     }
 
@@ -102,16 +105,17 @@ final class Placement
      */
     public function mount(string $name, array $props = [], array $slots = [], ?string $hydrate = null): string
     {
-        $render = function () use ($name, $props, $slots, $hydrate): string {
+        $id = 'f'.Str::lower(Str::random(10));
+        $render = fn (): string => $this->guarded($id, function (?Component &$component) use ($name, $id, $props, $slots, $hydrate): string {
             $meta = $this->placeable($name);
-            $component = $this->create($meta, 'f'.Str::lower(Str::random(10)), $props);
+            $this->create($meta, $id, $props, $component);
             $component->fusion()->slots = $slots;
             $attributes = $hydrate === null || $hydrate === 'static' ? [] : [Protocol::attribute('hydrate') => $hydrate];
             /** No parent renders its slots in the browser: their HTML goes with its state. */
             $memo = $this->renderer->pageMemo() + (array_filter($slots, fn (string $html) => trim($html) !== '') === [] ? [] : ['slots' => $slots]);
 
             return $this->renderer->render($component, $meta, $memo, $attributes);
-        };
+        });
 
         if ($hydrate === null) {
             return $render();
@@ -125,11 +129,37 @@ final class Placement
     /** @param  array<string, string>  $slots */
     private function mountChild(string $name, array $props, Component $parent, string $key, array $slots = []): string
     {
-        $meta = $this->placeable($name);
-        $component = $this->create($meta, $parent->getId().'.'.$key, $props);
-        $component->fusion()->slots = $slots;
+        $id = $parent->getId().'.'.$key;
 
-        return $this->renderer->render($component, $meta, $this->renderer->pageMemo());
+        return $this->guarded($id, function (?Component &$component) use ($name, $id, $props, $slots): string {
+            $meta = $this->placeable($name);
+            $this->create($meta, $id, $props, $component);
+            $component->fusion()->slots = $slots;
+
+            return $this->renderer->render($component, $meta, $this->renderer->pageMemo());
+        });
+    }
+
+    /**
+     * A component started and rendered by $place, or its fallback when that fails (Fallbacks). Not
+     * while a call or a visit collects children's states: only those travel, so the failure is the
+     * call's (the browser shows the component's fallback) or the visit's (the page loads in full).
+     *
+     * @param  Closure(?Component &): string  $place  sets the component once it is made
+     */
+    private function guarded(string $id, Closure $place): string
+    {
+        $component = null;
+
+        try {
+            return $place($component);
+        } catch (Throwable $exception) {
+            if ($this->renderer->collecting()) {
+                throw $exception;
+            }
+
+            return $this->fallbacks->placed($id, $component, $exception);
+        }
     }
 
     /** A component placed in a view (<fusion:...>, @fusion, a dynamic component): not a page. */
@@ -151,10 +181,13 @@ final class Placement
     /**
      * A new instance: mount() receives the props as named arguments when the component has one;
      * otherwise the props set its public properties (as the browser does for such components).
+     * $component is the instance from the moment it is made: when starting it fails, its fallback()
+     * is asked (guarded()).
      *
      * @param  array<string, mixed>  $props
+     * @param-out  Component  $component
      */
-    private function create(ComponentMeta $meta, string $id, array $props): Component
+    private function create(ComponentMeta $meta, string $id, array $props, ?Component &$component): Component
     {
         /** @var Component $component */
         $component = $this->app->make($meta->class);

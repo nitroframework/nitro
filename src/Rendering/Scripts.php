@@ -27,6 +27,7 @@ final class Scripts
         private readonly SharedData $data,
         private readonly Stores $stores,
         private readonly PageData $pageData,
+        private readonly Fallbacks $fallbacks,
     ) {
     }
 
@@ -52,6 +53,9 @@ final class Scripts
 
         $progress = $this->progress();
         $progress = $progress === null ? '' : ' data-progress="'.e(json_encode($progress, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)).'"';
+        /** With fallbacks on, what a component that fails to render in the browser shows. */
+        $fallback = $this->fallbacks->forBrowser();
+        $fallback = $fallback === null ? '' : ' data-fallback="'.e($fallback).'"';
 
         /** The chunks of the components on this page (pages and #[LazyLoad]), loaded with the bundle. */
         $inChunks = $built->inChunks();
@@ -63,7 +67,7 @@ final class Scripts
 
         return new HtmlString(
             $this->pageData->scripts($this->globals())."\n"
-            .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
+            .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.$fallback.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
         );
     }
