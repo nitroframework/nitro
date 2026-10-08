@@ -4,12 +4,11 @@ namespace Nitro\Fusion\State;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Session\Session;
 use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use JsonSerializable;
 use Nitro\Fusion\Once;
+use Nitro\Fusion\Support\CurrentRequest;
 use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Wire;
 
@@ -114,8 +113,7 @@ final class SharedData
     /** @return list<string> the once data the browser has (X-Fusion-Once) */
     private function heldOnce(): array
     {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-        $header = $request instanceof Request ? (string) $request->headers->get(Protocol::header('once'), '') : '';
+        $header = (string) CurrentRequest::of($this->app)?->headers->get(Protocol::header('once'), '');
 
         return array_values(array_filter(array_map('trim', explode(',', $header)), fn (string $key) => $key !== ''));
     }
@@ -131,7 +129,7 @@ final class SharedData
      */
     public function flash(string|array $key, mixed $value = null): void
     {
-        $session = $this->session() ?? throw new \RuntimeException('Fusion::flash() keeps its data in the session: the request has none (the web middleware starts it).');
+        $session = CurrentRequest::session($this->app) ?? throw new \RuntimeException('Fusion::flash() keeps its data in the session: the request has none (the web middleware starts it).');
         $data = $this->flashData();
 
         foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
@@ -155,7 +153,7 @@ final class SharedData
     {
         $data = $this->flashData();
 
-        $session = $this->session();
+        $session = CurrentRequest::session($this->app);
 
         if ($data !== [] && $session !== null) {
             /** The session's now(): kept for this request, dropped when it ends. */
@@ -174,14 +172,7 @@ final class SharedData
      */
     private function flashData(): array
     {
-        return (array) ($this->session()?->get(self::FLASH_KEY, []) ?? []);
-    }
-
-    private function session(): ?Session
-    {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
-
-        return $request instanceof Request && $request->hasSession() ? $request->session() : null;
+        return (array) (CurrentRequest::session($this->app)?->get(self::FLASH_KEY, []) ?? []);
     }
 
     /**

@@ -8,6 +8,7 @@ use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\CurrentRequest;
 use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Wire;
 
@@ -25,6 +26,7 @@ final class Scripts
         private readonly PageHead $head,
         private readonly SharedData $data,
         private readonly Stores $stores,
+        private readonly PageData $pageData,
     ) {
     }
 
@@ -35,7 +37,7 @@ final class Scripts
             return new HtmlString('');
         }
 
-        $token = $this->app->bound('session.store') && $this->app->make('request')->hasSession() ? csrf_token() : '';
+        $token = CurrentRequest::session($this->app)?->token() ?? '';
         $built = $this->app->make(Bundle::class);
         /** In development, a component on this page that does not compile: its error, not a page that fails in the browser. */
         $built->assertCompiled($this->renderer->rendered());
@@ -59,10 +61,8 @@ final class Scripts
             $groups,
         );
 
-        $globals = json_encode($this->globals(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
-
         return new HtmlString(
-            '<script type="application/json" data-fusion-globals>'.$globals.'</script>'."\n"
+            $this->pageData->scripts($this->globals())."\n"
             .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
         );

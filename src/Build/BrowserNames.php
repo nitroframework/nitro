@@ -44,6 +44,45 @@ final class BrowserNames
         return $this->obfuscator()?->componentName($browserName) ?? $browserName;
     }
 
+    /** A property's name in the browser. */
+    public function property(string $name): string
+    {
+        return $this->obfuscator()?->property($name) ?? $name;
+    }
+
+    /**
+     * $this->js() code, reading $fusion.<name> by the browser's names.
+     *
+     * @param  list<string>  $properties
+     * @param  list<string>  $methods
+     */
+    public function script(string $code, array $properties, array $methods): string
+    {
+        return $this->obfuscator()?->script($code, $properties, $methods) ?? $code;
+    }
+
+    /**
+     * The property a name from the browser stands for, among the component's.
+     *
+     * @param  list<string>  $properties
+     */
+    public function propertyName(string $browserName, array $properties): string
+    {
+        return $this->obfuscator()?->propertyName($browserName, $properties) ?? $browserName;
+    }
+
+    /**
+     * A path from the browser ("pa1b2c3.email"): its property by its own name, the rest as it is.
+     *
+     * @param  list<string>  $properties
+     */
+    public function propertyPath(string $browserPath, array $properties): string
+    {
+        [$root, $rest] = array_pad(explode('.', $browserPath, 2), 2, null);
+
+        return $this->propertyName($root, $properties).($rest === null ? '' : '.'.$rest);
+    }
+
     /**
      * The method a name from the browser stands for, among the component's #[Server] methods.
      *

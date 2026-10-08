@@ -31,6 +31,7 @@ final class Placement
         private readonly Registry $registry,
         private readonly Features $features,
         private readonly Stores $stores,
+        private readonly PageData $pageData,
     ) {
     }
 
@@ -116,7 +117,7 @@ final class Placement
 
         $html = $this->renderer->later($render);
 
-        return $hydrate === 'static' ? (string) preg_replace('/\sfusion:(?:snapshot|id|name)="[^"]*"/', '', $html) : $html;
+        return $hydrate === 'static' ? $this->pageData->withoutState($html) : $html;
     }
 
     /** @param  array<string, string>  $slots */
@@ -155,10 +156,6 @@ final class Placement
     {
         /** @var Component $component */
         $component = $this->app->make($meta->class);
-        $component->fusion()->id = $id;
-        $component->fusion()->name = $meta->name;
-        $this->stores->give($component, $meta);
-        $this->features->boot($component);
 
         /** fusion:model on its tag: the parent's value, for its #[Modelable] property (once mounted). */
         $model = array_key_exists(Protocol::modelProp(), $props) ? [$props[Protocol::modelProp()]] : null;
@@ -168,30 +165,40 @@ final class Placement
             throw new InvalidArgumentException("fusion:model on <fusion:{$meta->name}>: the component has no #[Modelable] property.");
         }
 
-        if ($meta->hasMount) {
-            $this->features->mounting($component);
-            $this->app->call([$component, ComponentHooks::MOUNT], $props);
-        } else {
-            foreach ($props as $prop => $value) {
-                if (($property = $meta->property($prop)) === null) {
-                    throw new InvalidArgumentException("Fusion component [{$meta->name}] has no public property \${$prop}.");
-                }
-
-                /** An enum property given its value (a child the browser placed): the case it names. */
-                if ($property->kind === PropertyMeta::ENUM && ! $property->accepts($value)) {
-                    throw new InvalidArgumentException("Fusion component [{$meta->name}]: \${$prop} takes a case of {$property->types[0]}.");
-                }
-
-                $component->{$prop} = $property->kind === PropertyMeta::ENUM ? $property->cast($value) : $value;
-            }
-
-            $this->features->mounting($component);
-        }
+        $this->stores->give($component, $meta);
+        $this->features->start(
+            $component,
+            $id,
+            $meta->name,
+            $meta->hasMount ? null : fn () => $this->fill($component, $meta, $props),
+            $meta->hasMount ? fn () => $this->app->call([$component, ComponentHooks::MOUNT], $props) : null,
+        );
 
         if ($model !== null) {
             $component->{$meta->modelable} = $model[0];
         }
 
         return $component;
+    }
+
+    /**
+     * Props into the public properties of the same name, for a component without mount().
+     *
+     * @param  array<string, mixed>  $props
+     */
+    private function fill(Component $component, ComponentMeta $meta, array $props): void
+    {
+        foreach ($props as $prop => $value) {
+            if (($property = $meta->property($prop)) === null) {
+                throw new InvalidArgumentException("Fusion component [{$meta->name}] has no public property \${$prop}.");
+            }
+
+            /** An enum property given its value (a child the browser placed): the case it names. */
+            if ($property->kind === PropertyMeta::ENUM && ! $property->accepts($value)) {
+                throw new InvalidArgumentException("Fusion component [{$meta->name}]: \${$prop} takes a case of {$property->types[0]}.");
+            }
+
+            $component->{$prop} = $property->kind === PropertyMeta::ENUM ? $property->cast($value) : $value;
+        }
     }
 }

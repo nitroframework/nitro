@@ -10,6 +10,7 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Build\ServerChildren;
@@ -17,16 +18,17 @@ use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Merge;
+use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
-use Nitro\Fusion\Rendering\ComponentRenderer;
-use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\SharedData;
+use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\Snapshots;
 use Nitro\Fusion\State\Stores;
+use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\CurrentRequest;
 use Nitro\Fusion\Support\LayoutKey;
 use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\UrlValues;
@@ -66,18 +68,15 @@ final class PageResponses
     public function page(Component $component, array $parameters): Response
     {
         $meta = $this->components->meta($component::class);
-        $component->fusion()->id = $this->pageId();
-        $component->fusion()->name = $meta->name;
         $this->stores->give($component, $meta);
-        $this->features->boot($component);
-        $this->features->mounting($component);
-
-        if ($meta->hasMount) {
+        $this->features->start(
+            $component,
+            $this->pageId(),
+            $meta->name,
+            $meta->hasMount ? null : fn () => $this->fillFromRoute($component, $meta, $parameters),
             /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
-            [$component, ComponentHooks::MOUNT](...array_values($parameters));
-        } else {
-            $this->fillFromRoute($component, $meta, $parameters);
-        }
+            $meta->hasMount ? fn () => [$component, ComponentHooks::MOUNT](...array_values($parameters)) : null,
+        );
 
         return $this->respond($component, $meta);
     }
@@ -176,9 +175,9 @@ final class PageResponses
      */
     public function partial(): ?array
     {
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
+        $request = CurrentRequest::of($this->app);
 
-        if (! $request instanceof Request || ! $request->headers->has(Protocol::header('navigate')) || ! $request->headers->has(Protocol::header('partial'))) {
+        if ($request === null || ! $request->headers->has(Protocol::header('navigate')) || ! $request->headers->has(Protocol::header('partial'))) {
             return null;
         }
 
@@ -191,10 +190,8 @@ final class PageResponses
     public function wants(string $property): bool
     {
         $only = $this->partial();
-        $names = $this->names->obfuscator();
 
-        return $only === null || $only === [] || in_array($property, $only, true)
-            || ($names !== null && in_array($names->property($property), $only, true));
+        return $only === null || $only === [] || in_array($property, $only, true) || in_array($this->names->property($property), $only, true);
     }
 
     /**
@@ -215,9 +212,7 @@ final class PageResponses
      */
     private function partialProperties(array $only, ComponentMeta $meta): array
     {
-        $names = $this->names->obfuscator();
-
-        return $names === null ? $only : array_map(fn (string $name) => $names->propertyName($name, array_keys($meta->properties)) ?? $name, $only);
+        return array_map(fn (string $name) => $this->names->propertyName($name, array_keys($meta->properties)), $only);
     }
 
     /**
@@ -226,7 +221,7 @@ final class PageResponses
      */
     private function pageId(): string
     {
-        $request = $this->app->make('request');
+        $request = $this->request();
         $id = match (true) {
             $this->partial() !== null => (string) $request->headers->get(Protocol::header('partial')),
             $request->headers->has(Protocol::header('navigate')) => (string) $request->headers->get(Protocol::header('id')),
@@ -234,6 +229,12 @@ final class PageResponses
         };
 
         return preg_match('/^f[a-z0-9]{10}$/', $id) === 1 ? $id : 'f'.Str::lower(Str::random(10));
+    }
+
+    /** The request the page answers: a page is only made for one. */
+    private function request(): Request
+    {
+        return CurrentRequest::of($this->app) ?? throw new LogicException('A page answers a request: there is none.');
     }
 
     /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
@@ -244,7 +245,7 @@ final class PageResponses
         $layoutData = [...($meta->layout->data ?? []), 'title' => $head['title']];
 
         /** The same URL answers with HTML or with page data: caches must keep them apart. */
-        $request = $this->app->make('request');
+        $request = $this->request();
 
         if ($request->headers->has(Protocol::header('navigate'))) {
             /** The browser runs another build's components (a deploy since it loaded): load the page in full. */

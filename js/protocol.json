@@ -18,14 +18,15 @@
     "attributes": {
         "id": "fusion:id",
         "name": "fusion:name",
-        "snapshot": "fusion:snapshot",
         "page": "fusion:page",
         "placeholder": "fusion:placeholder",
         "serverHtml": "fusion:rendered",
         "hydrate": "fusion:hydrate",
         "static": "fusion:static",
         "handler": "fusion:h-",
-        "directive": "fusion:h-directive"
+        "directive": "fusion:h-directive",
+        "globals": "data-fusion-globals",
+        "state": "data-fusion-state"
     },
     "snapshot": {
         "state": ["name", "id", "data", "memo", "issued"],

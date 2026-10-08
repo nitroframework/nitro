@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Lifecycle;
 
+use Closure;
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 use Nitro\Fusion\Component;
@@ -38,19 +39,39 @@ final class Features
         return method_exists($component, $hook) ? $component->{$hook}(...$arguments) : null;
     }
 
+    /**
+     * A new instance (a component, a page, a store), started in the one order every kind keeps:
+     * its id and name, boot, its inputs (props, a route's parameters), the features' mounting (a
+     * #[Url] value over an input), then mount() when it has one.
+     *
+     * @param  (Closure(): void)|null  $inputs  sets what it was given
+     * @param  (Closure(): void)|null  $mount  calls its mount() with what it was given
+     */
+    public function start(Component $component, string $id, string $name, ?Closure $inputs = null, ?Closure $mount = null): void
+    {
+        $component->fusion()->id = $id;
+        $component->fusion()->name = $name;
+        $this->boot($component);
+
+        if ($inputs !== null) {
+            $inputs();
+        }
+
+        foreach ($this->features() as $feature) {
+            $feature->mounting($component);
+        }
+
+        if ($mount !== null) {
+            $mount();
+        }
+    }
+
     public function boot(Component $component): void
     {
         self::hook($component, ComponentHooks::BOOT);
 
         foreach ($this->features() as $feature) {
             $feature->boot($component);
-        }
-    }
-
-    public function mounting(Component $component): void
-    {
-        foreach ($this->features() as $feature) {
-            $feature->mounting($component);
         }
     }
 

@@ -3,10 +3,10 @@
 namespace Nitro\Fusion\Attributes;
 
 use Attribute;
-use Illuminate\Http\Request;
 use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\FeatureAttribute;
+use Nitro\Fusion\Support\CurrentRequest;
 
 /**
  * A property kept in the query string, as Livewire's #[Url]: the page reads it from the URL when
@@ -41,11 +41,11 @@ final class Url extends FeatureAttribute
     /** The value from the request's query string, when the component is created (before mount(), so mount() sees it). */
     public function mounting(Component $component): void
     {
-        $request = app()->bound('request') ? app('request') : null;
+        $request = CurrentRequest::of(app());
         $name = (string) $this->target();
         $key = $this->as ?? $name;
 
-        if (! $request instanceof Request || ! $request->query->has($key)) {
+        if ($request === null || ! $request->query->has($key)) {
             return;
         }
 

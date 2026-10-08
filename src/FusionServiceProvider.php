@@ -22,7 +22,7 @@ use Nitro\Fusion\Console\BuildCommand;
 use Nitro\Fusion\Console\ClearCommand;
 use Nitro\Fusion\Console\SsrCommand;
 use Nitro\Fusion\Http\AssetController;
-use Nitro\Fusion\Http\FillPortals;
+use Nitro\Fusion\Http\FinishPage;
 use Nitro\Fusion\Http\PageResponses;
 use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
@@ -30,6 +30,7 @@ use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\Rendering\PageData;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Placement;
 use Nitro\Fusion\Rendering\Portals;
@@ -84,6 +85,7 @@ class FusionServiceProvider extends ServiceProvider
         $this->app->scoped(Snapshots::class, fn (Application $app) => new Snapshots(
             $app->make(Signer::class),
             $app->make(BrowserNames::class),
+            $app->make(Components::class),
             ($lifetime = $app->make('config')->get('fusion.state.lifetime')) === null ? null : (int) $lifetime,
         ));
 
@@ -98,7 +100,7 @@ class FusionServiceProvider extends ServiceProvider
             return $engines;
         });
 
-        $this->app->scoped(ComponentRenderer::class, fn (Application $app) => new ComponentRenderer($app->make('view'), $app->make(ViewEngines::class), $app->make(BrowserNames::class), $app->make(Features::class), $app));
+        $this->app->scoped(ComponentRenderer::class, fn (Application $app) => new ComponentRenderer($app->make('view'), $app->make(ViewEngines::class), $app->make(BrowserNames::class), $app->make(Features::class), $app, $app->make(PageData::class)));
 
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
             (array) $app->make('config')->get('fusion.components'),
@@ -115,7 +117,7 @@ class FusionServiceProvider extends ServiceProvider
         ));
 
         /** Fusion's parts, one each per request: each takes what it needs in its constructor. */
-        foreach ([BrowserNames::class, ServerChildren::class, Placement::class, SharedData::class, Stores::class, Tags::class, Portals::class, PageHead::class, Scripts::class, PageResponses::class] as $part) {
+        foreach ([PageData::class, BrowserNames::class, ServerChildren::class, Placement::class, SharedData::class, Stores::class, Tags::class, Portals::class, PageHead::class, Scripts::class, PageResponses::class] as $part) {
             $this->app->scoped($part);
         }
 
@@ -209,7 +211,7 @@ class FusionServiceProvider extends ServiceProvider
         $this->testing();
 
         /** The @portal placeholders in any web response get the content teleported to them. */
-        $this->app->make('router')->pushMiddlewareToGroup('web', FillPortals::class);
+        $this->app->make('router')->pushMiddlewareToGroup('web', FinishPage::class);
 
         /**
          * Route::fusion('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':

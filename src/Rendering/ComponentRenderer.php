@@ -2,8 +2,6 @@
 
 namespace Nitro\Fusion\Rendering;
 
-use Symfony\Component\HttpKernel\Exception\HttpException;
-use Illuminate\Http\Request;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\View\Factory as ViewFactory;
 use Nitro\Fusion\Build\BrowserNames;
@@ -12,8 +10,10 @@ use Nitro\Fusion\Component;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\Support\CurrentRequest;
 use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\View\ViewEngines;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Renders one component on the server: a child in another's view, an island in a Blade view,
@@ -50,6 +50,7 @@ final class ComponentRenderer
         private readonly BrowserNames $names,
         private readonly Features $features,
         private readonly Container $app,
+        private readonly PageData $pageData,
     ) {
     }
 
@@ -60,9 +61,9 @@ final class ComponentRenderer
             return $this->renderingFor;
         }
 
-        $request = $this->app->bound('request') ? $this->app->make('request') : null;
+        $request = CurrentRequest::of($this->app);
 
-        if (! $request instanceof Request || $request->route() === null) {
+        if ($request === null || $request->route() === null) {
             return [];
         }
 
@@ -121,7 +122,7 @@ final class ComponentRenderer
     }
 
     /**
-     * The component's HTML: its view, root element marked with id, name and signed state.
+     * The component's HTML: its view, root element marked with id and name; its signed state goes to the page's block (PageData).
      *
      * @param  array<string, mixed>  $memo
      * @param  array<string, string>  $attributes  extra attributes for the root element
@@ -141,10 +142,11 @@ final class ComponentRenderer
             $this->collected[$component->getId()] = json_decode($envelope, true);
         }
 
+        $this->pageData->keep($component->getId(), $envelope);
+
         return RootElement::mark($html, [
             Protocol::attribute('id') => $component->getId(),
             Protocol::attribute('name') => $name,
-            Protocol::attribute('snapshot') => $envelope,
             ...$attributes,
         ], $meta->name);
     }

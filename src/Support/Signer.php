@@ -3,7 +3,6 @@
 namespace Nitro\Fusion\Support;
 
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -103,17 +102,12 @@ final class Signer
      */
     private function sessionSecret(): ?string
     {
-        if (! $this->app->make('config')->get('fusion.state.bind_to_session') || ! $this->app->bound('request')) {
+        $session = $this->app->make('config')->get('fusion.state.bind_to_session') ? CurrentRequest::session($this->app) : null;
+
+        if ($session === null) {
             return null;
         }
 
-        $request = $this->app->make('request');
-
-        if (! $request instanceof Request || ! $request->hasSession()) {
-            return null;
-        }
-
-        $session = $request->session();
         $secret = $session->get('fusion.secret');
 
         if (! is_string($secret) || $secret === '') {

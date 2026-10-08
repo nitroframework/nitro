@@ -48,15 +48,13 @@ final class Stores
         if (! isset($this->stores[$meta->name])) {
             /** @var Store $store */
             $store = $this->app->make($meta->class);
-            $store->fusion()->id = $meta->name;
-            $store->fusion()->name = $meta->name;
             $this->stores[$meta->name] = $store;
-            $this->features->boot($store);
-            $this->features->mounting($store);
-
-            if ($meta->hasMount) {
-                $this->app->call([$store, ComponentHooks::MOUNT]);
-            }
+            $this->features->start(
+                $store,
+                $meta->name,
+                $meta->name,
+                mount: $meta->hasMount ? fn () => $this->app->call([$store, ComponentHooks::MOUNT]) : null,
+            );
         }
 
         return $this->stores[$meta->name];

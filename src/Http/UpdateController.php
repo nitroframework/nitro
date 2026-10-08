@@ -13,21 +13,22 @@ use InvalidArgumentException;
 use JsonException;
 use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Build\ServerChildren;
-use Nitro\Fusion\Component;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Compiler\PropertyMeta;
+use Nitro\Fusion\Component;
+use Nitro\Fusion\Http\IncomingState;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\PropertyHooks;
 use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\Snapshots;
 use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Store;
+use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Support\Config;
 use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\Support\PropertyHooks;
 use Nitro\Fusion\Support\Types;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -55,7 +56,6 @@ final class UpdateController
 {
     public function __construct(
         private readonly Container $container,
-        private readonly PersistentMiddleware $persistent,
     ) {
     }
 
@@ -90,27 +90,13 @@ final class UpdateController
             $component = app(Stores::class)->store($meta->class);
             $memo = [];
         } else {
-            $snapshot = $this->snapshots()->open($payload['snapshot'] ?? null);
-
-            if ($snapshot->isPartial()) {
-                throw new HttpException(403, 'A partial reload is not a component\'s state.');
-            }
-
-            /** An obfuscated build's alias: the component it stands for. */
-            $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
-
-            if (! $this->components()->has($snapshot->name)) {
-                throw new HttpException(404, 'Unknown component.');
-            }
-
-            $this->persistent->check($snapshot->memo['route'] ?? [], $request);
+            $snapshot = $this->incoming()->snapshot($payload['snapshot'] ?? null, $request);
 
             $meta = $this->components()->meta($snapshot->name);
             $memo = array_intersect_key($snapshot->memo, ['route' => true]);
 
             /** @var Component $component */
             $component = $this->container->make($meta->class);
-            $snapshot = $snapshot->fromBrowser($this->names()->obfuscator(), array_keys($meta->properties));
             $snapshot->restore($component, $meta);
             $this->applyPartials($component, $meta, $snapshot, $payload['partials'] ?? []);
 
@@ -165,9 +151,9 @@ final class UpdateController
                 ], fn ($value) => $value !== null), $context->dispatches),
                 'redirect' => $context->redirect,
                 /** Reading $fusion.<name> by the browser's names (an obfuscated build). */
-                'js' => array_map(fn (string $code) => $this->names()->obfuscator()?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code, $context->js),
+                'js' => array_map(fn (string $code) => $this->names()->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]), $context->js),
                 /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
-                'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->names()->obfuscator()?->property($property) ?? $property, $context->reload)],
+                'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->names()->property($property), $context->reload)],
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($value) => $value !== null && $value !== []),
         ]);
@@ -197,18 +183,10 @@ final class UpdateController
             }
 
             if (($entry['snapshot'] ?? null) !== null) {
-                $snapshot = $this->snapshots()->open($entry['snapshot']);
-                $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
-
-                if ($snapshot->isPartial() || $snapshot->name !== $storeMeta->name) {
-                    throw new HttpException(403, 'This is not the state of the store the component uses.');
-                }
-
-                $this->persistent->check($snapshot->memo['route'] ?? [], $request);
+                $snapshot = $this->incoming()->snapshot($entry['snapshot'], $request, $storeMeta->name);
 
                 /** @var Store $store */
                 $store = $this->container->make($storeMeta->class);
-                $snapshot = $snapshot->fromBrowser($this->names()->obfuscator(), array_keys($storeMeta->properties));
                 $snapshot->restore($store, $storeMeta);
                 app(Stores::class)->adopt($store, array_intersect_key($snapshot->memo, ['route' => true]));
                 $this->features()->boot($store);
@@ -236,29 +214,8 @@ final class UpdateController
         }
 
         foreach ($partials as $envelope) {
-            $partial = $this->snapshots()->open($envelope);
-
-            if (! $partial->isPartial() || $partial->id !== $snapshot->id || $this->names()->componentName($partial->name) !== $snapshot->name) {
-                throw new HttpException(403, 'This partial reload belongs to another component.');
-            }
-
-            /** Rendered for the page of the snapshot: the middleware checked is that page's (another route of the same page could bind other models). */
-            if (self::page($partial->memo['route'] ?? null) !== self::page($snapshot->memo['route'] ?? null)) {
-                throw new HttpException(403, 'This partial reload belongs to another page.');
-            }
-
-            $partial->fromBrowser($this->names()->obfuscator(), array_keys($meta->properties))->restore($component, $meta);
+            $this->incoming()->partial($envelope, $snapshot)->restore($component, $meta);
         }
-    }
-
-    /** A snapshot's page: its method and path (the route and its bindings; a query string, such as a scroll prop's page, is not another page). */
-    private static function page(mixed $route): ?string
-    {
-        if (! is_array($route) || ! is_string($route['uri'] ?? null)) {
-            return null;
-        }
-
-        return ($route['method'] ?? '').' '.(parse_url($route['uri'], PHP_URL_PATH) ?: '/');
     }
 
     /**
@@ -276,7 +233,7 @@ final class UpdateController
 
         foreach ($updates as $name => $encoded) {
             /** By the browser's name for it (an obfuscated build). */
-            $name = is_string($name) ? ($this->names()->obfuscator()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
+            $name = is_string($name) ? $this->names()->propertyName($name, array_keys($meta->properties)) : $name;
             $property = is_string($name) ? $meta->property($name) : null;
 
             try {
@@ -322,9 +279,8 @@ final class UpdateController
             $params = array_slice($params, 0, count($meta->serverParameters[$method]));
 
             /** updated(): the path names its property by the browser's name (an obfuscated build). */
-            if (PropertyHooks::takesPath($method) && is_string($params[0] ?? null) && ($names = $this->names()->obfuscator()) !== null) {
-                [$root, $rest] = array_pad(explode('.', $params[0], 2), 2, null);
-                $params[0] = ($names->propertyName($root, array_keys($meta->properties)) ?? $root).($rest === null ? '' : '.'.$rest);
+            if (PropertyHooks::takesPath($method) && is_string($params[0] ?? null)) {
+                $params[0] = $this->names()->propertyPath($params[0], array_keys($meta->properties));
             }
         }
 
@@ -466,6 +422,11 @@ final class UpdateController
      * This request's Fusion. The router keeps a controller between requests (Octane, Nitro's
      * workers): Fusion, bound per request, is not kept with it.
      */
+    private function incoming(): IncomingState
+    {
+        return app(IncomingState::class);
+    }
+
     private function names(): BrowserNames
     {
         return app(BrowserNames::class);

@@ -10,7 +10,7 @@ use JsonException;
 use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\Http\IncomingState;
 use Nitro\Fusion\Support\Config;
 use Nitro\Fusion\Support\Wire;
 use Nitro\Fusion\Upload;
@@ -34,11 +34,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 final class UploadController
 {
-    public function __construct(
-        private readonly PersistentMiddleware $persistent,
-    ) {
-    }
-
     public function store(Request $request): JsonResponse
     {
         try {
@@ -47,19 +42,12 @@ final class UploadController
             throw new HttpException(400, 'Malformed upload.');
         }
 
-        $snapshot = app(Snapshots::class)->open($envelope);
-        $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
-
-        if (! $this->components()->has($snapshot->name)) {
-            throw new HttpException(404, 'Unknown component.');
-        }
-
-        $this->persistent->check($snapshot->memo['route'] ?? [], $request);
+        $snapshot = app(IncomingState::class)->snapshot($envelope, $request);
 
         $name = $request->input('property');
         $meta = $this->components()->meta($snapshot->name);
         /** By the browser's name for it (an obfuscated build). */
-        $name = is_string($name) ? ($this->names()->obfuscator()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
+        $name = is_string($name) ? $this->names()->propertyName($name, array_keys($meta->properties)) : $name;
         $property = is_string($name) ? $meta->property($name) : null;
         /** Several files only for an #[Uploads] array; any other array takes none. */
         $multiple = $property !== null && $property->uploads;
@@ -81,7 +69,7 @@ final class UploadController
 
         if ($validator->fails()) {
             /** Keyed by the browser's name for the property (an obfuscated build). */
-            $field = $this->names()->obfuscator()?->property($name) ?? $name;
+            $field = $this->names()->property($name);
 
             return new JsonResponse(['message' => $validator->errors()->first(), 'errors' => [$field => array_values(array_unique($validator->errors()->all()))]], 422);
         }
