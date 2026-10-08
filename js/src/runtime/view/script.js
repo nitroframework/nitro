@@ -22,6 +22,9 @@
  *   handle.errors()               the validation messages, by field
  *   handle.unsaved()              the properties changed here that the server has not seen yet
  *   handle.dispatch(event, ...)   an event, as $this->dispatch() sends one
+ *   handle.upload(path, files, progress)
+ *                                 files into an Upload (or #[Uploads]) property, as fusion:model
+ *                                 does for a file input: a promise of its new value
  *   handle.id                     the component's id on the page
  *   handle.properties, .methods, .server, .computed    the names
  *   handle.component              the component itself, as Fusion.find() gives it
@@ -31,6 +34,8 @@
  */
 import * as P from '../../php.js';
 import { fromPlain, toPlain } from './plain.js';
+import { send } from '../server/upload.js';
+import { ATTRIBUTES, SIGNALS, VIEW_WRAPPER } from '../protocol.js';
 
 export class ScriptView {
     constructor(runtime, views, engine, definition, $this, host) {
@@ -52,11 +57,11 @@ export class ScriptView {
      * Without, it is empty, and the view mounts in it.
      */
     hydrate(el) {
-        this.mount(el, { hydrate: el.hasAttribute('fusion:rendered') });
+        this.mount(el, { hydrate: el.hasAttribute(ATTRIBUTES.serverHtml) });
     }
 
     create() {
-        const el = this.runtime.document.createElement('div');
+        const el = this.runtime.document.createElement(VIEW_WRAPPER);
         this.mount(el, { hydrate: false });
         return el;
     }
@@ -69,7 +74,7 @@ export class ScriptView {
 
     /** The server has taken what changed here: what is unsaved is worked out again. */
     saved() {
-        this.notify(['$unsaved']);
+        this.notify([SIGNALS.unsaved]);
     }
 
     refreshSlots() {}
@@ -182,6 +187,24 @@ export class ScriptView {
 
             dispatch(event, ...params) {
                 component()?.dispatch(event, params.map((param) => fromPlain(param)));
+            },
+
+            /**
+             * Files into a property that takes them (an Upload, or #[Uploads] for a list: the
+             * property's value says which), as fusion:model does for a file input. Resolves with
+             * the property's new value; null when the server's rules refused them (errors() says
+             * why); rejects when the request failed. progress(0-100) as it goes.
+             */
+            upload(path, files, progress) {
+                const [browser, keys] = property(path);
+                const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
+                const owner = component();
+                if (!owner) return Promise.reject(new Error('Fusion: the component has left the page'));
+                return send(runtime, runtime.network.config, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
+                    if (result.failed) throw new Error(`Fusion: uploading ${path}: ${result.message}`);
+                    if (result.refused) return null;
+                    return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);
+                });
             },
         };
     }

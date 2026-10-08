@@ -8,15 +8,16 @@
  * so its handler runs. What is typed in an island before it is live (its chunk loading) is kept:
  * starting puts its fields as the state says, so they get it back, and fusion:model hears it.
  */
+import { ATTRIBUTES, selector } from '../protocol.js';
 
 /** The islands under root that start later: elements with fusion:hydrate. */
 export function islandsIn(root) {
-    return [...(root.matches?.('[fusion\\:hydrate]') ? [root] : []), ...root.querySelectorAll('[fusion\\:hydrate]')];
+    return [...(root.matches?.(selector('hydrate')) ? [root] : []), ...root.querySelectorAll(selector('hydrate'))];
 }
 
 /** Call start() once the island's moment comes. start() returns a promise: the island is live. */
 export function whenToStart(island, window, start) {
-    const spec = island.getAttribute('fusion:hydrate') ?? '';
+    const spec = island.getAttribute(ATTRIBUTES.hydrate) ?? '';
     const colon = spec.indexOf(':');
     const when = colon === -1 ? spec : spec.slice(0, colon);
     const option = colon === -1 ? '' : spec.slice(colon + 1);

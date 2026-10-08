@@ -6,22 +6,26 @@
 import { globals } from '../laravel/laravel.js';
 import * as P from '../php.js';
 import { Chunks } from './chunks.js';
-import { Component, readState } from './component/component.js';
+import { Component } from './component/component.js';
+import { readState } from './component/snapshot.js';
+import { Placement } from './component/placement.js';
+import { restoreRemembered } from './component/remember.js';
+import { Stores } from './component/stores.js';
+import { PageMount } from './navigation/page-mount.js';
 import { Directives } from './directives.js';
 import { Engines } from './view/engines.js';
 import { Plugins } from './plugins.js';
-import { ErrorBag } from './component/errors.js';
 import { Events } from './dom/events.js';
-import { Hooks } from './dom/hooks.js';
+import { Triggers } from './dom/triggers.js';
 import { islandsIn, whenToStart } from './dom/islands.js';
 import { Broadcasts } from './server/echo.js';
 import { applyLoading, STYLE } from './dom/loading.js';
 import { applyDirty, STYLE as DIRTY_STYLE } from './dom/dirty.js';
 import { Model } from './dom/model.js';
-import { Navigator, webUrl } from './navigation/navigate.js';
+import { Navigator } from './navigation/navigate.js';
 import { Network } from './server/network.js';
 import { SharedData } from './component/shared.js';
-import { Store } from './component/store.js';
+import { ATTRIBUTES, selector } from './protocol.js';
 
 /** sessionStorage: the page stale() loaded again, so it does not again. */
 const STALE = 'fusion:stale';
@@ -32,22 +36,22 @@ export class Runtime {
         this.document = window.document;
         this.config = config;
         this.definitions = new Map();
-        /** Stores: their compiled definitions, the tab's instances, and the server's states of those not made yet. */
-        this.storeDefinitions = new Map();
-        this.stores = new Map();
-        this.storeStates = new Map();
+        /** Stores: their compiled definitions, the tab's instances, and the server's states of those not made yet (component/stores.js). */
+        this.stores = new Stores(this);
         /** #[Browser] classes: class => its compiled static methods, which browser code calls as Fusion.classes[class][method](). */
         this.classes = Object.create(null);
         /** #[LazyLoad] chunks, and the markup-first pages (chunks.js) */
         this.chunks = new Chunks(this);
         this.instances = new Map();
         this.inflight = new WeakMap();
-        /** Signed state of the children with mount() or #[Server] methods the server created for the page being rendered, by id. */
-        this.provided = new Map();
+        /** The children a render places, and components made in the browser (component/placement.js). */
+        this.placement = new Placement(this);
+        /** A visit's page mounted in place (navigation/page-mount.js). */
+        this.pageMount = new PageMount(this);
         /** Shared, once and flash data from the server (shared.js) */
         this.shared = new SharedData(this);
         this.events = new Events(this, this.document);
-        this.hooks = new Hooks(this, window);
+        this.triggers = new Triggers(this, window);
         this.directives = new Directives(this);
         this.engines = new Engines(this);
         this.plugins = new Plugins(this);
@@ -88,30 +92,7 @@ export class Runtime {
 
     /** Fusion.store(name, definition): a store, from app.js. */
     store(name, definition) {
-        this.storeDefinitions.set(name, definition);
-    }
-
-    /**
-     * Stores' signed states from the server (the page, a visit's data): kept for the stores not
-     * made yet. One already made keeps its own: it is what the page's components have been
-     * changing, across visits.
-     */
-    takeStores(envelopes) {
-        for (const [name, envelope] of Object.entries(envelopes ?? {})) {
-            if (!this.stores.has(name)) this.storeStates.set(name, envelope);
-        }
-    }
-
-    /** The tab's store of that name: made the first time a component asks, from the server's state if it sent one. */
-    storeNamed(name) {
-        if (!this.stores.has(name)) {
-            const definition = this.storeDefinitions.get(name);
-            if (!definition) throw new Error(`Fusion: store [${name}] is not compiled`);
-            this.stores.set(name, new Store(this, definition, name, this.storeStates.get(name) ?? null));
-            this.storeStates.delete(name);
-            this.plugins.madeStore(this.stores.get(name));
-        }
-        return this.stores.get(name);
+        this.stores.define(name, definition);
     }
 
     /**
@@ -135,64 +116,6 @@ export class Runtime {
     /** The markup-first page a path shows, with the properties a client page takes from it ({ name, props }), or null. */
     markupMatch(path) {
         return this.chunks.markupMatch(path);
-    }
-
-    /**
-     * A markup-first visit: the page rendered at once in place of the current one, with its
-     * properties' defaults, each counting as deferred until the data arrives (arrive()). Null when
-     * it cannot render without its data; the visit then goes on as a data-first one.
-     */
-    renderEarly(current, name, definition, props = {}) {
-        /** A client page (#[Navigate('client')]) needs nothing from the server: it is complete as it renders. */
-        const client = Boolean(definition.client);
-        const data = new Map();
-        for (const [prop, spec] of Object.entries(definition.props)) {
-            if ('default' in spec) data.set(prop, P.decode(spec.default));
-        }
-        /** A client page's route parameters, from the URL, in the properties of the same name. */
-        for (const [prop, value] of Object.entries(props)) data.set(prop, value);
-        const id = 'f' + Math.random().toString(36).slice(2, 12).padEnd(10, '0');
-        const state = { id, name, data, errors: new ErrorBag(), deferred: client ? [] : Object.keys(definition.props) };
-        const placeholder = this.document.createElement('div');
-        current.replaceWith(placeholder);
-        this.forget(current);
-        const component = this.create(placeholder, definition, state, null, { 'fusion:page': definition.markup }, {}, { early: !client });
-        if (component === null) {
-            placeholder.replaceWith(current);
-            return null;
-        }
-        if (client) return component;
-        component.sent = new Map(component.data);
-        /** Its #[Server] calls wait for its signed state. */
-        component.arrival = new Promise((resolve) => (component.arrived = resolve));
-        this.network.queues.set(component, component.arrival);
-        return component;
-    }
-
-    /**
-     * The data of a page rendered early: its id, signed state, deferred properties and the
-     * children only the server could make. What changed here meanwhile (typed, toggled) is kept.
-     */
-    arrive(component, page) {
-        const state = readState(page.snapshot);
-        this.instances.delete(component.id);
-        component.id = state.id;
-        component.el.setAttribute('fusion:id', state.id);
-        this.instances.set(state.id, component);
-        component.early = false;
-        component.errors = state.errors;
-        component.deferred = new Set(state.deferred);
-        component.setScroll(state.scroll, true);
-        component.dirty.add('$deferred');
-        component.dirty.add('$errors');
-        this.provided = new Map(Object.entries(page.children ?? {}));
-        try {
-            component.applyReload(page.snapshot, [], component.sent ?? new Map());
-        } finally {
-            this.provided.clear();
-        }
-        this.loadDeferred(component);
-        component.arrived?.();
     }
 
     /**
@@ -240,7 +163,7 @@ export class Runtime {
     start(root = this.document.body) {
         if (this.reloading) return Promise.resolve();
         /** The stores the page's components use, as the server made them (before any component is). */
-        this.takeStores(globals.stores);
+        this.stores.take(globals.stores);
         if (!this.styled) {
             const style = this.document.createElement('style');
             style.textContent = STYLE + DIRTY_STYLE;
@@ -261,7 +184,7 @@ export class Runtime {
             }
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
-            this.restoreRemembered(this.window.history.state?.fusionRemember);
+            restoreRemembered(this, this.window.history.state?.fusionRemember);
             /** The page's once data, kept for the responses after it; its flash data, announced. */
             this.shared.withOnce(globals.shared, globals.once ?? {});
             this.shared.announceFlash(globals.flash);
@@ -270,13 +193,23 @@ export class Runtime {
         for (const island of islands) {
             whenToStart(island, this.window, () => {
                 if (!island.isConnected) return Promise.resolve();
-                island.removeAttribute('fusion:hydrate');
+                island.removeAttribute(ATTRIBUTES.hydrate);
                 /** Not those of an island inside it that is still waiting. */
                 const waiting = islandsIn(island);
                 return this.take(snapshotsIn(island).filter((el) => !waiting.some((inner) => inner.contains(el))));
             });
         }
         return live;
+    }
+
+    /**
+     * Components now in the page: mounted() once they are all there (a child's is there for its
+     * parent's), then their broadcast listeners, then their deferred properties asked for.
+     */
+    live(components) {
+        components.forEach((component) => component.hook('mounted'));
+        components.forEach((component) => this.broadcasts.subscribe(component));
+        components.forEach((component) => this.loadDeferred(component));
     }
 
     /**
@@ -287,13 +220,10 @@ export class Runtime {
         const go = () => {
             const created = elements.map((el) => this.hydrate(el)).filter(Boolean);
             created.forEach((component) => component.hydrate());
-            /** mounted() once they are all live (a child's is there for its parent's). */
-            created.forEach((component) => component.hook('mounted'));
-            created.forEach((component) => this.broadcasts.subscribe(component));
-            created.forEach((component) => this.loadDeferred(component));
+            this.live(created);
         };
 
-        const waiting = this.require(elements.map((el) => nameIn(el.getAttribute('fusion:snapshot'))));
+        const waiting = this.require(elements.map((el) => nameIn(el.getAttribute(ATTRIBUTES.snapshot))));
         if (!waiting) {
             go();
             return Promise.resolve();
@@ -313,13 +243,13 @@ export class Runtime {
         let envelope;
         let state;
         try {
-            envelope = JSON.parse(el.getAttribute('fusion:snapshot'));
+            envelope = JSON.parse(el.getAttribute(ATTRIBUTES.snapshot));
             state = readState(envelope);
         } catch (error) {
             this.report(null, new Error('Fusion: unreadable component state'));
             return null;
         }
-        el.removeAttribute('fusion:snapshot');
+        el.removeAttribute(ATTRIBUTES.snapshot);
 
         const definition = this.definitions.get(state.name);
         if (!definition) {
@@ -348,7 +278,7 @@ export class Runtime {
     owner(el) {
         for (let node = el; node; node = node.parentElement) {
             if (node.fusionOwner !== undefined) return this.find(node.fusionOwner);
-            if (node.hasAttribute?.('fusion:id')) return this.find(node.getAttribute('fusion:id'));
+            if (node.hasAttribute?.(ATTRIBUTES.id)) return this.find(node.getAttribute(ATTRIBUTES.id));
         }
         return null;
     }
@@ -365,160 +295,6 @@ export class Runtime {
                 this.instances.delete(id);
             }
         }
-    }
-
-    /**
-     * After a render: the children it placed. Existing ones keep their state (a child without
-     * mount() takes the new props); new ones are created in the browser, which only a component
-     * without mount() can be (mount() runs on the server).
-     */
-    children(parent, specs) {
-        for (const spec of specs) {
-            const existing = this.instances.get(spec.id);
-            const definition = this.definitions.get(spec.name);
-
-            if (existing) {
-                existing.parent = parent;
-                /** The parent rendered its tag again: the slots come from there now. */
-                if (spec.slots) existing.setSlots(spec.slots);
-                /** fusion:model on its tag: its #[Modelable] property follows the parent's value. */
-                if (spec.model && definition?.modelable && '$model' in spec.props) {
-                    existing.model = { parent, path: spec.model };
-                    if (existing.data.get(definition.modelable) !== spec.props.$model) {
-                        existing.data.set(definition.modelable, spec.props.$model);
-                        existing.changed(definition.modelable);
-                    }
-                }
-                if (definition && !definition.mount) {
-                    for (const [prop, value] of Object.entries(spec.props)) {
-                        if (existing.data.get(prop) !== value && prop in definition.props) {
-                            existing.data.set(prop, value);
-                            existing.serverData.set(prop, value);
-                            existing.changed(prop);
-                        }
-                    }
-                }
-                continue;
-            }
-
-            const placeholder = parent.scan('[fusion\\:placeholder]').find((el) => el.getAttribute('fusion:id') === spec.id);
-            if (!placeholder) continue;
-
-            /** A #[LazyLoad] child: made once its chunk is here (its placeholder waits for it). */
-            const waiting = definition ? null : this.require([spec.name]);
-            if (waiting) {
-                waiting.then(() => this.children(parent, [spec]), (error) => this.report(parent, error));
-                continue;
-            }
-
-            if (!definition) {
-                this.report(parent, new Error(`Fusion: component [${spec.name}] is not compiled`));
-                continue;
-            }
-
-            /** Created by the server for the page being rendered (mountPage()), with its signed state: one with mount() or #[Server] methods. */
-            const envelope = this.provided.get(spec.id);
-            const provided = envelope ? readState(envelope) : null;
-            if (provided && provided.id === spec.id && provided.name === spec.name) {
-                this.provided.delete(spec.id);
-                this.create(placeholder, definition, provided, envelope, {}, spec.slots, { parent, model: spec.model ? { parent, path: spec.model } : null });
-                continue;
-            }
-
-            /** A page rendered before its data: the server makes the child when the data comes. */
-            if (parent.early && (definition.mount || definition.server.length > 0)) continue;
-
-            if (definition.mount) {
-                this.report(parent, new Error(`Fusion: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
-                continue;
-            }
-
-            const data = new Map();
-            for (const [name, prop] of Object.entries(definition.props)) {
-                if ('default' in prop) data.set(name, P.decode(prop.default));
-            }
-            for (const [name, value] of Object.entries(spec.props)) {
-                if (name === '$model') {
-                    if (!definition.modelable) {
-                        this.report(parent, new Error(`Fusion: fusion:model on <fusion:${spec.name}>: it has no #[Modelable] property`));
-                        continue;
-                    }
-                    data.set(definition.modelable, value);
-                    continue;
-                }
-                if (!(name in definition.props)) {
-                    this.report(parent, new Error(`Fusion: [${spec.name}] has no property $${name}`));
-                    continue;
-                }
-                data.set(name, value);
-            }
-
-            this.create(placeholder, definition, { id: spec.id, name: spec.name, data, errors: new ErrorBag() }, null, {}, spec.slots, { parent, model: spec.model ? { parent, path: spec.model } : null });
-        }
-    }
-
-    /**
-     * A component the browser renders itself, in place of the element given: a child, or a page
-     * (with its server-made state). Its render places its children, made after it is in the page.
-     */
-    create(placeholder, definition, state, envelope, attributes = {}, slots = {}, links = {}) {
-        const component = new Component(this, definition, placeholder, state.id, state.name, state.data, envelope, state.errors);
-        component.slots = slots ?? {};
-        component.parent = links.parent ?? null;
-        component.model = links.model ?? null;
-        /** A markup-first page rendered before its data (renderEarly()). */
-        component.early = links.early ?? false;
-        component.deferred = new Set(state.deferred ?? []);
-        component.scroll = new Map(state.scroll ?? []);
-        const made = component.create((root) => {
-            root.setAttribute('fusion:id', state.id);
-            root.setAttribute('fusion:name', state.name);
-            for (const [name, value] of Object.entries(attributes)) root.setAttribute(name, value);
-            placeholder.replaceWith(root);
-            this.instances.set(state.id, component);
-        });
-        if (!made) return null;
-        component.hook('mounted');
-        this.broadcasts.subscribe(component);
-        this.loadDeferred(component);
-        return component;
-    }
-
-    /**
-     * #[Remember]: the remembered properties of the components on the page, by component (its
-     * name and its place among those of that name); null when there are none.
-     */
-    remembered() {
-        const saved = {};
-        for (const [key, component] of this.rememberKeys()) {
-            const values = {};
-            for (const [name, prop] of Object.entries(component.definition.props)) {
-                if (prop.remember) values[name] = P.encode(component.data.get(name) ?? null);
-            }
-            if (Object.keys(values).length > 0) saved[key] = values;
-        }
-        return Object.keys(saved).length > 0 ? saved : null;
-    }
-
-    /** #[Remember]: the values the history entry kept, back in the components they belong to. */
-    restoreRemembered(saved) {
-        if (!saved || typeof saved !== 'object') return;
-        for (const [key, component] of this.rememberKeys()) {
-            for (const [name, value] of Object.entries(saved[key] ?? {})) {
-                const prop = component.definition.props[name];
-                if (prop?.remember) component.write(name, P.decode(value), prop);
-            }
-        }
-    }
-
-    /** @returns {Array<[string, Component]>} each component on the page with its key: "name#n" */
-    rememberKeys() {
-        const seen = new Map();
-        return this.components().filter((component) => !component.destroyed).map((component) => {
-            const n = seen.get(component.name) ?? 0;
-            seen.set(component.name, n + 1);
-            return [`${component.name}#${n}`, component];
-        });
     }
 
     /** A page with deferred properties asks for them once it is shown. */
@@ -538,35 +314,12 @@ export class Runtime {
         return this.network.reload(component, only.map(P.toStr));
     }
 
-    /**
-     * fusion:navigate: render the page the server described (Fusion::pageData()) in place of the
-     * current one. False when it cannot be done here (the page loads normally then).
-     */
-    mountPage(current, page) {
-        let state;
-        try {
-            state = readState(page.snapshot);
-        } catch {
-            return false;
-        }
-        const definition = this.definitions.get(state.name);
-        if (!definition) return false;
-
-        this.provided = new Map(Object.entries(page.children ?? {}));
-        this.forget(current);
-        try {
-            return this.create(current, definition, state, page.snapshot, { 'fusion:page': page.layout }) !== null;
-        } finally {
-            this.provided.clear();
-        }
-    }
-
     afterRender(component) {
         this.events.watch(component);
         this.model.sync(component);
         applyLoading(component, this.inflight.get(component) ?? new Set());
         applyDirty(component);
-        this.hooks.sync(component);
+        this.triggers.sync(component);
         this.directives.sync(component);
         this.plugins.rendered(component);
     }
@@ -624,21 +377,6 @@ export class Runtime {
         });
     }
 
-    /** What a #[Server] call asked for besides the new state. */
-    effects(component, effects) {
-        for (const { event, params, to, self } of effects.dispatches ?? []) {
-            this.dispatch(event, P.decode(params), component, { to, self });
-        }
-        for (const code of effects.js ?? []) {
-            component.js(code);
-        }
-        if (effects.reload) this.reload(component, effects.reload.only).catch(() => {});
-        if (effects.redirect) {
-            const url = webUrl(effects.redirect.url, this.window.location.href);
-            if (url) effects.redirect.navigate ? this.navigator.visit(url.href) : (this.window.location.href = url.href);
-        }
-    }
-
     /**
      * $this->dispatch('saved', ...): the listening components (#[On]) and the window; with
      * ->to('name') the components of that name only, with ->self() the one dispatching it.
@@ -689,5 +427,5 @@ function nameIn(envelope) {
 
 /** The server-rendered components under root (root included): their elements, with state. */
 function snapshotsIn(root) {
-    return [...(root.matches?.('[fusion\\:snapshot]') ? [root] : []), ...root.querySelectorAll('[fusion\\:snapshot]')];
+    return [...(root.matches?.(selector('snapshot')) ? [root] : []), ...root.querySelectorAll(selector('snapshot'))];
 }

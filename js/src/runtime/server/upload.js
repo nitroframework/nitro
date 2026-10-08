@@ -1,28 +1,50 @@
 /**
- * fusion:model on a file input: the chosen files are uploaded at once and the property is set to
- * what the server answers, Uploads (Nitro\Fusion\Upload): one, or a list for a multiple input.
+ * Files for a property that takes them (Nitro\Fusion\Upload, or #[Uploads] for a list): uploaded at
+ * once, and the property set to what the server answers, Uploads: one, or a list.
  *
- * The files are read as Viewi reads them (DomHelper::getFiles: the input's FileList as a list)
- * and sent as Viewi's HttpClient sends a file (XMLHttpRequest, which reports upload progress;
- * fetch() does not), as FormData with the component's signed snapshot and the property, so the
- * server only takes files for a component it rendered, on a page the visitor may still see:
- * POST {endpoint}/upload (Http/UploadController).
+ * The files are sent as Viewi's HttpClient sends a file (XMLHttpRequest, which reports upload
+ * progress; fetch() does not), as FormData with the component's signed snapshot and the property,
+ * so the server only takes files for a component it rendered, on a page the visitor may still
+ * see: POST {endpoint}/upload (Http/UploadController). While it uploads, fusion:loading with
+ * fusion:target="photo" shows. A file the server refuses (its rules) gives the property's $errors
+ * message, as validate() would.
  *
- * On the input: fusion-upload-start, fusion-upload-progress ({progress: 0-100}),
- * fusion-upload-finish, and fusion-upload-error ({status, message}). While it uploads,
- * fusion:loading with fusion:target="photo" shows. A file the server refuses (its rules) gives
- * the property's $errors message, as validate() would.
+ *   upload()   fusion:model on a file input: its files, and on the input fusion-upload-start,
+ *              fusion-upload-progress ({progress: 0-100}), fusion-upload-finish and
+ *              fusion-upload-error ({status, message})
+ *   send()     the files given, with callbacks: what a JavaScript view's upload() uses
+ *              (runtime/view/script.js)
  */
 import * as P from '../../php.js';
+import { HEADERS, PATHS, SIGNALS } from '../protocol.js';
 import { ErrorBag } from '../component/errors.js';
 
+/** fusion:model on a file input: its chosen files, the input told how it goes. */
 export function upload(runtime, config, component, el, path) {
-    const files = Array.prototype.slice.call(el.files);
+    const fire = (name, detail = {}) => el.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
+
+    return send(runtime, config, component, path, Array.prototype.slice.call(el.files), {
+        multiple: el.multiple,
+        start: () => fire('fusion-upload-start'),
+        progress: (progress) => fire('fusion-upload-progress', { progress }),
+        finish: () => fire('fusion-upload-finish'),
+        error: (status, message) => fire('fusion-upload-error', { status, message }),
+    });
+}
+
+/**
+ * Upload files into a property. Resolves with how it went: { ok: true }, { refused: true } (the
+ * server's rules turned them down: the property's $errors say why) or { failed: true, status,
+ * message } (the request itself failed).
+ *
+ * @param {object} on   multiple (a list property), and start(), progress(0-100), finish(), error(status, message)
+ */
+export function send(runtime, config, component, path, files, on = {}) {
     const root = String(path).split('.')[0];
 
     if (files.length === 0) {
-        component.setPath(path, el.multiple ? [] : null);
-        return Promise.resolve();
+        component.setPath(path, on.multiple ? [] : null);
+        return Promise.resolve({ ok: true });
     }
 
     const form = new FormData();
@@ -30,20 +52,19 @@ export function upload(runtime, config, component, el, path) {
     form.append('property', root);
     for (const file of files) form.append('files[]', file, file.name);
 
-    const fire = (name, detail = {}) => el.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
     runtime.loading(component, root, true);
-    fire('fusion-upload-start');
+    on.start?.();
 
     return new Promise((resolve) => {
         const request = new XMLHttpRequest();
-        request.open('POST', `${config.endpoint}/upload`, true);
+        request.open('POST', `${config.endpoint}/${PATHS.upload}`, true);
         request.setRequestHeader('Accept', 'application/json');
         request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         request.setRequestHeader('X-CSRF-TOKEN', config.csrf);
-        request.setRequestHeader('X-Fusion', '1');
+        request.setRequestHeader(HEADERS.call, '1');
 
         request.upload.onprogress = (e) => {
-            if (e.lengthComputable) fire('fusion-upload-progress', { progress: Math.round((e.loaded * 100) / e.total) });
+            if (e.lengthComputable) on.progress?.(Math.round((e.loaded * 100) / e.total));
         };
 
         const done = (status, text) => {
@@ -58,15 +79,17 @@ export function upload(runtime, config, component, el, path) {
             if (status === 200 && answer && Array.isArray(answer.uploads)) {
                 const uploads = answer.uploads.map(P.decode);
                 clearErrors(component, root);
-                component.setPath(path, el.multiple ? uploads : uploads[0] ?? null);
-                fire('fusion-upload-finish');
-            } else {
-                const message = answer?.message ?? (status === 0 ? 'The server could not be reached.' : `The server answered ${status}.`);
-                if (status === 422) setErrors(component, root, answer?.errors?.[root] ?? [message]);
-                else runtime.report(component, new Error(`Fusion: uploading ${root}: ${message}`));
-                fire('fusion-upload-error', { status, message });
+                component.setPath(path, on.multiple ? uploads : uploads[0] ?? null);
+                on.finish?.();
+                resolve({ ok: true });
+                return;
             }
-            resolve();
+
+            const message = answer?.message ?? (status === 0 ? 'The server could not be reached.' : `The server answered ${status}.`);
+            if (status === 422) setErrors(component, root, answer?.errors?.[root] ?? [message]);
+            else runtime.report(component, new Error(`Fusion: uploading ${root}: ${message}`));
+            on.error?.(status, message);
+            resolve(status === 422 ? { refused: true } : { failed: true, status, message });
         };
 
         request.onload = () => done(request.status, request.responseText);
@@ -80,7 +103,7 @@ function setErrors(component, field, messages) {
     const all = new Map(component.errors.messages);
     all.set(field, messages.map(P.toStr));
     component.errors = new ErrorBag(all);
-    component.dirty.add('$errors');
+    component.dirty.add(SIGNALS.errors);
     component.schedule();
 }
 
@@ -89,6 +112,6 @@ function clearErrors(component, field) {
     const all = new Map(component.errors.messages);
     all.delete(field);
     component.errors = new ErrorBag(all);
-    component.dirty.add('$errors');
+    component.dirty.add(SIGNALS.errors);
     component.schedule();
 }

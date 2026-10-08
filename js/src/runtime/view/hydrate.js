@@ -5,6 +5,7 @@
  * left after the last position, once the hydration is done (Viewi's renderApp).
  */
 import { getAnchor } from './anchor.js';
+import { ATTRIBUTES } from '../protocol.js';
 
 /** Viewi's hydrateTag (Fusion: the namespace given, since SVG names keep their case). */
 export function hydrateTag(instance, target, tag, ns) {
@@ -37,6 +38,14 @@ export function hydrateTag(instance, target, tag, ns) {
     ];
 }
 
+/** Where a child component not rendered yet goes: an empty element with its id, which it mounts into. */
+export function childPlaceholder(document, id) {
+    const placeholder = document.createElement('div');
+    placeholder.setAttribute(ATTRIBUTES.id, id);
+    placeholder.setAttribute(ATTRIBUTES.placeholder, '');
+    return placeholder;
+}
+
 /** Fusion: a child component's element (it hydrates itself), found by its id. */
 export function hydrateChild(instance, target, id) {
     const anchor = getAnchor(instance, target);
@@ -46,7 +55,7 @@ export function hydrateChild(instance, target, id) {
     const invalid = [];
     for (let i = anchor.current + 1; i < end; i++) {
         const potentialNode = target.childNodes[i];
-        if (potentialNode.nodeType === 1 && potentialNode.getAttribute('fusion:id') === id) {
+        if (potentialNode.nodeType === 1 && potentialNode.getAttribute(ATTRIBUTES.id) === id) {
             anchor.current = i;
             anchor.invalid = anchor.invalid.concat(invalid);
             return potentialNode;
@@ -55,9 +64,7 @@ export function hydrateChild(instance, target, id) {
     }
     anchor.added++;
     anchor.invalid = anchor.invalid.concat(invalid);
-    const placeholder = instance.document.createElement('div');
-    placeholder.setAttribute('fusion:id', id);
-    placeholder.setAttribute('fusion:placeholder', '');
+    const placeholder = childPlaceholder(instance.document, id);
     anchor.current = anchor.current + invalid.length + 1;
     return max > anchor.current
         ? target.insertBefore(placeholder, target.childNodes[anchor.current])

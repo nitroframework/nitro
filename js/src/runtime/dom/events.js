@@ -3,6 +3,7 @@
  * component the handler for it; one listener per event type on the document finds the marked
  * elements from the target up and runs their handlers, applying the modifiers.
  */
+import { ATTRIBUTES, selectorOf } from '../protocol.js';
 const KEYS = {
     enter: 'Enter', escape: 'Escape', esc: 'Escape', space: ' ', tab: 'Tab', delete: 'Delete',
     backspace: 'Backspace', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
@@ -37,7 +38,7 @@ export class Events {
     }
 
     dispatch(type, event) {
-        const attribute = `fusion:h-${type}`;
+        const attribute = ATTRIBUTES.handler + type;
 
         /** Handlers on the target and its ancestors, innermost first. */
         for (let el = event.target instanceof Element ? event.target : event.target?.parentElement; el; el = el.parentElement) {
@@ -52,7 +53,7 @@ export class Events {
 
         /** .window / .document handlers run for any such event; .outside when it is not inside. */
         for (const component of this.runtime.components()) {
-            for (const el of component.scan(`[fusion\\:h-${type}]`)) {
+            for (const el of component.scan(selectorOf(ATTRIBUTES.handler + type))) {
                 if (!el.hasAttribute(attribute)) continue;
                 for (const handler of component.handlersOf(el, type)) {
                     if (!handler.modifiers.some((m) => GLOBAL.includes(m))) continue;
@@ -135,11 +136,17 @@ export class Events {
     }
 }
 
-/** .debounce.300ms, .throttle.1s */
+/** A modifier's time in ms (300ms, 1s), or null when it is not one. Support\Duration checks the same form. */
+export function duration(modifier) {
+    const match = /^(\d+)(ms|s)$/.exec(modifier ?? '');
+    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : null;
+}
+
+/** The first time among the modifiers: .debounce.300ms, .throttle.1s */
 export function timing(modifiers) {
     for (const m of modifiers) {
-        const match = /^(\d+)(ms|s)$/.exec(m);
-        if (match) return Number(match[1]) * (match[2] === 's' ? 1000 : 1);
+        const ms = duration(m);
+        if (ms !== null) return ms;
     }
     return null;
 }

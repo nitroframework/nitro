@@ -40,13 +40,16 @@
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
 import * as P from '../../php.js';
+import { ATTRIBUTES, HEADERS, selector } from '../protocol.js';
+import { duration } from '../dom/events.js';
 import { PageCache } from './pages.js';
 import { Swap } from './swap.js';
 
 /** How long the pointer rests on a link before its page is prefetched: passing over a menu asks for nothing. */
 const HOVER_DELAY = 75;
 const PREFETCH_FOR = 30_000;
-import { readState } from '../component/component.js';
+import { readState } from '../component/snapshot.js';
+import { remembered as rememberedOf, restoreRemembered } from '../component/remember.js';
 
 /**
  * A URL the browser may be sent to: http(s) only. A redirect can come from what a visitor typed
@@ -131,7 +134,7 @@ export class Navigator {
      * in place (its data, not HTML), and not for one a visit renders at once anyway (markup, client).
      */
     prefetch(url, ms = PREFETCH_FOR) {
-        if (!this.document.querySelector('[fusion\\:page]') || this.runtime.markupPage(url.pathname) !== null) return;
+        if (!this.document.querySelector(selector('page')) || this.runtime.markupPage(url.pathname) !== null) return;
         if (this.pages.prefetching(url.href)) return;
         this.runtime.preload(url.pathname);
         this.pages.prefetch(url.href, this.fetch(url, true), ms);
@@ -167,7 +170,7 @@ export class Navigator {
 
     saveRemembered() {
         this.window.clearTimeout(this.rememberTimer);
-        const remembered = this.runtime.remembered();
+        const remembered = rememberedOf(this.runtime);
         const state = { ...(this.window.history.state ?? {}) };
         if (remembered === null && !state.fusionRemember) return;
         remembered === null ? delete state.fusionRemember : (state.fusionRemember = remembered);
@@ -202,7 +205,7 @@ export class Navigator {
             return;
         }
         /** The page Fusion renders into; none on a page that is not Fusion's (its HTML comes then). */
-        let current = this.document.querySelector('[fusion\\:page]');
+        let current = this.document.querySelector(selector('page'));
 
         const visit = (this.visiting = {});
         this.runtime.emit('fusion:navigating', { url: url.href });
@@ -236,7 +239,7 @@ export class Navigator {
         if (visit !== this.visiting) return; // a newer visit started
 
         /** A Fusion page in another layout: its HTML. */
-        if (answer.page?.fusion === 1 && answer.page.layout !== current?.getAttribute('fusion:page')) {
+        if (answer.page?.fusion === 1 && answer.page.layout !== current?.getAttribute(ATTRIBUTES.page)) {
             answer = await this.fetch(answer.url, false);
             if (visit !== this.visiting) return;
         }
@@ -275,7 +278,7 @@ export class Navigator {
             if (visit !== this.visiting) return;
         }
 
-        /** Its Vue, React and Solid views' modules: the page shows with them rendered, not filling in after it. */
+        /** Its JavaScript views' modules: the page shows with them rendered, not filling in after it. */
         const views = this.runtime.preloadViews(this.runtime.pageComponents(page));
         if (views) {
             await views;
@@ -287,21 +290,21 @@ export class Navigator {
         this.runtime.receive(page, null, true);
 
         /** The page rendered early: its data fills it in. */
-        if (early && !early.destroyed && readState(page.snapshot).name === early.name && page.layout === early.el.getAttribute('fusion:page')) {
-            this.runtime.arrive(early, page);
+        if (early && !early.destroyed && readState(page.snapshot).name === early.name && page.layout === early.el.getAttribute(ATTRIBUTES.page)) {
+            this.runtime.pageMount.arrive(early, page);
             if (page.title !== null) this.document.title = page.title;
             this.updateHead(page.head);
             return;
         }
 
-        if (!this.runtime.mountPage(current, page)) {
+        if (!this.runtime.pageMount.mountPage(current, page)) {
             this.window.location.reload();
             return;
         }
         if (page.title !== null) this.document.title = page.title;
         this.updateHead(page.head);
         /** Back or forward: what #[Remember] properties had in that entry. */
-        if (!push) this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
+        if (!push) restoreRemembered(this.runtime, this.window.history.state?.fusionRemember);
         this.arrive(target, options);
     }
 
@@ -324,22 +327,22 @@ export class Navigator {
                 return null;
             }
         }
-        /** Its Vue, React and Solid views' modules, so it renders complete. */
+        /** Its JavaScript views' modules, so it renders complete. */
         await this.runtime.preloadViews([name]);
         /** A newer visit started while the chunk loaded, or the page is no longer there: nothing to render into. */
         if (visit !== this.visiting || !current.isConnected) return null;
         const definition = this.runtime.definitions.get(name);
-        if (!definition?.markup || definition.markup !== current.getAttribute('fusion:page')) return null;
+        if (!definition?.markup || definition.markup !== current.getAttribute(ATTRIBUTES.page)) return null;
 
         /** The page left keeps its #[Remember] values and scroll, as leave() does; the entry is pushed once rendered. */
         if (push) {
             this.saveRemembered();
             this.rememberScroll();
         }
-        const early = this.runtime.renderEarly(current, name, definition, props);
+        const early = this.runtime.pageMount.renderEarly(current, name, definition, props);
         if (!early) return null;
         if (push) this.window.history.pushState({}, '', url.href);
-        else this.runtime.restoreRemembered(this.window.history.state?.fusionRemember);
+        else restoreRemembered(this.runtime, this.window.history.state?.fusionRemember);
         /** A client page's title and head, as the server would have sent them (worked out at build time). */
         if (definition.client) {
             if (definition.client.title !== null) this.document.title = definition.client.title;
@@ -360,7 +363,7 @@ export class Navigator {
         try {
             const response = await this.window.fetch(url.href, {
                 headers: data
-                    ? { Accept: 'application/json', 'X-Fusion-Navigate': '1', 'X-Fusion-Version': this.runtime.config.bundle ?? '', 'X-Fusion-Once': this.runtime.onceHeader(), ...(id ? { 'X-Fusion-Id': id } : {}) }
+                    ? { Accept: 'application/json', [HEADERS.navigate]: '1', [HEADERS.version]: this.runtime.config.bundle ?? '', [HEADERS.once]: this.runtime.onceHeader(), ...(id ? { [HEADERS.id]: id } : {}) }
                     : { Accept: 'text/html, application/xhtml+xml' },
                 credentials: 'same-origin',
             });
@@ -453,8 +456,7 @@ export class Navigator {
 
 /** How long a link's prefetched page is kept: .prefetch.60s, .prefetch.500ms; 30 seconds by default. */
 function prefetchFor(modifiers) {
-    const match = /^(\d+)(ms|s)$/.exec(modifiers[modifiers.indexOf('prefetch') + 1] ?? '');
-    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : PREFETCH_FOR;
+    return duration(modifiers[modifiers.indexOf('prefetch') + 1]) ?? PREFETCH_FOR;
 }
 
 /**

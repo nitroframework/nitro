@@ -130,7 +130,7 @@ export class Swap {
         if (script.hasAttribute('data-fusion-globals') || script.hasAttribute('data-bundle')) return true;
         const src = script.getAttribute('src');
         if (!src) return false;
-        const chunks = new URL(this.runtime.config.chunks ?? `${this.runtime.config.endpoint}/app/{id}.js`, url).href;
+        const chunks = new URL(this.runtime.config.chunks, url).href;
         const prefix = chunks.split(/\{id\}|%7Bid%7D/i)[0];
         return prefix !== chunks && new URL(src, url).href.startsWith(prefix);
     }

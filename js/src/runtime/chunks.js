@@ -3,6 +3,8 @@
  * the page's chunk while it fetches the page's data), loading a chunk once; and the markup-first
  * pages a visit renders at once. A part of the runtime.
  */
+import { readUrlValue } from './url-values.js';
+
 export class Chunks {
     constructor(runtime) {
         this.runtime = runtime;
@@ -65,7 +67,7 @@ export class Chunks {
         if (!this.loads.has(group)) {
             this.loads.set(group, new Promise((resolve, reject) => {
                 const script = runtime.document.createElement('script');
-                const pattern = runtime.config.chunks ?? `${runtime.config.endpoint}/app/{id}.js?v=${encodeURIComponent(runtime.config.bundle ?? '')}`;
+                const pattern = runtime.config.chunks;
                 script.src = pattern.replace('{id}', encodeURIComponent(group));
                 script.onload = () => resolve();
                 script.onerror = () => {
@@ -97,13 +99,7 @@ export class Chunks {
     }
 }
 
-/**
- * A route parameter as its property's type, as the server reads it (FILTER_VALIDATE_INT,
- * is_numeric): an int only from digits, with a sign and no leading zero; a float from a number;
- * undefined when it is not one.
- */
+/** A route parameter as its property's type, by the rules the server reads it with (url-values.js); undefined when it is not one. */
 function typed(value, type) {
-    if (type === 'int') return /^[+-]?(0|[1-9]\d*)$/.test(value) ? Number(value) : undefined;
-    if (type === 'float') return value.trim() !== '' && Number.isFinite(Number(value)) ? Number(value) : undefined;
-    return value;
+    return type === 'int' || type === 'float' ? readUrlValue(type, value) : value;
 }

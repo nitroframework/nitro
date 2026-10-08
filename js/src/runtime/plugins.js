@@ -1,12 +1,12 @@
 /**
- * Plugins: Fusion.use(plugin) calls the plugin once with an API to hook into the runtime.
+ * Plugins: Fusion.use(plugin) calls the plugin once with an API to listen to the runtime.
  *
  *     Fusion.use(({ on, directive }) => {
  *         on('request', ({ headers }) => { headers['X-Tenant'] = tenant(); });
  *         on('store', (store) => store.onChange(() => console.log(store.name, store.get('items'))));
  *     });
  *
- * Hooks, each on(name, listener) returning a function that removes the listener:
+ * Events, each on(name, listener) returning a function that removes the listener:
  *
  *  - component (component)           a component started in the page (its first render)
  *  - render (component)               after each render of a component
@@ -24,14 +24,14 @@
  */
 import * as P from '../php.js';
 
-const HOOKS = ['component', 'render', 'store', 'request', 'response'];
+const EVENTS = ['component', 'render', 'store', 'request', 'response'];
 
 export class Plugins {
     constructor(runtime) {
         this.runtime = runtime;
         this.used = new Set();
-        /** hook => Set of listeners */
-        this.listeners = new Map(HOOKS.map((hook) => [hook, new Set()]));
+        /** event => Set of listeners */
+        this.listeners = new Map(EVENTS.map((event) => [event, new Set()]));
         this.started = new WeakSet();
         this.facades = new WeakMap();
     }
@@ -41,27 +41,27 @@ export class Plugins {
         if (this.used.has(plugin)) return;
         this.used.add(plugin);
         plugin({
-            on: (hook, listener) => this.on(hook, listener),
+            on: (event, listener) => this.on(event, listener),
             directive: (name, directive) => this.runtime.directive(name, directive),
         });
     }
 
-    on(hook, listener) {
-        if (!this.listeners.has(hook)) throw new Error(`Fusion.use(): there is no hook "${hook}" (${HOOKS.join(', ')})`);
-        if (typeof listener !== 'function') throw new Error(`Fusion.use(): on('${hook}', ...) takes a function`);
-        this.listeners.get(hook).add(listener);
+    on(event, listener) {
+        if (!this.listeners.has(event)) throw new Error(`Fusion.use(): there is no event "${event}" (${EVENTS.join(', ')})`);
+        if (typeof listener !== 'function') throw new Error(`Fusion.use(): on('${event}', ...) takes a function`);
+        this.listeners.get(event).add(listener);
 
         /** Registered after the page started: the components and stores already there. */
-        if (hook === 'component') {
+        if (event === 'component') {
             for (const component of this.runtime.components()) {
                 if (this.started.has(component) && !component.destroyed) this.call(listener, component, this.facade(component));
             }
         }
-        if (hook === 'store') {
+        if (event === 'store') {
             for (const store of this.runtime.stores.values()) this.call(listener, store, this.facade(store));
         }
 
-        return () => this.listeners.get(hook).delete(listener);
+        return () => this.listeners.get(event).delete(listener);
     }
 
     /** After a component's render (runtime.afterRender): component the first time, then render. */
@@ -88,8 +88,8 @@ export class Plugins {
         this.emit('response', target, { component: this.facade(target), method, status });
     }
 
-    emit(hook, target, payload) {
-        for (const listener of this.listeners.get(hook)) this.call(listener, target, payload);
+    emit(event, target, payload) {
+        for (const listener of this.listeners.get(event)) this.call(listener, target, payload);
     }
 
     call(listener, target, payload) {

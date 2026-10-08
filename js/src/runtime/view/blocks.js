@@ -8,6 +8,7 @@ import { renderForeach, setLoopArguments } from './foreach.js';
 import { conditionOf, renderIf } from './if.js';
 import { createScope, track } from './scope.js';
 import { LOOPS, render } from './render.js';
+import { SIGNALS } from '../protocol.js';
 
 // ------------------------------------------------------------ blocks
 
@@ -220,7 +221,7 @@ function innerLeak(instance, node) {
 export function directiveCodes(node) {
     const directive = node.i[0];
     const codes = [directive.code, directive.forData].filter((code) => code !== undefined);
-    if (directive.c === 'error') codes.push('$errors');
+    if (directive.c === 'error') codes.push(SIGNALS.errors);
     if (directive.c === 'switch') {
         for (const c of node.h ?? []) if (c.i[0].code !== undefined) codes.push(c.i[0].code);
     }

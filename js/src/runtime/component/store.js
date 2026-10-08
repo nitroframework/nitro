@@ -9,7 +9,8 @@
  */
 import * as P from '../../php.js';
 import { ErrorBag } from './errors.js';
-import { enumCase, enumValue, readState } from './component.js';
+import { enumCase, enumValue } from './context.js';
+import { readState } from './snapshot.js';
 
 export class Store {
     /**

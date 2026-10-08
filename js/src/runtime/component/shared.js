@@ -20,7 +20,7 @@ export class SharedData {
      */
     receive(answer, except = null, visit = false) {
         /** A page's data (a visit, a partial reload): the stores its components use, for those not made yet. */
-        if (answer.fusion === 1 && answer.stores) this.runtime.takeStores(answer.stores);
+        if (answer.fusion === 1 && answer.stores) this.runtime.stores.take(answer.stores);
         if (answer.shared !== undefined) this.setShared(this.withOnce(answer.shared, answer.once ?? {}), except);
         if (answer.flash === undefined || answer.flash === null) return;
         const flash = P.decode(answer.flash);

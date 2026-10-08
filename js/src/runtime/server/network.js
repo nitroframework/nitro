@@ -4,7 +4,9 @@
  * the answer replaces the state, keeping anything changed in the browser meanwhile.
  */
 import * as P from '../../php.js';
+import { HEADERS, PATHS, SIGNALS } from '../protocol.js';
 import { webUrl } from '../navigation/navigate.js';
+import { applyEffects } from './effects.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -17,9 +19,10 @@ export class Network {
      * Call a #[Server] method (null: just sync the state, as $refresh does). A failure is reported
      * (console and fusion:error) here, once; the promise still rejects for code that awaits it.
      */
-    call(component, method, args = []) {
+    /** leaving: the component's goodbye, a #[Server] destroyed(): sent though it has left the page. */
+    call(component, method, args = [], { leaving = false } = {}) {
         const previous = this.queues.get(component) ?? Promise.resolve();
-        const next = previous.catch(() => {}).then(() => this.send(component, method, args));
+        const next = previous.catch(() => {}).then(() => this.send(component, method, args, false, leaving));
         next.catch((error) => this.runtime.report(component, error));
         this.queues.set(component, next);
         return next;
@@ -50,12 +53,12 @@ export class Network {
         const headers = {
             ...this.runtime.plugins.request(component, '$reload', {}),
             Accept: 'application/json',
-            'X-Fusion-Navigate': '1',
-            'X-Fusion-Partial': component.id,
-            'X-Fusion-Version': this.config.bundle ?? '',
-            'X-Fusion-Once': this.runtime.onceHeader(),
+            [HEADERS.navigate]: '1',
+            [HEADERS.partial]: component.id,
+            [HEADERS.version]: this.config.bundle ?? '',
+            [HEADERS.once]: this.runtime.onceHeader(),
         };
-        if (only.length > 0) headers['X-Fusion-Only'] = only.join(',');
+        if (only.length > 0) headers[HEADERS.only] = only.join(',');
 
         if (!deferred) this.runtime.loading(component, '$reload', true);
         let response;
@@ -71,7 +74,7 @@ export class Network {
 
         /** Deployed since the page loaded: load it in full, with the new components. */
         if (response.status === 409) {
-            window.location.href = webUrl(response.headers.get('X-Fusion-Location') || window.location.href, window.location.href)?.href ?? window.location.href;
+            window.location.href = webUrl(response.headers.get(HEADERS.location) || window.location.href, window.location.href)?.href ?? window.location.href;
             return;
         }
 
@@ -90,30 +93,25 @@ export class Network {
         this.runtime.receive(page, component);
         if (deferred) {
             only.forEach((name) => component.deferred.delete(name));
-            component.dirty.add('$deferred');
+            component.dirty.add(SIGNALS.deferred);
         }
         /** Children with mount() the reloaded data places: made by the server, with the page. */
-        this.runtime.provided = new Map(Object.entries(page.children ?? {}));
-        try {
-            component.applyReload(page.snapshot, only, sent, page.partial ?? null);
-        } finally {
-            this.runtime.provided.clear();
-        }
+        this.runtime.placement.withProvided(page.children, () => component.applyReload(page.snapshot, only, sent, page.partial ?? null));
     }
 
     /**
      * children: also ask for the signed state of the children its view places that need one, for
      * children made here (adopt()).
      */
-    async send(component, method, args, children = false) {
-        if (component.destroyed) return null;
+    async send(component, method, args, children = false, leaving = false) {
+        if (component.destroyed && !leaving) return null;
         /** Made here, by a render in the browser: it has no signed state for the server yet (a store: the server makes it). */
         if (component.snapshot === null && !component.isStore) await this.adopt(component);
-        if (component.destroyed) return null;
+        if (component.destroyed && !leaving) return null;
         const sent = new Map(component.data);
         const partials = component.partials;
         /** The stores it uses, as they are here: the server's methods read and change them too. */
-        const stores = new Map(Object.values(component.definition.stores ?? {}).map((name) => [name, this.runtime.storeNamed(name)]));
+        const stores = new Map(Object.values(component.definition.stores ?? {}).map((name) => [name, this.runtime.stores.named(name)]));
         const storesSent = new Map([...stores].map(([name, store]) => [name, new Map(store.data)]));
         const body = {
             snapshot: component.snapshot,
@@ -131,7 +129,7 @@ export class Network {
         try {
             /** Plugins may add headers (Fusion.use(): on('request')); Fusion's own are set after theirs. */
             const headers = this.runtime.plugins.request(component, method, {});
-            response = await fetch(`${this.config.endpoint}/update`, {
+            response = await fetch(`${this.config.endpoint}/${PATHS.update}`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -140,8 +138,8 @@ export class Network {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': this.config.csrf,
-                    'X-Fusion': '1',
-                    'X-Fusion-Once': this.runtime.onceHeader(),
+                    [HEADERS.call]: '1',
+                    [HEADERS.once]: this.runtime.onceHeader(),
                 },
                 body: JSON.stringify(body),
             });
@@ -183,17 +181,12 @@ export class Network {
             stores.get(name)?.applySnapshot(envelope, storesSent.get(name));
         }
         /** Children with mount() its new state places: made by the server, with the answer. */
-        this.runtime.provided = new Map(Object.entries(answer.children ?? {}));
-        try {
-            component.applySnapshot(snapshot, sent);
-        } finally {
-            this.runtime.provided.clear();
-        }
+        this.runtime.placement.withProvided(answer.children, () => component.applySnapshot(snapshot, sent));
         for (const [id, envelope] of Object.entries(answer.children ?? {})) {
             const child = this.runtime.instances.get(id);
             if (child && child.snapshot === null) child.adopt(envelope);
         }
-        this.runtime.effects(component, effects);
+        applyEffects(this.runtime, component, effects);
 
         return effects.returns === undefined ? null : P.decode(effects.returns);
     }

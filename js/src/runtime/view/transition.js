@@ -18,6 +18,7 @@
  *
  * Nothing animates in a hidden tab, or for a visitor who asks for reduced motion.
  */
+import { duration } from '../dom/events.js';
 
 /** The element's transition, from its fusion:transition attribute; null for none. */
 export function transitionOf(el) {
@@ -30,7 +31,6 @@ export function transitionOf(el) {
         const at = modifiers.indexOf(name);
         return at === -1 ? null : modifiers[at + 1] ?? null;
     };
-    const duration = after('duration');
 
     return {
         name: (el.getAttribute(attribute) ?? '').trim(),
@@ -39,7 +39,7 @@ export function transitionOf(el) {
         leave: !modifiers.includes('in'),
         opacity: !modifiers.includes('scale') || modifiers.includes('opacity'),
         scale: !modifiers.includes('opacity') || modifiers.includes('scale'),
-        duration: duration === null ? 150 : duration.endsWith('ms') ? parseInt(duration, 10) : parseFloat(duration) * 1000,
+        duration: duration(after('duration')) ?? 150,
         origin: after('origin'),
         mode: modifiers.includes('out-in') ? 'out-in' : modifiers.includes('in-out') ? 'in-out' : null,
         move: modifiers.includes('move'),

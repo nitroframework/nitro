@@ -16,6 +16,7 @@
  * component, its marked elements are matched against the directives registered.
  */
 import * as P from '../php.js';
+import { NAMESPACE, selector } from './protocol.js';
 
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
@@ -51,7 +52,7 @@ export class Directives {
         }
         if (this.registered.size === 0) return;
 
-        for (const el of component.scan('[fusion\\:h-directive]')) {
+        for (const el of component.scan(selector('directive'))) {
             if (this.runtime.owner(el) !== component) continue;
             const found = this.attributes(el);
             const bindings = this.bound.get(el) ?? new Map();
@@ -87,8 +88,8 @@ export class Directives {
     attributes(el) {
         const found = new Map();
         for (const attribute of el.attributes) {
-            if (!attribute.name.startsWith('fusion:')) continue;
-            const [name, ...modifiers] = attribute.name.slice('fusion:'.length).split('.');
+            if (!attribute.name.startsWith(NAMESPACE)) continue;
+            const [name, ...modifiers] = attribute.name.slice(NAMESPACE.length).split('.');
             if (this.registered.has(name) && !found.has(name)) found.set(name, { value: attribute.value, modifiers });
         }
         return found;

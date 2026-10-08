@@ -1,6 +1,6 @@
 /**
- * A component in the page: its state, the context its compiled code runs against ($this), and
- * rendering into its root element.
+ * A component in the page: its state, and rendering into its root element. The $this its compiled
+ * code runs against is context.js's; the state the server signed, snapshot.js's.
  *
  * State changes go through property setters: a write to $this->prop schedules an update (in a
  * microtask) of what reads the property; its view (runtime/view/engines.js) renders only that again.
@@ -8,57 +8,12 @@
  * A new snapshot from the server renders all of it.
  */
 import * as P from '../../php.js';
-import { merge as mergeValues } from './merge.js';
-import { ErrorBag } from './errors.js';
 import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
-import { slotHasContent } from '../view/render.js';
-
-/**
- * An enum property (public Status $status): the state holds its value, as the server sends it and
- * fusion:model writes it; compiled code reads the case (null for a value that names none).
- */
-export function enumCase(runtime, prop, value) {
-    return value === null || value === undefined ? null : runtime.classes[prop.enum].tryFrom(value);
-}
-
-/** What compiled code assigns to an enum property: a case (stored as its value) or null, as PHP's type allows. */
-export function enumValue(prop, name, value) {
-    if (value instanceof P.EnumCase) return value.value;
-    if (value === null || value === undefined) return null;
-    throw new P.PhpError('TypeError', `Cannot assign ${P.typeName(value)} to property $${name}: it takes a case of its enum`);
-}
-
-/** The state inside a signed envelope: {name, id, data: Map, errors}. */
-export function readState(envelope) {
-    const state = P.decode(JSON.parse(envelope.state));
-    const get = (key) => (state instanceof Map ? state.get(key) : undefined);
-    const data = get('data');
-    const memo = get('memo');
-    return {
-        name: get('name'),
-        id: get('id'),
-        data: data instanceof Map ? data : new Map(),
-        errors: new ErrorBag(memo instanceof Map ? memo.get('errors') ?? null : null),
-        /** A page's properties loaded after it is shown ($this->defer()). */
-        deferred: memo instanceof Map ? P.entries(memo.get('deferred') ?? []).map(([, name]) => name) : [],
-        /** A partial reload's merge props: property => its rule (Merge). */
-        merge: memo instanceof Map && memo.get('merge') instanceof Map ? memo.get('merge') : new Map(),
-        /** A page's scroll props: property => where its paginator is ($this->scroll()). */
-        scroll: memo instanceof Map && memo.get('scroll') instanceof Map ? memo.get('scroll') : new Map(),
-        /** A component placed in a Blade view: its slots' HTML (no parent renders them in the browser). */
-        slots: memo instanceof Map && memo.get('slots') instanceof Map ? memo.get('slots') : null,
-    };
-}
-
-/** A merge rule as it came (a Map): {mode, path, match}. */
-function readRule(rule) {
-    return { mode: rule.get('mode'), path: rule.get('path') ?? null, match: rule.get('match') ?? [] };
-}
-
-/** Two PHP values are the same (as encoded: types count). */
-function sameValue(a, b) {
-    return a === b || JSON.stringify(P.encode(a ?? null)) === JSON.stringify(P.encode(b ?? null));
-}
+import { componentHook, propertyHooks } from './hooks.js';
+import { SIGNALS } from '../protocol.js';
+import { readState, reloadInto, sameValue, snapshotInto } from './snapshot.js';
+import { contextOf, enumCase } from './context.js';
+import { ErrorBag } from './errors.js';
 
 export class Component {
     /**
@@ -107,62 +62,12 @@ export class Component {
         this.destroyed = false;
         /** Renders of what changed so far (fusion:visible: whether a call changed anything). */
         this.renders = 0;
-        this.ctx = this.context();
+        this.ctx = contextOf(this);
         /** The stores it uses: a change in one renders again what reads its property here. */
         for (const [property, store] of Object.entries(this.definition.stores ?? {})) {
-            this.runtime.storeNamed(store).subscribe(this, property);
+            this.runtime.stores.named(store).subscribe(this, property);
         }
         this.view = this.createView();
-    }
-
-    /** The $this of compiled code: properties, methods, and Fusion's actions. */
-    context() {
-        const self = this;
-        const ctx = Object.create(null);
-
-        for (const [name, prop] of Object.entries(this.definition.props)) {
-            Object.defineProperty(ctx, name, {
-                enumerable: true,
-                get: () => (prop.enum ? enumCase(self.runtime, prop, self.data.get(name)) : self.data.get(name) ?? null),
-                set: (value) => self.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
-            });
-        }
-
-        for (const [name, fn] of Object.entries(this.definition.methods)) {
-            ctx[name] = fn;
-        }
-
-        /** public Cart $cart: the tab's store, shared with every component that uses it. */
-        for (const [property, store] of Object.entries(this.definition.stores ?? {})) {
-            Object.defineProperty(ctx, property, { enumerable: true, get: () => self.runtime.storeNamed(store).ctx });
-        }
-
-        Object.assign(ctx, {
-            $errors: undefined,
-            $call: (method, args) => self.runtime.network.call(self, method, args),
-            $computed: (name) => self.computed(name),
-            $dispatch: (event, params) => self.dispatch(event, params),
-            $parent: (method, args) => self.callParent(method, args),
-            $reset: (names) => self.reset(names),
-            $redirect: (url) => self.runtime.navigator.visit(P.toStr(url)),
-            $set: (path, value) => self.setPath(path, value),
-            $toggle: (path) => self.setPath(path, !P.bool(self.getPath(path))),
-            $refresh: () => self.definition.server.length ? self.runtime.network.call(self, null, []) : self.render(),
-            $js: (code) => self.js(code),
-            $reload: (names) => self.runtime.reload(self, names),
-            $loadMore: (name) => self.runtime.loadMore(self, P.toStr(name)),
-            /** $this->hasMore('posts'): whether the scroll prop has a next page. */
-            $hasMore: (name) => self.nextPage(P.toStr(name)) !== null,
-            /** @deferred: whether any of the properties (any, when none are named) is still loading. */
-            $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
-        });
-        Object.defineProperty(ctx, '$errors', { get: () => self.errors });
-        /** Fusion::browser(): what its APIs (js/functions/browser/_browser_*.js) need of the component. */
-        Object.defineProperty(ctx, '$browser', { get: () => self.browser() });
-        /** $slots->has('footer') and $slot->isEmpty() in its view. */
-        ctx.$slots = { has: (name) => slotHasContent(self.slots[P.toStr(name)]) };
-
-        return ctx;
     }
 
     /** What a render reports back: handlers, children, nodes it puts in the page and takes out. */
@@ -269,25 +174,21 @@ export class Component {
         return P.getIn(this.data.get(root) ?? null, keys);
     }
 
-    /** $set('form.email', 'x') and fusion:model: a property or a key under it. */
+    /** $set('form.email', 'x') and fusion:model: a property or a key under it, between its updating and updated hooks. */
     setPath(path, value) {
         const [root, ...keys] = String(path).split('.');
         const prop = this.definition.props[root];
-        if (prop?.enum && !keys.length) {
-            /** fusion:model or $set on an enum property: its value as the page has it (the server checks it names a case); the hooks get the case. */
-            this.write(root, value instanceof P.EnumCase ? value.value : value, prop);
+        const isEnum = prop?.enum && !keys.length;
+        /** An enum property: its value as the page has it (the server checks it names a case); the hooks get the case. */
+        const raw = isEnum && value instanceof P.EnumCase ? value.value : value;
+        propertyHooks(this, 'updating', root, keys, isEnum ? enumCase(this.runtime, prop, raw) : value);
+        if (isEnum) {
+            this.write(root, raw, prop);
             value = this.ctx[root];
         } else {
             this.ctx[root] = keys.length ? P.setIn(this.data.get(root) ?? null, keys, value) : value;
         }
-        const hook = 'updated' + root.charAt(0).toUpperCase() + root.slice(1);
-        if (typeof this.definition.methods[hook] === 'function') {
-            this.ctx[hook](value, keys.length ? keys.join('.') : null);
-        }
-        /** updated($property, $value): any change, with its full path ("form.email"). */
-        if (typeof this.definition.methods.updated === 'function') {
-            this.ctx.updated(String(path), value);
-        }
+        propertyHooks(this, 'updated', root, keys, value);
     }
 
     reset(names) {
@@ -309,7 +210,8 @@ export class Component {
 
     /**
      * Render again what reads the properties that changed (all of it when the root reads one),
-     * then run the JavaScript $this->js() queued: it sees the page as the new state shows it.
+     * then rendered(), then the JavaScript $this->js() queued: both see the page as the new state
+     * shows it. What rendered() changes renders too, without calling it again for that render.
      */
     update() {
         if (this.destroyed) return;
@@ -317,7 +219,14 @@ export class Component {
         if (dirty.size > 0) {
             this.dirty = new Set();
             this.renders++;
-            this.rendering(() => this.view.update(dirty) || this.rebuild());
+            const rendered = this.rendering(() => this.view.update(dirty) || this.rebuild());
+            if (rendered && !this.inRendered) {
+                this.inRendered = true;
+                this.hook('rendered');
+                if (this.dirty.size === 0) this.inRendered = false;
+            } else {
+                this.inRendered = false;
+            }
 
             /** #[Url] properties that changed go to the query string. */
             if ([...dirty].some((name) => this.definition.props[name]?.url)) {
@@ -389,18 +298,9 @@ export class Component {
         return refs;
     }
 
-    /** The browser hooks: mounted() once live in the page, destroyed() when it leaves (compiled, or #[Server]). */
+    /** A component hook (hooks.js): mounted(), rendered(), destroyed(). */
     hook(name) {
-        if (!this.definition.hooks?.includes(name)) return;
-        if (this.definition.server.includes(name)) {
-            this.runtime.network.call(this, name, []).catch(() => {});
-            return;
-        }
-        try {
-            this.ctx[name]();
-        } catch (error) {
-            this.runtime.report(this, error);
-        }
+        componentHook(this, name);
     }
 
     /** Render all of it again (what reads anything). */
@@ -450,7 +350,7 @@ export class Component {
             return false;
         }
 
-        this.runtime.children(this, this.placed);
+        this.runtime.placement.children(this, this.placed);
         this.runtime.afterRender(this);
 
         /** autofocus acts on page load only; a field that appears later (a modal's) gets it here. */
@@ -463,36 +363,7 @@ export class Component {
      * server changed renders again (a value equal to the one here stays the one here).
      */
     applySnapshot(envelope, sent) {
-        const { data, errors, scroll } = readState(envelope);
-        const fresh = new Map();
-        this.setScroll(scroll, true);
-
-        for (const [name, value] of data) {
-            const current = this.data.get(name);
-            if (this.data.has(name) && sent.get(name) !== current) {
-                fresh.set(name, current);
-            } else if (sameValue(current, value)) {
-                fresh.set(name, current);
-            } else {
-                fresh.set(name, value);
-                this.dirty.add(name);
-            }
-        }
-
-        if (JSON.stringify([...errors.messages]) !== JSON.stringify([...this.errors.messages])) this.dirty.add('$errors');
-
-        this.snapshot = envelope;
-        this.serverData = new Map(data);
-        this.data = fresh;
-        this.errors = errors;
-        this.memo.clear();
-        const modelable = this.definition.modelable;
-        const modelChanged = modelable && this.dirty.has(modelable);
-        this.update();
-        /** The server changed what fusion:model binds: the parent follows. */
-        if (modelChanged) this.modelChanged(modelable);
-        /** Its changes are the server's now, though nothing may have rendered again. */
-        this.runtime.unsavedChanged(this);
+        snapshotInto(this, envelope, sent);
     }
 
     /**
@@ -514,48 +385,7 @@ export class Component {
      * is the state, again keeping what changed here meanwhile.
      */
     applyReload(envelope, only, sent, partial = null) {
-        if (only.length > 0 && partial) {
-            const { data, merge: rules, scroll } = readState(partial);
-            this.setScroll(scroll, false);
-            for (const [name, value] of data) {
-                if (!only.includes(name)) continue;
-                const current = this.data.get(name);
-                const changedHere = this.data.has(name) && sent.get(name) !== current;
-                /** A merge prop: merged into the value here, as the server merges it into its own (Merge::apply()). */
-                const rule = rules.get(name);
-                const into = (base) => (rule ? mergeValues(base ?? null, value, readRule(rule)) : value);
-                this.serverData.set(name, into(this.serverData.get(name)));
-                const next = into(current);
-                if (!changedHere && !sameValue(current, next)) {
-                    this.data.set(name, next);
-                    this.dirty.add(name);
-                }
-            }
-            this.partials.push(partial);
-        } else {
-            const { data, scroll } = readState(envelope);
-            this.setScroll(scroll, true);
-            const fresh = new Map(this.data);
-            for (const [name, value] of data) {
-                const current = this.data.get(name);
-                const changedHere = this.data.has(name) && sent.get(name) !== current;
-                if (!changedHere && !sameValue(current, value)) {
-                    fresh.set(name, value);
-                    this.dirty.add(name);
-                }
-            }
-            this.snapshot = envelope;
-            this.serverData = new Map(data);
-            this.partials = [];
-            this.data = fresh;
-        }
-
-        this.memo.clear();
-        const modelable = this.definition.modelable;
-        const modelChanged = modelable && this.dirty.has(modelable);
-        this.update();
-        if (modelChanged) this.modelChanged(modelable);
-        this.runtime.unsavedChanged(this);
+        reloadInto(this, envelope, only, sent, partial);
     }
 
     /**
@@ -565,7 +395,7 @@ export class Component {
     setScroll(scroll, replace) {
         const next = new Map(replace ? [] : this.scroll);
         for (const [name, position] of scroll) next.set(name, position);
-        if (JSON.stringify(P.encode(next)) !== JSON.stringify(P.encode(this.scroll))) this.dirty.add('$scroll');
+        if (JSON.stringify(P.encode(next)) !== JSON.stringify(P.encode(this.scroll))) this.dirty.add(SIGNALS.scroll);
         this.scroll = next;
     }
 
@@ -597,10 +427,10 @@ export class Component {
         return updates;
     }
 
-    /** It left the page: destroyed() runs (in the browser), then what it tracks is let go. */
+    /** It left the page: destroyed() runs (a #[Server] one is sent before it goes), then what it tracks is let go. */
     destroy() {
         if (this.destroyed) return;
-        if (!this.definition.server.includes('destroyed')) this.hook('destroyed');
+        this.hook('destroyed');
         this.destroyed = true;
         this.runtime.broadcasts.unsubscribe(this);
         for (const store of Object.values(this.definition.stores ?? {})) {

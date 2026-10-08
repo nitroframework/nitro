@@ -1,7 +1,7 @@
 /** Children, slots, portals (@teleport) and raw HTML, as render() renders them. Part of render.js. */
 import { append, createAnchorNode, getAnchor, removeBefore, removeNode } from './anchor.js';
 import { evaluate } from './call.js';
-import { hydrateChild, hydrateRaw } from './hydrate.js';
+import { childPlaceholder, hydrateChild, hydrateRaw } from './hydrate.js';
 import { renderRaw } from './raw.js';
 import { createScope, dispose, track } from './scope.js';
 import { render } from './render.js';
@@ -58,10 +58,7 @@ function placeChild(target, instance, node, scope, hydrate, insert, name) {
     if (hydrate) {
         hydrateChild(instance, target, id);
     } else {
-        const placeholder = instance.document.createElement('div');
-        placeholder.setAttribute('fusion:id', id);
-        placeholder.setAttribute('fusion:placeholder', '');
-        append(target, placeholder, insert);
+        append(target, childPlaceholder(instance.document, id), insert);
     }
     const followed = typeof node.model === 'number' ? [node.props, node.model] : [node.props];
     track(instance, followed, scope, () => instance.host.child(name, key, evaluate(instance, node.props, scope), undefined, model()));

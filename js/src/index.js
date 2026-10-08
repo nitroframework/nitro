@@ -11,13 +11,19 @@ import { persist } from './plugins/persist.js';
 import { sync } from './plugins/sync.js';
 
 const script = document.currentScript;
+
+/** @fusionScripts says where everything is (the server's config is the one place): without it, nothing would. */
+if (!script?.dataset.endpoint || !script.dataset.chunks) {
+    throw new Error('Fusion: load fusion.js with @fusionScripts, which tells it its endpoint and where its chunks are');
+}
+
 const config = {
-    endpoint: script?.dataset.endpoint ?? '/_fusion',
-    csrf: script?.dataset.csrf ?? '',
+    endpoint: script.dataset.endpoint,
+    csrf: script.dataset.csrf ?? '',
     /** app.js's version: the #[LazyLoad] chunks load with it */
-    bundle: script?.dataset.bundle ?? '',
+    bundle: script.dataset.bundle ?? '',
     /** Where a chunk is: {id} stands for its name (the static build's files, or Fusion's route) */
-    chunks: script?.dataset.chunks ?? null,
+    chunks: script.dataset.chunks,
     /** config/nprogress.php, absent when the bar is off */
     progress: script?.dataset.progress ? JSON.parse(script.dataset.progress) : null,
 };

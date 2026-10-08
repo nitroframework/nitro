@@ -11,6 +11,8 @@
  * The plain forms are hidden by the stylesheet; a delayed one, whose name the stylesheet can't
  * know, by data-fusion-loading-hidden, which this sets.
  */
+import { duration } from './events.js';
+
 export const STYLE = '[fusion\\:loading]:not([data-fusion-loading]){display:none!important}'
     + '[fusion\\:loading\\.remove][data-fusion-loading]{display:none!important}'
     + '[data-fusion-loading-hidden]{display:none!important}';
@@ -44,8 +46,8 @@ export function applyLoading(component, active) {
 function parse(attribute) {
     const modifiers = attribute.split('.').slice(1);
     if (modifiers[0] !== 'delay') return [null, modifiers];
-    const time = /^(\d+)(ms|s)$/.exec(modifiers[1] ?? '');
-    return time ? [Number(time[1]) * (time[2] === 's' ? 1000 : 1), modifiers.slice(2)] : [DELAY, modifiers.slice(1)];
+    const wait = duration(modifiers[1]);
+    return wait !== null ? [wait, modifiers.slice(2)] : [DELAY, modifiers.slice(1)];
 }
 
 /** Whether a delayed attribute is on: once the call has lasted its wait; a call ending sooner shows nothing. */

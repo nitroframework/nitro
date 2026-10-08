@@ -1,5 +1,5 @@
 /**
- * Handlers no DOM event starts (Globals::HOOKS), set up after each render:
+ * Triggers: handlers no DOM event starts (Globals::TRIGGERS), set up after each render:
  *
  *  - fusion:poll="method" calls it every 2.5s (.5s, .750ms: another interval; a bare fusion:poll
  *    refreshes). It waits while the tab is hidden (.keep-alive: it does not), polls only while
@@ -12,10 +12,11 @@
  *    list keeps loading until the list fills the screen or has no more.
  */
 import { timing } from './events.js';
+import { ATTRIBUTES, selectorOf } from '../protocol.js';
 
 const POLL = 2500;
 
-export class Hooks {
+export class Triggers {
     constructor(runtime, window) {
         this.runtime = runtime;
         this.window = window;
@@ -30,22 +31,22 @@ export class Hooks {
 
     /** After a render: start the component's new polls and inits. */
     sync(component) {
-        for (const el of this.owned(component, 'fusion:h-init')) {
+        for (const el of this.owned(component, ATTRIBUTES.handler + 'init')) {
             if (this.initialized.has(el)) continue;
             this.initialized.add(el);
-            this.call(component, el, 'fusion:h-init');
+            this.call(component, el, ATTRIBUTES.handler + 'init');
         }
 
-        for (const el of this.owned(component, 'fusion:h-visible')) {
+        for (const el of this.owned(component, ATTRIBUTES.handler + 'visible')) {
             if (!this.watched.has(el) && !this.done.has(el)) this.watch(component, el);
         }
         for (const [el, watch] of this.watched) {
             if (!el.isConnected || watch.component.destroyed) this.unwatch(el);
         }
 
-        for (const el of this.owned(component, 'fusion:h-poll')) {
+        for (const el of this.owned(component, ATTRIBUTES.handler + 'poll')) {
             if (this.polls.has(el)) continue;
-            const handler = this.handler(component, el, 'fusion:h-poll');
+            const handler = this.handler(component, el, ATTRIBUTES.handler + 'poll');
             const every = timing(handler?.modifiers ?? []) ?? POLL;
             this.polls.set(el, this.window.setInterval(() => this.tick(component, el), every));
         }
@@ -53,29 +54,29 @@ export class Hooks {
 
     tick(component, el) {
         /** Its element left the page, or its component did: stop. */
-        if (!el.isConnected || component.destroyed || !el.hasAttribute('fusion:h-poll')) {
+        if (!el.isConnected || component.destroyed || !el.hasAttribute(ATTRIBUTES.handler + 'poll')) {
             this.window.clearInterval(this.polls.get(el));
             this.polls.delete(el);
             return;
         }
 
-        const modifiers = this.handler(component, el, 'fusion:h-poll')?.modifiers ?? [];
+        const modifiers = this.handler(component, el, ATTRIBUTES.handler + 'poll')?.modifiers ?? [];
         if (this.window.document.hidden && !modifiers.includes('keep-alive')) return;
         if (modifiers.includes('visible') && !this.onScreen(el)) return;
         if (this.runtime.inflight.get(component)?.size) return;
 
-        this.call(component, el, 'fusion:h-poll');
+        this.call(component, el, ATTRIBUTES.handler + 'poll');
     }
 
     /** fusion:visible: observe the element (without IntersectionObserver: call it once, now). */
     watch(component, el) {
-        const modifiers = this.handler(component, el, 'fusion:h-visible')?.modifiers ?? [];
+        const modifiers = this.handler(component, el, ATTRIBUTES.handler + 'visible')?.modifiers ?? [];
         const once = modifiers.includes('once');
         const margin = modifiers.find((m) => /^\d+px$/.test(m)) ?? '0px';
 
         if (typeof this.window.IntersectionObserver !== 'function') {
             this.done.add(el);
-            this.call(component, el, 'fusion:h-visible');
+            this.call(component, el, ATTRIBUTES.handler + 'visible');
             return;
         }
 
@@ -114,7 +115,7 @@ export class Hooks {
         watch.running = true;
         const renders = component.renders;
         try {
-            await this.handler(component, el, 'fusion:h-visible')?.fn(null);
+            await this.handler(component, el, ATTRIBUTES.handler + 'visible')?.fn(null);
             /** A #[Server] method: its answer, then the render it brings. */
             await this.runtime.network.queues.get(component)?.catch(() => {});
             await new Promise((resolve) => this.window.setTimeout(resolve));
@@ -138,13 +139,12 @@ export class Hooks {
 
     /** The handler the component's render gave the element. */
     handler(component, el, attribute) {
-        return component.handler(el, attribute.slice('fusion:h-'.length));
+        return component.handler(el, attribute.slice(ATTRIBUTES.handler.length));
     }
 
     /** The component's elements with the attribute, not its children's. */
     owned(component, attribute) {
-        const selector = `[${attribute.replace(':', '\\:')}]`;
-        const all = component.scan(selector);
+        const all = component.scan(selectorOf(attribute));
         return all.filter((el) => this.runtime.owner(el) === component);
     }
 

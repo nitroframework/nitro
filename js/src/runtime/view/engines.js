@@ -20,6 +20,7 @@
  */
 import { ScriptView } from './script.js';
 import { View } from './view.js';
+import { BLADE_ENGINE } from '../protocol.js';
 
 export class Engines {
     constructor(runtime) {
@@ -30,7 +31,7 @@ export class Engines {
     }
 
     add(name, engine) {
-        if (name === 'blade' || this.engines.has(name)) throw new Error(`Fusion.engine('${name}') is registered already`);
+        if (name === BLADE_ENGINE || this.engines.has(name)) throw new Error(`Fusion.engine('${name}') is registered already`);
         if (typeof engine?.load !== 'function' || typeof engine?.mount !== 'function') {
             throw new Error(`Fusion.engine('${name}', { load, mount }): load(view) gives the view's module, mount(module, el, handle) mounts it`);
         }
@@ -38,8 +39,9 @@ export class Engines {
     }
 
     view(definition, $this, host, document) {
-        const name = definition.engine ?? 'blade';
-        if (name === 'blade') return new View(definition, $this, host, document);
+        /** A view Fusion compiled names no engine: only a JavaScript framework's does. */
+        const name = definition.engine;
+        if (name === undefined) return new View(definition, $this, host, document);
         const engine = this.engines.get(name);
         if (!engine) throw new Error(`Fusion: no view engine [${name}]: register it with Fusion.engine('${name}', { load, mount })`);
         return new ScriptView(this.runtime, this, engine, definition, $this, host);
@@ -80,7 +82,7 @@ export class Engines {
             seen.add(name);
             const definition = this.runtime.definitions.get(name);
             if (!definition) return;
-            if ((definition.engine ?? 'blade') !== 'blade') {
+            if (definition.engine !== undefined) {
                 const loading = this.load(definition.engine, definition.view);
                 if (loading) loads.push(loading);
                 return;
