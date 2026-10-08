@@ -35,6 +35,10 @@
         "merge": ["mode", "path", "match"],
         "position": ["pageName", "currentPage", "nextPage", "previousPage"]
     },
+    "timing": {
+        "app": "fusion",
+        "db": "db"
+    },
     "answer": {
         "call": ["snapshot", "children", "stores", "shared", "once", "flash", "effects"],
         "page": ["fusion", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
@@ -59,7 +63,8 @@
         "only": "X-Fusion-Only",
         "once": "X-Fusion-Once",
         "location": "X-Fusion-Location",
-        "call": "X-Fusion"
+        "call": "X-Fusion",
+        "timing": "Server-Timing"
     },
     "paths": {
         "update": "update",
@@ -67,7 +72,8 @@
         "preview": "upload/preview",
         "runtime": "fusion.js",
         "bundle": "app.js",
-        "chunk": "app/{id}.js"
+        "chunk": "app/{id}.js",
+        "devtools": "fusion-devtools.js"
     },
     "urlValues": {
         "int": "^[+-]?(0|[1-9][0-9]*)$",

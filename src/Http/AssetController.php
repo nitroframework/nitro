@@ -7,10 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Fusion\Rendering\Devtools;
+use Nitro\Fusion\Support\Config;
 
 /**
- * Serves the runtime (fusion.js) and the application's compiled components (app.js, and the
- * #[LazyLoad] chunks, app/<group>.js). Requests carrying the current version are cached for a
+ * Serves the runtime (fusion.js), the application's compiled components (app.js, and the
+ * #[LazyLoad] chunks, app/<group>.js), and in development the dev overlay (fusion-devtools.js). Requests carrying the current version are cached for a
  * year; the version changes with the content.
  */
 final class AssetController
@@ -18,6 +20,14 @@ final class AssetController
     public function runtime(Request $request, Bundle $bundle): Response
     {
         return $this->script((string) file_get_contents($bundle->runtimePath()), $request->query('v') === $bundle->runtimeVersion());
+    }
+
+    /** The dev overlay: only while it is on (Devtools), never in production. */
+    public function devtools(Request $request, Devtools $devtools): Response
+    {
+        abort_unless($devtools->enabled() && is_file($devtools->path()), 404);
+
+        return $this->script((string) file_get_contents($devtools->path()), $request->query('v') === $devtools->version());
     }
 
     public function bundle(Request $request, Bundle $bundle): Response
@@ -50,7 +60,7 @@ final class AssetController
             $path = $path();
         } catch (CompileException $exception) {
             /** In development the page still renders; the console says what failed to compile. */
-            if (! config('app.debug')) {
+            if (! app(Config::class)->debug()) {
                 throw $exception;
             }
 

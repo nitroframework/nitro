@@ -13,10 +13,12 @@
  *  - store (store)                    a store was made in this tab (once the page's components started)
  *  - request ({ component, method, headers })   before a component's request is sent: a #[Server] call (its
  *                                               method), a reload ($reload), an upload ($upload); headers may be added to
- *  - response ({ component, method, status })   when its answer arrived (status 0: none came)
+ *  - response ({ component, method, status, ms, bytes, serverMs, dbMs })   when its answer arrived (status 0:
+ *                                               none came): how long it took, its size when known, and in
+ *                                               development the server's time and its database's (Server-Timing)
  *
  * A component is { name, el, dispatch(event, ...params) }; a store { name, persist, sync,
- * get(property), set(property, value), onChange(listener) }, its values JSON-safe as the server
+ * get(property), values(), set(property, value), onChange(listener) }, its values JSON-safe as the server
  * sends them (an associative array as {"$m": [[key, value], ...]}); set() is the browser's own
  * change, which the server checks on the next call. A listener registered for component or store
  * hears those already there too. Property names are the browser's (an obfuscated build's aliases).
@@ -85,8 +87,8 @@ export class Plugins {
         return headers;
     }
 
-    response(target, method, status) {
-        this.emit('response', target, { component: this.facade(target), method, status });
+    response(target, method, status, timing = {}) {
+        this.emit('response', target, { component: this.facade(target), method, status, ...timing });
     }
 
     emit(event, target, payload) {
@@ -133,6 +135,10 @@ export class Plugins {
             get(property) {
                 known(property);
                 return P.encode(store.data.get(property) ?? null);
+            },
+            /** Every property's value, by name. */
+            values() {
+                return Object.fromEntries(Object.keys(props).map((property) => [property, P.encode(store.data.get(property) ?? null)]));
             },
             /** The browser's own change, as a store method's would be: a #[Locked] property refuses it. */
             set(property, value) {

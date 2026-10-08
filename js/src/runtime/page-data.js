@@ -84,6 +84,14 @@ export function dropState(el) {
     states.delete(el.getAttribute(ATTRIBUTES.id));
 }
 
+/** The size of what a page carries (the dev overlay): the globals, and each component's state by id, in bytes. */
+export function pageDataSizes(page) {
+    const bytes = (text) => new TextEncoder().encode(text ?? '').length;
+    const states = {};
+    for (const [id, envelope] of Object.entries(jsonIn(page, ATTRIBUTES.state) ?? {})) states[id] = bytes(JSON.stringify(envelope));
+    return { globals: bytes(page.querySelector(`script${selectorOf(ATTRIBUTES.globals)}`)?.textContent), states };
+}
+
 function jsonIn(page, attribute) {
     const script = page.querySelector(`script${selectorOf(attribute)}`);
     if (!script) return null;

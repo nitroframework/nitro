@@ -148,6 +148,8 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | State the browser sent: opened, whole, known, still admitted by the page's middleware | `Http/IncomingState` |
 | A state by its own names (an obfuscated build's aliases read) | `State/Snapshots::ownNames()` |
 | The request being answered, and its session | `Support/CurrentRequest` |
+| Whether the application is in development (`APP_DEBUG`) | `Support/Config::debug()` |
+| The dev overlay: on or off, its file and script | `Rendering/Devtools`; `Http/ServerTiming` times each answer for it |
 | What `@fusionScripts` tells the runtime (endpoint, build, chunks, CSRF token, progress bar) | `Rendering/Scripts` writes it, `runtime/page-data.js` reads it; the CSRF token is `session.token` (`laravel/blade.js`) |
 | The browser's names in an obfuscated build, both ways | `Build/BrowserNames` |
 | A method's source for the compiler | `Compiler/MethodSource` |
@@ -198,6 +200,7 @@ components on the page, and the services they share. Each job is its own module:
 | `php.js`, `php/` | PHP semantics in JavaScript: values, operators, the functions |
 | `laravel/` | Blade's helpers (`$loop`, `@class`, `@csrf`, ...) and Laravel's (`route()`, `__()`, `config()`) |
 | `plugins/` | Fusion's own plugins: `#[Persist]`, `#[Sync]` |
+| `devtools/` | the dev overlay (`dist/fusion-devtools.js`, development only): a plugin on the public runtime, in a shadow root |
 | `js/adapters` | the frameworks' views given the component (`useFusion()`), imported by the app's Vite |
 | `js/vite.js` | Fusion's Vite plugin |
 | `js/functions` | PHP functions a bundle includes when its components call them |

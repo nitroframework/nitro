@@ -25,6 +25,7 @@ use Nitro\Fusion\Http\AssetController;
 use Nitro\Fusion\Http\FinishPage;
 use Nitro\Fusion\Http\PageResponses;
 use Nitro\Fusion\Http\PersistentMiddleware;
+use Nitro\Fusion\Http\ServerTiming;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
 use Nitro\Fusion\Support\ComponentHooks;
@@ -130,7 +131,7 @@ class FusionServiceProvider extends ServiceProvider
 
         $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion($app));
 
-        $this->app->scoped(Config::class, fn (Application $app) => new Config((array) $app->make('config')->get('fusion')));
+        $this->app->scoped(Config::class, fn (Application $app) => new Config((array) $app->make('config')->get('fusion'), (bool) $app->make('config')->get('app.debug')));
 
         $this->app->scoped(Bundle::class, fn (Application $app) => new Bundle(
             $app->make(Config::class),
@@ -219,6 +220,8 @@ class FusionServiceProvider extends ServiceProvider
 
         /** The @portal placeholders in any web response get the content teleported to them. */
         $this->app->make('router')->pushMiddlewareToGroup('web', FinishPage::class);
+        /** With the dev overlay on: each answer's time on the server and its database's. */
+        $this->app->make('router')->pushMiddlewareToGroup('web', ServerTiming::class);
 
         /**
          * Route::fusion('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':
@@ -300,6 +303,7 @@ class FusionServiceProvider extends ServiceProvider
             ->name('fusion.upload.preview');
 
         Route::get($path('runtime'), [AssetController::class, 'runtime'])->name('fusion.runtime');
+        Route::get($path('devtools'), [AssetController::class, 'devtools'])->name('fusion.devtools');
         Route::get($path('bundle'), [AssetController::class, 'bundle'])->name('fusion.bundle');
         Route::get($path('chunk'), [AssetController::class, 'chunk'])->where('id', '[A-Za-z0-9][A-Za-z0-9._-]*')->name('fusion.chunk');
     }

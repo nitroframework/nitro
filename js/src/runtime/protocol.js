@@ -31,6 +31,9 @@ export const HEADERS = protocol.headers;
 /** Paths under the endpoint, by role (update, upload, ...): Protocol::path(). The chunks' URL comes whole from @fusionScripts. */
 export const PATHS = protocol.paths;
 
+/** Server-Timing's metrics in development (Http\ServerTiming): the server's time on the request, its database's. */
+export const TIMING = protocol.timing;
+
 /** The element a JavaScript view renders into, on the server (ScriptEngine) and in the browser. */
 export const VIEW_WRAPPER = protocol.view.wrapper;
 

@@ -4,13 +4,22 @@ namespace Nitro\Fusion\Support;
 
 /**
  * Fusion's configuration (config/fusion.php, under the app's own: FusionServiceProvider merges
- * them), and what follows from it.
+ * them), what follows from it, and whether the application is in development (APP_DEBUG): what
+ * Fusion shows or hides there (fallbacks, the dev overlay, compile errors) asks here.
  */
 final class Config
 {
     /** @param  array<string, mixed>  $values  config('fusion') */
-    public function __construct(private readonly array $values)
+    public function __construct(
+        private readonly array $values,
+        private readonly bool $debug = false,
+    ) {
+    }
+
+    /** Whether the application is in development (app.debug). */
+    public function debug(): bool
     {
+        return $this->debug;
     }
 
     /** A fusion.* value. No default here: config/fusion.php has every one. */

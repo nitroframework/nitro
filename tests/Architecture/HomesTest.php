@@ -137,6 +137,20 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Http/IncomingState.php' => 'opens it, checks it is whole, known, and still admitted'],
                 'why' => 'A call, a store and an upload each opened and checked the state themselves: the upload\'s copy accepted a partial reload\'s',
             ],
+            'whether the application is in development' => [
+                'patterns' => ["/['\"]app\.debug['\"]/"],
+                'homes' => ['src/FusionServiceProvider.php' => 'gives it to Support\\Config::debug(), which everything asks'],
+                'why' => 'Fallbacks, the dev overlay and compile errors each read APP_DEBUG themselves',
+            ],
+            'fallbacks' => [
+                /** A failure turned into what shows in a component's place: worked out, marked and shown in one place each. */
+                'patterns' => ["/attribute\('fallback'\)|ATTRIBUTES\.fallback|ComponentHooks::FALLBACK/"],
+                'homes' => [
+                    'src/Rendering/Fallbacks.php' => 'the fallback a component that failed shows, and the error reported',
+                    'js/src/runtime/component/component.js' => 'fail(): it shows in the component\'s place in the browser',
+                ],
+                'why' => 'A fallback worked out where each failure is caught would differ: the server\'s, a call\'s and the browser\'s',
+            ],
             'cached results' => [
                 /** The application's cache, read and written for #[Cached]: the keys, the tags' versions. */
                 'patterns' => ["/(?<![\w\\\\])Cache::|\bcache\(\)|make\('cache'\)|Cache\\\\Repository|->forever\(|->remember\(/"],
@@ -158,7 +172,7 @@ final class HomesTest extends TestCase
                 'why' => 'Seven places found the request themselves, three its session, each guarding it a little differently',
             ],
             'what @fusionScripts tells the runtime' => [
-                'patterns' => ['/data-(bundle|csrf|endpoint|chunks|progress)\b|dataset\.(bundle|csrf|endpoint|chunks|progress)\b|config\.csrf/'],
+                'patterns' => ['/data-(bundle|csrf|endpoint|chunks|progress|fallback|view-transitions)\b|dataset\.(bundle|csrf|endpoint|chunks|progress|fallback|viewTransitions)\b|config\.csrf/'],
                 'homes' => [
                     'src/Rendering/Scripts.php' => 'writes the runtime\'s script',
                     'js/src/runtime/page-data.js' => 'the runtime reads it: runtimeScriptOf(), configOf()',

@@ -334,6 +334,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dev overlay
+    |--------------------------------------------------------------------------
+    |
+    | A badge in the corner of each page, and a drawer: the components on the
+    | page and their state, each request (its time, the server's, the
+    | database's, its size), the page's data, the stores, the errors. null
+    | (the default) is on when APP_DEBUG is on; it is never served otherwise.
+    |
+    */
+
+    'devtools' => env('FUSION_DEVTOOLS'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Your own fusion: attributes
     |--------------------------------------------------------------------------
     |

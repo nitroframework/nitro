@@ -28,6 +28,7 @@ final class Scripts
         private readonly Stores $stores,
         private readonly PageData $pageData,
         private readonly Fallbacks $fallbacks,
+        private readonly Devtools $devtools,
     ) {
     }
 
@@ -70,6 +71,7 @@ final class Scripts
             $this->pageData->scripts($this->globals())."\n"
             .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.$fallback.$transitions.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
+            .$this->devtools->script()
         );
     }
 

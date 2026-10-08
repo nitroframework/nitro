@@ -7,7 +7,7 @@ import * as P from '../../php.js';
 import { HEADERS, SIGNALS } from '../protocol.js';
 import { webUrl } from '../navigation/navigate.js';
 import { applyEffects } from './effects.js';
-import { call, reload } from './request.js';
+import { call, reload, timingOf } from './request.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -51,6 +51,7 @@ export class Network {
         if (href === null) return;
         const sent = new Map(component.data);
         if (!deferred) this.runtime.loading(component, '$reload', true);
+        const started = window.performance.now();
         let response;
         try {
             response = await reload(this.runtime, component, href, only);
@@ -58,7 +59,7 @@ export class Network {
             throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
         } finally {
             if (!deferred) this.runtime.loading(component, '$reload', false);
-            this.runtime.plugins.response(component, '$reload', response?.status ?? 0);
+            this.runtime.plugins.response(component, '$reload', response?.status ?? 0, timingOf(this.runtime, response, started));
         }
         if (component.destroyed) return;
 
@@ -115,6 +116,7 @@ export class Network {
 
         this.runtime.loading(component, method, true);
         this.runtime.emit('fusion:request', { component: component.name, method });
+        const started = this.runtime.window.performance.now();
         let response;
         try {
             response = await call(this.runtime, component, method, body);
@@ -123,10 +125,11 @@ export class Network {
         } finally {
             this.runtime.loading(component, method, false);
             this.runtime.emit('fusion:response', { component: component.name, method, status: response?.status ?? 0 });
-            this.runtime.plugins.response(component, method, response?.status ?? 0);
+            if (!response) this.runtime.plugins.response(component, method, 0, timingOf(this.runtime, response, started));
         }
 
         const text = await response.text();
+        this.runtime.plugins.response(component, method, response.status, timingOf(this.runtime, response, started, text));
         if (!response.ok) {
             /** With fallbacks on, a call that failed answers with the component's fallback: it shows in its place. */
             const fallback = fallbackIn(text);

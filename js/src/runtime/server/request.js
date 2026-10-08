@@ -5,7 +5,7 @@
  * sends, and expired state (419) handled alike for a call and an upload.
  */
 import { session } from '../../laravel/blade.js';
-import { HEADERS, PATHS } from '../protocol.js';
+import { HEADERS, PATHS, TIMING } from '../protocol.js';
 
 /** Fusion's headers when it asks a page for its data (a visit, a reload): a Fusion page answers with it, not its HTML. */
 function pageHeaders(runtime) {
@@ -56,6 +56,22 @@ function expired(runtime, component, status) {
     if (status === 419 && runtime.emit('fusion:expired', { component: component.name, status: 419 }, true)) runtime.window.location.reload();
 }
 
+/**
+ * What a request took, for plugins (the dev overlay): ms in all, the answer's size when it was read
+ * (text), and in development the server's time and its database's (Server-Timing).
+ */
+export function timingOf(runtime, response, started, text = null) {
+    const timing = { ms: runtime.window.performance.now() - started, bytes: text === null ? null : new TextEncoder().encode(text).length };
+    for (const metric of (response?.headers.get(HEADERS.timing) ?? '').split(',')) {
+        const [name, ...params] = metric.trim().split(';').map((part) => part.trim());
+        const dur = params.find((param) => param.startsWith('dur='));
+        if (!dur) continue;
+        if (name === TIMING.app) timing.serverMs = Number(dur.slice(4));
+        if (name === TIMING.db) timing.dbMs = Number(dur.slice(4));
+    }
+    return timing;
+}
+
 /** A #[Server] call (method null: $refresh) with its body. */
 export async function call(runtime, component, method, body) {
     /** Plugins may add headers (Fusion.use(): on('request')); Fusion's own are set after theirs. */
@@ -82,6 +98,7 @@ export async function call(runtime, component, method, body) {
  */
 export function sendFiles(runtime, component, form, progress, done) {
     const request = new runtime.window.XMLHttpRequest();
+    const started = runtime.window.performance.now();
     request.open('POST', `${runtime.config.endpoint}/${PATHS.upload}`, true);
     const headers = { ...runtime.plugins.request(component, '$upload', {}), ...endpointHeaders(runtime) };
     for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
@@ -89,7 +106,8 @@ export function sendFiles(runtime, component, form, progress, done) {
         if (e.lengthComputable) progress(Math.round((e.loaded * 100) / e.total));
     };
     const end = (status, text) => {
-        runtime.plugins.response(component, '$upload', status);
+        const answer = status === 0 ? null : { headers: { get: (name) => request.getResponseHeader(name) } };
+        runtime.plugins.response(component, '$upload', status, timingOf(runtime, answer, started, typeof text === 'string' ? text : null));
         expired(runtime, component, status);
         done(status, text);
     };
