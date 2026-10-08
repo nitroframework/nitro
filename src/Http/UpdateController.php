@@ -20,6 +20,7 @@ use Nitro\Fusion\Component;
 use Nitro\Fusion\Http\IncomingState;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\Snapshots;
@@ -292,7 +293,7 @@ final class UpdateController
         $features->calling($component, $method, $arguments);
 
         try {
-            $returned = $component->{$method}(...$arguments);
+            $returned = app(MethodCache::class)->call($component, $meta, $method, $arguments, fn () => $component->{$method}(...$arguments));
         } catch (ValidationException $exception) {
             $context->errors = $exception->validator->errors();
 

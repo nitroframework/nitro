@@ -4,6 +4,7 @@ namespace Nitro\Fusion\Compiler;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Nitro\Fusion\Attributes\Cached;
 use Nitro\Fusion\Attributes\Computed;
 use Nitro\Fusion\Attributes\Description;
 use Nitro\Fusion\Attributes\Layout;
@@ -107,6 +108,7 @@ final class ComponentReader
         $listeners = [];
         $parameters = [];
         $computed = [];
+        $cached = [];
 
         foreach ($reflection->getMethods() as $method) {
             if ($method->getDeclaringClass()->getName() === Component::class || $method->isStatic()
@@ -123,6 +125,10 @@ final class ComponentReader
 
             foreach ($method->getAttributes(On::class) as $attribute) {
                 $listeners[$attribute->newInstance()->event][] = $methodName;
+            }
+
+            if (($keep = $method->getAttributes(Cached::class)[0] ?? null) !== null) {
+                $cached[$methodName] = self::cached($keep, $method, $isStore, array_keys($properties), $file);
             }
 
             if ($method->getAttributes(Computed::class) !== []) {
@@ -233,7 +239,42 @@ final class ComponentReader
             $isStore,
             self::kept($reflection, Persist::class, '#[Persist]', $properties, $isStore, $file),
             self::kept($reflection, Sync::class, '#[Sync]', $properties, $isStore, $file),
+            $cached,
         );
+    }
+
+    /**
+     * #[Cached] on a method: mount() (the state it leaves) or a #[Server] method (what it returns),
+     * on a page or a component. A browser method runs where there is no cache to keep it in.
+     *
+     * @param  ReflectionAttribute<Cached>  $attribute
+     * @param  list<string>  $properties  the component's
+     */
+    private static function cached(ReflectionAttribute $attribute, ReflectionMethod $method, bool $isStore, array $properties, string $file): Cached
+    {
+        $name = $method->getName();
+
+        if ($isStore) {
+            throw new CompileException("#[Cached] on {$name}(): a store's state is made for each request and shared by its components; keep what it loads with #[Cached] on a component's mount() or #[Server] method", $file, $method->getStartLine());
+        }
+
+        if ($name !== ComponentHooks::MOUNT && $method->getAttributes(Server::class) === []) {
+            throw new CompileException("#[Cached] on {$name}(): it keeps what mount() or a #[Server] method gives, and {$name}() runs in the browser; mark it #[Server], or load the data in mount()", $file, $method->getStartLine());
+        }
+
+        try {
+            $rule = $attribute->newInstance();
+        } catch (\InvalidArgumentException $exception) {
+            throw new CompileException("{$name}(): {$exception->getMessage()}", $file, $method->getStartLine());
+        }
+
+        foreach ($rule->by ?? [] as $property) {
+            if (! in_array($property, $properties, true)) {
+                throw new CompileException("#[Cached] on {$name}(): it depends on \${$property}, which is not a public property of the component", $file, $method->getStartLine());
+            }
+        }
+
+        return $rule;
     }
 
     /**

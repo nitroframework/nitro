@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static mixed flashed(?string $key = null, mixed $default = null)
  * @method static void share(string|array $key, mixed $value = null)
  * @method static mixed shared(?string $key = null, mixed $default = null)
- * @method static string mount(string $name, array $props = [], array $slots = [])
- * @method static mixed config(string $key, mixed $default = null)
+ * @method static \Nitro\Fusion\Store store(string $class)
+ * @method static void expire(string ...$tags)
  * @method static \Nitro\Fusion\Browser\Browser browser()
  *
  * @see \Nitro\Fusion\Fusion

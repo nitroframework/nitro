@@ -6,12 +6,13 @@ use Closure;
 use Illuminate\Contracts\Container\Container;
 use Nitro\Fusion\Browser\Browser;
 use Nitro\Fusion\Browser\BrowserOnlyException;
+use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\State\Stores;
 
 /**
  * Fusion for an application's code (the Fusion facade): shared and flash data, stores, the
- * browser's APIs. Each method hands the work to the part that does it; Fusion's own parts never
+ * browser's APIs, cached results. Each method hands the work to the part that does it; Fusion's own parts never
  * come through here, they take what they need in their constructors (FusionServiceProvider).
  */
 final class Fusion
@@ -85,6 +86,16 @@ final class Fusion
     public function flashed(?string $key = null, mixed $default = null): mixed
     {
         return $this->part(SharedData::class)->flashed($key, $default);
+    }
+
+    /**
+     * Forget the results #[Cached] keeps under these tags: after a save, what showed the old data.
+     *
+     *     Fusion::expire('students');
+     */
+    public function expire(string ...$tags): void
+    {
+        $this->part(MethodCache::class)->expire(...$tags);
     }
 
     /**

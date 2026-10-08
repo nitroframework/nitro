@@ -12,6 +12,7 @@ use Nitro\Fusion\Compiler\PropertyMeta;
 use Nitro\Fusion\Compiler\Template\ChildTag;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Lifecycle\Features;
+use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Support\Protocol;
@@ -32,6 +33,7 @@ final class Placement
         private readonly Features $features,
         private readonly Stores $stores,
         private readonly PageData $pageData,
+        private readonly MethodCache $cache,
     ) {
     }
 
@@ -171,7 +173,7 @@ final class Placement
             $id,
             $meta->name,
             $meta->hasMount ? null : fn () => $this->fill($component, $meta, $props),
-            $meta->hasMount ? fn () => $this->app->call([$component, ComponentHooks::MOUNT], $props) : null,
+            $meta->hasMount ? $this->cache->mount($component, $meta, $props, fn () => $this->app->call([$component, ComponentHooks::MOUNT], $props)) : null,
         );
 
         if ($model !== null) {

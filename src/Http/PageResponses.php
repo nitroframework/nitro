@@ -22,6 +22,7 @@ use Nitro\Fusion\Merge;
 use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
+use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\Snapshots;
@@ -57,6 +58,7 @@ final class PageResponses
         private readonly ViewEngines $views,
         private readonly Stores $stores,
         private readonly ServerChildren $children,
+        private readonly MethodCache $cache,
     ) {
     }
 
@@ -74,11 +76,24 @@ final class PageResponses
             $this->pageId(),
             $meta->name,
             $meta->hasMount ? null : fn () => $this->fillFromRoute($component, $meta, $parameters),
-            /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
-            $meta->hasMount ? fn () => [$component, ComponentHooks::MOUNT](...array_values($parameters)) : null,
+            $meta->hasMount ? $this->mount($component, $meta, $parameters) : null,
         );
 
         return $this->respond($component, $meta);
+    }
+
+    /**
+     * mount() with the route's parameters, already bound and resolved by the router, in its order;
+     * its result kept with #[Cached], but for a partial reload, which asks for fresh values.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return Closure(): void
+     */
+    private function mount(Component $component, ComponentMeta $meta, array $parameters): Closure
+    {
+        $mount = fn () => [$component, ComponentHooks::MOUNT](...array_values($parameters));
+
+        return $this->partial() === null ? $this->cache->mount($component, $meta, $parameters, $mount) : $mount;
     }
 
     /**

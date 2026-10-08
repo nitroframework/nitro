@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Compiler;
 
+use Nitro\Fusion\Attributes\Cached;
 use Nitro\Fusion\Attributes\Computed;
 use Nitro\Fusion\Attributes\Description;
 use Nitro\Fusion\Attributes\Layout;
@@ -76,6 +77,8 @@ final class ComponentMeta
         public readonly array $persist = [],
         /** @var list<string> a store's properties shared with the browser's other tabs (#[Sync]) */
         public readonly array $sync = [],
+        /** @var array<string, Cached> mount() or #[Server] methods whose result is kept (#[Cached]), by method */
+        public readonly array $cached = [],
     ) {
     }
 

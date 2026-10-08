@@ -36,6 +36,7 @@ use Nitro\Fusion\Rendering\Placement;
 use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\Scripts;
 use Nitro\Fusion\Rendering\Tags;
+use Nitro\Fusion\State\MethodCache;
 use Nitro\Fusion\State\SharedData;
 use Nitro\Fusion\Support\Signer;
 use Nitro\Fusion\State\Snapshots;
@@ -87,6 +88,12 @@ class FusionServiceProvider extends ServiceProvider
             $app->make(BrowserNames::class),
             $app->make(Components::class),
             ($lifetime = $app->make('config')->get('fusion.state.lifetime')) === null ? null : (int) $lifetime,
+        ));
+
+        /** #[Cached] results, in fusion.cache.store (the application's default store when null). */
+        $this->app->scoped(MethodCache::class, fn (Application $app) => new MethodCache(
+            $app,
+            $app->make('cache')->store($app->make('config')->get('fusion.cache.store')),
         ));
 
         $this->app->scoped(ViewEngines::class, function (Application $app) {

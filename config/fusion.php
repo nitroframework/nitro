@@ -143,6 +143,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cached results
+    |--------------------------------------------------------------------------
+    |
+    | #[Cached] on mount() or a #[Server] method keeps its result in this
+    | cache store (null: the application's default). Fusion::expire('tag')
+    | forgets every result kept under that tag, on any store.
+    |
+    */
+
+    'cache' => [
+        'store' => env('FUSION_CACHE_STORE'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Uploads
     |--------------------------------------------------------------------------
     |

@@ -153,6 +153,7 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | A method's source for the compiler | `Compiler/MethodSource` |
 | A component's and a store's state in the browser: defaults, what changed, the `$this` properties | `runtime/component/snapshot.js`, `runtime/component/context.js` |
 | Every request the runtime sends (visits, reloads, calls, uploads) | `runtime/server/request.js` |
+| Cached results (`#[Cached]`): their keys, the tags' versions, `Fusion::expire()` | `State/MethodCache`; `mount()` and `#[Server]` calls ask it where they run |
 
 ## The seams: where a new feature goes
 
