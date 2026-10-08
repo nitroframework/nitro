@@ -15,13 +15,19 @@ class SsrCommand extends Command
 {
     protected $signature = 'fusion:ssr {--bundle= : The SSR bundle, if not fusion.ssr.bundle}';
 
-    protected $description = 'Start the render service for Vue, React and Solid views';
+    protected $description = 'Start the render service for JavaScript views';
 
     public function handle(): int
     {
-        $config = (array) $this->laravel->make('config')->get('fusion.ssr', []);
-        $bundle = (string) ($this->option('bundle') ?: ($config['bundle'] ?? $this->laravel->basePath('bootstrap/ssr/ssr.js')));
-        $port = parse_url((string) ($config['url'] ?? 'http://127.0.0.1:13714'), PHP_URL_PORT) ?: 13714;
+        $config = (array) $this->laravel->make('config')->get('fusion.ssr');
+        $bundle = (string) ($this->option('bundle') ?: $config['bundle']);
+        $port = parse_url((string) $config['url'], PHP_URL_PORT);
+
+        if (! is_int($port)) {
+            $this->components->error("fusion.ssr.url ({$config['url']}) names no port: the render service listens on the one it names.");
+
+            return self::FAILURE;
+        }
 
         if (! is_file($bundle)) {
             $this->components->error("No SSR bundle at {$bundle}. Build it with: npx vite build --ssr resources/js/ssr.js");
@@ -29,11 +35,11 @@ class SsrCommand extends Command
             return self::FAILURE;
         }
 
-        if (! ($config['enabled'] ?? false)) {
+        if (! $config['enabled']) {
             $this->components->warn('fusion.ssr.enabled is off (FUSION_SSR): pages will not ask the render service.');
         }
 
-        $node = (string) $this->laravel->make('config')->get('fusion.esbuild.node', 'node');
+        $node = (string) $this->laravel->make('config')->get('fusion.esbuild.node');
         $process = proc_open([$node, $bundle], [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $this->laravel->basePath(), [...getenv(), 'FUSION_SSR_PORT' => (string) $port]);
 
         if (! is_resource($process)) {

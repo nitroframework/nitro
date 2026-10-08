@@ -6,8 +6,10 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\Obfuscator;
 use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Support\Registry;
+use Nitro\Fusion\Support\UrlValues;
 
 /**
  * The application's Route::fusion() pages, as the bundle tells the browser about them: each one's
@@ -20,11 +22,8 @@ use Nitro\Fusion\Fusion;
  */
 final class PageRoutes
 {
-    /** The types a route parameter can fill on a client page: what a URL segment can be. */
-    private const PARAMETER_TYPES = ['int', 'float', 'string'];
-
     public function __construct(
-        private readonly Fusion $fusion,
+        private readonly Registry $registry,
         private readonly ?Router $router = null,
     ) {
     }
@@ -43,7 +42,7 @@ final class PageRoutes
 
         $pages = [];
 
-        foreach ($this->fusion->registry()->all() as $name => $class) {
+        foreach ($this->registry->all() as $name => $class) {
             $pages[ltrim($class, '\\')] = $name;
         }
 
@@ -146,7 +145,7 @@ final class PageRoutes
     {
         $types = array_values(array_diff($property->types, ['null']));
 
-        return $property->kind === PropertyMeta::VALUE && count($types) === 1 && in_array($types[0], self::PARAMETER_TYPES, true) ? $types[0] : null;
+        return $property->kind === PropertyMeta::VALUE && count($types) === 1 && in_array($types[0], UrlValues::SEGMENT_TYPES, true) ? $types[0] : null;
     }
 
     /** @return list<string> */

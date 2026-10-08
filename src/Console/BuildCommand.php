@@ -5,8 +5,10 @@ namespace Nitro\Fusion\Console;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\Support\Protocol;
+use Nitro\Fusion\Support\Registry;
 use Nitro\Fusion\View\ScriptEngine;
 use Nitro\Fusion\View\ViewEngines;
 use RuntimeException;
@@ -39,9 +41,9 @@ class BuildCommand extends Command
     /** The component being compiled, named when the build fails on it. */
     private ?string $component = null;
 
-    public function handle(Fusion $fusion, Bundle $bundle, Filesystem $files): int
+    public function handle(Bundle $bundle, Filesystem $files): int
     {
-        $manifest = $this->laravel->bootstrapPath('cache/fusion.php');
+        $manifest = $this->laravel->bootstrapPath(Registry::CACHE);
         $files->delete($manifest);
         $this->newLine();
 
@@ -55,7 +57,7 @@ class BuildCommand extends Command
             return self::FAILURE;
         }
 
-        $files->put($manifest, $fusion->registry()->export());
+        $files->put($manifest, $this->laravel->make(Registry::class)->export());
         $this->summary($this->built);
 
         return self::SUCCESS;
@@ -131,22 +133,22 @@ class BuildCommand extends Command
      *
      * @param  list<string>  $names
      */
-    private function engines(Fusion $fusion, array $names): string
+    private function engines(array $names): string
     {
         $engines = [];
 
         foreach ($names as $name) {
-            $engine = $fusion->meta($name)->engine;
+            $engine = $this->laravel->make(Components::class)->meta($name)->engine;
             $engines[$engine] = ($engines[$engine] ?? 0) + 1;
         }
 
-        if (array_keys($engines) === [] || array_keys($engines) === ['blade']) {
+        if (array_keys($engines) === [] || array_keys($engines) === [Protocol::bladeEngine()]) {
             return '';
         }
 
         /** Blade first, then the engines as fusion.views lists them; each by its label. */
         $registry = $this->laravel->make(ViewEngines::class);
-        $order = ['blade', ...array_map(fn (ScriptEngine $engine) => $engine->name(), $registry->scripts())];
+        $order = [Protocol::bladeEngine(), ...array_map(fn (ScriptEngine $engine) => $engine->name(), $registry->scripts())];
         $position = fn (string $engine) => array_search($engine, $order, true) === false ? PHP_INT_MAX : (int) array_search($engine, $order, true);
         uksort($engines, fn (string $left, string $right) => $position($left) <=> $position($right));
         $label = fn (string $engine) => $registry->named($engine)?->label() ?? ucfirst($engine);
@@ -160,18 +162,17 @@ class BuildCommand extends Command
         switch ($event) {
             case 'compiling':
                 $this->step = 'compiling';
-                $fusion = $this->laravel->make(Fusion::class);
-                $names = array_keys($fusion->registry()->all());
+                $names = array_keys($this->laravel->make(Registry::class)->all());
                 $pages = array_values(array_filter($names, Naming::isPage(...)));
                 $stores = count(array_filter($names, Naming::isStore(...)));
                 $components = array_values(array_diff($names, $pages, array_filter($names, Naming::isStore(...))));
                 $this->label = sprintf(
                     'Compiling %d components%s%s and %d pages%s to JavaScript',
                     count($components),
-                    $this->engines($fusion, $components),
+                    $this->engines($components),
                     $stores === 0 ? '' : sprintf(', %d %s', $stores, $stores === 1 ? 'store' : 'stores'),
                     count($pages),
-                    $this->engines($fusion, $pages),
+                    $this->engines($pages),
                 );
 
                 if (! $this->output->isVerbose() && $this->output->isDecorated()) {
