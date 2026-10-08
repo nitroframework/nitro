@@ -18,6 +18,9 @@ use ReflectionClass;
  */
 final class Registry
 {
+    /** Where `fusion:build` caches the list, under the app's bootstrap folder. */
+    public const CACHE = 'cache/fusion.php';
+
     /** @var array<string, class-string<Component>> name => class */
     private array $components = [];
 
