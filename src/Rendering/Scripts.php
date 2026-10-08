@@ -56,6 +56,7 @@ final class Scripts
         /** With fallbacks on, what a component that fails to render in the browser shows. */
         $fallback = $this->fallbacks->forBrowser();
         $fallback = $fallback === null ? '' : ' data-fallback="'.e($fallback).'"';
+        $transitions = $this->config->get('view_transitions') ? ' data-view-transitions="1"' : '';
 
         /** The chunks of the components on this page (pages and #[LazyLoad]), loaded with the bundle. */
         $inChunks = $built->inChunks();
@@ -67,7 +68,7 @@ final class Scripts
 
         return new HtmlString(
             $this->pageData->scripts($this->globals())."\n"
-            .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.$fallback.' defer></script>'."\n"
+            .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.$fallback.$transitions.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
         );
     }

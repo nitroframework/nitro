@@ -172,6 +172,8 @@ export class Runtime {
             this.styled = true;
         }
 
+        /** fusion:navigate.prefetch.visible links outside components too (the layout's). */
+        this.navigator.prefetcher.watch(root);
         const islands = islandsIn(root);
         const elements = withState(root).filter((el) => !islands.some((island) => island.contains(el)));
 
@@ -317,6 +319,7 @@ export class Runtime {
 
     afterRender(component) {
         this.events.watch(component);
+        this.navigator.prefetcher.watch(component.el);
         this.model.sync(component);
         applyLoading(component, this.inflight.get(component) ?? new Set());
         applyDirty(component);

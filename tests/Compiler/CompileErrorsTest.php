@@ -102,7 +102,7 @@ class CompileErrorsTest extends TestCase
             '@push' => ["<div>\n\n@push('scripts') x</div>", '@push cannot render in the browser', 3],
             'unknown fusion attribute' => ['<div fusion:clik="save"></div>', 'Unknown attribute fusion:clik', 1],
             'unknown modifier' => ['<form fusion:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
-            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" fusion:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on fusion:navigate (it takes .keypress, .preserve-scroll, .prefetch)', 2],
+            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" fusion:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on fusion:navigate (it takes .keypress, .preserve-scroll, .prefetch, .visible, .transition)', 2],
             'a time without prefetch' => ['<div><a href="/x" fusion:navigate.60s>x</a></div>', 'Unknown modifier .60s on fusion:navigate', 1],
             'a prefetch time that is none' => ['<div><a href="/x" fusion:navigate.prefetch.soon>x</a></div>', 'Unknown modifier .soon on fusion:navigate', 1],
             'unknown current modifier' => ['<div><a href="/x" fusion:current.exat="on">x</a></div>', 'Unknown modifier .exat on fusion:current', 1],
@@ -350,6 +350,10 @@ class CompileErrorsTest extends TestCase
     {
         [$prefetching] = $this->compiled('<div><a href="/x" fusion:navigate.prefetch>x</a><a href="/y" fusion:navigate.prefetch.60s.keypress>y</a><a href="/z" fusion:navigate.prefetch.500ms>z</a></div>');
         $this->assertSame('fusion:navigate.prefetch.60s.keypress', $prefetching['h'][0]['h'][1]['a'][1]['c'], '.prefetch, with how long it is kept');
+
+        [$visible] = $this->compiled('<nav><a href="/x" fusion:navigate.prefetch.visible>x</a><a href="/y" fusion:navigate.transition>y</a></nav>');
+        $this->assertSame('fusion:navigate.prefetch.visible', $visible['h'][0]['h'][0]['a'][1]['c'], '.prefetch.visible: asked for once in view');
+        $this->assertSame('fusion:navigate.transition', $visible['h'][0]['h'][1]['a'][1]['c'], '.transition: a View Transition for this link');
 
         [$tree] = $this->compiled('<nav><a href="/a" fusion:navigate.keypress fusion:current.exact="on">a</a><a href="/b" fusion:navigate fusion:current>b</a></nav>');
 

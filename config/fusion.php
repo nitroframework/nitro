@@ -319,6 +319,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | View transitions
+    |--------------------------------------------------------------------------
+    |
+    | true: a fusion:navigate visit changes the page inside the browser's View
+    | Transitions (a cross-fade by default; style ::view-transition-old(root)
+    | and ::view-transition-new(root), or name elements with
+    | view-transition-name, for more). A browser without them changes the page
+    | as usual. fusion:navigate.transition turns them on for one link.
+    |
+    */
+
+    'view_transitions' => (bool) env('FUSION_VIEW_TRANSITIONS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Your own fusion: attributes
     |--------------------------------------------------------------------------
     |

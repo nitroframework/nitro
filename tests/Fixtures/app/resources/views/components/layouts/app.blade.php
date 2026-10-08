@@ -40,6 +40,7 @@
         <a href="/board" fusion:navigate fusion:current="active" class="board-link">Board</a>
         <a href="/counter" fusion:navigate.keypress class="press-link">Counter (on press)</a>
         <a href="/board" fusion:navigate.prefetch class="prefetch-link">Board (prefetched)</a>
+        <a href="/journal" fusion:navigate.prefetch.visible class="visible-link">Journal (prefetched in view)</a>
     </nav>
     <main>{{ $slot }}</main>
     <div id="toasts">@portal('toasts')</div>

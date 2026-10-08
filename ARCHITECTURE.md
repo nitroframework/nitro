@@ -193,7 +193,7 @@ components on the page, and the services they share. Each job is its own module:
 | `runtime/component` | `Component`; its `$this` for compiled code (`context.js`); the state the server signed, read and taken in (`snapshot.js`); hooks, errors, merge props, shared data, stores, placement (children and components made in the browser), `#[Remember]` |
 | `runtime/view` | rendering a compiled template, hydrating the server's HTML, blocks, transitions, view engines (`Fusion.engine()`) |
 | `runtime/dom` | events, `fusion:model`, loading, dirty, poll / init / visible, islands |
-| `runtime/navigation` | `fusion:navigate` visits, the page cache, swapping and mounting pages, the progress bar |
+| `runtime/navigation` | `fusion:navigate` visits (in View Transitions when on), prefetching (`prefetch.js`: on hover, in view), the page cache, swapping and mounting pages, the progress bar |
 | `runtime/server` | `#[Server]` calls and reloads, uploads, a call's effects, broadcasts |
 | `php.js`, `php/` | PHP semantics in JavaScript: values, operators, the functions |
 | `laravel/` | Blade's helpers (`$loop`, `@class`, `@csrf`, ...) and Laravel's (`route()`, `__()`, `config()`) |

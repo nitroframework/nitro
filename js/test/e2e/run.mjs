@@ -1747,6 +1747,31 @@ await scenario('client navigation', async () => {
     window.close();
 });
 
+/** fusion:navigate.prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
+await scenario('prefetch in view', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    let asked = 0;
+    const fetch = window.fetch;
+    window.fetch = (input, init) => {
+        const url = new URL(input, window.location.href);
+        if (url.pathname === '/journal' && new Headers(init?.headers ?? {}).has('X-Fusion-Navigate')) asked++;
+        return fetch(input, init);
+    };
+    const link = document.querySelector('.visible-link');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    check('out of view: not asked for', asked === 0, String(asked));
+    window.observe(link, true);
+    await until('in view: its page asked for', () => asked === 1);
+    window.observe(link, true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    check('once: no longer watched', asked === 1, String(asked));
+    click(window, link);
+    await until('the click shows the prefetched page', () => window.location.pathname === '/journal' && byName(document, 'pages::journal') !== null);
+    check('without asking again', asked === 1, String(asked));
+    window.close();
+});
+
 /**
  * fusion:navigate.prefetch and back/forward: pages asked for once. Hovering asks for the page; the
  * click takes it; back and forward show visited pages; a #[Server] call forgets them all.
