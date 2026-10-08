@@ -1747,6 +1747,30 @@ await scenario('client navigation', async () => {
     window.close();
 });
 
+/**
+ * Nested layouts: a visit from a page in the app's layout to one in a layout nested in it changes
+ * only the app's main area (fusion:layout="app"); the nav around it stays, its components too.
+ */
+await scenario('nested layouts', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const nav = document.querySelector('nav');
+    nav.dataset.kept = 'yes';
+    const main = document.querySelector('[fusion\:layout="app"]');
+    click(window, document.querySelector('.nested-link'));
+    await until('the nested page is there', () => window.location.pathname === '/nested' && byName(document, 'pages::nested') !== null);
+    check('the nav around the main area stayed: not loaded again', document.querySelector('nav') === nav && nav.dataset.kept === 'yes');
+    check('the main area is the same element, its content the nested layout\'s', document.querySelector('[fusion\:layout="app"]') === main && main.querySelector('.nested-side') !== null);
+    check('the old page\'s components left', byName(document, 'pages::counter') === null);
+    const tap = document.querySelector('.tap');
+    click(window, tap);
+    await until('the nested page is live', () => text(document.querySelector('.tap')) === 'Tapped 1');
+    window.history.back();
+    await until('back to the app\'s page', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
+    check('the nav stayed going back too', document.querySelector('nav') === nav && nav.dataset.kept === 'yes');
+    window.close();
+});
+
 /** fusion:navigate.prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
 await scenario('prefetch in view', async () => {
     const window = await open('/counter');

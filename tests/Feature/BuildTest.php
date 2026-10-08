@@ -15,7 +15,7 @@ class BuildTest extends TestCase
     private const COMPILED = self::APP.'/storage/framework/fusion';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
-    private const CHUNKS = ['article', 'board', 'catalog', 'chapter', 'counter', 'devices', 'engines', 'feed', 'gallery', 'greeting', 'inbox', 'islands', 'journal', 'lifecycle', 'live', 'mounted-timeline', 'notice', 'orders', 'pages', 'pair', 'panels', 'parity', 'report', 'shelf', 'shop', 'shop-cart', 'showcase', 'stress', 'talk', 'terms', 'todos', 'transitions'];
+    private const CHUNKS = ['article', 'board', 'catalog', 'chapter', 'counter', 'devices', 'engines', 'feed', 'gallery', 'greeting', 'inbox', 'islands', 'journal', 'lifecycle', 'live', 'mounted-timeline', 'nested', 'notice', 'orders', 'pages', 'pair', 'panels', 'parity', 'report', 'shelf', 'shop', 'shop-cart', 'showcase', 'stress', 'talk', 'terms', 'todos', 'transitions'];
 
     #[DataProvider('frameworks')]
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
@@ -30,12 +30,12 @@ class BuildTest extends TestCase
         $code = $this->console()->call('fusion:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('Compiling 40 components (22 Blade, 5 Vue, 5 React, 4 Solid, 3 Svelte, 1 Plain), 1 store and 31 pages to JavaScript', $output);
+        $this->assertStringContainsString('Compiling 40 components (22 Blade, 5 Vue, 5 React, 4 Solid, 3 Svelte, 1 Plain), 1 store and 32 pages to JavaScript', $output);
         $this->assertMatchesRegularExpression('/Total .*KB/', $output);
         $this->assertMatchesRegularExpression('/Version [0-9a-f]+ · (not )?obfuscated/', $output);
         $this->assertFileExists($manifest);
         $this->assertSame(
-            ['badge', 'beacon', 'blade-parity', 'blade-talk', 'card', 'cart-badge', 'cart-list', 'clock', 'colocated-greeting', 'colocated-score', 'colocated-tally', 'counter', 'flaky', 'gauge', 'journal', 'lifecycle-child', 'pages::article', 'pages::board', 'pages::catalog', 'pages::chapter', 'pages::counter', 'pages::devices', 'pages::engines', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::inbox', 'pages::journal', 'pages::lifecycle', 'pages::links', 'pages::live', 'pages::mounted-timeline', 'pages::notice', 'pages::orders', 'pages::pair', 'pages::panels', 'pages::parity', 'pages::report', 'pages::shelf', 'pages::shop', 'pages::shop-cart', 'pages::showcase', 'pages::stress', 'pages::student-page', 'pages::talk', 'pages::terms', 'pages::transitions', 'plain-counter', 'qty-input', 'react-counter', 'react-note', 'react-parity', 'react-talk', 'roster', 'search-box', 'shop-shelf', 'solid-counter', 'solid-note', 'solid-parity', 'solid-talk', 'stamp', 'stores::cart', 'stress-row', 'svelte-parity', 'svelte-talk', 'todo-item', 'todo-list', 'vue-counter', 'vue-note', 'vue-parity', 'vue-talk', 'wallet'],
+            ['badge', 'beacon', 'blade-parity', 'blade-talk', 'card', 'cart-badge', 'cart-list', 'clock', 'colocated-greeting', 'colocated-score', 'colocated-tally', 'counter', 'flaky', 'gauge', 'journal', 'lifecycle-child', 'pages::article', 'pages::board', 'pages::catalog', 'pages::chapter', 'pages::counter', 'pages::devices', 'pages::engines', 'pages::feed', 'pages::gallery', 'pages::greeting', 'pages::inbox', 'pages::journal', 'pages::lifecycle', 'pages::links', 'pages::live', 'pages::mounted-timeline', 'pages::nested', 'pages::notice', 'pages::orders', 'pages::pair', 'pages::panels', 'pages::parity', 'pages::report', 'pages::shelf', 'pages::shop', 'pages::shop-cart', 'pages::showcase', 'pages::stress', 'pages::student-page', 'pages::talk', 'pages::terms', 'pages::transitions', 'plain-counter', 'qty-input', 'react-counter', 'react-note', 'react-parity', 'react-talk', 'roster', 'search-box', 'shop-shelf', 'solid-counter', 'solid-note', 'solid-parity', 'solid-talk', 'stamp', 'stores::cart', 'stress-row', 'svelte-parity', 'svelte-talk', 'todo-item', 'todo-list', 'vue-counter', 'vue-note', 'vue-parity', 'vue-talk', 'wallet'],
             array_keys(array_sort_recursive((require $manifest)['components']))
         );
 
@@ -217,6 +217,7 @@ class BuildTest extends TestCase
             'pages::lifecycle' => 'lifecycle',
             'pages::live' => 'live',
             'pages::mounted-timeline' => 'mounted-timeline',
+            'pages::nested' => 'nested',
             'pages::notice' => 'notice',
             'pages::orders' => 'orders',
             'pages::pair' => 'pair',

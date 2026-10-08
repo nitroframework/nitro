@@ -24,6 +24,7 @@
         "hydrate": "fusion:hydrate",
         "static": "fusion:static",
         "fallback": "fusion:fallback",
+        "layout": "fusion:layout",
         "handler": "fusion:h-",
         "directive": "fusion:h-directive",
         "globals": "data-fusion-globals",

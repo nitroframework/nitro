@@ -12,10 +12,16 @@
  *
  * A page with another build of Fusion (a deploy since this one loaded), or without
  * @fusionScripts, loads normally.
+ *
+ * Nested layouts: a layout marks where its pages go with fusion:layout="name" on the element
+ * around its slot. When both pages have the same layouts, outer to inner, only the innermost
+ * one they share changes its content: what is around it (a sidebar, its scroll, its components)
+ * stays as it was. With none in common, the whole body is replaced.
  */
 import { session } from '../../laravel/blade.js';
 import { globals } from '../../laravel/laravel.js';
 import { configOf, globalsOf, isPageDataScript, isRuntimeScript, readStates, runtimeScriptOf } from '../page-data.js';
+import { ATTRIBUTES, selector } from '../protocol.js';
 
 const lasting = (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || (el.tagName === 'LINK' && /\bstylesheet\b/i.test(el.rel));
 
@@ -83,8 +89,11 @@ export class Swap {
 
         before();
 
+        /** The layout both pages have, innermost: only its content changes. */
+        const shared = this.sharedLayout(page);
+
         /** The old page's components go; Fusion's data for the new page (routes, shared, flash) comes. */
-        this.runtime.forget(this.document.body);
+        this.runtime.forget(shared ? shared.ours : this.document.body);
         /** Unreadable: the page's components read what there was. */
         Object.assign(globals, globalsOf(page) ?? {});
         readStates(page);
@@ -101,6 +110,17 @@ export class Swap {
             if (!lasting(el) && !keep.has(el) && !added.has(el)) el.remove();
         }
         if (page.title) this.document.title = page.title;
+
+        if (shared) {
+            const region = this.document.adoptNode(shared.theirs);
+            for (const script of region.querySelectorAll('script')) {
+                if (!this.fusions(script, url)) script.replaceWith(this.script(script, url));
+            }
+            for (const { name } of [...shared.ours.attributes]) shared.ours.removeAttribute(name);
+            for (const { name, value } of [...region.attributes]) shared.ours.setAttribute(name, value);
+            shared.ours.replaceChildren(...region.childNodes);
+            return this.runtime.start(shared.ours);
+        }
 
         const body = this.document.adoptNode(page.body);
         for (const script of body.querySelectorAll('script')) {
@@ -121,6 +141,23 @@ export class Swap {
         for (const node of nodes) this.pageNodes.add(node);
 
         return this.runtime.start(kept);
+    }
+
+    /**
+     * The innermost layout region both pages have: their fusion:layout elements, outer to inner,
+     * the same names in the same nesting. Null when the first ones differ (the whole body changes).
+     */
+    sharedLayout(page) {
+        const ours = [...this.document.body.querySelectorAll(selector('layout'))];
+        const theirs = [...page.body.querySelectorAll(selector('layout'))];
+        let shared = null;
+        for (let i = 0; i < Math.min(ours.length, theirs.length); i++) {
+            if (ours[i].getAttribute(ATTRIBUTES.layout) !== theirs[i].getAttribute(ATTRIBUTES.layout)) break;
+            /** A chain: each inside the one before it (sibling regions are not nesting). */
+            if (shared && (!shared.ours.contains(ours[i]) || !shared.theirs.contains(theirs[i]))) break;
+            shared = { ours: ours[i], theirs: theirs[i] };
+        }
+        return shared;
     }
 
     /** @fusionScripts' own: the globals, the runtime, app.js and the chunks (the runtime loads those it needs). */
