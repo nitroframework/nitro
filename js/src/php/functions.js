@@ -442,12 +442,6 @@ fns.implode = fns.join = (separator, array) => {
     return implode(separator, array);
 };
 
-/** Functions whose first argument PHP takes by reference. */
-export const BY_REF = new Set([
-    'sort', 'rsort', 'usort', 'uasort', 'uksort', 'asort', 'arsort', 'ksort', 'krsort', 'shuffle',
-    'array_push', 'array_pop', 'array_shift', 'array_unshift', 'array_splice',
-]);
-
 function lenientNumber(v, skipped) {
     if (isArray(v)) return skipped;
     if (typeof v === 'string') return parseNumeric(v, true) ?? 0;

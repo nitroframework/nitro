@@ -18,6 +18,6 @@ export { bool, floatToString, isNumericString, param, spread, toArr, toFloat, to
 export { add, cmp, coalesce, concat, dec, div, e, eq, fromUtf8, gt, gte, identical, inc, lt, lte, mod, mul, neg, neq, notIdentical, pow, sub, utf8 } from './php/operators.js';
 export { jsonDecode, jsonEncode } from './php/json.js';
 export { number_format, round, sprintf } from './php/numbers.js';
-export { BY_REF, callable, fns } from './php/functions.js';
+export { callable, fns } from './php/functions.js';
 export { Upload, decode, encode, upload } from './php/wire.js';
 export { EnumCase, defineEnum, enumCall } from './php/enums.js';

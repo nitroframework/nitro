@@ -5,13 +5,7 @@ namespace Nitro\Fusion\Compiler;
 use Closure;
 use Nitro\Fusion\Compiler\Template\TemplateCompiler;
 use Nitro\Fusion\Support\Wire;
-use PhpParser\Node\Stmt;
-use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 use ReflectionMethod;
-use Throwable;
 
 /**
  * Compiles a component (its class and its view) to the definition the browser runtime loads:
@@ -418,7 +412,7 @@ final class ComponentCompiler
                 continue;
             }
 
-            $node = $this->methodNode($meta->class, $name);
+            $node = MethodSource::node($meta->class, $name);
             $file = (new ReflectionMethod($meta->class, $name))->getFileName() ?: $meta->file;
             $transpiler = new Transpiler($scope);
 
@@ -438,29 +432,4 @@ final class ComponentCompiler
         return $compiled;
     }
 
-    private function methodNode(string $class, string $method): Stmt\ClassMethod
-    {
-        $reflection = new ReflectionMethod($class, $method);
-        $file = (string) $reflection->getFileName();
-
-        try {
-            $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse((string) file_get_contents($file)) ?? [];
-        } catch (Throwable $exception) {
-            throw new CompileException('Cannot parse the component: '.$exception->getMessage(), $file);
-        }
-
-        /** Names as the file's imports make them (Card::class: its full name), kept as written. */
-        (new NodeTraverser(new NameResolver(null, ['replaceNodes' => false])))->traverse($ast);
-
-        /** Reflection starts at "function"; a node with attributes starts at its first attribute. */
-        $line = $reflection->getStartLine();
-
-        foreach ((new NodeFinder)->findInstanceOf($ast, Stmt\ClassMethod::class) as $node) {
-            if ($node->name->toString() === $method && $node->getStartLine() <= $line && $line <= $node->getEndLine()) {
-                return $node;
-            }
-        }
-
-        throw new CompileException("Cannot find the source of {$method}()", $file, $reflection->getStartLine());
-    }
 }

@@ -178,7 +178,7 @@ final class BrowserClassCompiler
         $transpiler = new Transpiler($scope);
 
         try {
-            $node = BrowserClasses::methodNode($class, $method);
+            $node = MethodSource::node($class, $method);
             $js = match (true) {
                 $reflection->isStatic() => $transpiler->staticMethod($node, $scope, $class),
                 $enum => $transpiler->enumMethod($node, $scope, $class),

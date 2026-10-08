@@ -3,18 +3,11 @@
 namespace Nitro\Fusion\Compiler;
 
 use Nitro\Fusion\Attributes\Browser;
-use PhpParser\Node\Stmt;
-use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 use ReflectionClass;
-use ReflectionMethod;
-use Throwable;
 
 /**
- * The application's #[Browser] classes and enums: which are, and their methods' source for the
- * compiler. The compiled code's uses record what it reaches by key: "Class::method" a method,
+ * The application's #[Browser] classes and enums: which are (their methods' source is
+ * MethodSource's). The compiled code's uses record what it reaches by key: "Class::method" a method,
  * "Enum::" an enum's definition, "*::method" a method called on a value of unknown type (an enum
  * case's, compiled for the enums the code reaches).
  *
@@ -28,8 +21,6 @@ final class BrowserClasses
     /** @var array<string, bool> */
     private static array $enums = [];
 
-    /** @var array<string, list<Stmt>> "file:mtime" => its parsed statements, names resolved (an edited file is parsed again) */
-    private static array $parsed = [];
 
     /** Whether $class is a class marked #[Browser] (not an enum, an interface or a trait). */
     public static function is(string $class): bool
@@ -85,41 +76,6 @@ final class BrowserClasses
     {
         /** @var array{0: class-string, 1: string} */
         return explode('::', $key, 2);
-    }
-
-    /**
-     * The method's syntax tree, names resolved as the file's imports make them.
-     *
-     * @param  class-string  $class
-     */
-    public static function methodNode(string $class, string $method): Stmt\ClassMethod
-    {
-        $reflection = new ReflectionMethod($class, $method);
-        $file = (string) $reflection->getFileName();
-
-        $cached = $file.':'.@filemtime($file);
-
-        if (! isset(self::$parsed[$cached])) {
-            try {
-                $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse((string) file_get_contents($file)) ?? [];
-            } catch (Throwable $exception) {
-                throw new CompileException("Cannot parse {$class}: ".$exception->getMessage(), $file);
-            }
-
-            (new NodeTraverser(new NameResolver(null, ['replaceNodes' => false])))->traverse($ast);
-            self::$parsed[$cached] = $ast;
-        }
-
-        /** Reflection starts at "function"; a node with attributes starts at its first attribute. */
-        $line = $reflection->getStartLine();
-
-        foreach ((new NodeFinder)->findInstanceOf(self::$parsed[$cached], Stmt\ClassMethod::class) as $node) {
-            if ($node->name->toString() === $method && $node->getStartLine() <= $line && $line <= $node->getEndLine()) {
-                return $node;
-            }
-        }
-
-        throw new CompileException("Cannot find the source of {$class}::{$method}()", $file, $line);
     }
 
     /**
