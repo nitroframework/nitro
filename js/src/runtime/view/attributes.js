@@ -10,7 +10,7 @@ import { evaluate } from './call.js';
 import { ATTRIBUTES } from '../protocol.js';
 
 /** The attributes the runtime puts on a component's root element: its render keeps them. */
-export const RUNTIME_ATTRIBUTES = new Set([ATTRIBUTES.id, ATTRIBUTES.name, ATTRIBUTES.page, ATTRIBUTES.snapshot]);
+export const RUNTIME_ATTRIBUTES = new Set([ATTRIBUTES.id, ATTRIBUTES.name, ATTRIBUTES.page]);
 
 const HTML = 'http://www.w3.org/1999/xhtml';
 const XLINK = 'http://www.w3.org/1999/xlink';

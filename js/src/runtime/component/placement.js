@@ -3,9 +3,8 @@
  * made), and a component made in place of an element (a child, or a page with its server-made
  * state). As Rendering\Placement does on the server.
  */
-import * as P from '../../php.js';
 import { Component } from './component.js';
-import { readState } from './snapshot.js';
+import { defaultsOf, readState } from './snapshot.js';
 import { ErrorBag } from './errors.js';
 import { ATTRIBUTES, MODEL_PROP, selector } from '../protocol.js';
 
@@ -93,10 +92,7 @@ export class Placement {
                 continue;
             }
 
-            const data = new Map();
-            for (const [name, prop] of Object.entries(definition.props)) {
-                if ('default' in prop) data.set(name, P.decode(prop.default));
-            }
+            const data = defaultsOf(definition);
             for (const [name, value] of Object.entries(spec.props)) {
                 if (name === MODEL_PROP) {
                     if (!definition.modelable) {

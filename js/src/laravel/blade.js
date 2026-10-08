@@ -63,7 +63,7 @@ export function styles(list) {
     return out.join(' ');
 }
 
-/** The CSRF token of the page, set by the runtime from @fusionScripts. */
+/** The CSRF token of the page, set by the runtime from @fusionScripts (and a visit's page): the one copy, for @csrf and the runtime's requests. */
 export const session = { token: '' };
 
 /** @csrf */

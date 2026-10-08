@@ -20,18 +20,23 @@ export function enumValue(prop, name, value) {
     throw new P.PhpError('TypeError', `Cannot assign ${P.typeName(value)} to property $${name}: it takes a case of its enum`);
 }
 
+/** Its properties on a $this (a component's or a store's): an enum property read as its case, written as its value. */
+export function defineProperties(ctx, holder) {
+    for (const [name, prop] of Object.entries(holder.definition.props)) {
+        Object.defineProperty(ctx, name, {
+            enumerable: true,
+            get: () => (prop.enum ? enumCase(holder.runtime, prop, holder.data.get(name)) : holder.data.get(name) ?? null),
+            set: (value) => holder.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
+        });
+    }
+}
+
 /** The $this of compiled code: properties, methods, and Fusion's actions. */
 export function contextOf(component) {
     const self = component;
     const ctx = Object.create(null);
 
-    for (const [name, prop] of Object.entries(component.definition.props)) {
-        Object.defineProperty(ctx, name, {
-            enumerable: true,
-            get: () => (prop.enum ? enumCase(self.runtime, prop, self.data.get(name)) : self.data.get(name) ?? null),
-            set: (value) => self.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
-        });
-    }
+    defineProperties(ctx, component);
 
     for (const [name, fn] of Object.entries(component.definition.methods)) {
         ctx[name] = fn;

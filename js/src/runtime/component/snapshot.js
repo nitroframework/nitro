@@ -44,6 +44,25 @@ export function sameValue(a, b) {
  * The state after a #[Server] call; values changed here while it ran stay changed. What the
  * server changed renders again (a value equal to the one here stays the one here).
  */
+/** The state a definition starts from: its properties' defaults (those that have one). */
+export function defaultsOf(definition) {
+    const data = new Map();
+    for (const [name, prop] of Object.entries(definition.props)) {
+        if ('default' in prop) data.set(name, P.decode(prop.default));
+    }
+    return data;
+}
+
+/** A component's or a store's values changed here since its last signed state: sent with the next call (never a locked one). */
+export function updatesOf(holder) {
+    const updates = {};
+    for (const [name, value] of holder.data) {
+        if (holder.definition.props[name]?.locked) continue;
+        if (holder.serverData.get(name) !== value) updates[name] = P.encode(value);
+    }
+    return updates;
+}
+
 export function snapshotInto(component, envelope, sent) {
     const { data, errors, scroll } = readState(envelope);
     const fresh = new Map();

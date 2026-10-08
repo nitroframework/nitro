@@ -40,7 +40,7 @@
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
 import * as P from '../../php.js';
-import { ATTRIBUTES, HEADERS, selector } from '../protocol.js';
+import { ATTRIBUTES, selector } from '../protocol.js';
 import { duration } from '../dom/events.js';
 import { PageCache } from './pages.js';
 import { Swap } from './swap.js';
@@ -50,6 +50,7 @@ const HOVER_DELAY = 75;
 const PREFETCH_FOR = 30_000;
 import { readState } from '../component/snapshot.js';
 import { remembered as rememberedOf, restoreRemembered } from '../component/remember.js';
+import { visit } from '../server/request.js';
 
 /**
  * A URL the browser may be sent to: http(s) only. A redirect can come from what a visitor typed
@@ -137,7 +138,7 @@ export class Navigator {
         if (!this.document.querySelector(selector('page')) || this.runtime.markupPage(url.pathname) !== null) return;
         if (this.pages.prefetching(url.href)) return;
         this.runtime.preload(url.pathname);
-        this.pages.prefetch(url.href, this.fetch(url, true), ms);
+        this.pages.prefetch(url.href, this.request(url, true), ms);
     }
 
     press(event) {
@@ -230,7 +231,7 @@ export class Navigator {
          * again. A page rendered early asks with its id, so it is not taken from there.
          */
         const kept = current !== null && !early ? await this.pages.take(url.href, !push) : null;
-        let answer = kept ?? await this.fetch(url, current !== null, early?.id);
+        let answer = kept ?? await this.request(url, current !== null, early?.id);
         /**
          * Kept for back and forward as the server sent it (fetched, or the prefetch taken), even
          * when a newer visit has started: it is that URL's page.
@@ -240,7 +241,7 @@ export class Navigator {
 
         /** A Fusion page in another layout: its HTML. */
         if (answer.page?.fusion === 1 && answer.page.layout !== current?.getAttribute(ATTRIBUTES.page)) {
-            answer = await this.fetch(answer.url, false);
+            answer = await this.request(answer.url, false);
             if (visit !== this.visiting) return;
         }
 
@@ -358,15 +359,10 @@ export class Navigator {
      * failed network: the browser's own load says what it is. id: the page rendered early, which
      * the server's state keeps (X-Fusion-Id).
      */
-    async fetch(url, data, id = null) {
+    async request(url, data, id = null) {
         const answer = { url, page: null, html: null };
         try {
-            const response = await this.window.fetch(url.href, {
-                headers: data
-                    ? { Accept: 'application/json', [HEADERS.navigate]: '1', [HEADERS.version]: this.runtime.config.bundle ?? '', [HEADERS.once]: this.runtime.onceHeader(), ...(id ? { [HEADERS.id]: id } : {}) }
-                    : { Accept: 'text/html, application/xhtml+xml' },
-                credentials: 'same-origin',
-            });
+            const response = await visit(this.runtime, url.href, data, id);
             answer.url = new URL(response.url || url.href);
             const type = response.headers.get('Content-Type') ?? '';
             if (response.ok && type.includes('application/json')) answer.page = await response.json();

@@ -15,6 +15,7 @@
  */
 import { session } from '../../laravel/blade.js';
 import { globals } from '../../laravel/laravel.js';
+import { configOf, globalsOf, isPageDataScript, isRuntimeScript, readStates, runtimeScriptOf } from '../page-data.js';
 
 const lasting = (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || (el.tagName === 'LINK' && /\bstylesheet\b/i.test(el.rel));
 
@@ -42,10 +43,10 @@ export class Swap {
     read(html, url) {
         const page = new this.window.DOMParser().parseFromString(html, 'text/html');
         /** Fusion's runtime, as @fusionScripts writes it: the same build, from the same place. */
-        const theirs = page.querySelector('script[data-bundle]');
-        const ours = this.document.querySelector('script[data-bundle]');
+        const theirs = runtimeScriptOf(page);
+        const ours = runtimeScriptOf(this.document);
         if (!theirs || !page.body) return null;
-        if ((theirs.dataset.bundle ?? '') !== (this.runtime.config.bundle ?? '')) return null;
+        if (configOf(theirs).bundle !== (this.runtime.config.bundle ?? '')) return null;
         if (ours && new URL(theirs.getAttribute('src') ?? '', url).href !== ours.src) return null;
         return page;
     }
@@ -84,14 +85,11 @@ export class Swap {
 
         /** The old page's components go; Fusion's data for the new page (routes, shared, flash) comes. */
         this.runtime.forget(this.document.body);
-        try {
-            const data = page.querySelector('script[data-fusion-globals]');
-            if (data) Object.assign(globals, JSON.parse(data.textContent));
-        } catch {
-            // unreadable: the page's components read what there was
-        }
-        const csrf = page.querySelector('script[data-bundle]')?.dataset.csrf;
-        if (csrf) this.runtime.config.csrf = session.token = csrf;
+        /** Unreadable: the page's components read what there was. */
+        Object.assign(globals, globalsOf(page) ?? {});
+        readStates(page);
+        const { csrf } = configOf(runtimeScriptOf(page));
+        if (csrf) session.token = csrf;
 
         for (const el of adding) {
             if (styles.includes(el)) continue;
@@ -127,7 +125,7 @@ export class Swap {
 
     /** @fusionScripts' own: the globals, the runtime, app.js and the chunks (the runtime loads those it needs). */
     fusions(script, url) {
-        if (script.hasAttribute('data-fusion-globals') || script.hasAttribute('data-bundle')) return true;
+        if (isPageDataScript(script) || isRuntimeScript(script)) return true;
         const src = script.getAttribute('src');
         if (!src) return false;
         const chunks = new URL(this.runtime.config.chunks, url).href;

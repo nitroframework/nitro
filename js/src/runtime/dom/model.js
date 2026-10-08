@@ -35,7 +35,7 @@ export class Model {
         /** A file input: its files are chosen once (change), then uploaded. */
         if (el.type === 'file') {
             const component = type === 'change' ? this.runtime.owner(el) : null;
-            if (component) upload(this.runtime, this.runtime.network.config, component, el, el.getAttribute(attribute));
+            if (component) upload(this.runtime, component, el, el.getAttribute(attribute));
             return;
         }
 

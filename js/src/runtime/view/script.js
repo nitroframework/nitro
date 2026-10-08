@@ -200,7 +200,7 @@ export class ScriptView {
                 const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
                 const owner = component();
                 if (!owner) return Promise.reject(new Error('Fusion: the component has left the page'));
-                return send(runtime, runtime.network.config, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
+                return send(runtime, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
                     if (result.failed) throw new Error(`Fusion: uploading ${path}: ${result.message}`);
                     if (result.refused) return null;
                     return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);

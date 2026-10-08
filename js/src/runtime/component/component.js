@@ -11,7 +11,7 @@ import * as P from '../../php.js';
 import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
 import { componentHook, propertyHooks } from './hooks.js';
 import { SIGNALS } from '../protocol.js';
-import { readState, reloadInto, sameValue, snapshotInto } from './snapshot.js';
+import { defaultsOf, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
 import { contextOf, enumCase } from './context.js';
 import { ErrorBag } from './errors.js';
 
@@ -192,10 +192,9 @@ export class Component {
     }
 
     reset(names) {
-        const props = names.length ? names : Object.keys(this.definition.props);
-        for (const name of props) {
-            const prop = this.definition.props[name];
-            if (prop && 'default' in prop) this.ctx[name] = P.decode(prop.default);
+        const initial = defaultsOf(this.definition);
+        for (const name of names.length ? names : Object.keys(this.definition.props)) {
+            if (initial.has(name)) this.ctx[name] = initial.get(name);
         }
     }
 
@@ -419,12 +418,7 @@ export class Component {
 
     /** Values changed in the browser since the last snapshot (sent with the next #[Server] call). */
     updates() {
-        const updates = {};
-        for (const [name, value] of this.data) {
-            if (this.definition.props[name]?.locked) continue;
-            if (this.serverData.get(name) !== value) updates[name] = P.encode(value);
-        }
-        return updates;
+        return updatesOf(this);
     }
 
     /** It left the page: destroyed() runs (a #[Server] one is sent before it goes), then what it tracks is let go. */

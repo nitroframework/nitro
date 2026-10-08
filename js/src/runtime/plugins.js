@@ -11,7 +11,8 @@
  *  - component (component)           a component started in the page (its first render)
  *  - render (component)               after each render of a component
  *  - store (store)                    a store was made in this tab (once the page's components started)
- *  - request ({ component, method, headers })   before a #[Server] call is sent; headers may be added to
+ *  - request ({ component, method, headers })   before a component's request is sent: a #[Server] call (its
+ *                                               method), a reload ($reload), an upload ($upload); headers may be added to
  *  - response ({ component, method, status })   when its answer arrived (status 0: none came)
  *
  * A component is { name, el, dispatch(event, ...params) }; a store { name, persist, sync,

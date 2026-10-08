@@ -7,32 +7,23 @@ import * as P from './php.js';
 import * as B from './laravel/blade.js';
 import { Progress } from './runtime/navigation/progress.js';
 import { Runtime } from './runtime/runtime.js';
+import { configOf, globalsOf, readStates } from './runtime/page-data.js';
 import { persist } from './plugins/persist.js';
 import { sync } from './plugins/sync.js';
 
-const script = document.currentScript;
+const { csrf, ...config } = document.currentScript ? configOf(document.currentScript) : {};
 
 /** @fusionScripts says where everything is (the server's config is the one place): without it, nothing would. */
-if (!script?.dataset.endpoint || !script.dataset.chunks) {
+if (!config.endpoint || !config.chunks) {
     throw new Error('Fusion: load fusion.js with @fusionScripts, which tells it its endpoint and where its chunks are');
 }
 
-const config = {
-    endpoint: script.dataset.endpoint,
-    csrf: script.dataset.csrf ?? '',
-    /** app.js's version: the #[LazyLoad] chunks load with it */
-    bundle: script.dataset.bundle ?? '',
-    /** Where a chunk is: {id} stands for its name (the static build's files, or Fusion's route) */
-    chunks: script.dataset.chunks,
-    /** config/nprogress.php, absent when the bar is off */
-    progress: script?.dataset.progress ? JSON.parse(script.dataset.progress) : null,
-};
-
-B.session.token = config.csrf;
+/** The page's CSRF token: @csrf in a view, and every request the runtime sends. */
+B.session.token = csrf;
 
 /** What Laravel's helpers need (routes, translations, public config, URLs): @fusionScripts' globals. */
-const globals = document.querySelector('script[data-fusion-globals]');
-if (globals) Object.assign(B.globals, JSON.parse(globals.textContent));
+Object.assign(B.globals, globalsOf(document) ?? {});
+readStates(document);
 
 const Fusion = new Runtime(window, config);
 Fusion.P = P;

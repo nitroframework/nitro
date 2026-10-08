@@ -4,9 +4,10 @@
  * the answer replaces the state, keeping anything changed in the browser meanwhile.
  */
 import * as P from '../../php.js';
-import { HEADERS, PATHS, SIGNALS } from '../protocol.js';
+import { HEADERS, SIGNALS } from '../protocol.js';
 import { webUrl } from '../navigation/navigate.js';
 import { applyEffects } from './effects.js';
+import { call, reload } from './request.js';
 
 export class Network {
     constructor(runtime, config) {
@@ -49,21 +50,10 @@ export class Network {
         const href = url ? url() : window.location.href;
         if (href === null) return;
         const sent = new Map(component.data);
-        /** Plugins hear it as a call of $reload, and may add headers; Fusion's own are set after theirs. */
-        const headers = {
-            ...this.runtime.plugins.request(component, '$reload', {}),
-            Accept: 'application/json',
-            [HEADERS.navigate]: '1',
-            [HEADERS.partial]: component.id,
-            [HEADERS.version]: this.config.bundle ?? '',
-            [HEADERS.once]: this.runtime.onceHeader(),
-        };
-        if (only.length > 0) headers[HEADERS.only] = only.join(',');
-
         if (!deferred) this.runtime.loading(component, '$reload', true);
         let response;
         try {
-            response = await fetch(href, { credentials: 'same-origin', headers });
+            response = await reload(this.runtime, component, href, only);
         } catch (error) {
             throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
         } finally {
@@ -127,22 +117,7 @@ export class Network {
         this.runtime.emit('fusion:request', { component: component.name, method });
         let response;
         try {
-            /** Plugins may add headers (Fusion.use(): on('request')); Fusion's own are set after theirs. */
-            const headers = this.runtime.plugins.request(component, method, {});
-            response = await fetch(`${this.config.endpoint}/${PATHS.update}`, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    ...headers,
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': this.config.csrf,
-                    [HEADERS.call]: '1',
-                    [HEADERS.once]: this.runtime.onceHeader(),
-                },
-                body: JSON.stringify(body),
-            });
+            response = await call(this.runtime, component, method, body);
         } catch (error) {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server could not be reached`, 0, String(error?.message ?? error));
         } finally {
@@ -152,14 +127,6 @@ export class Network {
         }
 
         const text = await response.text();
-        /**
-         * The state is no longer good (another session, an expired lifetime, a logout, a new
-         * APP_KEY): the page loads again, with fresh state. A fusion:expired listener can
-         * preventDefault() to do something else.
-         */
-        if (response.status === 419) {
-            if (this.runtime.emit('fusion:expired', { component: component.name, status: 419 }, true)) this.runtime.window.location.reload();
-        }
         if (!response.ok) {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server answered ${response.status}`, response.status, text);
         }

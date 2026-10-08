@@ -9,8 +9,8 @@
  */
 import * as P from '../../php.js';
 import { ErrorBag } from './errors.js';
-import { enumCase, enumValue } from './context.js';
-import { readState } from './snapshot.js';
+import { defineProperties } from './context.js';
+import { defaultsOf, readState, sameValue, updatesOf } from './snapshot.js';
 
 export class Store {
     /**
@@ -26,7 +26,7 @@ export class Store {
         this.id = name;
         this.isStore = true;
         const state = envelope ? readState(envelope) : null;
-        this.data = state ? new Map(state.data) : defaults(definition);
+        this.data = state ? new Map(state.data) : defaultsOf(definition);
         this.snapshot = envelope ?? null;
         this.serverData = new Map(this.data);
         this.errors = state?.errors ?? new ErrorBag();
@@ -46,13 +46,7 @@ export class Store {
         const self = this;
         const ctx = Object.create(null);
 
-        for (const [name, prop] of Object.entries(this.definition.props)) {
-            Object.defineProperty(ctx, name, {
-                enumerable: true,
-                get: () => (prop.enum ? enumCase(self.runtime, prop, self.data.get(name)) : self.data.get(name) ?? null),
-                set: (value) => self.write(name, prop.enum ? enumValue(prop, name, value) : value, prop),
-            });
-        }
+        defineProperties(ctx, this);
 
         for (const [name, fn] of Object.entries(this.definition.methods)) {
             ctx[name] = (...args) => fn.apply(ctx, args);
@@ -100,7 +94,7 @@ export class Store {
 
     /** $this->reset('items'): back to the defaults it was compiled with. */
     reset(names) {
-        const initial = defaults(this.definition);
+        const initial = defaultsOf(this.definition);
         for (const name of names.length ? names : [...initial.keys()]) {
             if (initial.has(name) && !this.definition.props[name]?.locked) this.data.set(name, initial.get(name));
         }
@@ -144,12 +138,7 @@ export class Store {
 
     /** Values changed here since its last signed state: sent with the next call. */
     updates() {
-        const updates = {};
-        for (const [name, value] of this.data) {
-            if (this.definition.props[name]?.locked) continue;
-            if (this.serverData.get(name) !== value) updates[name] = P.encode(value);
-        }
-        return updates;
+        return updatesOf(this);
     }
 
     /**
@@ -178,16 +167,4 @@ export class Store {
 
     /** A store lasts as long as the tab: a component's calls (js effects) have nothing to run on. */
     js() {}
-}
-
-function defaults(definition) {
-    const data = new Map();
-    for (const [name, prop] of Object.entries(definition.props)) {
-        if ('default' in prop) data.set(name, P.decode(prop.default));
-    }
-    return data;
-}
-
-function sameValue(a, b) {
-    return a === b || JSON.stringify(P.encode(a ?? null)) === JSON.stringify(P.encode(b ?? null));
 }

@@ -3,8 +3,7 @@
  * sent (mountPage()), or, for a markup-first page, rendered at once before its data comes
  * (renderEarly()), which then arrives (arrive()).
  */
-import * as P from '../../php.js';
-import { readState } from '../component/snapshot.js';
+import { defaultsOf, readState } from '../component/snapshot.js';
 import { ErrorBag } from '../component/errors.js';
 import { ATTRIBUTES, SIGNALS } from '../protocol.js';
 
@@ -43,10 +42,7 @@ export class PageMount {
         const runtime = this.runtime;
         /** A client page (#[Navigate('client')]) needs nothing from the server: it is complete as it renders. */
         const client = Boolean(definition.client);
-        const data = new Map();
-        for (const [prop, spec] of Object.entries(definition.props)) {
-            if ('default' in spec) data.set(prop, P.decode(spec.default));
-        }
+        const data = defaultsOf(definition);
         /** A client page's route parameters, from the URL, in the properties of the same name. */
         for (const [prop, value] of Object.entries(props)) data.set(prop, value);
         const id = 'f' + Math.random().toString(36).slice(2, 12).padEnd(10, '0');

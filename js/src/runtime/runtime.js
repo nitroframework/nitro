@@ -8,6 +8,7 @@ import * as P from '../php.js';
 import { Chunks } from './chunks.js';
 import { Component } from './component/component.js';
 import { readState } from './component/snapshot.js';
+import { dropState, nameOf, stateOf, withState } from './page-data.js';
 import { Placement } from './component/placement.js';
 import { restoreRemembered } from './component/remember.js';
 import { Stores } from './component/stores.js';
@@ -25,7 +26,7 @@ import { Model } from './dom/model.js';
 import { Navigator } from './navigation/navigate.js';
 import { Network } from './server/network.js';
 import { SharedData } from './component/shared.js';
-import { ATTRIBUTES, selector } from './protocol.js';
+import { ATTRIBUTES } from './protocol.js';
 
 /** sessionStorage: the page stale() loaded again, so it does not again. */
 const STALE = 'fusion:stale';
@@ -172,7 +173,7 @@ export class Runtime {
         }
 
         const islands = islandsIn(root);
-        const elements = snapshotsIn(root).filter((el) => !islands.some((island) => island.contains(el)));
+        const elements = withState(root).filter((el) => !islands.some((island) => island.contains(el)));
 
         const live = this.take(elements).then(() => {
             if (this.reloading) return;
@@ -196,7 +197,7 @@ export class Runtime {
                 island.removeAttribute(ATTRIBUTES.hydrate);
                 /** Not those of an island inside it that is still waiting. */
                 const waiting = islandsIn(island);
-                return this.take(snapshotsIn(island).filter((el) => !waiting.some((inner) => inner.contains(el))));
+                return this.take(withState(island).filter((el) => !waiting.some((inner) => inner.contains(el))));
             });
         }
         return live;
@@ -223,7 +224,7 @@ export class Runtime {
             this.live(created);
         };
 
-        const waiting = this.require(elements.map((el) => nameIn(el.getAttribute(ATTRIBUTES.snapshot))));
+        const waiting = this.require(elements.map(nameOf));
         if (!waiting) {
             go();
             return Promise.resolve();
@@ -243,13 +244,13 @@ export class Runtime {
         let envelope;
         let state;
         try {
-            envelope = JSON.parse(el.getAttribute(ATTRIBUTES.snapshot));
+            envelope = stateOf(el);
             state = readState(envelope);
         } catch (error) {
             this.report(null, new Error('Fusion: unreadable component state'));
             return null;
         }
-        el.removeAttribute(ATTRIBUTES.snapshot);
+        dropState(el);
 
         const definition = this.definitions.get(state.name);
         if (!definition) {
@@ -423,9 +424,4 @@ function nameIn(envelope) {
     } catch {
         return null;
     }
-}
-
-/** The server-rendered components under root (root included): their elements, with state. */
-function snapshotsIn(root) {
-    return [...(root.matches?.(selector('snapshot')) ? [root] : []), ...root.querySelectorAll(selector('snapshot'))];
 }

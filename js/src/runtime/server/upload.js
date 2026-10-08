@@ -16,14 +16,15 @@
  *              (runtime/view/script.js)
  */
 import * as P from '../../php.js';
-import { HEADERS, PATHS, SIGNALS } from '../protocol.js';
+import { SIGNALS } from '../protocol.js';
 import { ErrorBag } from '../component/errors.js';
+import { sendFiles } from './request.js';
 
 /** fusion:model on a file input: its chosen files, the input told how it goes. */
-export function upload(runtime, config, component, el, path) {
+export function upload(runtime, component, el, path) {
     const fire = (name, detail = {}) => el.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
 
-    return send(runtime, config, component, path, Array.prototype.slice.call(el.files), {
+    return send(runtime, component, path, Array.prototype.slice.call(el.files), {
         multiple: el.multiple,
         start: () => fire('fusion-upload-start'),
         progress: (progress) => fire('fusion-upload-progress', { progress }),
@@ -39,7 +40,7 @@ export function upload(runtime, config, component, el, path) {
  *
  * @param {object} on   multiple (a list property), and start(), progress(0-100), finish(), error(status, message)
  */
-export function send(runtime, config, component, path, files, on = {}) {
+export function send(runtime, component, path, files, on = {}) {
     const root = String(path).split('.')[0];
 
     if (files.length === 0) {
@@ -56,17 +57,6 @@ export function send(runtime, config, component, path, files, on = {}) {
     on.start?.();
 
     return new Promise((resolve) => {
-        const request = new XMLHttpRequest();
-        request.open('POST', `${config.endpoint}/${PATHS.upload}`, true);
-        request.setRequestHeader('Accept', 'application/json');
-        request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        request.setRequestHeader('X-CSRF-TOKEN', config.csrf);
-        request.setRequestHeader(HEADERS.call, '1');
-
-        request.upload.onprogress = (e) => {
-            if (e.lengthComputable) on.progress?.(Math.round((e.loaded * 100) / e.total));
-        };
-
         const done = (status, text) => {
             runtime.loading(component, root, false);
             let answer = null;
@@ -92,9 +82,7 @@ export function send(runtime, config, component, path, files, on = {}) {
             resolve(status === 422 ? { refused: true } : { failed: true, status, message });
         };
 
-        request.onload = () => done(request.status, request.responseText);
-        request.onerror = () => done(0, '');
-        request.send(form);
+        sendFiles(runtime, component, form, (percent) => on.progress?.(percent), done);
     });
 }
 
