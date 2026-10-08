@@ -4,10 +4,12 @@ namespace Nitro\Fusion\State;
 
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
+use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\Lifecycle\Features;
+use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Store;
 
 /**
@@ -24,8 +26,10 @@ final class Stores
     private array $memos = [];
 
     public function __construct(
-        private readonly Fusion $fusion,
         private readonly Container $app,
+        private readonly BrowserNames $names,
+        private readonly Components $components,
+        private readonly Features $features,
     ) {
     }
 
@@ -35,7 +39,7 @@ final class Stores
      */
     public function store(string $class): Store
     {
-        $meta = $this->fusion->meta($class);
+        $meta = $this->components->meta($class);
 
         if (! $meta->store) {
             throw new InvalidArgumentException("{$meta->class} is not a store (a class extending ".Store::class.').');
@@ -47,11 +51,11 @@ final class Stores
             $store->fusion()->id = $meta->name;
             $store->fusion()->name = $meta->name;
             $this->stores[$meta->name] = $store;
-            $this->fusion->features()->boot($store);
-            $this->fusion->features()->mounting($store);
+            $this->features->boot($store);
+            $this->features->mounting($store);
 
             if ($meta->hasMount) {
-                $this->app->call([$store, 'mount']);
+                $this->app->call([$store, ComponentHooks::MOUNT]);
             }
         }
 
@@ -82,18 +86,19 @@ final class Stores
      * The stores this request made or took from the browser, signed for it: the page sends them
      * with its components (the browser makes those it does not have yet).
      *
+     * @param  array<string, mixed>  $pageMemo  the page the request renders (a store made here is signed for it)
      * @return array<string, array> browser name => signed envelope
      */
-    public function snapshots(): array
+    public function snapshots(array $pageMemo): array
     {
         $snapshots = [];
 
         foreach ($this->stores as $name => $store) {
-            $meta = $this->fusion->meta($name);
-            $memo = $this->memos[$name] ?? $this->fusion->pageMemo();
-            $this->fusion->features()->dehydrate($store);
-            $browserName = $this->fusion->browserName($name);
-            $snapshots[$browserName] = json_decode(Snapshot::capture($store, $meta, $memo)->toJson($this->fusion->stateKey(), $browserName, $this->fusion->names()), true);
+            $meta = $this->components->meta($name);
+            $memo = $this->memos[$name] ?? $pageMemo;
+            $this->features->dehydrate($store);
+            $browserName = $this->names->component($name);
+            $snapshots[$browserName] = app(Snapshots::class)->envelope(Snapshot::capture($store, $meta, $memo), $name);
         }
 
         return $snapshots;

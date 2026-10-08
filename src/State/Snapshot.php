@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Fusion\State;
 
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -10,10 +10,11 @@ use LogicException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Compiler\PropertyMeta;
 use Closure;
-use Nitro\Fusion\Build\Obfuscator;
+use Nitro\Fusion\Compiler\Obfuscator;
+use Nitro\Fusion\Compiler\StateProperties;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Merge;
-use Nitro\Fusion\State\ComponentState;
+use Nitro\Fusion\Support\Signer;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -31,6 +32,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 final class Snapshot
 {
+    /** What a snapshot's signature is for (Signer): it cannot pass for another signed thing. */
+    private const PURPOSE = 'state';
+
     /**
      * @param  array<string, mixed>  $data  property => value (PHP values: models as they are when captured, their attributes when read back)
      * @param  array<string, mixed>  $memo  models, errors, the page route (for persistent middleware)
@@ -49,7 +53,7 @@ final class Snapshot
         $data = [];
         $models = [];
 
-        foreach (ComponentState::of($component) as $name => $value) {
+        foreach (StateProperties::values($component) as $name => $value) {
             $property = $meta->property($name);
 
             if ($property === null) {
@@ -192,28 +196,25 @@ final class Snapshot
      * with an obfuscated build's names ($names), its properties by theirs: in its state, and where
      * its memo names them (models, errors, deferred properties, merge rules).
      */
-    public function toJson(string $key, ?string $name = null, ?Obfuscator $names = null): string
+    public function toJson(Signer $signer, ?string $name = null, ?Obfuscator $names = null): string
     {
         [$data, $memo] = $names === null ? [$this->data, $this->memo] : $this->renamed($names->property(...), $names->path(...));
         /** issued: when it was signed, for fusion.state.lifetime. */
         $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo, 'issued' => time()]);
 
-        return json_encode(['state' => $state, 'checksum' => self::sign($state, $key)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return json_encode(['state' => $state, 'checksum' => $signer->sign(self::PURPOSE, $state)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**
-     * The envelope the browser sent back, verified: signed with one of $keys (Fusion::stateKeys():
-     * this session's, or the application's for state made without a session), and, with a
+     * The envelope the browser sent back, verified: signed for this session (Signer), and, with a
      * $lifetime (seconds), signed no longer ago than that.
-     *
-     * @param  string|list<string>  $keys
      *
      * @throws HttpException 419 when it was changed, belongs to another session, or has expired
      */
-    public static function fromEnvelope(mixed $envelope, string|array $keys, ?int $lifetime = null): self
+    public static function fromEnvelope(mixed $envelope, Signer $signer, ?int $lifetime = null): self
     {
         $signed = is_array($envelope) && is_string($envelope['state'] ?? null) && is_string($envelope['checksum'] ?? null)
-            && array_filter((array) $keys, fn (string $key) => hash_equals(self::sign($envelope['state'], $key), $envelope['checksum'])) !== [];
+            && $signer->verifies(self::PURPOSE, $envelope['state'], $envelope['checksum']);
 
         if (! $signed) {
             throw new HttpException(419, 'The component state is not valid here (changed, or from another session): reload the page.');
@@ -300,10 +301,5 @@ final class Snapshot
         $query = $reference['class']::on($reference['connection'])->with($reference['relations'] ?? []);
 
         return $nullable ? $query->find($reference['key']) : $query->findOrFail($reference['key']);
-    }
-
-    private static function sign(string $state, string $key): string
-    {
-        return hash_hmac('sha256', $state, $key);
     }
 }

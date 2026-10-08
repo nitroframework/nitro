@@ -6,6 +6,7 @@ use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Feature;
+use Nitro\Fusion\Support\ComponentHooks;
 
 /**
  * The server lifecycle of components: each hook runs the component's own method of that name
@@ -31,9 +32,15 @@ final class Features
     ) {
     }
 
+    /** A server hook (Support\ComponentHooks), when the component has it; what it returns. */
+    public static function hook(Component $component, string $hook, mixed ...$arguments): mixed
+    {
+        return method_exists($component, $hook) ? $component->{$hook}(...$arguments) : null;
+    }
+
     public function boot(Component $component): void
     {
-        Hooks::call($component, 'boot');
+        self::hook($component, ComponentHooks::BOOT);
 
         foreach ($this->features() as $feature) {
             $feature->boot($component);
@@ -49,7 +56,7 @@ final class Features
 
     public function hydrate(Component $component): void
     {
-        Hooks::call($component, 'hydrate');
+        self::hook($component, ComponentHooks::HYDRATE);
 
         foreach ($this->features() as $feature) {
             $feature->hydrate($component);
@@ -97,7 +104,7 @@ final class Features
         }
 
         $context->dehydrated = true;
-        Hooks::call($component, 'dehydrate');
+        self::hook($component, ComponentHooks::DEHYDRATE);
 
         foreach ($this->features() as $feature) {
             $feature->dehydrate($component);

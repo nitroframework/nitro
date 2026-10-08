@@ -9,8 +9,8 @@ use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use JsonSerializable;
-use Nitro\Fusion\Fusion;
 use Nitro\Fusion\Once;
+use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Wire;
 
 /**
@@ -20,6 +20,9 @@ use Nitro\Fusion\Support\Wire;
  */
 final class SharedData
 {
+    /** Where Fusion::flash()'s data waits in the session for the response that delivers it. */
+    public const FLASH_KEY = 'fusion.flash';
+
     /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
     private array $shared = [];
 
@@ -62,10 +65,26 @@ final class SharedData
     }
 
     /**
+     * What the browser gets of this data with a page, a visit or a #[Server] call: the shared data,
+     * the once data's keys, and the flash data (delivered with it: without $flash, left for the
+     * next response, as a call that redirects does).
+     *
+     * @return array{shared: mixed, once: object, flash: mixed}
+     */
+    public function forBrowser(bool $flash = true): array
+    {
+        return [
+            'shared' => $this->sharedForBrowser(),
+            'once' => (object) $this->onceForBrowser(),
+            'flash' => $flash ? $this->flashForBrowser() : null,
+        ];
+    }
+
+    /**
      * The shared data as the browser reads it (B.shared()), without the once data the browser
      * says it has (X-Fusion-Once), unless it is fresh.
      */
-    public function sharedForBrowser(): mixed
+    private function sharedForBrowser(): mixed
     {
         $held = $this->heldOnce();
         $shared = array_filter($this->shared, fn (mixed $value, string|int $key) => ! ($value instanceof Once && in_array((string) $key, $held, true) && ! $value->isFresh()), ARRAY_FILTER_USE_BOTH);
@@ -79,7 +98,7 @@ final class SharedData
      *
      * @return array<string, int|null>
      */
-    public function onceForBrowser(): array
+    private function onceForBrowser(): array
     {
         $once = [];
 
@@ -96,7 +115,7 @@ final class SharedData
     private function heldOnce(): array
     {
         $request = $this->app->bound('request') ? $this->app->make('request') : null;
-        $header = $request instanceof Request ? (string) $request->headers->get(Fusion::ONCE_HEADER, '') : '';
+        $header = $request instanceof Request ? (string) $request->headers->get(Protocol::header('once'), '') : '';
 
         return array_values(array_filter(array_map('trim', explode(',', $header)), fn (string $key) => $key !== ''));
     }
@@ -119,7 +138,7 @@ final class SharedData
             Arr::set($data, (string) $name, $item);
         }
 
-        $session->flash(Fusion::FLASH_KEY, $data);
+        $session->flash(self::FLASH_KEY, $data);
     }
 
     /** The flash data, or one value of it (dot notation). */
@@ -132,7 +151,7 @@ final class SharedData
      * The flash data for the browser (B.flashed()). Delivered, it is this request's only (the
      * session's now()): read again within it (the layout rendered for the title), gone after.
      */
-    public function flashForBrowser(): mixed
+    private function flashForBrowser(): mixed
     {
         $data = $this->flashData();
 
@@ -140,8 +159,8 @@ final class SharedData
 
         if ($data !== [] && $session !== null) {
             /** The session's now(): kept for this request, dropped when it ends. */
-            $session->put(Fusion::FLASH_KEY, $data);
-            $session->put('_flash.old', array_values(array_unique([...(array) $session->get('_flash.old', []), Fusion::FLASH_KEY])));
+            $session->put(self::FLASH_KEY, $data);
+            $session->put('_flash.old', array_values(array_unique([...(array) $session->get('_flash.old', []), self::FLASH_KEY])));
         }
 
         return Wire::encode($this->resolve($data));
@@ -155,7 +174,7 @@ final class SharedData
      */
     private function flashData(): array
     {
-        return (array) ($this->session()?->get(Fusion::FLASH_KEY, []) ?? []);
+        return (array) ($this->session()?->get(self::FLASH_KEY, []) ?? []);
     }
 
     private function session(): ?Session

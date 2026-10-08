@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Fusion\Lifecycle;
 
 use Illuminate\Support\MessageBag;
 
