@@ -346,7 +346,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Server rendering for Vue, React and Solid views
+    | Server rendering for JavaScript views
     |--------------------------------------------------------------------------
     |
     | On, a page's first HTML has its JavaScript views rendered in it, and

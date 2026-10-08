@@ -4,9 +4,9 @@ namespace Nitro\Fusion\Attributes;
 
 use Attribute;
 use Illuminate\Http\Request;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\FeatureAttribute;
-use Nitro\Fusion\Fusion;
 
 /**
  * A property kept in the query string, as Livewire's #[Url]: the page reads it from the URL when
@@ -49,7 +49,7 @@ final class Url extends FeatureAttribute
             return;
         }
 
-        $property = app(Fusion::class)->meta($component::class)->property($name);
+        $property = app(Components::class)->meta($component::class)->property($name);
         [$fits, $value] = $property?->fromQuery($request->query->all()[$key]) ?? [false, null];
 
         if ($fits) {

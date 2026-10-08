@@ -5,6 +5,9 @@ namespace Nitro\Fusion\Testing;
 use Closure;
 use Illuminate\Support\Arr;
 use Illuminate\Testing\TestResponse;
+use Nitro\Fusion\Build\BrowserNames;
+use Nitro\Fusion\Compiler\Components;
+use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Wire;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -38,9 +41,10 @@ final class AssertableFusion
             return self::fromEnvelope($page['snapshot'] ?? null);
         }
 
-        PHPUnit::assertMatchesRegularExpression('/<[a-zA-Z][^>]*\sfusion:page="[^"]*"[^>]*>/', $content, 'Not a Fusion page: no element is marked fusion:page.');
-        preg_match('/<[a-zA-Z][^>]*\sfusion:page="[^"]*"[^>]*>/', $content, $root);
-        preg_match('/\sfusion:snapshot="([^"]*)"/', $root[0], $snapshot);
+        $page = preg_quote(Protocol::attribute('page'), '/');
+        PHPUnit::assertMatchesRegularExpression('/<[a-zA-Z][^>]*\s'.$page.'="[^"]*"[^>]*>/', $content, 'Not a Fusion page: no element is marked '.Protocol::attribute('page').'.');
+        preg_match('/<[a-zA-Z][^>]*\s'.$page.'="[^"]*"[^>]*>/', $content, $root);
+        preg_match('/\s'.preg_quote(Protocol::attribute('snapshot'), '/').'="([^"]*)"/', $root[0], $snapshot);
 
         return self::fromEnvelope(json_decode(html_entity_decode($snapshot[1] ?? '', ENT_QUOTES | ENT_HTML5), true));
     }
@@ -52,10 +56,9 @@ final class AssertableFusion
         PHPUnit::assertIsArray($state, 'The Fusion page\'s snapshot cannot be read.');
 
         /** An obfuscated build names the page and its properties by aliases: the page and the properties they stand for. */
-        $fusion = app(\Nitro\Fusion\Fusion::class);
-        $name = $fusion->componentName((string) $state['name']);
-        $snapshot = (new \Nitro\Fusion\Rendering\Snapshot($name, (string) ($state['id'] ?? ''), (array) ($state['data'] ?? []), (array) ($state['memo'] ?? [])))
-            ->fromBrowser($fusion->names(), $fusion->has($name) ? array_keys($fusion->meta($name)->properties) : []);
+        $name = app(BrowserNames::class)->componentName((string) $state['name']);
+        $snapshot = (new \Nitro\Fusion\State\Snapshot($name, (string) ($state['id'] ?? ''), (array) ($state['data'] ?? []), (array) ($state['memo'] ?? [])))
+            ->fromBrowser(app(BrowserNames::class)->obfuscator(), app(Components::class)->has($name) ? array_keys(app(Components::class)->meta($name)->properties) : []);
 
         return new self($name, $snapshot->data, array_values((array) ($snapshot->memo['deferred'] ?? [])));
     }

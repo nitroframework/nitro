@@ -10,16 +10,27 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Build\Bundle;
+use Nitro\Fusion\Build\ServerChildren;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Lifecycle\Features;
+use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Merge;
 use Nitro\Fusion\Rendering\PageHead;
 use Nitro\Fusion\Rendering\Portals;
 use Nitro\Fusion\Rendering\ComponentRenderer;
-use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\State\Snapshot;
 use Nitro\Fusion\State\SharedData;
+use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\State\Stores;
+use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\LayoutKey;
+use Nitro\Fusion\Support\Protocol;
+use Nitro\Fusion\Support\UrlValues;
+use Nitro\Fusion\View\ViewEngines;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -30,16 +41,20 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class PageResponses
 {
-    /** @var array<class-string, bool> whether a component's view places a child only the server can create */
-    private array $serverChildren = [];
 
     public function __construct(
-        private readonly Fusion $fusion,
+        private readonly Config $config,
         private readonly Container $app,
         private readonly ComponentRenderer $renderer,
         private readonly PageHead $head,
         private readonly Portals $portals,
         private readonly SharedData $data,
+        private readonly BrowserNames $names,
+        private readonly Components $components,
+        private readonly Features $features,
+        private readonly ViewEngines $views,
+        private readonly Stores $stores,
+        private readonly ServerChildren $children,
     ) {
     }
 
@@ -50,16 +65,16 @@ final class PageResponses
      */
     public function page(Component $component, array $parameters): Response
     {
-        $meta = $this->fusion->meta($component::class);
+        $meta = $this->components->meta($component::class);
         $component->fusion()->id = $this->pageId();
         $component->fusion()->name = $meta->name;
-        $this->fusion->giveStores($component, $meta);
-        $this->fusion->features()->boot($component);
-        $this->fusion->features()->mounting($component);
+        $this->stores->give($component, $meta);
+        $this->features->boot($component);
+        $this->features->mounting($component);
 
         if ($meta->hasMount) {
             /** The route's parameters, already bound and resolved by the router, in mount()'s order. */
-            [$component, 'mount'](...array_values($parameters));
+            [$component, ComponentHooks::MOUNT](...array_values($parameters));
         } else {
             $this->fillFromRoute($component, $meta, $parameters);
         }
@@ -84,13 +99,15 @@ final class PageResponses
             }
 
             $types = array_values(array_diff($property->types, ['null']));
-            $component->{$name} = match (true) {
-                $value === null && $property->nullable => null,
-                ! is_string($value) || count($types) !== 1 => $value,
-                $types[0] === 'int' => filter_var($value, FILTER_VALIDATE_INT) !== false ? (int) $value : abort(404),
-                $types[0] === 'float' => is_numeric($value) ? (float) $value : abort(404),
-                default => $value,
-            };
+
+            if (($value === null && $property->nullable) || ! is_string($value) || count($types) !== 1 || ! in_array($types[0], ['int', 'float'], true)) {
+                $component->{$name} = $value;
+
+                continue;
+            }
+
+            [$fits, $typed] = UrlValues::read($types[0], $value);
+            $component->{$name} = $fits ? $typed : abort(404);
         }
     }
 
@@ -102,7 +119,7 @@ final class PageResponses
      */
     public function mergeProperty(Component $page, string $property, Merge $merge): Merge
     {
-        $meta = $this->fusion->meta($page::class);
+        $meta = $this->components->meta($page::class);
 
         if (! $meta->page) {
             throw new InvalidArgumentException("Only pages merge properties: [{$meta->name}] is a component.");
@@ -134,7 +151,7 @@ final class PageResponses
      */
     public function deferProperty(Component $page, string $property, Closure $value): void
     {
-        $meta = $this->fusion->meta($page::class);
+        $meta = $this->components->meta($page::class);
 
         if (! $meta->page) {
             throw new InvalidArgumentException("Only pages defer properties: [{$meta->name}] is a component.");
@@ -161,11 +178,11 @@ final class PageResponses
     {
         $request = $this->app->bound('request') ? $this->app->make('request') : null;
 
-        if (! $request instanceof Request || ! $request->headers->has(Fusion::NAVIGATE_HEADER) || ! $request->headers->has(Fusion::PARTIAL_HEADER)) {
+        if (! $request instanceof Request || ! $request->headers->has(Protocol::header('navigate')) || ! $request->headers->has(Protocol::header('partial'))) {
             return null;
         }
 
-        $only = array_map('trim', explode(',', (string) $request->headers->get(Fusion::ONLY_HEADER, '')));
+        $only = array_map('trim', explode(',', (string) $request->headers->get(Protocol::header('only'), '')));
 
         return array_values(array_filter($only, fn (string $name) => preg_match('/^\w+$/', $name) === 1));
     }
@@ -174,7 +191,7 @@ final class PageResponses
     public function wants(string $property): bool
     {
         $only = $this->partial();
-        $names = $this->fusion->names();
+        $names = $this->names->obfuscator();
 
         return $only === null || $only === [] || in_array($property, $only, true)
             || ($names !== null && in_array($names->property($property), $only, true));
@@ -186,7 +203,7 @@ final class PageResponses
      */
     public function pageLayout(ComponentMeta $meta): string
     {
-        return $this->layoutKey($meta->layout->view ?? (string) $this->fusion->config('layout', 'components.layouts.app'), $meta->layout->data ?? []);
+        return LayoutKey::of($meta->layout->view ?? $this->config->layout(), $meta->layout->data ?? []);
     }
 
     /**
@@ -198,7 +215,7 @@ final class PageResponses
      */
     private function partialProperties(array $only, ComponentMeta $meta): array
     {
-        $names = $this->fusion->names();
+        $names = $this->names->obfuscator();
 
         return $names === null ? $only : array_map(fn (string $name) => $names->propertyName($name, array_keys($meta->properties)) ?? $name, $only);
     }
@@ -211,8 +228,8 @@ final class PageResponses
     {
         $request = $this->app->make('request');
         $id = match (true) {
-            $this->partial() !== null => (string) $request->headers->get(Fusion::PARTIAL_HEADER),
-            $request->headers->has(Fusion::NAVIGATE_HEADER) => (string) $request->headers->get(Fusion::ID_HEADER),
+            $this->partial() !== null => (string) $request->headers->get(Protocol::header('partial')),
+            $request->headers->has(Protocol::header('navigate')) => (string) $request->headers->get(Protocol::header('id')),
             default => '',
         };
 
@@ -223,28 +240,28 @@ final class PageResponses
     private function respond(Component $component, ComponentMeta $meta): Response
     {
         $head = $this->head->forPage($component, $meta);
-        $layout = $meta->layout->view ?? (string) $this->fusion->config('layout', 'components.layouts.app');
+        $layout = $meta->layout->view ?? $this->config->layout();
         $layoutData = [...($meta->layout->data ?? []), 'title' => $head['title']];
 
         /** The same URL answers with HTML or with page data: caches must keep them apart. */
         $request = $this->app->make('request');
 
-        if ($request->headers->has(Fusion::NAVIGATE_HEADER)) {
+        if ($request->headers->has(Protocol::header('navigate'))) {
             /** The browser runs another build's components (a deploy since it loaded): load the page in full. */
-            $version = $request->headers->get(Fusion::VERSION_HEADER);
+            $version = $request->headers->get(Protocol::header('version'));
 
             if ($version !== null && $version !== $this->app->make(Bundle::class)->tag()) {
-                return (new HttpResponse('', 409, ['X-Fusion-Location' => $request->fullUrl()]))->setVary(Fusion::NAVIGATE_HEADER, false);
+                return (new HttpResponse('', 409, [Protocol::header('location') => $request->fullUrl()]))->setVary(Protocol::header('navigate'), false);
             }
 
-            return $this->pageData($component, $meta, $layout, $layoutData)->setVary(Fusion::NAVIGATE_HEADER, false);
+            return $this->pageData($component, $meta, $layout, $layoutData)->setVary(Protocol::header('navigate'), false);
         }
 
-        $html = $this->renderer->render($component, $meta, $this->fusion->stateKey(), $this->fusion->pageMemo(), ['fusion:page' => $this->layoutKey($layout, $layoutData)]);
+        $html = $this->renderer->render($component, $meta, $this->renderer->pageMemo(), [Protocol::attribute('page') => LayoutKey::of($layout, $layoutData)]);
 
         $page = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString($html)])->render();
 
-        return response($this->portals->fill($page))->setVary(Fusion::NAVIGATE_HEADER, false);
+        return response($this->portals->fill($page))->setVary(Protocol::header('navigate'), false);
     }
 
     /**
@@ -255,96 +272,35 @@ final class PageResponses
      */
     private function pageData(Component $component, ComponentMeta $meta, string $layout, array $layoutData): JsonResponse
     {
-        $key = $this->fusion->stateKey();
-        $memo = $this->fusion->pageMemo();
+        $memo = $this->renderer->pageMemo();
+        $snapshots = $this->app->make(Snapshots::class);
 
-        $children = $this->hasServerChildren($meta)
-            ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $key, $memo))
+        $children = $this->children->placedBy($meta)
+            ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $memo))
             : [];
 
         /** In development, the page or a component it renders that does not compile: its error. */
         $this->app->make(Bundle::class)->assertCompiled([$meta->name, ...$this->renderer->rendered()]);
 
-        $this->fusion->features()->dehydrate($component);
+        $this->features->dehydrate($component);
         $snapshot = Snapshot::capture($component, $meta, $memo);
         $only = $this->partial();
 
         return new JsonResponse([
             'fusion' => 1,
-            'snapshot' => json_decode($snapshot->toJson($key, $this->fusion->browserName($meta->name), $this->fusion->names()), true),
+            'snapshot' => $snapshots->envelope($snapshot, $meta->name),
             /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
-            'partial' => $only === null || $only === [] ? null : json_decode($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules())->toJson($key, $this->fusion->browserName($meta->name), $this->fusion->names()), true),
+            'partial' => $only === null || $only === [] ? null : $snapshots->envelope($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules()), $meta->name),
             'children' => (object) $children,
             'title' => $this->head->layoutTitle($layout, $layoutData),
             /** @fusionHead's tags but the title, when the layout has it (layoutTitle() just rendered it): the browser puts them in place of the last page's. */
             'head' => $this->head->printed() ? $this->head->tags() : null,
-            'layout' => $this->layoutKey($layout, $layoutData),
-            'shared' => $this->data->sharedForBrowser(),
-            'once' => (object) $this->data->onceForBrowser(),
-            'flash' => $this->data->flashForBrowser(),
-        ] + (($stores = $this->fusion->storeSnapshots()) === [] ? [] : [
+            'layout' => LayoutKey::of($layout, $layoutData),
+            ...$this->data->forBrowser(),
+        ] + (($stores = $this->stores->snapshots($this->renderer->pageMemo())) === [] ? [] : [
             /** The stores the page's components use: the browser makes those it does not have yet. */
             'stores' => (object) $stores,
         ]), 200, ['Cache-Control' => 'no-store'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
-    /** Pages share the page around them when they have the same layout, with the same data. */
-    private function layoutKey(string $layout, array $layoutData): string
-    {
-        unset($layoutData['title']);
-
-        return $layoutData === [] ? $layout : $layout.'#'.substr(md5(serialize($layoutData)), 0, 12);
-    }
-
-    /**
-     * Whether the component's view places (itself or through the children it places) a child that
-     * has mount() or #[Server] methods: only the server can create the first, or sign the state of
-     * the second. $mountOnly: a child with mount() only (a #[Server] call answers with those: the
-     * browser takes the state of the others when they first call the server).
-     *
-     * @param  array<string, true>  $seen  classes already looked at (views can place each other)
-     */
-    public function hasServerChildren(ComponentMeta $meta, bool $mountOnly = false, array &$seen = []): bool
-    {
-        /** A store has no view, and a view the app's build compiles places no Fusion children. */
-        if ($meta->store || ! $this->fusion->viewEngine($meta)->compiledByFusion()) {
-            return false;
-        }
-
-        $key = $meta->class.($mountOnly ? '#mount' : '');
-
-        if (isset($this->serverChildren[$key])) {
-            return $this->serverChildren[$key];
-        }
-
-        $seen[$meta->class] = true;
-        $source = (string) file_get_contents($this->fusion->viewEngine($meta)->file($meta));
-        $found = false;
-
-        preg_match_all('/<fusion:([\w.\-]+)/', $source, $tags);
-
-        foreach (array_unique($tags[1]) as $name) {
-            /** It may name any component, one with mount() or #[Server] methods too. */
-            if ($name === 'dynamic-component') {
-                $found = true;
-
-                break;
-            }
-
-            if (! $this->fusion->has($name)) {
-                continue;
-            }
-
-            $child = $this->fusion->meta($name);
-
-            /** A child that uses a store: rendered here, so the store is made here (its mount()) and sent with the page. */
-            if ($child->hasMount || (! $mountOnly && ($child->serverMethods !== [] || $child->stores !== [])) || (! isset($seen[$child->class]) && $this->hasServerChildren($child, $mountOnly, $seen))) {
-                $found = true;
-
-                break;
-            }
-        }
-
-        return $this->serverChildren[$key] = $found;
-    }
 }

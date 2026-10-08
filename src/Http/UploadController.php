@@ -7,9 +7,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Validator;
 use JsonException;
+use Nitro\Fusion\Build\BrowserNames;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\Support\Config;
 use Nitro\Fusion\Support\Wire;
 use Nitro\Fusion\Upload;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -45,19 +47,19 @@ final class UploadController
             throw new HttpException(400, 'Malformed upload.');
         }
 
-        $snapshot = Snapshot::fromEnvelope($envelope, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
-        $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+        $snapshot = app(Snapshots::class)->open($envelope);
+        $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
 
-        if (! $this->fusion()->has($snapshot->name)) {
+        if (! $this->components()->has($snapshot->name)) {
             throw new HttpException(404, 'Unknown component.');
         }
 
         $this->persistent->check($snapshot->memo['route'] ?? [], $request);
 
         $name = $request->input('property');
-        $meta = $this->fusion()->meta($snapshot->name);
+        $meta = $this->components()->meta($snapshot->name);
         /** By the browser's name for it (an obfuscated build). */
-        $name = is_string($name) ? ($this->fusion()->names()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
+        $name = is_string($name) ? ($this->names()->obfuscator()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
         $property = is_string($name) ? $meta->property($name) : null;
         /** Several files only for an #[Uploads] array; any other array takes none. */
         $multiple = $property !== null && $property->uploads;
@@ -68,18 +70,18 @@ final class UploadController
 
         $files = $request->file('files');
         $files = is_array($files) ? array_values($files) : [];
-        $max = $multiple ? (int) $this->fusion()->config('uploads.max_files', 20) : 1;
+        $max = $multiple ? (int) app(Config::class)->get('uploads.max_files') : 1;
 
         if ($files === [] || count($files) > $max || array_filter($files, fn ($file) => ! $file instanceof UploadedFile) !== []) {
             throw new HttpException(422, $files === [] ? 'No file was received.' : "Choose up to {$max} ".($max === 1 ? 'file' : 'files').'.');
         }
 
-        $rules = (array) $this->fusion()->config('uploads.rules', ['file', 'max:12288']);
+        $rules = (array) app(Config::class)->get('uploads.rules');
         $validator = Validator::make(['files' => $files], ['files.*' => $rules], [], ['files.*' => $name]);
 
         if ($validator->fails()) {
             /** Keyed by the browser's name for the property (an obfuscated build). */
-            $field = $this->fusion()->names()?->property($name) ?? $name;
+            $field = $this->names()->obfuscator()?->property($name) ?? $name;
 
             return new JsonResponse(['message' => $validator->errors()->first(), 'errors' => [$field => array_values(array_unique($validator->errors()->all()))]], 422);
         }
@@ -109,8 +111,13 @@ final class UploadController
      * This request's Fusion. The router keeps a controller between requests (Octane, Nitro's
      * workers): Fusion, bound per request, is not kept with it.
      */
-    private function fusion(): Fusion
+    private function names(): BrowserNames
     {
-        return app(Fusion::class);
+        return app(BrowserNames::class);
+    }
+
+    private function components(): Components
+    {
+        return app(Components::class);
     }
 }

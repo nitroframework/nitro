@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Nitro\Fusion\Build\Bundle;
 use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Fusion;
 
 /**
  * Serves the runtime (fusion.js) and the application's compiled components (app.js, and the
@@ -16,9 +15,9 @@ use Nitro\Fusion\Fusion;
  */
 final class AssetController
 {
-    public function runtime(Request $request, Fusion $fusion): Response
+    public function runtime(Request $request, Bundle $bundle): Response
     {
-        return $this->script((string) file_get_contents($fusion->runtimePath()), $request->query('v') === $fusion->runtimeVersion());
+        return $this->script((string) file_get_contents($bundle->runtimePath()), $request->query('v') === $bundle->runtimeVersion());
     }
 
     public function bundle(Request $request, Bundle $bundle): Response
@@ -27,9 +26,10 @@ final class AssetController
     }
 
     /** A chunk (app/<id>.js): a page's or a #[LazyLoad] group's, by its name (Bundle::chunkId()). */
-    public function chunk(Request $request, Bundle $bundle, string $group): Response
+    /** $id: the chunk's, as Protocol::path('chunk') names it. */
+    public function chunk(Request $request, Bundle $bundle, string $id): Response
     {
-        return $this->compiled($request, $bundle, fn () => $bundle->chunkPath($group) ?? abort(404));
+        return $this->compiled($request, $bundle, fn () => $bundle->chunkPath($id) ?? abort(404));
     }
 
     /** @param  Closure(): string  $path */

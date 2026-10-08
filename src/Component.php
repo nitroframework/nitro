@@ -4,9 +4,11 @@ namespace Nitro\Fusion;
 
 use Closure;
 use Illuminate\Support\Facades\Validator;
-use Nitro\Fusion\Rendering\Context;
-use Nitro\Fusion\State\ComponentState;
-use Nitro\Fusion\Support\PendingDispatch;
+use Nitro\Fusion\Compiler\Components;
+use Nitro\Fusion\Lifecycle\Context;
+use Nitro\Fusion\Compiler\StateProperties;
+use Nitro\Fusion\Http\PageResponses;
+use Nitro\Fusion\State\SharedData;
 use ReflectionClass;
 use ReflectionProperty;
 
@@ -58,7 +60,7 @@ abstract class Component
      */
     final public function __get(string $name): mixed
     {
-        if (! app(Fusion::class)->meta(static::class)->isComputed($name)) {
+        if (! app(Components::class)->meta(static::class)->isComputed($name)) {
             trigger_error('Undefined property: '.static::class.'::$'.$name, E_USER_WARNING);
 
             return null;
@@ -79,7 +81,7 @@ abstract class Component
 
     final public function __isset(string $name): bool
     {
-        return app(Fusion::class)->meta(static::class)->isComputed($name) && $this->__get($name) !== null;
+        return app(Components::class)->meta(static::class)->isComputed($name) && $this->__get($name) !== null;
     }
 
     /**
@@ -149,11 +151,41 @@ abstract class Component
     {
         /** No rules given: the #[Validate] rules of every property that has them. */
         if ($rules === null) {
-            [$rules, $named] = app(Fusion::class)->meta(static::class)->rulesFor();
+            [$rules, $named] = app(Components::class)->meta(static::class)->rulesFor();
             $attributes += $named;
         }
 
-        return Validator::make(ComponentState::of($this), $rules, $messages, $attributes)->validate();
+        return Validator::make(StateProperties::values($this), $rules, $messages, $attributes)->validate();
+    }
+
+    /**
+     * Validate some properties against their #[Validate] rules, and only those: a wizard's step,
+     * a draft that needs its title but not the rest. A key under an array property names the
+     * rules for that key and those below it ('form.email', 'lines.*.qty').
+     *
+     *   $this->validateOnly('title');
+     *   $this->validateOnly(['form.email', 'form.phone']);
+     *
+     * @param  string|list<string>  $properties
+     * @return array<string, mixed> the validated data
+     */
+    final protected function validateOnly(string|array $properties, array $messages = [], array $attributes = []): array
+    {
+        $properties = (array) $properties;
+        $roots = array_map(fn (string $path) => explode('.', $path, 2)[0], $properties);
+        [$rules, $named] = app(Components::class)->meta(static::class)->rulesFor($roots);
+
+        $rules = array_filter($rules, function (string $key) use ($properties) {
+            foreach ($properties as $path) {
+                if ($key === $path || str_starts_with($key, $path.'.')) {
+                    return true;
+                }
+            }
+
+            return false;
+        }, ARRAY_FILTER_USE_KEY);
+
+        return Validator::make(StateProperties::values($this), $rules, $messages, $attributes + $named)->validate();
     }
 
     /**
@@ -162,7 +194,7 @@ abstract class Component
      */
     final public function shared(?string $key = null, mixed $default = null): mixed
     {
-        return app(Fusion::class)->shared($key, $default);
+        return app(SharedData::class)->shared($key, $default);
     }
 
     /**
@@ -171,7 +203,7 @@ abstract class Component
      */
     final public function flashed(?string $key = null, mixed $default = null): mixed
     {
-        return app(Fusion::class)->flashed($key, $default);
+        return app(SharedData::class)->flashed($key, $default);
     }
 
     /**
@@ -182,7 +214,7 @@ abstract class Component
      */
     final protected function defer(string $property, Closure $value): void
     {
-        app(Fusion::class)->deferProperty($this, $property, $value);
+        app(PageResponses::class)->deferProperty($this, $property, $value);
     }
 
     /**
@@ -195,7 +227,7 @@ abstract class Component
      */
     final protected function merge(string $property, mixed $value): Merge
     {
-        return app(Fusion::class)->mergeProperty($this, $property, new Merge($value));
+        return app(PageResponses::class)->mergeProperty($this, $property, new Merge($value));
     }
 
     /**
@@ -205,7 +237,7 @@ abstract class Component
      */
     final protected function deepMerge(string $property, mixed $value): Merge
     {
-        return app(Fusion::class)->mergeProperty($this, $property, (new Merge($value))->deep());
+        return app(PageResponses::class)->mergeProperty($this, $property, (new Merge($value))->deep());
     }
 
     /**
@@ -217,7 +249,7 @@ abstract class Component
      */
     final protected function scroll(string $property, mixed $paginator): Merge
     {
-        return app(Fusion::class)->mergeProperty($this, $property, (new Merge($paginator))->asScroll());
+        return app(PageResponses::class)->mergeProperty($this, $property, (new Merge($paginator))->asScroll());
     }
 
     /**
@@ -228,7 +260,7 @@ abstract class Component
      */
     final protected function wants(string $property): bool
     {
-        return app(Fusion::class)->wants($property);
+        return app(PageResponses::class)->wants($property);
     }
 
     /**
@@ -260,7 +292,7 @@ abstract class Component
      */
     final protected function reload(string ...$properties): void
     {
-        $meta = app(Fusion::class)->meta(static::class);
+        $meta = app(Components::class)->meta(static::class);
 
         if (! $meta->page) {
             throw new \InvalidArgumentException("Only pages reload properties: [{$meta->name}] is a component.");
@@ -289,6 +321,6 @@ abstract class Component
      */
     final public function callAction(string $method, array $parameters): mixed
     {
-        return app(Fusion::class)->page(app()->make(static::class), $parameters);
+        return app(PageResponses::class)->page(app()->make(static::class), $parameters);
     }
 }

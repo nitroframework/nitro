@@ -4,7 +4,7 @@ namespace Nitro\Fusion\Http;
 
 use Closure;
 use Illuminate\Http\Request;
-use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Rendering\Portals;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class FillPortals
 {
-    public function __construct(private readonly Fusion $fusion)
+    public function __construct(private readonly Portals $portals)
     {
     }
 
@@ -25,7 +25,7 @@ final class FillPortals
             $content = $response->getContent();
 
             if (is_string($content) && str_contains($content, 'id="portal_')) {
-                $response->setContent($this->fusion->fillPortals($content));
+                $response->setContent($this->portals->fill($content));
             }
         }
 

@@ -5,6 +5,9 @@ namespace Nitro\Fusion;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\Protocol;
+use Nitro\Fusion\Support\Signer;
 
 /**
  * A file the browser uploaded for a component, kept in Fusion's temporary folder until the
@@ -18,6 +21,9 @@ use InvalidArgumentException;
  */
 final class Upload extends UploadedFile
 {
+    /** What an upload token's signature is for (Signer): it cannot pass for a snapshot, nor one for it. Good in the session it was made for only. */
+    private const PURPOSE = 'upload';
+
     /** Types a preview (temporaryUrl()) may be served as: raster images only (an SVG or HTML page could run script). */
     public const PREVIEWABLE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'];
 
@@ -70,7 +76,7 @@ final class Upload extends UploadedFile
 
         [$payload, $signature] = explode('.', $token);
 
-        if (! hash_equals(self::sign($payload), $signature)) {
+        if (! app(Signer::class)->verifies(self::PURPOSE, $payload, $signature)) {
             throw new InvalidArgumentException('This upload was not made here.');
         }
 
@@ -98,7 +104,7 @@ final class Upload extends UploadedFile
             's' => $this->bytes,
             'at' => $this->at,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)), '+/', '-_'), '=');
-        $token = $payload.'.'.self::sign($payload);
+        $token = $payload.'.'.app(Signer::class)->sign(self::PURPOSE, $payload);
 
         return [
             't' => $token,
@@ -160,20 +166,11 @@ final class Upload extends UploadedFile
 
     public static function directory(): string
     {
-        return rtrim((string) app(Fusion::class)->config('uploads.directory', storage_path('app/fusion-uploads')), '/\\');
+        return rtrim((string) app(Config::class)->get('uploads.directory'), '/\\');
     }
 
     private function previewUrl(string $token): string
     {
-        $endpoint = rtrim((string) app(Fusion::class)->config('endpoint', '/_fusion'), '/');
-
-        return url($endpoint.'/upload/preview').'?t='.$token;
-    }
-
-    /** Signed apart from component state: an upload token cannot pass for a snapshot, nor one for it. */
-    private static function sign(string $payload): string
-    {
-        /** The session's state key: a reference is good in the session it was made for only. */
-        return hash_hmac('sha256', 'fusion-upload|'.$payload, app(Fusion::class)->stateKey());
+        return url(app(Config::class)->endpoint(Protocol::path('preview'))).'?t='.$token;
     }
 }

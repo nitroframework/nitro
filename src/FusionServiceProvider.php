@@ -4,6 +4,7 @@ namespace Nitro\Fusion;
 
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
@@ -12,17 +13,34 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
 use Nitro\Fusion\Blade\FusionTags;
+use Nitro\Fusion\Build\BrowserNames;
 use Nitro\Fusion\Build\Bundle;
+use Nitro\Fusion\Build\ServerChildren;
+use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Console\BuildCommand;
 use Nitro\Fusion\Console\ClearCommand;
 use Nitro\Fusion\Console\SsrCommand;
 use Nitro\Fusion\Http\AssetController;
 use Nitro\Fusion\Http\FillPortals;
+use Nitro\Fusion\Http\PageResponses;
 use Nitro\Fusion\Http\PersistentMiddleware;
 use Nitro\Fusion\Http\UpdateController;
 use Nitro\Fusion\Http\UploadController;
+use Nitro\Fusion\Support\ComponentHooks;
 use Nitro\Fusion\Lifecycle\Features;
 use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\Rendering\PageHead;
+use Nitro\Fusion\Rendering\Placement;
+use Nitro\Fusion\Rendering\Portals;
+use Nitro\Fusion\Rendering\Scripts;
+use Nitro\Fusion\Rendering\Tags;
+use Nitro\Fusion\State\SharedData;
+use Nitro\Fusion\Support\Signer;
+use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\State\Stores;
+use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\View\BladeEngine;
 use Nitro\Fusion\View\ColocatedViews;
 use Nitro\Fusion\View\ScriptEngine;
@@ -41,83 +59,133 @@ class FusionServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(dirname(__DIR__).'/config/fusion.php', 'fusion');
-        $this->mergeConfigFrom(dirname(__DIR__).'/config/nprogress.php', 'nprogress');
+        $this->underlayConfig(dirname(__DIR__).'/config/fusion.php', 'fusion');
+        $this->underlayConfig(dirname(__DIR__).'/config/nprogress.php', 'nprogress');
 
         /** JavaScript views in the first HTML (fusion.ssr): the app's render service, or none. Per request: a service that failed is not asked again. */
         $this->app->scoped(ServerRenderer::class, function (Application $app) {
-            $ssr = (array) $app->make('config')->get('fusion.ssr', []);
+            $ssr = (array) $app->make('config')->get('fusion.ssr');
 
-            if (! ($ssr['enabled'] ?? false)) {
+            if (! $ssr['enabled']) {
                 return new NullRenderer;
             }
 
             return new NodeRenderer(
-                (string) ($ssr['url'] ?? 'http://127.0.0.1:13714'),
-                (float) ($ssr['timeout'] ?? 2),
+                (string) $ssr['url'],
+                (float) $ssr['timeout'],
                 $app->bound('log') ? $app->make('log') : null,
             );
         });
+
+        /** What Fusion signs, per request: its key is bound to the request's session and user. */
+        $this->app->scoped(Signer::class, fn (Application $app) => new Signer($app));
+
+        /** The state the browser holds, sealed and opened with that signer. */
+        $this->app->scoped(Snapshots::class, fn (Application $app) => new Snapshots(
+            $app->make(Signer::class),
+            $app->make(BrowserNames::class),
+            ($lifetime = $app->make('config')->get('fusion.state.lifetime')) === null ? null : (int) $lifetime,
+        ));
 
         $this->app->scoped(ViewEngines::class, function (Application $app) {
             $engines = new ViewEngines;
             $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler')));
 
-            foreach ((array) $app->make('config')->get('fusion.views', []) as $name => $view) {
+            foreach ((array) $app->make('config')->get('fusion.views') as $name => $view) {
                 $engines->add($this->scriptEngine($app, (string) $name, (array) $view));
             }
 
             return $engines;
         });
 
-        $this->app->scoped(ComponentRenderer::class, fn (Application $app) => new ComponentRenderer($app->make('view'), $app->make(ViewEngines::class)));
+        $this->app->scoped(ComponentRenderer::class, fn (Application $app) => new ComponentRenderer($app->make('view'), $app->make(ViewEngines::class), $app->make(BrowserNames::class), $app->make(Features::class), $app));
 
         $this->app->scoped(Registry::class, fn (Application $app) => new Registry(
             (array) $app->make('config')->get('fusion.components'),
             (array) $app->make('config')->get('fusion.pages'),
-            $app->bootstrapPath('cache/fusion.php'),
+            $app->bootstrapPath(Registry::CACHE),
             $app->make('config')->get('fusion.stores'),
             fn () => $app->make(ColocatedViews::class)->components(),
         ));
 
-        /** Components written in their Vue, React or Solid views: their classes go with the compiled bundle. */
+        /** Components written in their JavaScript views: their classes go with the compiled bundle. */
         $this->app->scoped(ColocatedViews::class, fn (Application $app) => new ColocatedViews(
             $app->make(ViewEngines::class),
             rtrim((string) $app->make('config')->get('fusion.compiled'), '/\\').DIRECTORY_SEPARATOR.'views',
         ));
 
-        $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion(
-            $app,
-            $app->make('config')->get('fusion', []),
-            $app->make(Registry::class),
-            $app->make(ComponentRenderer::class),
-        ));
+        /** Fusion's parts, one each per request: each takes what it needs in its constructor. */
+        foreach ([BrowserNames::class, ServerChildren::class, Placement::class, SharedData::class, Stores::class, Tags::class, Portals::class, PageHead::class, Scripts::class, PageResponses::class] as $part) {
+            $this->app->scoped($part);
+        }
+
+        $this->app->scoped(Fusion::class, fn (Application $app) => new Fusion($app));
+
+        $this->app->scoped(Config::class, fn (Application $app) => new Config((array) $app->make('config')->get('fusion')));
 
         $this->app->scoped(Bundle::class, fn (Application $app) => new Bundle(
-            $app->make(Fusion::class),
+            $app->make(Config::class),
+            fn (ComponentMeta $meta) => $app->make(PageHead::class)->forClientPage($meta),
+            $app->make(Registry::class),
+            $app->make(Components::class),
+            $app->make(ViewEngines::class),
+            $app->make(Signer::class),
             $app->make('blade.compiler'),
             $app->make('files'),
             (string) $app->make('config')->get('fusion.compiled'),
-            (array) $app->make('config')->get('fusion.esbuild', []),
+            (array) $app->make('config')->get('fusion.esbuild'),
             $app->make('router'),
-            (bool) $app->make('config')->get('fusion.minify_on_change', true),
+            (bool) $app->make('config')->get('fusion.minify_on_change'),
             ...self::staticDirectory($app),
-            obfuscate: (bool) $app->make('config')->get('fusion.build.obfuscate', true),
-            rendering: (string) $app->make('config')->get('fusion.rendering', 'clone'),
-            navigation: (string) $app->make('config')->get('fusion.navigation', 'data'),
+            obfuscate: (bool) $app->make('config')->get('fusion.build.obfuscate'),
+            rendering: (string) $app->make('config')->get('fusion.rendering'),
+            navigation: NavigationMode::fromConfig((string) $app->make('config')->get('fusion.navigation')),
         ));
 
         /** The server lifecycle: Fusion's own features, then the application's (fusion.features). */
         $this->app->scoped(Features::class, fn (Application $app) => new Features(
             $app,
-            (array) $app->make('config')->get('fusion.features', []),
+            (array) $app->make('config')->get('fusion.features'),
         ));
 
         $this->app->bind(PersistentMiddleware::class, fn (Application $app) => new PersistentMiddleware(
             $app,
             $app->make('router'),
-            $app->make('config')->get('fusion.persistent_middleware', []),
+            $app->make('config')->get('fusion.persistent_middleware'),
         ));
+    }
+
+    /**
+     * Fusion's config file under the app's: the app's values win, key by key at every depth, so a
+     * config published before a key existed has it all the same, and the code reads every value
+     * from config alone (the files in config/ are the one place its defaults are). A list
+     * (middleware, paths, rules) is the app's whole, not merged entry by entry.
+     */
+    private function underlayConfig(string $path, string $key): void
+    {
+        if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
+            return;
+        }
+
+        $config = $this->app->make('config');
+        $config->set($key, self::underlay(require $path, (array) $config->get($key, [])));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $defaults
+     * @param  array<array-key, mixed>  $values
+     * @return array<array-key, mixed>
+     */
+    private static function underlay(array $defaults, array $values): array
+    {
+        foreach ($values as $name => $value) {
+            $default = $defaults[$name] ?? null;
+            $defaults[$name] = is_array($value) && is_array($default) && ! array_is_list($value) && ! array_is_list($default)
+                ? self::underlay($default, $value)
+                : $value;
+        }
+
+        return $defaults;
     }
 
     /**
@@ -127,7 +195,7 @@ class FusionServiceProvider extends ServiceProvider
      */
     private static function staticDirectory(Application $app): array
     {
-        $path = $app->make('config')->get('fusion.static', 'fusion');
+        $path = $app->make('config')->get('fusion.static');
 
         return is_string($path) && trim($path, '/') !== ''
             ? ['staticDirectory' => $app->publicPath(trim($path, '/')), 'staticPath' => trim($path, '/')]
@@ -159,7 +227,7 @@ class FusionServiceProvider extends ServiceProvider
                 throw new InvalidArgumentException("Route::fusion() routes pages: {$class} is a component. Pages live in the pages namespace (fusion.pages); components are placed in views with <fusion:...>.");
             }
 
-            return Route::get($uri, method_exists($class, 'mount') ? [$class, 'mount'] : [$class, 'callAction']);
+            return Route::get($uri, method_exists($class, ComponentHooks::MOUNT) ? [$class, ComponentHooks::MOUNT] : [$class, 'callAction']);
         });
 
         if ($this->app->runningInConsole()) {
@@ -204,25 +272,27 @@ class FusionServiceProvider extends ServiceProvider
         }
 
         $config = $this->app->make('config');
-        $endpoint = rtrim((string) $config->get('fusion.endpoint', '/_fusion'), '/');
+        $endpoint = rtrim((string) $config->get('fusion.endpoint'), '/');
 
-        Route::middleware($config->get('fusion.middleware', ['web']))
-            ->post($endpoint.'/update', UpdateController::class)
+        $path = fn (string $role) => $endpoint.'/'.Protocol::path($role);
+
+        Route::middleware($config->get('fusion.middleware'))
+            ->post($path('update'), UpdateController::class)
             ->name('fusion.update');
 
         /** Files for a fusion:model file input, and previews of them ($upload->temporaryUrl()). */
-        Route::middleware($config->get('fusion.middleware', ['web']))
-            ->post($endpoint.'/upload', [UploadController::class, 'store'])
-            ->middleware('throttle:'.$config->get('fusion.uploads.throttle', '60,1'))
+        Route::middleware($config->get('fusion.middleware'))
+            ->post($path('upload'), [UploadController::class, 'store'])
+            ->middleware('throttle:'.$config->get('fusion.uploads.throttle'))
             ->name('fusion.upload');
-        /** In the session: an upload's reference is signed with the session's key (Upload::sign()). */
-        Route::middleware($config->get('fusion.middleware', ['web']))
-            ->get($endpoint.'/upload/preview', [UploadController::class, 'preview'])
+        /** In the session: an upload's reference is signed for the session (Signer). */
+        Route::middleware($config->get('fusion.middleware'))
+            ->get($path('preview'), [UploadController::class, 'preview'])
             ->name('fusion.upload.preview');
 
-        Route::get($endpoint.'/fusion.js', [AssetController::class, 'runtime'])->name('fusion.runtime');
-        Route::get($endpoint.'/app.js', [AssetController::class, 'bundle'])->name('fusion.bundle');
-        Route::get($endpoint.'/app/{group}.js', [AssetController::class, 'chunk'])->where('group', '[A-Za-z0-9][A-Za-z0-9._-]*')->name('fusion.chunk');
+        Route::get($path('runtime'), [AssetController::class, 'runtime'])->name('fusion.runtime');
+        Route::get($path('bundle'), [AssetController::class, 'bundle'])->name('fusion.bundle');
+        Route::get($path('chunk'), [AssetController::class, 'chunk'])->where('id', '[A-Za-z0-9][A-Za-z0-9._-]*')->name('fusion.chunk');
     }
 
     /** $response->assertFusion(...) and $response->fusionState(...) in tests, as Inertia's assertInertia(). */
@@ -249,20 +319,49 @@ class FusionServiceProvider extends ServiceProvider
         });
     }
 
+    /**
+     * Compiled Blade views hold what Fusion's directives and <fusion:> tags compile to: the parts
+     * they call by name. Laravel compiles a view again only when its own file changes, so views
+     * compiled by another version of Fusion (an upgrade) are dropped once, to be compiled again.
+     * The version is that of the two files that write them: this provider and FusionTags.
+     */
+    private function forgetStaleViews(): void
+    {
+        $compiled = (string) $this->app->make('config')->get('view.compiled');
+
+        if ($compiled === '' || ! is_dir($compiled)) {
+            return;
+        }
+
+        $stamp = $compiled.DIRECTORY_SEPARATOR.'fusion.version';
+        $version = md5((string) md5_file(__FILE__).md5_file(__DIR__.'/Blade/FusionTags.php'));
+
+        if (@file_get_contents($stamp) === $version) {
+            return;
+        }
+
+        foreach (glob($compiled.DIRECTORY_SEPARATOR.'*.php') ?: [] as $view) {
+            @unlink($view);
+        }
+
+        @file_put_contents($stamp, $version);
+    }
+
     private function blade(): void
     {
+        $this->forgetStaleViews();
         Blade::precompiler(FusionTags::compile(...));
 
-        Blade::directive('fusionScripts', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->scripts(); ?>');
+        Blade::directive('fusionScripts', fn () => '<?php echo app(\Nitro\Fusion\Rendering\Scripts::class)->html(); ?>');
 
         /** @fusionHead in the layout's <head>: the page's <title> and its tags for search engines and link previews. */
-        Blade::directive('fusionHead', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->head(); ?>');
-        Blade::directive('fusion', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->mount({$expression}); ?>");
+        Blade::directive('fusionHead', fn () => '<?php echo app(\Nitro\Fusion\Rendering\PageHead::class)->html(); ?>');
+        Blade::directive('fusion', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Rendering\\Placement::class)->mount({$expression}); ?>");
 
         /** Viewi's portals, as Livewire's @teleport: @portal('name') is where content goes, @teleport('name') what goes there. */
-        Blade::directive('portal', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->portal({$expression}); ?>");
-        Blade::directive('teleport', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Fusion::class)->startTeleport({$expression}); ?>");
-        Blade::directive('endteleport', fn () => '<?php echo app(\Nitro\Fusion\Fusion::class)->endTeleport(); ?>');
+        Blade::directive('portal', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Rendering\\Portals::class)->portal({$expression}); ?>");
+        Blade::directive('teleport', fn (string $expression) => "<?php echo app(\\Nitro\\Fusion\\Rendering\\Portals::class)->startTeleport({$expression}); ?>");
+        Blade::directive('endteleport', fn () => '<?php echo app(\Nitro\Fusion\Rendering\Portals::class)->endTeleport(); ?>');
 
         /** @deferred('stats') ... @placeholder ... @enddeferred: what a page shows once its deferred properties are loaded, and meanwhile. */
         Blade::directive('deferred', fn (string $expression) => "<?php if (! \$this->fusion()->deferring([{$expression}])): ?>");

@@ -11,15 +11,27 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use JsonException;
+use Nitro\Fusion\Build\BrowserNames;
+use Nitro\Fusion\Build\ServerChildren;
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\Components;
 use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Rendering\Snapshot;
+use Nitro\Fusion\Lifecycle\Features;
+use Nitro\Fusion\Rendering\ComponentRenderer;
+use Nitro\Fusion\State\SharedData;
+use Nitro\Fusion\Support\ComponentHooks;
+use Nitro\Fusion\Support\PropertyHooks;
+use Nitro\Fusion\State\Snapshot;
+use Nitro\Fusion\State\Snapshots;
+use Nitro\Fusion\State\Stores;
 use Nitro\Fusion\Store;
+use Nitro\Fusion\Support\Config;
 use Nitro\Fusion\Support\Naming;
+use Nitro\Fusion\Support\Types;
 use Nitro\Fusion\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 /**
  * POST {endpoint}/update: the browser calls a #[Server] method.
@@ -28,7 +40,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  *
  * partials: the page's partial reloads since its snapshot (signed envelopes of some properties),
  * laid over it in order. children: true asks for the signed state of the children its view places
- * that need one (Fusion::childrenOf()), for children the browser made itself.
+ * that need one (ComponentRenderer::childrenOf()), for children the browser made itself.
  *
  * The request is refused unless:
  *   - the snapshot is one this application signed, unchanged (419 otherwise)
@@ -49,7 +61,7 @@ final class UpdateController
 
     public function __invoke(Request $request): JsonResponse
     {
-        if (strlen($request->getContent()) > (int) $this->fusion()->config('max_payload', 1024 * 1024)) {
+        if (strlen($request->getContent()) > (int) app(Config::class)->get('max_payload')) {
             throw new HttpException(413, 'The component update is too large.');
         }
 
@@ -68,43 +80,43 @@ final class UpdateController
          * component the server rendered used it): made here, with its mount(), as for a page.
          */
         if (($payload['snapshot'] ?? null) === null && is_string($payload['store'] ?? null)) {
-            $name = $this->fusion()->componentName($payload['store']);
+            $name = $this->names()->componentName($payload['store']);
 
-            if (! Naming::isStore($name) || ! $this->fusion()->has($name)) {
+            if (! Naming::isStore($name) || ! $this->components()->has($name)) {
                 throw new HttpException(404, 'Unknown store.');
             }
 
-            $meta = $this->fusion()->meta($name);
-            $component = $this->fusion()->store($meta->class);
+            $meta = $this->components()->meta($name);
+            $component = app(Stores::class)->store($meta->class);
             $memo = [];
         } else {
-            $snapshot = Snapshot::fromEnvelope($payload['snapshot'] ?? null, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
+            $snapshot = $this->snapshots()->open($payload['snapshot'] ?? null);
 
             if ($snapshot->isPartial()) {
                 throw new HttpException(403, 'A partial reload is not a component\'s state.');
             }
 
             /** An obfuscated build's alias: the component it stands for. */
-            $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+            $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
 
-            if (! $this->fusion()->has($snapshot->name)) {
+            if (! $this->components()->has($snapshot->name)) {
                 throw new HttpException(404, 'Unknown component.');
             }
 
             $this->persistent->check($snapshot->memo['route'] ?? [], $request);
 
-            $meta = $this->fusion()->meta($snapshot->name);
+            $meta = $this->components()->meta($snapshot->name);
             $memo = array_intersect_key($snapshot->memo, ['route' => true]);
 
             /** @var Component $component */
             $component = $this->container->make($meta->class);
-            $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($meta->properties));
+            $snapshot = $snapshot->fromBrowser($this->names()->obfuscator(), array_keys($meta->properties));
             $snapshot->restore($component, $meta);
             $this->applyPartials($component, $meta, $snapshot, $payload['partials'] ?? []);
 
             /** A store's own call: the store this request's components would use. */
             if ($component instanceof Store) {
-                $this->fusion()->adoptStore($component, $memo);
+                app(Stores::class)->adopt($component, $memo);
             }
         }
 
@@ -112,10 +124,10 @@ final class UpdateController
         $storesValid = $this->restoreStores($component, $meta, $payload['stores'] ?? [], $request);
 
         if (! $component instanceof Store || isset($snapshot)) {
-            $this->fusion()->features()->boot($component);
+            $this->features()->boot($component);
         }
 
-        $this->fusion()->features()->hydrate($component);
+        $this->features()->hydrate($component);
 
         $changed = $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
 
@@ -123,42 +135,39 @@ final class UpdateController
         $call = $payload['call'] ?? null;
 
         /** What the browser changed, as the features check it (#[Validate]'s rules): a failure keeps the method from running. */
-        $valid = $this->fusion()->features()->updated($component, $changed) && $storesValid;
+        $valid = $this->features()->updated($component, $changed) && $storesValid;
 
         if ($valid && $call !== null) {
             $returned = $this->call($component, $meta, $call);
         }
 
         /** Asked for (a child made in the browser), or a view placing children with mount(): its new state may place one, which only the server can create. */
-        $asked = ($payload['children'] ?? false) === true && $this->fusion()->placesServerChildren($meta);
+        $asked = ($payload['children'] ?? false) === true && app(ServerChildren::class)->placedBy($meta);
         /** Not from a state that failed its rules: the view would render what they are there to keep out. */
-        $children = $valid && ($asked || $this->fusion()->placesMountedChildren($meta)) ? $this->fusion()->childrenOf($component, $meta, $memo) : null;
-        $this->fusion()->features()->dehydrate($component);
+        $children = $valid && ($asked || app(ServerChildren::class)->placedBy($meta, mountOnly: true)) ? app(ComponentRenderer::class)->childrenOf($component, $meta, $memo) : null;
+        $this->features()->dehydrate($component);
         $next = Snapshot::capture($component, $meta, $memo);
         $context = $component->fusion();
 
         return new JsonResponse([
-            'snapshot' => json_decode($next->toJson($this->fusion()->stateKey(), $this->fusion()->browserName($meta->name), $this->fusion()->names()), true),
+            'snapshot' => $this->snapshots()->envelope($next, $meta->name),
             'children' => $children === null ? null : (object) $children,
             /** The stores it uses, as its method left them (a store's own call: its snapshot is the state). */
-            'stores' => $meta->stores === [] ? null : (object) array_intersect_key($this->fusion()->storeSnapshots(), array_flip(array_map(fn (string $class) => $this->fusion()->browserName($this->fusion()->meta($class)->name), $meta->stores))),
-            /** Fusion::share()'s data as it is now (a #[Server] call may have changed it: a flash message). */
-            'shared' => $this->fusion()->sharedForBrowser(),
-            'once' => (object) $this->fusion()->onceForBrowser(),
-            /** Fusion::flash()'s data: from this call, or waiting since a redirect; a call that redirects leaves it for the page it goes to. */
-            'flash' => $context->redirect === null ? $this->fusion()->flashForBrowser() : null,
+            'stores' => $meta->stores === [] ? null : (object) array_intersect_key(app(Stores::class)->snapshots(app(ComponentRenderer::class)->pageMemo()), array_flip(array_map(fn (string $class) => $this->names()->component($this->components()->meta($class)->name), $meta->stores))),
+            /** Shared data as it is now (a #[Server] call may have changed it); flash data unless the call redirects (the page it goes to gets it). */
+            ...app(SharedData::class)->forBrowser(flash: $context->redirect === null),
             'effects' => array_filter([
                 'dispatches' => array_map(fn ($dispatch) => array_filter([
                     'event' => $dispatch['event'],
                     'params' => Wire::encode($dispatch['params']),
-                    'to' => isset($dispatch['to']) ? $this->fusion()->browserName($dispatch['to']) : null,
+                    'to' => isset($dispatch['to']) ? $this->names()->component($dispatch['to']) : null,
                     'self' => ($dispatch['self'] ?? false) ?: null,
                 ], fn ($value) => $value !== null), $context->dispatches),
                 'redirect' => $context->redirect,
                 /** Reading $fusion.<name> by the browser's names (an obfuscated build). */
-                'js' => array_map(fn (string $code) => $this->fusion()->names()?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code, $context->js),
+                'js' => array_map(fn (string $code) => $this->names()->obfuscator()?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code, $context->js),
                 /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
-                'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->fusion()->names()?->property($property) ?? $property, $context->reload)],
+                'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->names()->obfuscator()?->property($property) ?? $property, $context->reload)],
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($value) => $value !== null && $value !== []),
         ]);
@@ -180,16 +189,16 @@ final class UpdateController
         $valid = true;
 
         foreach ($meta->stores as $property => $class) {
-            $storeMeta = $this->fusion()->meta($class);
-            $entry = $sent[$this->fusion()->browserName($storeMeta->name)] ?? null;
+            $storeMeta = $this->components()->meta($class);
+            $entry = $sent[$this->names()->component($storeMeta->name)] ?? null;
 
             if ($entry !== null && ! is_array($entry)) {
                 throw new HttpException(400, 'Malformed component update.');
             }
 
             if (($entry['snapshot'] ?? null) !== null) {
-                $snapshot = Snapshot::fromEnvelope($entry['snapshot'], $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
-                $snapshot = $snapshot->withName($this->fusion()->componentName($snapshot->name));
+                $snapshot = $this->snapshots()->open($entry['snapshot']);
+                $snapshot = $snapshot->withName($this->names()->componentName($snapshot->name));
 
                 if ($snapshot->isPartial() || $snapshot->name !== $storeMeta->name) {
                     throw new HttpException(403, 'This is not the state of the store the component uses.');
@@ -199,17 +208,17 @@ final class UpdateController
 
                 /** @var Store $store */
                 $store = $this->container->make($storeMeta->class);
-                $snapshot = $snapshot->fromBrowser($this->fusion()->names(), array_keys($storeMeta->properties));
+                $snapshot = $snapshot->fromBrowser($this->names()->obfuscator(), array_keys($storeMeta->properties));
                 $snapshot->restore($store, $storeMeta);
-                $this->fusion()->adoptStore($store, array_intersect_key($snapshot->memo, ['route' => true]));
-                $this->fusion()->features()->boot($store);
-                $this->fusion()->features()->hydrate($store);
+                app(Stores::class)->adopt($store, array_intersect_key($snapshot->memo, ['route' => true]));
+                $this->features()->boot($store);
+                $this->features()->hydrate($store);
             } else {
-                $store = $this->fusion()->store($storeMeta->class);
+                $store = app(Stores::class)->store($storeMeta->class);
             }
 
             $changed = $this->applyUpdates($store, $storeMeta, $entry['updates'] ?? []);
-            $valid = $this->fusion()->features()->updated($store, $changed) && $valid;
+            $valid = $this->features()->updated($store, $changed) && $valid;
             $component->{$property} = $store;
         }
 
@@ -227,9 +236,9 @@ final class UpdateController
         }
 
         foreach ($partials as $envelope) {
-            $partial = Snapshot::fromEnvelope($envelope, $this->fusion()->stateKeys(), $this->fusion()->stateLifetime());
+            $partial = $this->snapshots()->open($envelope);
 
-            if (! $partial->isPartial() || $partial->id !== $snapshot->id || $this->fusion()->componentName($partial->name) !== $snapshot->name) {
+            if (! $partial->isPartial() || $partial->id !== $snapshot->id || $this->names()->componentName($partial->name) !== $snapshot->name) {
                 throw new HttpException(403, 'This partial reload belongs to another component.');
             }
 
@@ -238,7 +247,7 @@ final class UpdateController
                 throw new HttpException(403, 'This partial reload belongs to another page.');
             }
 
-            $partial->fromBrowser($this->fusion()->names(), array_keys($meta->properties))->restore($component, $meta);
+            $partial->fromBrowser($this->names()->obfuscator(), array_keys($meta->properties))->restore($component, $meta);
         }
     }
 
@@ -267,7 +276,7 @@ final class UpdateController
 
         foreach ($updates as $name => $encoded) {
             /** By the browser's name for it (an obfuscated build). */
-            $name = is_string($name) ? ($this->fusion()->names()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
+            $name = is_string($name) ? ($this->names()->obfuscator()?->propertyName($name, array_keys($meta->properties)) ?? $name) : $name;
             $property = is_string($name) ? $meta->property($name) : null;
 
             try {
@@ -295,7 +304,7 @@ final class UpdateController
 
         /** An obfuscated build's alias: the #[Server] method it stands for. */
         if (is_string($method)) {
-            $method = $this->fusion()->methodName($method, $meta->serverMethods);
+            $method = $this->names()->methodName($method, $meta->serverMethods);
         }
 
         if (! is_string($method) || ! $meta->isServerMethod($method) || ! is_array($params) || ! array_is_list($params)) {
@@ -308,17 +317,37 @@ final class UpdateController
             throw new HttpException(400, 'Malformed component update.');
         }
 
+        /** A #[Server] property hook is offered its value and key (or path and value): it takes those it declares, as in the browser. */
+        if (PropertyHooks::parse($method, array_keys($meta->properties)) !== null) {
+            $params = array_slice($params, 0, count($meta->serverParameters[$method]));
+
+            /** updated(): the path names its property by the browser's name (an obfuscated build). */
+            if (PropertyHooks::takesPath($method) && is_string($params[0] ?? null) && ($names = $this->names()->obfuscator()) !== null) {
+                [$root, $rest] = array_pad(explode('.', $params[0], 2), 2, null);
+                $params[0] = ($names->propertyName($root, array_keys($meta->properties)) ?? $root).($rest === null ? '' : '.'.$rest);
+            }
+        }
+
         $arguments = $this->arguments($meta->serverParameters[$method], $params);
         $context = $component->fusion();
         $context->errors = new \Illuminate\Support\MessageBag;
 
-        $features = $this->fusion()->features();
+        $features = $this->features();
         $features->calling($component, $method, $arguments);
 
         try {
             $returned = $component->{$method}(...$arguments);
         } catch (ValidationException $exception) {
             $context->errors = $exception->validator->errors();
+
+            return null;
+        } catch (Throwable $exception) {
+            if (! method_exists($component, ComponentHooks::EXCEPTION)) {
+                throw $exception;
+            }
+
+            /** exception(): handled, unless it throws again. The call answers with the state as the hook left it. */
+            Features::hook($component, ComponentHooks::EXCEPTION, $exception);
 
             return null;
         }
@@ -422,15 +451,8 @@ final class UpdateController
 
     private function checked(mixed $value, array $parameter): mixed
     {
-        $fits = match ($parameter['type']) {
-            null, 'mixed' => is_scalar($value) || is_array($value) || $value === null,
-            'int' => is_int($value),
-            'float' => is_int($value) || is_float($value),
-            'string' => is_string($value),
-            'bool' => is_bool($value),
-            'array' => is_array($value),
-            default => false,
-        };
+        $type = $parameter['type'] ?? 'mixed';
+        $fits = Types::fits($type, $value) || ($type === 'mixed' && $value === null);
 
         /** Uploads reach a component through its Upload and #[Uploads] properties, never an argument. */
         if ((! $fits && ! ($value === null && $parameter['nullable'])) || PropertyMeta::holdsUpload($value)) {
@@ -444,8 +466,23 @@ final class UpdateController
      * This request's Fusion. The router keeps a controller between requests (Octane, Nitro's
      * workers): Fusion, bound per request, is not kept with it.
      */
-    private function fusion(): Fusion
+    private function names(): BrowserNames
     {
-        return app(Fusion::class);
+        return app(BrowserNames::class);
+    }
+
+    private function components(): Components
+    {
+        return app(Components::class);
+    }
+
+    private function features(): Features
+    {
+        return app(Features::class);
+    }
+
+    private function snapshots(): Snapshots
+    {
+        return app(Snapshots::class);
     }
 }

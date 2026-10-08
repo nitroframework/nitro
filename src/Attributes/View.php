@@ -4,6 +4,7 @@ namespace Nitro\Fusion\Attributes;
 
 use Attribute;
 use InvalidArgumentException;
+use Nitro\Fusion\Support\Protocol;
 
 /**
  * The component's view, when it does not follow the convention (App\Fusion\Students\Form ->
@@ -22,15 +23,19 @@ final class View
     /** The view's name, for its engine. */
     public readonly string $name;
 
-    /** Its engine: 'blade', 'vue', 'react', 'solid', 'svelte', or one in fusion.views. */
+    /** Its engine: Blade's (Protocol::bladeEngine()), or one fusion.views lists. */
     public readonly string $engine;
 
+    /** Each framework of Fusion's own is a parameter, named as its engine is: the signature is their one list here. */
     public function __construct(?string $name = null, ?string $vue = null, ?string $react = null, ?string $solid = null, ?string $svelte = null, ?string $engine = null)
     {
-        $named = array_filter(['vue' => $vue, 'react' => $react, 'solid' => $solid, 'svelte' => $svelte], fn ($view) => $view !== null);
+        $frameworks = array_diff_key(get_defined_vars(), ['name' => true, 'engine' => true]);
+        $named = array_filter($frameworks, fn (?string $view) => $view !== null);
 
         if (count($named) > 1 || ($named !== [] && ($name !== null || $engine !== null))) {
-            throw new InvalidArgumentException('#[View] names one view: #[View(\'name\')], #[View(vue: \'name\')], #[View(react: ...)], #[View(solid: ...)], #[View(svelte: ...)] or #[View(\'name\', engine: \'...\')]');
+            $ways = array_map(fn (string $framework) => "#[View({$framework}: 'name')]", array_keys($frameworks));
+
+            throw new InvalidArgumentException("#[View] names one view: #[View('name')] (Blade), #[View('name', engine: '...')], or one of ".implode(', ', $ways));
         }
 
         if ($named !== []) {
@@ -45,6 +50,6 @@ final class View
         }
 
         $this->name = $name;
-        $this->engine = $engine ?? 'blade';
+        $this->engine = $engine ?? Protocol::bladeEngine();
     }
 }
