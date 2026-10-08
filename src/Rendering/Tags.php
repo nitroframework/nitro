@@ -5,7 +5,6 @@ namespace Nitro\Fusion\Rendering;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Nitro\Fusion\Compiler\Template\ChildTag;
-use Nitro\Fusion\Fusion;
 
 /**
  * <fusion:...> tags with content, as a view renders them: the content renders into output
@@ -21,7 +20,7 @@ final class Tags
      */
     private array $tags = [];
 
-    public function __construct(private readonly Fusion $fusion, private readonly ComponentRenderer $renderer)
+    public function __construct(private readonly Placement $placement, private readonly ComponentRenderer $renderer)
     {
     }
 
@@ -79,6 +78,6 @@ final class Tags
 
         $slots = ['default' => (string) ob_get_clean(), ...$tag['slots']];
 
-        return $this->fusion->tag($tag['name'], $tag['props'], $tag['key'], $tag['number'], $slots, $tag['hydrate']);
+        return $this->placement->tag($tag['name'], $tag['props'], $tag['key'], $tag['number'], $slots, $tag['hydrate']);
     }
 }

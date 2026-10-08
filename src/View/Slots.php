@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Fusion\View;
 
 use ArrayAccess;
 use Illuminate\View\ComponentSlot;

@@ -24,7 +24,10 @@ use Nitro\Fusion\Compiler\Template\ChildTag;
  */
 final class FusionTags
 {
-    private const FUSION = 'app(\Nitro\Fusion\Fusion::class)';
+    /** What the compiled view calls: a tag with content and its slots, a tag without. */
+    private const TAGS = 'app(\Nitro\Fusion\Rendering\Tags::class)';
+
+    private const PLACEMENT = 'app(\Nitro\Fusion\Rendering\Placement::class)';
 
     /** Where a <fusion: tag is not markup: Blade comments, @verbatim, @php blocks, <?php ?>, echoes. */
     private const NOT_MARKUP = '/\{\{--.*?--\}\}|@verbatim\b.*?@endverbatim\b|@php\b(?!\s*\().*?@endphp\b|<\?php\b.*?(?:\?>|\z)|\{!!.*?!!\}|\{\{.*?\}\}/s';
@@ -52,21 +55,21 @@ final class FusionTags
             $out .= substr($source, $cursor, $at - $cursor);
 
             if (preg_match('/\G<\/fusion:slot\s*>/i', $source, $end, 0, $at)) {
-                $out .= '{!! '.self::FUSION.'->endSlot() !!}';
+                $out .= '{!! '.self::TAGS.'->endSlot() !!}';
                 $cursor = $at + strlen($end[0]);
 
                 continue;
             }
 
             if (preg_match('/\G<\/fusion:([a-z0-9][a-z0-9\-.]*)\s*>/i', $source, $end, 0, $at)) {
-                $out .= '{!! '.self::FUSION.'->endTag('.var_export(strtolower($end[1]), true).') !!}';
+                $out .= '{!! '.self::TAGS.'->end('.var_export(strtolower($end[1]), true).') !!}';
                 $cursor = $at + strlen($end[0]);
 
                 continue;
             }
 
             if (preg_match(substr(ChildTag::SLOT_PATTERN, 0, 1).'\G'.substr(ChildTag::SLOT_PATTERN, 1), $source, $slot, 0, $at)) {
-                $out .= '{!! '.self::FUSION.'->startSlot('.var_export($slot[1] !== '' ? $slot[1] : $slot[2], true).') !!}';
+                $out .= '{!! '.self::TAGS.'->startSlot('.var_export($slot[1] !== '' ? $slot[1] : $slot[2], true).') !!}';
                 $cursor = $at + strlen($slot[0]);
 
                 continue;
@@ -87,8 +90,8 @@ final class FusionTags
                 .($tag->hydrate === null ? '' : ', hydrate: '.var_export($tag->hydrate, true));
 
             $out .= $tag->selfClosing
-                ? '{!! '.self::FUSION.'->tag('.$arguments.') !!}'
-                : '{!! '.self::FUSION.'->startTag('.$arguments.') !!}';
+                ? '{!! '.self::PLACEMENT.'->tag('.$arguments.') !!}'
+                : '{!! '.self::TAGS.'->start('.$arguments.') !!}';
             $cursor = $at + $tag->length;
         }
 

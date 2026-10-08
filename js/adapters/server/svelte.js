@@ -15,7 +15,7 @@ import { view } from '../svelte.svelte.js';
 export function renderSvelte(views) {
     return {
         async render(name, handle) {
-            const View = await findView(views, name, ['svelte'], 'svelte');
+            const View = await findView(views, name, 'svelte');
             const { props, context } = view(handle);
             return render(View, { props, context }).body;
         },

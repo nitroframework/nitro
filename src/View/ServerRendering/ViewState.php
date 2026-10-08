@@ -16,7 +16,7 @@ final class ViewState implements JsonSerializable
 {
     /**
      * @param  string  $id  the component's id: a view's own on the page (Solid keys its hydration by it)
-     * @param  string  $engine  'vue', 'react', 'solid'
+     * @param  string  $engine  the view's engine, as fusion.views names it
      * @param  string  $view  the view's name: 'cart/badge'
      * @param  array<string, mixed>  $properties  name => value (wire format)
      * @param  array<string, mixed>  $computed  #[Computed] name => value (wire format)

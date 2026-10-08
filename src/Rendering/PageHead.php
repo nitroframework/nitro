@@ -7,7 +7,7 @@ use Illuminate\Support\HtmlString;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\Fusion;
+use Nitro\Fusion\Support\Config;
 
 /**
  * The page's <head>: its title and the tags search engines and link previews read, from what
@@ -27,7 +27,7 @@ final class PageHead
     private bool $renderingTitle = false;
 
     public function __construct(
-        private readonly Fusion $fusion,
+        private readonly Config $config,
         private readonly Container $app,
         private readonly Portals $portals,
     ) {
@@ -45,8 +45,8 @@ final class PageHead
 
         return $this->head = [
             'title' => $set['title'] ?? $meta->title,
-            'description' => $set['description'] ?? $meta->description ?? $this->fusion->config('head.description'),
-            'image' => $set['image'] ?? $this->fusion->config('head.image'),
+            'description' => $set['description'] ?? $meta->description ?? $this->config->get('head.description'),
+            'image' => $set['image'] ?? $this->config->get('head.image'),
             'canonical' => $set['canonical'] ?? null,
             'noindex' => $set['noindex'] ?? false,
             'meta' => $set['meta'] ?? [],
@@ -64,12 +64,12 @@ final class PageHead
      */
     public function forClientPage(ComponentMeta $meta): array
     {
-        $layout = $meta->layout->view ?? (string) $this->fusion->config('layout', 'components.layouts.app');
+        $layout = $meta->layout->view ?? $this->config->layout();
         $previous = [$this->head, $this->printed];
         $this->head = [
             'title' => $meta->title,
-            'description' => $meta->description ?? $this->fusion->config('head.description'),
-            'image' => $this->fusion->config('head.image'),
+            'description' => $meta->description ?? $this->config->get('head.description'),
+            'image' => $this->config->get('head.image'),
             'canonical' => null,
             'noindex' => false,
             'meta' => [],
@@ -96,7 +96,7 @@ final class PageHead
     {
         $this->printed = true;
         $title = $this->head['title'] ?? null;
-        $format = (string) $this->fusion->config('head.title', '%s');
+        $format = (string) $this->config->get('head.title');
         $text = $title === null || $title === '' ? (string) $this->app->make('config')->get('app.name') : str_replace('%s', $title, $format);
 
         return new HtmlString('<title>'.e($text)."</title>\n".$this->tags());
@@ -111,7 +111,7 @@ final class PageHead
     /** The head's tags but the title, each marked data-fusion-head for the browser to replace on a visit. */
     public function tags(): string
     {
-        $head = $this->head ?? ['title' => null, 'description' => $this->fusion->config('head.description'), 'image' => $this->fusion->config('head.image'), 'canonical' => null, 'noindex' => false, 'meta' => []];
+        $head = $this->head ?? ['title' => null, 'description' => $this->config->get('head.description'), 'image' => $this->config->get('head.image'), 'canonical' => null, 'noindex' => false, 'meta' => []];
         $tags = [];
         $meta = fn (string $attribute, string $key, ?string $content) => $content === null || $content === ''
             ? null

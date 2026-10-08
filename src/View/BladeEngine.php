@@ -9,11 +9,11 @@ use Illuminate\View\Engines\CompilerEngine;
 use Illuminate\View\Factory as ViewFactory;
 use LogicException;
 use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Fusion\Compiler\StateProperties;
 use Nitro\Fusion\Compiler\Template\BladeInliner;
 use Nitro\Fusion\Compiler\Template\ComponentTags;
 use Nitro\Fusion\Component;
-use Nitro\Fusion\Rendering\Slots;
-use Nitro\Fusion\State\ComponentState;
+use Nitro\Fusion\Support\Protocol;
 use Throwable;
 
 /**
@@ -31,7 +31,7 @@ final class BladeEngine implements ViewEngine
 
     public function name(): string
     {
-        return 'blade';
+        return Protocol::bladeEngine();
     }
 
     public function label(): string
@@ -47,6 +47,12 @@ final class BladeEngine implements ViewEngine
     public function compiledByFusion(): bool
     {
         return true;
+    }
+
+    /** None: a Blade view's own ($set, $refresh, ...) are $-named, apart from the component's. */
+    public function reservedNames(): array
+    {
+        return [];
     }
 
     /** The view, and those it includes or uses as <x-components>: they are inlined into it. */
@@ -77,14 +83,14 @@ final class BladeEngine implements ViewEngine
         $errors->put('default', $component->fusion()->errors);
 
         $slots = $component->fusion()->slots;
-        $stores = array_keys(ComponentState::stores($component::class));
+        $stores = array_keys(StateProperties::stores($component::class));
 
         $data = [
             ...$this->views->getShared(),
             /** What the parent's tag passed: $slot (the default slot), $slots['name']. */
             'slot' => new ComponentSlot($slots['default'] ?? ''),
             'slots' => new Slots($slots),
-            ...ComponentState::of($component),
+            ...StateProperties::values($component),
             /** The stores it uses ($cart): not its state, but its view reads them as it reads its properties. */
             ...array_map(fn (string $property) => $component->{$property}, array_combine($stores, $stores)),
             'errors' => $errors,

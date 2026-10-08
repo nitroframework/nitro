@@ -15,7 +15,7 @@ import { tree } from '../react.js';
 export function renderReact(views, { wrap } = {}) {
     return {
         async render(view, handle) {
-            const View = await findView(views, view, ['jsx', 'tsx', 'js', 'ts'], 'react');
+            const View = await findView(views, view, 'react');
             return renderToString(tree(View, handle, wrap).element);
         },
     };

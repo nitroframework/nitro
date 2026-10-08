@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Fusion\Rendering;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\HtmlString;
 use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Rendering\PageHead;
-use Nitro\Fusion\Rendering\ComponentRenderer;
 use Nitro\Fusion\State\SharedData;
+use Nitro\Fusion\State\Stores;
+use Nitro\Fusion\Support\Config;
+use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\Support\Wire;
 
 /**
@@ -19,11 +19,12 @@ use Nitro\Fusion\Support\Wire;
 final class Scripts
 {
     public function __construct(
-        private readonly Fusion $fusion,
+        private readonly Config $config,
         private readonly Container $app,
         private readonly ComponentRenderer $renderer,
         private readonly PageHead $head,
         private readonly SharedData $data,
+        private readonly Stores $stores,
     ) {
     }
 
@@ -43,15 +44,15 @@ final class Scripts
 
         /** fusion:build's static files when it has them for these components (served without PHP), else Fusion's routes. */
         $static = fn (?string $file) => $file === null ? null : $urls->asset($file);
-        $runtime = e($static($built->staticRuntime()) ?? $this->fusion->endpoint('fusion.js').'?v='.$this->fusion->runtimeVersion());
-        $bundle = e($static($built->staticFile()) ?? $this->fusion->endpoint('app.js').'?v='.$tag);
-        $chunkUrl = $static($built->staticChunkPattern()) ?? $this->fusion->endpoint('app/{id}.js').'?v='.$tag;
+        $runtime = e($static($built->staticRuntime()) ?? $this->config->endpoint(Protocol::path('runtime')).'?v='.$built->runtimeVersion());
+        $bundle = e($static($built->staticFile()) ?? $this->config->endpoint(Protocol::path('bundle')).'?v='.$tag);
+        $chunkUrl = $static($built->staticChunkPattern()) ?? $this->config->endpoint(Protocol::path('chunk')).'?v='.$tag;
 
         $progress = $this->progress();
         $progress = $progress === null ? '' : ' data-progress="'.e(json_encode($progress, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)).'"';
 
         /** The chunks of the components on this page (pages and #[LazyLoad]), loaded with the bundle. */
-        $inChunks = $built->uses()['chunks'] ?? [];
+        $inChunks = $built->inChunks();
         $groups = array_unique(array_filter(array_map(fn (string $name) => $inChunks[$name] ?? null, $this->renderer->rendered())));
         $chunks = array_map(
             fn (string $group) => "\n".'<script src="'.e(str_replace('{id}', rawurlencode($built->chunkId($group)), $chunkUrl)).'" defer></script>',
@@ -62,7 +63,7 @@ final class Scripts
 
         return new HtmlString(
             '<script type="application/json" data-fusion-globals>'.$globals.'</script>'."\n"
-            .'<script src="'.$runtime.'" data-endpoint="'.e($this->fusion->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
+            .'<script src="'.$runtime.'" data-endpoint="'.e($this->config->endpoint()).'" data-bundle="'.e($tag).'" data-chunks="'.e($chunkUrl).'" data-csrf="'.e($token).'"'.$progress.' defer></script>'."\n"
             .'<script src="'.$bundle.'" defer></script>'.implode('', $chunks)
         );
     }
@@ -115,10 +116,8 @@ final class Scripts
             'routes' => (object) $routes,
             'lang' => (object) $lang,
             'config' => (object) $config,
-            'shared' => $this->data->sharedForBrowser(),
-            'once' => (object) $this->data->onceForBrowser(),
-            'flash' => $this->data->flashForBrowser(),
-        ] + (($stores = $this->fusion->storeSnapshots()) === [] ? [] : [
+            ...$this->data->forBrowser(),
+        ] + (($stores = $this->stores->snapshots($this->renderer->pageMemo())) === [] ? [] : [
             /** The stores the page's components use, as the server made them (the browser makes them from these). */
             'stores' => (object) $stores,
         ]);
@@ -131,31 +130,31 @@ final class Scripts
      */
     private function progress(): ?array
     {
-        $config = (array) $this->app->make('config')->get('nprogress', []);
+        $config = (array) $this->app->make('config')->get('nprogress');
 
-        if (! filter_var($config['show'] ?? false, FILTER_VALIDATE_BOOL)) {
+        if (! filter_var($config['show'], FILTER_VALIDATE_BOOL)) {
             return null;
         }
 
         return [
-            'serverCalls' => filter_var($config['server_calls'] ?? false, FILTER_VALIDATE_BOOL),
-            'delay' => (int) ($config['delay'] ?? 0),
-            'minimumDuration' => (int) ($config['minimum_duration'] ?? 0),
-            'color' => (string) ($config['color'] ?? '#29d'),
-            'height' => (string) ($config['height'] ?? '3px'),
-            'position' => ($config['position'] ?? 'top') === 'bottom' ? 'bottom' : 'top',
-            'glow' => filter_var($config['glow'] ?? true, FILTER_VALIDATE_BOOL),
-            'glowWidth' => (string) ($config['glow_width'] ?? '100px'),
-            'spinner' => filter_var($config['spinner'] ?? false, FILTER_VALIDATE_BOOL),
-            'spinnerSize' => (string) ($config['spinner_size'] ?? '18px'),
-            'zIndex' => (int) ($config['z_index'] ?? 1031),
-            'minimum' => (float) ($config['minimum'] ?? 0.15),
-            'maximum' => (float) ($config['maximum'] ?? 0.92),
-            'easing' => (string) ($config['easing'] ?? 'ease-out'),
-            'speed' => (int) ($config['speed'] ?? 150),
-            'fadeSpeed' => (int) ($config['fade_speed'] ?? 200),
-            'trickle' => filter_var($config['trickle'] ?? true, FILTER_VALIDATE_BOOL),
-            'trickleSpeed' => (int) ($config['trickle_speed'] ?? 100),
+            'serverCalls' => filter_var($config['server_calls'], FILTER_VALIDATE_BOOL),
+            'delay' => (int) $config['delay'],
+            'minimumDuration' => (int) $config['minimum_duration'],
+            'color' => (string) $config['color'],
+            'height' => (string) $config['height'],
+            'position' => $config['position'] === 'bottom' ? 'bottom' : 'top',
+            'glow' => filter_var($config['glow'], FILTER_VALIDATE_BOOL),
+            'glowWidth' => (string) $config['glow_width'],
+            'spinner' => filter_var($config['spinner'], FILTER_VALIDATE_BOOL),
+            'spinnerSize' => (string) $config['spinner_size'],
+            'zIndex' => (int) $config['z_index'],
+            'minimum' => (float) $config['minimum'],
+            'maximum' => (float) $config['maximum'],
+            'easing' => (string) $config['easing'],
+            'speed' => (int) $config['speed'],
+            'fadeSpeed' => (int) $config['fade_speed'],
+            'trickle' => filter_var($config['trickle'], FILTER_VALIDATE_BOOL),
+            'trickleSpeed' => (int) $config['trickle_speed'],
         ];
     }
 }

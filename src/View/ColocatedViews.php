@@ -13,7 +13,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Components written in their view's file: a Vue, React or Solid view with its PHP in it.
+ * Components written in their view's file: a JavaScript view with its PHP in it.
  *
  *     <php>                                     resources/views/vue/cart/badge.vue
  *     new class extends Component {             is <fusion:cart.badge />

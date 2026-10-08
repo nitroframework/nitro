@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Rendering;
 
+use Nitro\Fusion\Support\Html;
 use RuntimeException;
 
 /**
@@ -10,8 +11,6 @@ use RuntimeException;
  */
 final class RootElement
 {
-    private const VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'];
-
     /**
      * @param  array<string, string>  $attributes  added to the root's start tag (values escaped here)
      */
@@ -67,7 +66,7 @@ final class RootElement
 
             $tag = strtolower($match[2][0]);
             $closing = $match[1][0] === '/';
-            $selfClosing = str_ends_with(rtrim($match[3][0]), '/') || in_array($tag, self::VOID, true);
+            $selfClosing = str_ends_with(rtrim($match[3][0]), '/') || in_array($tag, Html::VOID, true);
 
             if ($closing) {
                 $depth--;
@@ -79,7 +78,7 @@ final class RootElement
                 throw self::notSingle($component);
             }
 
-            if (in_array($tag, ['script', 'style', 'textarea'], true)) {
+            if (Html::holdsText($tag)) {
                 $end = stripos($html, "</{$tag}", $offset);
                 $offset = $end === false ? $length : $end;
                 $depth++;

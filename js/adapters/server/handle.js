@@ -39,5 +39,6 @@ export function handleFrom(state) {
         errors: () => state.errors ?? {},
         unsaved: () => [],
         dispatch: browserOnly('dispatch()'),
+        upload: browserOnly('upload()'),
     };
 }

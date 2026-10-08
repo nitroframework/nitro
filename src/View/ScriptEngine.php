@@ -5,6 +5,7 @@ namespace Nitro\Fusion\View;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\ComponentMeta;
 use Nitro\Fusion\Component;
+use Nitro\Fusion\Support\Protocol;
 use Nitro\Fusion\View\ServerRendering\NullRenderer;
 use Nitro\Fusion\View\ServerRendering\ServerRenderer;
 use Nitro\Fusion\View\ServerRendering\ViewState;
@@ -15,7 +16,7 @@ use Nitro\Fusion\View\ServerRendering\ViewState;
  * in, marked with the component's state like any other; with server rendering on, the view's
  * HTML is in it too, and the browser hydrates it.
  *
- * Each fusion.views entry names its adapter: Fusion's (View\Adapters: Vue, React, Solid) know
+ * Each fusion.views entry names its adapter: Fusion's (View\Adapters) know
  * their framework's files and where a view keeps its <php> block. An entry without one, for a
  * framework of the app's own, is a ScriptEngine as it is.
  */
@@ -79,6 +80,12 @@ class ScriptEngine implements ViewEngine
         return false;
     }
 
+    /** None for a framework of the app's own: its engine gives its views what it chooses. Fusion's adapters' are SharedCore's. */
+    public function reservedNames(): array
+    {
+        return [];
+    }
+
     /** None: Fusion's build has nothing of the view (the app's Vite builds it again when it changes). */
     public function files(ComponentMeta $meta): array
     {
@@ -95,7 +102,9 @@ class ScriptEngine implements ViewEngine
         $this->file($meta);
         $html = $this->server->render(ViewState::of($component, $meta));
 
-        return $html === null ? '<div></div>' : '<div fusion:rendered>'.$html.'</div>';
+        $wrapper = Protocol::get('view')['wrapper'];
+
+        return $html === null ? "<{$wrapper}></{$wrapper}>" : "<{$wrapper} ".Protocol::attribute('serverHtml').">{$html}</{$wrapper}>";
     }
 
     /**

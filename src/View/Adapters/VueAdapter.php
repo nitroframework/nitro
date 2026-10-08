@@ -13,11 +13,13 @@ use Nitro\Fusion\View\ServerRendering\ServerRenderer;
  */
 final class VueAdapter extends ScriptEngine
 {
+    use SharedCore;
+
     /**
      * @param  list<string>  $paths
      * @param  list<string>  $extensions
      */
-    public function __construct(array $paths, array $extensions = ['vue'], ServerRenderer $server = new NullRenderer)
+    public function __construct(array $paths, array $extensions, ServerRenderer $server = new NullRenderer)
     {
         parent::__construct('vue', $paths, $extensions, $server);
     }

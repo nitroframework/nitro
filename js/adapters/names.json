@@ -1,0 +1,4 @@
+{
+    "functions": ["set", "upload", "dispatch", "link", "visit"],
+    "values": ["errors", "unsaved", "uploads"]
+}

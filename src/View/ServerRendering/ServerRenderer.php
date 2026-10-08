@@ -3,7 +3,7 @@
 namespace Nitro\Fusion\View\ServerRendering;
 
 /**
- * Renders a JavaScript view (Vue, React, Solid) on the server, for the page's first HTML: the
+ * Renders a JavaScript view on the server, for the page's first HTML: the
  * browser then hydrates that HTML instead of rendering the view itself.
  *
  * Fusion's are NodeRenderer (the app's render service, fusion:ssr) and NullRenderer (off). A

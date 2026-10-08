@@ -13,11 +13,13 @@ use Nitro\Fusion\View\ServerRendering\ServerRenderer;
  */
 final class SolidAdapter extends ScriptEngine
 {
+    use SharedCore;
+
     /**
      * @param  list<string>  $paths
      * @param  list<string>  $extensions
      */
-    public function __construct(array $paths, array $extensions = ['jsx', 'tsx'], ServerRenderer $server = new NullRenderer)
+    public function __construct(array $paths, array $extensions, ServerRenderer $server = new NullRenderer)
     {
         parent::__construct('solid', $paths, $extensions, $server);
     }

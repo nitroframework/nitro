@@ -35,7 +35,7 @@ const FusionContext = createContext(null);
 
 /** Register the React engine with Fusion: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */
 export function fusionReact(views, { wrap } = {}) {
-    register('react', views, ['jsx', 'tsx', 'js', 'ts'], (View, el, handle, options) => mount(View, el, handle, wrap, options));
+    register('react', views, (View, el, handle, options) => mount(View, el, handle, wrap, options));
 }
 
 /** Inside a Fusion component's React view: the component, as its view gets it in its props. */

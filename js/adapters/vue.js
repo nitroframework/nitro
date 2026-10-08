@@ -31,7 +31,7 @@ const KEY = Symbol('fusion');
 
 /** Register the Vue engine with Fusion: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */
 export function fusionVue(views, { setup } = {}) {
-    register('vue', views, ['vue'], (view, el, handle, options) => mount(view, el, handle, setup, options));
+    register('vue', views, (view, el, handle, options) => mount(view, el, handle, setup, options));
 }
 
 /** In a Fusion component's Vue view: the component, as refs and functions. */
@@ -89,6 +89,7 @@ function bind(handle) {
     const computedValues = Object.fromEntries(handle.computed.map((name) => [name, derived(() => handle.get(name))]));
     const errors = derived(() => handle.errors());
     const unsaved = derived(() => handle.unsaved());
+    const uploads = derived(() => component.uploads());
 
     component.subscribe((names) => {
         syncing = true;
@@ -103,7 +104,7 @@ function bind(handle) {
     });
 
     const { functions } = component;
-    const api = { ...values, ...computedValues, ...functions, errors, unsaved };
+    const api = { ...values, ...computedValues, ...functions, errors, unsaved, uploads };
     const server = new Set(handle.server);
 
     const mixin = {
@@ -114,6 +115,7 @@ function bind(handle) {
             ...Object.fromEntries([...server].map((name) => [name, () => functions[name]])),
             errors: () => errors.value,
             unsaved: () => unsaved.value,
+            uploads: () => uploads.value,
         },
         methods: Object.fromEntries(Object.entries(functions).filter(([name]) => !server.has(name))),
     };

@@ -33,9 +33,12 @@ export async function render(renderers, state) {
 
 /**
  * @param {object} renderers   engine => renderer ({ render(view, handle) }): renderVue(), ...
- * @param {object} options     port (FUSION_SSR_PORT, 13714) and host (127.0.0.1: Laravel only)
+ * @param {object} options     port (FUSION_SSR_PORT: php artisan fusion:ssr gives fusion.ssr.url's) and host (127.0.0.1: Laravel only)
  */
-export function serve(renderers, { port = Number(process.env.FUSION_SSR_PORT ?? 13714), host = '127.0.0.1' } = {}) {
+export function serve(renderers, { port = Number(process.env.FUSION_SSR_PORT), host = '127.0.0.1' } = {}) {
+    if (!Number.isInteger(port) || port <= 0) {
+        throw new Error('Fusion: no port for the render service. Start it with php artisan fusion:ssr, which listens on fusion.ssr.url\'s, or pass serve(renderers, { port })');
+    }
     const answer = (response, status, body) => {
         response.writeHead(status, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(body));

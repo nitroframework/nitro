@@ -38,7 +38,7 @@ const FusionContext = createContext(null);
 
 /** Register the Solid engine with Fusion: `views` is what import.meta.glob() gives. */
 export function fusionSolid(views) {
-    register('solid', views, ['jsx', 'tsx', 'js', 'ts'], mount);
+    register('solid', views, mount);
 }
 
 /** Inside a Fusion component's Solid view: the component, as its view gets it in its props. */

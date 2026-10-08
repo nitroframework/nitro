@@ -15,7 +15,7 @@ import { createView } from '../vue.js';
 export function renderVue(views, { setup } = {}) {
     return {
         async render(view, handle) {
-            const module = await findView(views, view, ['vue'], 'vue');
+            const module = await findView(views, view, 'vue');
             const { app, scope } = createView(module, handle, { setup, ssr: true });
 
             try {

@@ -16,7 +16,7 @@ import { view } from '../solid.js';
 export function renderSolid(views) {
     return {
         async render(name, handle) {
-            const View = await findView(views, name, ['jsx', 'tsx', 'js', 'ts'], 'solid');
+            const View = await findView(views, name, 'solid');
             /** Keyed by the component's id, as the browser's hydrate() is: several views on a page stay apart. */
             return renderToString(view(View, handle).root, { renderId: handle.id });
         },
