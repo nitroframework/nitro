@@ -1,0 +1,76 @@
+{
+    "namespace": "fusion:",
+    "compiled": {
+        "root": "r",
+        "types": ["t", "c", "x", "m", "b", "p", "s", "template"],
+        "blocks": ["if", "else-if", "else", "foreach", "for", "while", "switch", "case", "default", "empty", "error"],
+        "prop": ["locked", "default", "enum", "url", "remember"],
+        "url": ["as", "history", "keep", "except"],
+        "model": "$model",
+        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "persist", "sync", "markup", "client"]
+    },
+    "view": {
+        "state": ["id", "engine", "view", "properties", "computed", "methods", "server", "errors"],
+        "names": ["properties", "methods", "server", "computed"],
+        "wrapper": "div",
+        "bladeEngine": "blade"
+    },
+    "attributes": {
+        "id": "fusion:id",
+        "name": "fusion:name",
+        "snapshot": "fusion:snapshot",
+        "page": "fusion:page",
+        "placeholder": "fusion:placeholder",
+        "serverHtml": "fusion:rendered",
+        "hydrate": "fusion:hydrate",
+        "static": "fusion:static",
+        "handler": "fusion:h-",
+        "directive": "fusion:h-directive"
+    },
+    "snapshot": {
+        "state": ["name", "id", "data", "memo", "issued"],
+        "memo": ["route", "slots", "models", "errors", "deferred", "scroll", "merge", "partial"],
+        "merge": ["mode", "path", "match"],
+        "position": ["pageName", "currentPage", "nextPage", "previousPage"]
+    },
+    "answer": {
+        "call": ["snapshot", "children", "stores", "shared", "once", "flash", "effects"],
+        "page": ["fusion", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
+        "effects": ["dispatches", "redirect", "js", "reload", "returns"],
+        "dispatch": ["event", "params", "to", "self"]
+    },
+    "globals": ["url", "asset", "locale", "routes", "lang", "config", "shared", "once", "flash", "stores"],
+    "signals": {
+        "errors": "$errors",
+        "deferred": "$deferred",
+        "unsaved": "$unsaved",
+        "status": "$status",
+        "uploads": "$uploads",
+        "scroll": "$scroll"
+    },
+    "headers": {
+        "navigate": "X-Fusion-Navigate",
+        "version": "X-Fusion-Version",
+        "partial": "X-Fusion-Partial",
+        "id": "X-Fusion-Id",
+        "only": "X-Fusion-Only",
+        "once": "X-Fusion-Once",
+        "location": "X-Fusion-Location",
+        "call": "X-Fusion"
+    },
+    "paths": {
+        "update": "update",
+        "upload": "upload",
+        "preview": "upload/preview",
+        "runtime": "fusion.js",
+        "bundle": "app.js",
+        "chunk": "app/{id}.js"
+    },
+    "urlValues": {
+        "int": "^[+-]?(0|[1-9][0-9]*)$",
+        "float": "^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$",
+        "true": ["1", "true"],
+        "false": ["0", "false", ""],
+        "maxInt": 9007199254740991
+    }
+}
