@@ -143,6 +143,16 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | The name of Fusion's own view engine | `js/protocol.json`'s `view.bladeEngine` (`Protocol::bladeEngine()`); a definition Fusion compiled names no engine |
 | `<fusion:dynamic-component>` | `Compiler/Template/ChildTag::DYNAMIC` |
 | Change signals (`$errors`, `$deferred`, ...) | `js/protocol.json`'s `signals` (`SIGNALS` in `runtime/protocol.js`) |
+| A page's data in its HTML: the globals, and one block with each component's signed state by id (as Next.js and Nuxt carry theirs) | `Rendering/PageData` writes it (filled once the page is rendered, `Http/FinishPage`), `runtime/page-data.js` reads it |
+| Starting an instance (a component, a page, a store): id and name, `boot`, its inputs, the features' `mounting`, `mount()` | `Lifecycle/Features::start()` |
+| State the browser sent: opened, whole, known, still admitted by the page's middleware | `Http/IncomingState` |
+| A state by its own names (an obfuscated build's aliases read) | `State/Snapshots::ownNames()` |
+| The request being answered, and its session | `Support/CurrentRequest` |
+| What `@fusionScripts` tells the runtime (endpoint, build, chunks, CSRF token, progress bar) | `Rendering/Scripts` writes it, `runtime/page-data.js` reads it; the CSRF token is `session.token` (`laravel/blade.js`) |
+| The browser's names in an obfuscated build, both ways | `Build/BrowserNames` |
+| A method's source for the compiler | `Compiler/MethodSource` |
+| A component's and a store's state in the browser: defaults, what changed, the `$this` properties | `runtime/component/snapshot.js`, `runtime/component/context.js` |
+| Every request the runtime sends (visits, reloads, calls, uploads) | `runtime/server/request.js` |
 
 ## The seams: where a new feature goes
 
@@ -160,6 +170,12 @@ A new feature should be new code in one of these, not edits across the codebase.
 | is something both sides must name | `js/protocol.json` first, then each side reads it | a new header |
 | holds per-request work on the server | a class in its layer, registered `scoped` in `FusionServiceProvider` | `BrowserNames` |
 | is something apps call | a method on the `Fusion` facade or `Component` that hands the work to its part | `Fusion::shareOnce()` |
+
+**A mechanism has a home, not only its names.** How something crosses from the server to the
+browser (a page's data, a call's answer, an upload) is written in one place on each side, with
+everyone else asking it. Names in one place are not enough: when moving the page's state into one
+block meant changing seven files that each wrote or read it, the names were all in the protocol
+and the mechanism was in none.
 
 **Before writing a feature:** name its seam and list the files it will change. If it fits no seam,
 or touches more than a handful of files, stop and discuss it: a seam is missing, and adding that
