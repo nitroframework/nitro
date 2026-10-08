@@ -47,6 +47,8 @@ const OPS = {
 };
 
 const LIBM = new Set(['acos', 'acosh', 'asin', 'asinh', 'atan', 'atan2', 'atanh', 'cos', 'cosh', 'sin', 'sinh', 'tan', 'tanh', 'exp', 'expm1', 'log', 'log10', 'log1p', 'hypot']);
+/** Comparisons: their sign is PHP's contract, the size varies by build. */
+const SIGNED = new Set(['strcmp', 'strncmp', 'strcasecmp', 'strncasecmp', 'strnatcmp', 'strnatcasecmp', 'substr_compare']);
 
 const cases = await readStdin();
 const failures = [];
@@ -74,7 +76,10 @@ for (const c of cases) {
      */
     const close = LIBM.has(c.fn) && typeof actual.value === 'number' && typeof expected.value === 'number'
         && Math.abs(actual.value - expected.value) <= 4 * Number.EPSILON * Math.max(Math.abs(actual.value), Math.abs(expected.value));
-    const ok = expected.error !== undefined ? actual.error === expected.error : actual.error === undefined && (close || same(actual.value, expected.value));
+    /** A comparison promises its sign: PHP builds differ in the size (the byte difference, or 1). */
+    const signed = SIGNED.has(c.fn) && typeof actual.value === 'number' && typeof expected.value === 'number'
+        && Math.sign(actual.value) === Math.sign(expected.value);
+    const ok = expected.error !== undefined ? actual.error === expected.error : actual.error === undefined && (close || signed || same(actual.value, expected.value));
     if (!ok) {
         failures.push({ id: c.id, fn: c.fn, expected: describe(expected), actual: describe(actual) });
     }

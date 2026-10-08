@@ -370,7 +370,8 @@ await scenario('embed', async () => {
     window.addEventListener('counter-saved', (e) => (saved = e.detail.params));
     const save = counter.querySelectorAll('button')[2];
     click(window, save);
-    await until('#[Server] save() round trip and its event', () => saved !== null);
+    /** The run's first #[Server] call: the test server boots the app cold (slowest on Laravel with server rendering, under a full suite's load). */
+    await until('#[Server] save() round trip and its event', () => saved !== null, 10000);
     check('the event carried the server value', JSON.stringify(saved) === '[3]', JSON.stringify(saved));
     check('state kept after the round trip', text($('.count')) === '3');
     check('a snapshot with nothing new renders nothing again', full === 0, `${full} full renders`);

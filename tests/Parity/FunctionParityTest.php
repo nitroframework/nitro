@@ -21,6 +21,11 @@ class FunctionParityTest extends TestCase
         $cases = [];
 
         foreach (self::cases() as $i => [$fn, $args]) {
+            /** {,n} is a quantifier from PCRE2 10.43 (as the browser reads it); older builds read it as text. */
+            if (str_starts_with($fn, 'preg_') && is_string($args[0] ?? null) && str_contains($args[0], '{,') && version_compare(strtok(PCRE_VERSION, ' '), '10.43', '<')) {
+                continue;
+            }
+
             $cases[] = [
                 'id' => $i,
                 'fn' => $fn,
