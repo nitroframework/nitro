@@ -2,6 +2,8 @@
 
 namespace Nitro\Fusion\Compiler\Template\Parts;
 
+use Nitro\Fusion\Support\Protocol;
+
 /**
  * Clone mode (config fusion.rendering = 'clone', the default): the largest static parts of a
  * view's tree are marked (s: 1), so the browser copies them instead of creating them element by
@@ -89,7 +91,7 @@ final class StaticParts
     private static function staticAttributes(array $attributes): bool
     {
         foreach ($attributes as $attribute) {
-            if (isset($attribute['on']) || isset($attribute['when']) || str_starts_with((string) $attribute['c'], 'fusion:')) {
+            if (isset($attribute['on']) || isset($attribute['when']) || str_starts_with((string) $attribute['c'], Protocol::namespace())) {
                 return false;
             }
 

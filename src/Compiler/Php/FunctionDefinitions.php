@@ -2,6 +2,7 @@
 
 namespace Nitro\Fusion\Compiler\Php;
 
+use Nitro\Fusion\Support\Types;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
@@ -102,7 +103,7 @@ final class FunctionDefinitions extends Part
             $type = $type->type;
         }
 
-        if (! $type instanceof Identifier || ! in_array($type->toLowerString(), Catalog::SCALAR_TYPES, true) || $param->variadic) {
+        if (! $type instanceof Identifier || ! in_array($type->toLowerString(), Types::SCALARS, true) || $param->variadic) {
             return '';
         }
 

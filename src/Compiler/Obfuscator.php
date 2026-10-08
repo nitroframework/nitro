@@ -1,8 +1,7 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Fusion\Compiler;
 
-use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Support\Naming;
 
 /**
@@ -11,8 +10,8 @@ use Nitro\Fusion\Support\Naming;
  * by hashing guesses). The build writes them into the bundle; the server translates them back
  * where the browser hands them over (a #[Server] call's method, a snapshot, an update).
  *
- * A property path aliases its property only: the keys of an array property are its data. What
- * the runtime calls by name keeps its name: mounted(), destroyed(), updated(). Components keep
+ * A property path aliases its property only: the keys of an array property are its data. The
+ * hooks are aliased as any method: the runtime finds them by the component's definition. Components keep
  * theirs when the application has a <fusion:dynamic-component>: the browser picks those by a
  * name computed as it runs. Pages are aliased either way.
  */
@@ -31,17 +30,10 @@ final class Obfuscator
     ) {
     }
 
-    /**
-     * A method's name in the browser. updatedEmail() is "updated" and the property's alias (the
-     * runtime calls updated<Property>() after a change); updated(), mounted(), destroyed() keep theirs.
-     */
+    /** A method's name in the browser (the hooks too: the runtime finds them by the component's definition). */
     public function method(string $name): string
     {
-        if (preg_match('/^updated([A-Z]\w*)$/', $name, $match) === 1) {
-            return 'updated'.ucfirst($this->property(lcfirst($match[1])));
-        }
-
-        return self::keepsName($name) ? $name : 'm'.substr(hash_hmac('sha256', 'method:'.$name, $this->key), 0, 7);
+        return 'm'.substr(hash_hmac('sha256', 'method:'.$name, $this->key), 0, 7);
     }
 
     /** A property's name in the browser. */
@@ -174,11 +166,5 @@ final class Obfuscator
 
             $seen[$alias] = $name;
         }
-    }
-
-    /** What the runtime calls by name: mounted(), destroyed(), updated(), updatedEmail(). */
-    private static function keepsName(string $name): bool
-    {
-        return in_array($name, ['mounted', 'destroyed', 'updated'], true) || preg_match('/^updated[A-Z]/', $name) === 1;
     }
 }

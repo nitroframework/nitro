@@ -4,6 +4,7 @@ namespace Nitro\Fusion\Compiler\Template\Parts;
 
 use Closure;
 use Nitro\Fusion\Compiler\Template\TemplateNode;
+use Nitro\Fusion\Support\Html;
 
 /**
  * The node tree being built, through the open stack: where nodes go now, adding one, turning the
@@ -71,7 +72,7 @@ final class Tree extends Part
 
         $parent = $this->current();
 
-        if ($parent->children === [] && in_array($parent->fields['c'] ?? '', Syntax::LEADING_NEWLINE, true) && ($parent->fields['t'] ?? '') === 't') {
+        if ($parent->children === [] && in_array($parent->fields['c'] ?? '', Html::LEADING_NEWLINE, true) && ($parent->fields['t'] ?? '') === 't') {
             $text = (string) preg_replace('/\A\r?\n/', '', $text);
         }
 

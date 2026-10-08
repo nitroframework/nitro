@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\Fusion\Compiler;
 
 use Nitro\Fusion\Component;
 use Nitro\Fusion\Store;
@@ -9,17 +9,22 @@ use ReflectionNamedType;
 use ReflectionProperty;
 
 /**
- * A component's state: its public, non-static properties, but those holding a store (a store's
- * state is its own, shared by the components that use it).
+ * Which of a component's properties are its state, read from its class: its public, non-static
+ * properties, but those holding a store (a store's state is its own, shared by the components
+ * that use it). And their values on an instance.
  */
-final class ComponentState
+final class StateProperties
 {
-    /** @return array<string, mixed> */
-    public static function of(Component $component): array
+    /**
+     * The component's state: its state properties' values (those set).
+     *
+     * @return array<string, mixed>
+     */
+    public static function values(Component $component): array
     {
         $state = [];
 
-        foreach (self::properties($component::class) as $property) {
+        foreach (self::of($component::class) as $property) {
             if ($property->isInitialized($component)) {
                 $state[$property->getName()] = $property->getValue($component);
             }
@@ -29,7 +34,7 @@ final class ComponentState
     }
 
     /** @return list<ReflectionProperty> */
-    public static function properties(string $class): array
+    public static function of(string $class): array
     {
         return array_values(array_filter(
             (new ReflectionClass($class))->getProperties(ReflectionProperty::IS_PUBLIC),

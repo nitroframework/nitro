@@ -4,6 +4,7 @@ namespace Nitro\Fusion\Compiler\Template\Parts;
 
 use Nitro\Fusion\Compiler\Template\ChildTag;
 use Nitro\Fusion\Compiler\Template\TemplateNode;
+use Nitro\Fusion\Support\Protocol;
 
 /**
  * Child components in a component's view: <fusion:name ... /> and <fusion:slot>. Fusion's
@@ -68,7 +69,7 @@ final class ChildComponents extends Part
         }
 
         /** Livewire's <fusion:dynamic-component :is="$name">, Viewi's tag named by an expression: the component :is names. */
-        $dynamic = $tag->name === 'dynamic-component';
+        $dynamic = $tag->name === ChildTag::DYNAMIC;
 
         if ($dynamic && ! isset($tag->props['is'])) {
             throw $context->error('<fusion:dynamic-component> needs :is, the name of the component to render (as in <fusion:name>)');
@@ -82,7 +83,7 @@ final class ChildComponents extends Part
             }
 
             /** The child's properties by the browser's names for them (an obfuscated build); "$model" is the runtime's. */
-            $props[] = json_encode($name === '$model' || $dynamic ? $name : $context->scope->names?->property($name) ?? $name).': '.$table->expr($expression);
+            $props[] = json_encode($name === Protocol::modelProp() || $dynamic ? $name : $context->scope->names?->property($name) ?? $name).': '.$table->expr($expression);
         }
 
         $node = new TemplateNode(array_filter([

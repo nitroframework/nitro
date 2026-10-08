@@ -2,21 +2,16 @@
 
 namespace Nitro\Fusion\Compiler;
 
-use BackedEnum;
 use Closure;
-use Nitro\Fusion\Build\Obfuscator;
 use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Lifecycle\Hooks;
 use Nitro\Fusion\Support\Wire;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
-use ReflectionClass;
 use ReflectionMethod;
 use Throwable;
-use UnitEnum;
 
 /**
  * Compiles a component (its class and its view) to the definition the browser runtime loads:
@@ -60,6 +55,8 @@ final class ComponentCompiler
         /** @var list<string> the application's own fusion: attributes (fusion.attributes, checked by Globals::customAttributes()) */
         private readonly array $attributes = [],
     ) {
+        $this->uses = Uses::none();
+        $this->classes = new BrowserClassCompiler($names, $this->use(...));
     }
 
     /**
@@ -140,19 +137,10 @@ final class ComponentCompiler
      *
      * @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>}
      */
-    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => []];
+    public array $uses;
 
-    /** @var array<string, string> "Class::method" => its compiled function: the #[Browser] class and enum methods reached so far */
-    private array $classMethods = [];
-
-    /** @var array<string, list<string>> "Class::method" => the keys its own code reaches (BrowserClasses) */
-    private array $classMethodUses = [];
-
-    /** @var array<string, CompileException> "Class::method" => why it does not compile: every component reaching it fails with it */
-    private array $brokenClassMethods = [];
-
-    /** @var array<class-string, true> the #[Browser] enums reached: each is defined with all its cases */
-    private array $enums = [];
+    /** The #[Browser] classes and enums the components reach, compiled once for the bundle. */
+    private readonly BrowserClassCompiler $classes;
 
     /**
      * A component, and the #[Browser] class methods it reaches (compiled once for the bundle,
@@ -169,39 +157,13 @@ final class ComponentCompiler
      *   Fusion.classes["App\\Support\\Money"] = { format: function ($cents) {...} };
      *   Fusion.classes["App\\Enums\\Status"] = P.defineEnum("App\\Enums\\Status", [["Draft", "draft"], ...], {static methods}, {methods});
      */
+    /**
+     * The #[Browser] classes and enums the code reached, as the main bundle defines them
+     * (BrowserClassCompiler::definitions()).
+     */
     public function compileClasses(): string
     {
-        $classes = array_fill_keys(array_keys($this->enums), []);
-
-        foreach ($this->classMethods as $key => $js) {
-            [$class, $method] = BrowserClasses::split($key);
-            $classes[$class][$method] = $js;
-        }
-
-        ksort($classes);
-        $scope = (new Scope)->withNames($this->names);
-        $list = fn (array $methods) => implode(",\n", array_map(fn ($name, $js) => json_encode($scope->browserMethod($name)).': '.$js, array_keys($methods), $methods));
-        $definitions = [];
-
-        foreach ($classes as $class => $methods) {
-            ksort($methods);
-            $name = json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-
-            if (! enum_exists($class)) {
-                $definitions[] = '// '.$class." · #[Browser]\n"."Fusion.classes[{$name}] = {\n".$list($methods)."\n};";
-
-                continue;
-            }
-
-            $static = array_filter($methods, fn (string $method) => (new ReflectionMethod($class, $method))->isStatic(), ARRAY_FILTER_USE_KEY);
-            $cases = array_map(fn (UnitEnum $case) => $case instanceof BackedEnum ? [$case->name, $case->value] : [$case->name], $class::cases());
-
-            $definitions[] = '// '.$class." · #[Browser] enum\n"
-                ."Fusion.classes[{$name}] = P.defineEnum({$name}, ".json_encode($cases, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
-                .", {\n".$list($static)."\n}, {\n".$list(array_diff_key($methods, $static))."\n});";
-        }
-
-        return implode("\n\n", $definitions);
+        return $this->classes->definitions();
     }
 
     /**
@@ -212,10 +174,7 @@ final class ComponentCompiler
      */
     public function compiledClasses(): array
     {
-        $keys = [...array_keys($this->classMethods), ...array_map(BrowserClasses::definition(...), array_keys($this->enums))];
-        sort($keys);
-
-        return $keys;
+        return $this->classes->compiled();
     }
 
     /**
@@ -236,133 +195,13 @@ final class ComponentCompiler
             $this->uses['classes'] = $outer;
         }
 
-        $this->compileClassMethods(array_keys($reached));
+        $this->classes->reach(array_keys($reached));
         $this->uses['classes'] += $reached;
 
         return $js;
     }
 
-    /**
-     * Everything the keys reach, compiled: methods, what they call, the enums whose cases they use,
-     * and for "$value->label()", the label() of each of those enums. One of those enums must have
-     * it: in the browser, only an enum case has methods.
-     *
-     * @param  list<string>  $keys  (BrowserClasses)
-     */
-    private function compileClassMethods(array $keys): void
-    {
-        $seen = [];
-        $enums = [];
-        $called = [];
-        $queue = $keys;
-
-        do {
-            while ($queue !== []) {
-                $key = array_shift($queue);
-
-                if (isset($seen[$key])) {
-                    continue;
-                }
-
-                $seen[$key] = true;
-                [$class, $method] = BrowserClasses::split($key);
-
-                if ($class === '*') {
-                    [$name, $file, $line] = BrowserClasses::calledAt($method);
-                    $called[$name] ??= [$file, $line];
-                } elseif ($method === '') {
-                    $enums[$class] = true;
-                } else {
-                    $this->compileClassMethod($class, $method, $key);
-                    array_push($queue, ...$this->classMethodUses[$key]);
-                }
-            }
-
-            foreach (array_keys($enums) as $enum) {
-                foreach (array_keys($called) as $method) {
-                    if (self::caseMethod($enum, $method) && ! isset($seen[BrowserClasses::key($enum, $method)])) {
-                        $queue[] = BrowserClasses::key($enum, $method);
-                    }
-                }
-            }
-        } while ($queue !== []);
-
-        foreach ($called as $method => [$file, $line]) {
-            if (array_filter(array_keys($enums), fn (string $enum) => self::caseMethod($enum, $method)) === []) {
-                throw new CompileException("->{$method}() is called on a value in the browser, but only an enum case has methods there, and "
-                    .($enums === [] ? 'this code uses no #[Browser] enum' : 'no #[Browser] enum this code uses ('.implode(', ', array_keys($enums)).") has a public {$method}()")
-                    .'. Data from the server arrives as arrays: call methods on $this, or in a #[Server] method', $file, $line);
-            }
-        }
-
-        $this->enums += $enums;
-    }
-
-    /** Whether $method is a public instance method of $enum, as written (a case's method in the browser). */
-    private static function caseMethod(string $enum, string $method): bool
-    {
-        if (! method_exists($enum, $method)) {
-            return false;
-        }
-
-        $reflection = new ReflectionMethod($enum, $method);
-
-        return $reflection->getName() === $method && $reflection->isPublic() && ! $reflection->isStatic();
-    }
-
-    /**
-     * A static method of a #[Browser] class or enum, or an enum's instance method (a case's), once.
-     *
-     * @param  class-string  $class
-     */
-    private function compileClassMethod(string $class, string $method, string $key): void
-    {
-        if (isset($this->classMethods[$key])) {
-            return;
-        }
-
-        if (isset($this->brokenClassMethods[$key])) {
-            throw $this->brokenClassMethods[$key];
-        }
-
-        $reflection = new ReflectionMethod($class, $method);
-        $enum = enum_exists($class);
-        $instanceMethods = $enum ? array_values(array_map(fn (ReflectionMethod $reflected) => $reflected->getName(), array_filter((new ReflectionClass($class))->getMethods(), fn (ReflectionMethod $reflected) => ! $reflected->isStatic()))) : [];
-        $scope = new Scope(clientMethods: $instanceMethods, file: (string) $reflection->getFileName(), constants: (new ReflectionClass($class))->getConstants(), names: $this->names);
-        $transpiler = new Transpiler($scope);
-
-        try {
-            $node = BrowserClasses::methodNode($class, $method);
-            $js = match (true) {
-                $reflection->isStatic() => $transpiler->staticMethod($node, $scope, $class),
-                $enum => $transpiler->enumMethod($node, $scope, $class),
-                default => throw new CompileException("{$class}::{$method}() is not static", $reflection->getFileName() ?: null, $reflection->getStartLine() ?: null),
-            };
-        } catch (CompileException $exception) {
-            throw $this->brokenClassMethods[$key] = new CompileException(
-                "{$class}::{$method}() runs in the browser (browser code calls it) but cannot be compiled: {$exception->reason}",
-                $exception->sourceFile,
-                $exception->sourceLine,
-            );
-        }
-
-        $uses = array_keys($transpiler->uses['classes']);
-
-        /** An enum's method: its enum is defined, and the methods it calls on $this are compiled. */
-        if ($enum) {
-            $uses[] = BrowserClasses::definition($class);
-
-            foreach ($transpiler->calledMethods as $called) {
-                $uses[] = BrowserClasses::key($class, $called);
-            }
-        }
-
-        $this->classMethods[$key] = $js;
-        $this->classMethodUses[$key] = array_values(array_unique($uses));
-        $this->use($transpiler->uses);
-    }
-
-    /** $viewSource: a Blade view's, compiled here; null for a view the app's build compiles (Vue, React, Solid). */
+    /** $viewSource: a Blade view's, compiled here; null for a view the app's build compiles (a JavaScript framework's). */
     private function compileComponent(ComponentMeta $meta, ?string $viewSource, string $viewFile): string
     {
         $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
@@ -375,8 +214,9 @@ final class ComponentCompiler
             $this->use($templates->uses());
         }
 
-        /** mounted() and destroyed(): the browser calls them (compiled, or #[Server]). */
-        $hooks = array_values(array_intersect(Hooks::BROWSER, [...$meta->browserMethods, ...$meta->serverMethods]));
+        /** The hooks the browser calls (ComponentHooks, PropertyHooks): compiled, or #[Server]. */
+        $hooks = $meta->componentHooks();
+        $propertyHooks = $meta->propertyHooks();
 
         /** A view the app's build compiles may call any public method (and they the others they call). */
         $public = $meta->publicMethods();
@@ -385,7 +225,7 @@ final class ComponentCompiler
             /** What the view calls: a Blade view's, those it names; another's, the public ones. */
             ...($templates === null ? $public : $templates->calledMethods),
             ...$this->listeners($meta),
-            ...$this->updatedHooks($meta),
+            ...array_column($propertyHooks, 'method'),
             ...$hooks,
         ]);
 
@@ -401,7 +241,10 @@ final class ComponentCompiler
             'listeners' => (object) $this->listenersFor($meta, $scope),
             'mount' => $meta->hasMount,
             'modelable' => $meta->modelable === null ? null : $scope->browserProperty($meta->modelable),
-            'hooks' => $hooks,
+            /** hook => the method that is it, by the browser's name (a #[Server] one is in 'server'). */
+            'hooks' => (object) array_combine($hooks, array_map($scope->browserMethod(...), $hooks)),
+            /** the browser's name of a property ('*' for every one) => when (updating, updated) => the method. */
+            'propertyHooks' => (object) $this->propertyHooksFor($propertyHooks, $scope),
         ];
 
         /**
@@ -538,10 +381,23 @@ final class ComponentCompiler
         return array_values(array_filter(array_merge(...array_values($meta->listeners) ?: [[]]), fn ($method) => ! $meta->isServerMethod($method)));
     }
 
-    /** updatedEmail() runs after fusion:model or $set changes $email, and updated($property, $value) after any change. */
-    private function updatedHooks(ComponentMeta $meta): array
+    /**
+     * The property hooks as the browser finds them: by its name for the property ('*' for those
+     * of every property), then when they run.
+     *
+     * @param  list<array{method: string, when: string, property: ?string}>  $hooks
+     * @return array<string, object>
+     */
+    private function propertyHooksFor(array $hooks, Scope $scope): array
     {
-        return array_values(array_filter($meta->browserMethods, fn ($method) => preg_match('/^updated([A-Z]|$)/', $method) === 1));
+        $byProperty = [];
+
+        foreach ($hooks as $hook) {
+            $property = $hook['property'] === null ? '*' : $scope->browserProperty($hook['property']);
+            $byProperty[$property][$hook['when']] = $scope->browserMethod($hook['method']);
+        }
+
+        return array_map(fn (array $when) => (object) $when, $byProperty);
     }
 
     /**

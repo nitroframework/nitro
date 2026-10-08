@@ -2,6 +2,8 @@
 
 namespace Nitro\Fusion\Compiler;
 
+use Nitro\Fusion\Support\Protocol;
+
 /**
  * What each template expression reads, as Viewi's subs: the properties the browser runtime
  * renders it again for when they change.
@@ -72,7 +74,7 @@ final class Subscriptions
         $keys = [];
 
         if (str_contains($js, '$this.$errors')) {
-            $keys['$errors'] = true;
+            $keys[Protocol::signal('errors')] = true;
         }
 
         /** $this->shared(): Fusion::share()'s data, which the runtime marks "$shared" when it changes. */
@@ -85,14 +87,14 @@ final class Subscriptions
             $keys['$flash'] = true;
         }
 
-        /** $this->hasMore(): where the page's scroll props are, which the runtime marks "$scroll" when it changes. */
+        /** $this->hasMore(): where the page's scroll props are, which the runtime marks (the scroll signal) when it changes. */
         if (str_contains($js, '$this.$hasMore(')) {
-            $keys['$scroll'] = true;
+            $keys[Protocol::signal('scroll')] = true;
         }
 
-        /** @deferred: the page's deferred properties, which the runtime marks "$deferred" once loaded. */
+        /** @deferred: the page's deferred properties, which the runtime marks (the deferred signal) once loaded. */
         if (str_contains($js, '$this.$deferring(')) {
-            $keys['$deferred'] = true;
+            $keys[Protocol::signal('deferred')] = true;
         }
 
         preg_match_all('/\$this\.(?:\$computed\("(\w+)"\)|([A-Za-z_]\w*)(\s*\()?)/', $js, $matches, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);

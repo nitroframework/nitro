@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Template\Parts;
 
 use Nitro\Fusion\Compiler\Template\TemplateNode;
+use Nitro\Fusion\Support\Protocol;
 
 /**
  * Blade's blocks that need more than open / branch / close (those are Tree's): the loops,
@@ -195,7 +196,7 @@ final class Blocks extends Part
 
         $field = $table->expression($table->expr('['.$args.'][0]'));
         $node = $this->compiler->tree->openBlock('error', []);
-        $node->fields['i'] = [['c' => 'error', 'code' => $field, 'message' => $table->declareFrom('message', [$field, '$errors'])]];
+        $node->fields['i'] = [['c' => 'error', 'code' => $field, 'message' => $table->declareFrom('message', [$field, Protocol::signal('errors')])]];
     }
 
     /**

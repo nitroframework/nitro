@@ -6,6 +6,8 @@ use BackedEnum;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Nitro\Fusion\Attributes\Url;
+use Nitro\Fusion\Support\Types;
+use Nitro\Fusion\Support\UrlValues;
 use Nitro\Fusion\Upload;
 use ReflectionEnum;
 use ReflectionNamedType;
@@ -34,8 +36,6 @@ final class PropertyMeta
     public const UPLOAD = 'upload';
 
     public const ENUM = 'enum';
-
-    private const SCALARS = ['int', 'float', 'string', 'bool', 'array', 'mixed', 'null'];
 
     public function __construct(
         public readonly string $name,
@@ -79,7 +79,7 @@ final class PropertyMeta
         $kind = self::VALUE;
 
         foreach ($types as $name) {
-            if (in_array($name, self::SCALARS, true)) {
+            if (in_array($name, [...Types::SCALARS, 'mixed', 'null'], true)) {
                 continue;
             }
 
@@ -164,14 +164,7 @@ final class PropertyMeta
         }
 
         foreach ($this->types as $type) {
-            [$fits, $value] = match ($type) {
-                'int' => [is_string($raw) && preg_match('/^-?\d+$/', $raw) === 1, (int) (is_string($raw) ? $raw : 0)],
-                'float' => [is_string($raw) && is_numeric($raw), (float) (is_string($raw) ? $raw : 0)],
-                'bool' => [is_string($raw) && in_array(strtolower($raw), ['1', '0', 'true', 'false', ''], true), in_array(strtolower(is_string($raw) ? $raw : ''), ['1', 'true'], true)],
-                'string' => [is_string($raw), $raw],
-                'array' => [is_array($raw), $raw],
-                default => [false, null],
-            };
+            [$fits, $value] = UrlValues::read($type, $raw);
 
             if ($fits) {
                 return [true, $value];
@@ -202,8 +195,9 @@ final class PropertyMeta
 
         $intBacked = (string) (new ReflectionEnum($enum))->getBackingType() === 'int';
 
-        if ($intBacked && is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
-            $value = (int) $value;
+        if ($intBacked && is_string($value)) {
+            [$fits, $int] = UrlValues::read('int', $value);
+            $value = $fits ? $int : $value;
         }
 
         return match (true) {
@@ -257,21 +251,8 @@ final class PropertyMeta
             return false;
         }
 
-        if ($this->types === [] || in_array('mixed', $this->types, true)) {
-            return is_scalar($value) || is_array($value);
-        }
-
-        foreach ($this->types as $type) {
-            $fits = match ($type) {
-                'int' => is_int($value),
-                'float' => is_float($value) || is_int($value),
-                'string' => is_string($value),
-                'bool' => is_bool($value),
-                'array' => is_array($value),
-                default => false,
-            };
-
-            if ($fits) {
+        foreach ($this->types === [] ? ['mixed'] : $this->types as $type) {
+            if (Types::fits($type, $value)) {
                 return true;
             }
         }

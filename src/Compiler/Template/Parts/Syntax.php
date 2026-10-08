@@ -2,13 +2,15 @@
 
 namespace Nitro\Fusion\Compiler\Template\Parts;
 
+use Nitro\Fusion\Compiler\Globals;
+
 /**
  * What a Fusion view may contain, in one place: the Blade directives the template compiler
  * accepts (every other one is a compile error naming it), and the HTML rules it follows so the
  * tree it makes is the DOM the browser's parser would make from the server's HTML.
  *
- * Blade: DIRECTIVES and its groups. HTML: VOID, RAW_TEXT, RCDATA, LEADING_NEWLINE, as the HTML
- * standard has them. Fusion: BladeInliner's marker directives (fusionScope, fusionSlot, ...),
+ * Blade: DIRECTIVES and its groups (Fusion's own: Globals::DIRECTIVES). HTML: the elements' rules
+ * are Support\Html's; CLOSES_P and P_SCOPE here. Fusion: BladeInliner's marker directives (fusionScope, fusionSlot, ...),
  * which only BladeInliner writes, and the cap on a template loop's iterations.
  *
  * @internal
@@ -21,7 +23,7 @@ final class Syntax
         'foreach', 'endforeach', 'forelse', 'endforelse', 'for', 'endfor', 'while', 'endwhile',
         'break', 'continue', 'switch', 'case', 'default', 'endswitch', 'error', 'enderror',
         'class', 'style', 'checked', 'selected', 'disabled', 'readonly', 'required', 'csrf', 'method', 'json', 'use',
-        'teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred',
+        ...Globals::DIRECTIVES,
         /** BladeInliner's, around an inlined @include or <x-component> (not written in views). */
         'fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot', 'fusionFrame', 'endfusionFrame', 'fusionAttr',
     ];
@@ -37,15 +39,6 @@ final class Syntax
 
     public const CONDITIONALS = ['if', 'unless', 'isset', 'empty', 'error'];
 
-    /** Elements without content or end tag. */
-    public const VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'];
-
-    /** Raw text: no tags inside, no character references decoded (an echo stays escaped). */
-    public const RAW_TEXT = ['script', 'style'];
-
-    /** Text only, character references decoded. */
-    public const RCDATA = ['textarea', 'title'];
-
     /** Their start tag ends an open <p> (the HTML parser closes it): they cannot be in one. */
     public const CLOSES_P = [
         'address', 'article', 'aside', 'blockquote', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset',
@@ -55,9 +48,6 @@ final class Syntax
 
     /** An open <p> above these is out of scope for CLOSES_P (the HTML parser's button scope). */
     public const P_SCOPE = ['applet', 'button', 'caption', 'html', 'marquee', 'object', 'table', 'td', 'template', 'th'];
-
-    /** The HTML parser drops a newline right after their start tag. */
-    public const LEADING_NEWLINE = ['pre', 'textarea', 'listing'];
 
     /** Largest loop a render runs (@for, @while): a template has no way to stop an endless one. */
     public const MAX_ITERATIONS = 100000;

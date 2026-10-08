@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Template;
 
 use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Fusion\Support\Protocol;
 
 /**
  * A child component in a template: <fusion:task-item :task="$task" label="Hi" :key="$task['id']" />.
@@ -15,6 +16,9 @@ use Nitro\Fusion\Compiler\CompileException;
 final class ChildTag
 {
     /** <fusion:name ...> or <fusion:name ... />; not <fusion:slot> (a slot of the child around it). */
+    /** <fusion:dynamic-component :is="...">: the component :is names, decided as the view renders. */
+    public const DYNAMIC = 'dynamic-component';
+
     public const PATTERN = '/<fusion:(?!slot[\s\/>])([a-z0-9][a-z0-9\-.]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';
 
     /** <fusion:slot name="footer"> */
@@ -118,7 +122,7 @@ final class ChildTag
                 default => 'true',
             };
 
-            if ($prop === 'fusion:static' || $prop === 'fusion:hydrate' || str_starts_with($prop, 'fusion:hydrate.')) {
+            if ($prop === Protocol::attribute('static') || $prop === Protocol::attribute('hydrate') || str_starts_with($prop, Protocol::attribute('hydrate').'.')) {
                 if ($hydrate !== null) {
                     throw new CompileException("<fusion:{$name}> has one fusion:hydrate or fusion:static", $file, $line);
                 }
@@ -155,7 +159,7 @@ final class ChildTag
                 }, preg_split('/\.(?![^{]*\}\})/', $value));
 
                 $root = array_shift($modelPath);
-                $props['$model'] = '$'.$root.implode('', array_map(fn ($segment) => '['.(is_array($segment) ? '('.$segment['php'].')' : var_export($segment, true)).']', $modelPath));
+                $props[Protocol::modelProp()] = '$'.$root.implode('', array_map(fn ($segment) => '['.(is_array($segment) ? '('.$segment['php'].')' : var_export($segment, true)).']', $modelPath));
                 array_unshift($modelPath, $root);
                 $model = $value;
 
@@ -174,7 +178,7 @@ final class ChildTag
      */
     private static function hydrate(string $attribute, ?string $value, string $name, ?string $file, int $line): string
     {
-        if ($attribute === 'fusion:static') {
+        if ($attribute === Protocol::attribute('static')) {
             return $value === null ? 'static' : throw new CompileException("fusion:static on <fusion:{$name}> takes no value", $file, $line);
         }
 

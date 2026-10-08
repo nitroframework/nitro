@@ -5,6 +5,7 @@ namespace Nitro\Fusion\Compiler\Php;
 use Closure;
 use Nitro\Fusion\Compiler\CompileException;
 use Nitro\Fusion\Compiler\Scope;
+use Nitro\Fusion\Compiler\Uses;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 
@@ -60,7 +61,7 @@ final class Context
     public string $imports = '';
 
     /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called */
-    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => []];
+    public array $uses;
 
     /** @var class-string|null compiling a #[Browser] class's or enum's method: the class (self::, static::) */
     public ?string $class = null;
@@ -68,10 +69,13 @@ final class Context
     /** Compiling an enum's instance method: $this is the case (its ->name, ->value and methods). */
     public bool $enumCase = false;
 
-    /** Compiling updated(): its string literals that name a property are the browser's names (an obfuscated build). */
-    public bool $updatedHook = false;
+    /** Compiling updating() or updated(): its string literals that name a property are the browser's names (an obfuscated build). */
+    public bool $pathHook = false;
 
-    public function __construct(public Scope $scope) {}
+    public function __construct(public Scope $scope)
+    {
+        $this->uses = Uses::none();
+    }
 
     // ------------------------------------------------------------ temporaries
 

@@ -3,6 +3,8 @@
 namespace Nitro\Fusion\Compiler\Template\Parts;
 
 use Nitro\Fusion\Compiler\Globals;
+use Nitro\Fusion\Support\Duration;
+use Nitro\Fusion\Support\Protocol;
 
 /**
  * fusion: attributes on HTML elements: Fusion's own syntax, checked when the view compiles so a
@@ -47,7 +49,7 @@ final class FusionAttributes extends Part
 
             foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $index => $modifier) {
                 /** fusion:navigate.prefetch.60s: how long the prefetched page is kept. */
-                if ($name === 'navigate' && ($parts[$index - 1] ?? null) === 'prefetch' && preg_match('/^\d+(ms|s)$/', $modifier) === 1) {
+                if ($name === 'navigate' && ($parts[$index - 1] ?? null) === 'prefetch' && Duration::is($modifier)) {
                     continue;
                 }
 
@@ -67,13 +69,13 @@ final class FusionAttributes extends Part
             }
 
             /** Passed through: the runtime reads it from the element (its value may contain {{ }}). */
-            $i += strlen('fusion:'.$spec);
+            $i += strlen(Protocol::namespace().$spec);
 
             if (preg_match('/\G\s*=\s*(["\'])/', $text, $open, 0, $i)) {
-                return $this->compiler->html->openValue('fusion:'.$spec, $open[1], $i + strlen($open[0]));
+                return $this->compiler->html->openValue(Protocol::namespace().$spec, $open[1], $i + strlen($open[0]));
             }
 
-            $context->tag->attributes[] = ['c' => 'fusion:'.$spec];
+            $context->tag->attributes[] = ['c' => Protocol::namespace().$spec];
 
             return $i;
         }
@@ -90,30 +92,30 @@ final class FusionAttributes extends Part
                 }
             }
 
-            $context->tag->attributes[] = ['c' => 'fusion:h-directive'];
-            $i += strlen('fusion:'.$spec);
+            $context->tag->attributes[] = ['c' => Protocol::attribute('directive')];
+            $i += strlen(Protocol::namespace().$spec);
 
             if (preg_match('/\G\s*=\s*(["\'])/', $text, $open, 0, $i)) {
-                return $this->compiler->html->openValue('fusion:'.$spec, $open[1], $i + strlen($open[0]));
+                return $this->compiler->html->openValue(Protocol::namespace().$spec, $open[1], $i + strlen($open[0]));
             }
 
-            $context->tag->attributes[] = ['c' => 'fusion:'.$spec];
+            $context->tag->attributes[] = ['c' => Protocol::namespace().$spec];
 
             return $i;
         }
 
-        $hook = Globals::HOOKS[$name] ?? null;
+        $trigger = Globals::TRIGGERS[$name] ?? null;
 
-        if ($hook === null && ! Globals::isEvent($name)) {
+        if ($trigger === null && ! Globals::isEvent($name)) {
             throw $context->error("Unknown attribute fusion:{$name}: use an event (fusion:click, fusion:submit, ...), fusion:poll, fusion:init, fusion:visible, one of fusion:".implode(', fusion:', Globals::ATTRIBUTES)
                 .', or add it to fusion.attributes and give it a Fusion.directive()');
         }
 
         foreach ($parts as $modifier) {
-            $known = $hook === null
-                ? in_array($modifier, Globals::MODIFIERS, true) || preg_match('/^\d+m?s$/', $modifier) === 1
-                : in_array($modifier, $hook, true)
-                    || ($name === 'poll' && preg_match('/^\d+m?s$/', $modifier) === 1)
+            $known = $trigger === null
+                ? in_array($modifier, Globals::MODIFIERS, true) || Duration::is($modifier)
+                : in_array($modifier, $trigger, true)
+                    || ($name === 'poll' && Duration::is($modifier))
                     || ($name === 'visible' && preg_match('/^\d+px$/', $modifier) === 1);
 
             if (! $known) {
@@ -123,9 +125,9 @@ final class FusionAttributes extends Part
 
         /** A bare fusion:poll refreshes the component. */
         if ($name === 'poll' && ! preg_match('/\Gfusion:[\w\-.]+\s*=/', $text, $_, 0, $i)) {
-            $context->tag->attributes[] = ['c' => 'fusion:'.$spec, 'on' => ['e' => 'poll', 'm' => $parts, 'code' => $table->handler('$refresh')]];
+            $context->tag->attributes[] = ['c' => Protocol::namespace().$spec, 'on' => ['e' => 'poll', 'm' => $parts, 'code' => $table->handler('$refresh')]];
 
-            return $i + strlen('fusion:'.$spec);
+            return $i + strlen(Protocol::namespace().$spec);
         }
 
         if (! preg_match('/\Gfusion:[\w\-.]+\s*=\s*("([^"]*)"|\'([^\']*)\')/', $text, $match, 0, $i)) {
@@ -143,7 +145,7 @@ final class FusionAttributes extends Part
 
         $decoded = html_entity_decode($code, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $context->tag->attributes[] = [
-            'c' => 'fusion:'.$spec,
+            'c' => Protocol::namespace().$spec,
             /** An obfuscated build leaves the handler's text out of the page: the compiled code is what runs. */
             'h' => $context->scope->names === null ? [['c' => $decoded]] : [],
             'on' => ['e' => $name, 'm' => $parts, 'code' => $table->handler($decoded)],
@@ -171,7 +173,7 @@ final class FusionAttributes extends Part
         if (($form[0] ?? null) === 'delay') {
             array_shift($form);
 
-            if (preg_match('/^\d+(ms|s)$/', $form[0] ?? '') === 1) {
+            if (Duration::is($form[0] ?? null)) {
                 array_shift($form);
             }
         }
@@ -196,7 +198,7 @@ final class FusionAttributes extends Part
                 throw $context->error("Unknown modifier .{$modifier} on fusion:transition (it takes .".implode(', .', Globals::TRANSITION_MODIFIERS).')');
             }
 
-            if ($modifier === 'duration' && preg_match('/^\d+m?s$/', $modifiers[$i + 1] ?? '') !== 1) {
+            if ($modifier === 'duration' && ! Duration::is($modifiers[$i + 1] ?? null)) {
                 throw $context->error('fusion:transition.duration needs a time: .duration.300ms or .duration.1s');
             }
 
@@ -216,7 +218,7 @@ final class FusionAttributes extends Part
         $context = $this->context;
 
         foreach ($modifiers as $modifier) {
-            if (! in_array($modifier, ['live', 'blur', 'change', 'lazy', 'debounce', 'number', 'trim', 'boolean'], true) && ! preg_match('/^\d+m?s$/', $modifier)) {
+            if (! in_array($modifier, Globals::MODEL_MODIFIERS, true) && ! Duration::is($modifier)) {
                 throw $context->error("Unknown modifier .{$modifier} on fusion:model");
             }
         }

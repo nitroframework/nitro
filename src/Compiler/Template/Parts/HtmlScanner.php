@@ -3,6 +3,7 @@
 namespace Nitro\Fusion\Compiler\Template\Parts;
 
 use Nitro\Fusion\Compiler\Template\TemplateNode;
+use Nitro\Fusion\Support\Html;
 
 /**
  * The HTML scanner: the view's static text read as the browser's HTML parser reads it, into
@@ -192,7 +193,7 @@ final class HtmlScanner extends Part
             $this->assertNoOpenP($tag);
         }
 
-        if (in_array($tag, Syntax::VOID, true) || ($selfClosing && $namespace !== 'html')) {
+        if (in_array($tag, Html::VOID, true) || ($selfClosing && $namespace !== 'html')) {
             $context->state = 'data';
 
             return;
@@ -203,7 +204,7 @@ final class HtmlScanner extends Part
         $context->stack[] = ['kind' => 'element', 'node' => $node, 'line' => $context->tagLine, 'locals' => $context->locals, 'tag' => $tag, 'ns' => $childNs];
 
         $lower = strtolower($tag);
-        $context->state = $namespace !== 'html' ? 'data' : (in_array($lower, Syntax::RAW_TEXT, true) ? 'raw' : (in_array($lower, Syntax::RCDATA, true) ? 'rcdata' : 'data'));
+        $context->state = $namespace !== 'html' ? 'data' : (in_array($lower, Html::RAW_TEXT, true) ? 'raw' : (in_array($lower, Html::RCDATA, true) ? 'rcdata' : 'data'));
     }
 
     /**
@@ -362,7 +363,7 @@ final class HtmlScanner extends Part
         $tag = $html ? strtolower($name) : $name;
 
         /** </br>, </input>: nothing to close. */
-        if (in_array(strtolower($tag), Syntax::VOID, true)) {
+        if (in_array(strtolower($tag), Html::VOID, true)) {
             return;
         }
 

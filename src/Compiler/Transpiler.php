@@ -7,6 +7,7 @@ use Nitro\Fusion\Compiler\Php\Calls;
 use Nitro\Fusion\Compiler\Php\Catalog;
 use Nitro\Fusion\Compiler\Php\ComponentAccess;
 use Nitro\Fusion\Compiler\Php\Context;
+use Nitro\Fusion\Support\PropertyHooks;
 use Nitro\Fusion\Compiler\Php\Expressions;
 use Nitro\Fusion\Compiler\Php\FunctionDefinitions;
 use Nitro\Fusion\Compiler\Php\Handlers;
@@ -75,7 +76,7 @@ final class Transpiler
     public string $imports = '';
 
     /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called; bound to Context */
-    public array $uses = ['routes' => [], 'lang' => [], 'config' => [], 'functions' => [], 'classes' => []];
+    public array $uses;
 
     private readonly Context $context;
 
@@ -121,8 +122,8 @@ final class Transpiler
     {
         $this->context->scope = $scope;
         $this->context->tempCounter = 0;
-        /** updated($property, $value): the runtime passes the property by the browser's name (an obfuscated build), so a property named in it is too. */
-        $this->context->updatedHook = $scope->names !== null && $method->name->toString() === 'updated';
+        /** updating() / updated($property, $value): the runtime passes the property by the browser's name (an obfuscated build), so a property named in it is too. */
+        $this->context->pathHook = $scope->names !== null && PropertyHooks::takesPath($method->name->toString());
 
         return $this->functions->functionLike($method->params, $method->stmts ?? [], $method->name->toString(), isMethod: true);
     }
@@ -380,7 +381,7 @@ final class Transpiler
         $context = $this->context;
 
         return match (true) {
-            $expression instanceof Scalar\String_ => $context->string($context->updatedHook ? $context->scope->browserPath($expression->value) : $expression->value),
+            $expression instanceof Scalar\String_ => $context->string($context->pathHook ? $context->scope->browserPath($expression->value) : $expression->value),
             $expression instanceof Scalar\Int_ => (string) $expression->value,
             $expression instanceof Scalar\Float_ => $context->float($expression->value),
             $expression instanceof Scalar\InterpolatedString => $this->expressions->interpolated($expression),

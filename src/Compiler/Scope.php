@@ -3,7 +3,6 @@
 namespace Nitro\Fusion\Compiler;
 
 use Closure;
-use Nitro\Fusion\Build\Obfuscator;
 
 /**
  * What a piece of code may refer to while it is compiled.

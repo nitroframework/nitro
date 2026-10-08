@@ -106,9 +106,6 @@ final class Catalog
         'PREG_GREP_INVERT' => PREG_GREP_INVERT,
     ];
 
-    /** Parameter types coerced on entry, as PHP does in coercive typing mode. */
-    public const SCALAR_TYPES = ['int', 'float', 'string', 'bool', 'array'];
-
     /** A called function's name as the browser has it: lower case, without a leading \, join() as implode(). */
     public static function functionName(Name $name): string
     {

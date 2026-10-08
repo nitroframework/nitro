@@ -11,6 +11,12 @@ namespace Nitro\Fusion\Compiler;
 final class Globals
 {
     /**
+     * Fusion's own Blade directives a component's view may use: each is registered with Blade for
+     * the server's render (FusionServiceProvider) and compiled for the browser (Template\Parts\Directives).
+     */
+    public const DIRECTIVES = ['teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred'];
+
+    /**
      * Variables every template can read, and what they compile to.
      *   $errors  the component's validation errors (from its last #[Server] call)
      */
@@ -79,6 +85,9 @@ final class Globals
 
     public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin', 'out-in', 'in-out', 'move'];
 
+    /** fusion:model's modifiers (a time after .debounce besides). */
+    public const MODEL_MODIFIERS = ['live', 'blur', 'change', 'lazy', 'debounce', 'number', 'trim', 'boolean'];
+
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
      * fusion:navigate.keypress starts the visit on mouse down, fusion:navigate.preserve-scroll
@@ -98,12 +107,12 @@ final class Globals
     ];
 
     /**
-     * Handlers that no DOM event starts, compiled like fusion:<event> (with the modifiers each
+     * Triggers: handlers that no DOM event starts, compiled like fusion:<event> (with the modifiers each
      * takes): fusion:poll.5s="refreshStats" calls it every interval (a bare fusion:poll
      * refreshes), fusion:init="load" once when its element appears, fusion:visible="loadMore"
      * when it comes into view (.once: the first time only; .200px: that far before).
      */
-    public const HOOKS = [
+    public const TRIGGERS = [
         'poll' => ['visible', 'keep-alive'],
         'init' => [],
         'visible' => ['once'],
@@ -148,7 +157,7 @@ final class Globals
                 throw new CompileException('fusion.attributes: '.json_encode($name).' is not an attribute name (lowercase words joined by hyphens, such as "tooltip" or "auto-size")');
             }
 
-            if (self::isAttribute($name) || self::isEvent($name) || isset(self::HOOKS[$name]) || in_array($name, self::RUNTIME, true) || str_starts_with($name, 'h-')) {
+            if (self::isAttribute($name) || self::isEvent($name) || isset(self::TRIGGERS[$name]) || in_array($name, self::RUNTIME, true) || str_starts_with($name, 'h-')) {
                 throw new CompileException("fusion.attributes: fusion:{$name} is Fusion's own; give yours another name");
             }
         }
