@@ -161,6 +161,21 @@ class RenderingTest extends TestCase
         }
     }
 
+    /**
+     * A visit renders the layout for its title only: its @portal is that render's, so the next
+     * request (a test's, a long-running worker's) does not find it already defined.
+     */
+    #[DataProvider('frameworks')]
+    public function test_a_visit_leaves_the_layouts_portals_as_they_were(string $framework): void
+    {
+        $this->boot($framework);
+        $visit = fn () => $this->request('GET', '/journal', ['HTTP_X_NITRO_NAVIGATE' => '1', 'HTTP_ACCEPT' => 'application/json']);
+
+        $this->assertSame(200, $visit()->getStatusCode());
+        $this->assertSame(200, $visit()->getStatusCode(), 'a second visit');
+        $this->assertSame(200, $this->get('/journal')->getStatusCode(), 'then the page in full');
+    }
+
     /** PHP's functions, Str and preg_* in a view and its methods (the browser's render is TemplateParityTest's). */
     #[DataProvider('frameworks')]
     public function test_php_functions_str_and_preg_render(string $framework): void

@@ -77,8 +77,7 @@ final class PageHead
         $this->printed = false;
 
         try {
-            /** Each page's layout renders afresh: its @portal places are its own. */
-            $title = $this->portals->apart(fn () => $this->layoutTitle($layout, [...($meta->layout->data ?? []), 'title' => $meta->title]));
+            $title = $this->layoutTitle($layout, [...($meta->layout->data ?? []), 'title' => $meta->title]);
 
             return ['title' => $title, 'head' => $this->printed() ? $this->tags() : null];
         } catch (\Throwable $exception) {
@@ -135,11 +134,14 @@ final class PageHead
     /** The document title as the layout writes it (the layout owns its format). */
     public function layoutTitle(string $layout, array $layoutData): ?string
     {
-        /** For its title only: @nitroScripts writes nothing (no shared data resolved, no globals built). */
+        /**
+         * For its title only: @nitroScripts writes nothing (no shared data resolved, no globals
+         * built), and its @portal places are this render's, apart from the page's.
+         */
         $this->renderingTitle = true;
 
         try {
-            $html = $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString('')])->render();
+            $html = $this->portals->apart(fn () => $this->app->make('view')->make($layout, [...$layoutData, 'slot' => new HtmlString('')])->render());
         } finally {
             $this->renderingTitle = false;
         }
