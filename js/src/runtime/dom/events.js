@@ -74,8 +74,9 @@ export class Events {
         if (typeof event.key === 'string') {
             const keys = m.filter((x) => KEYS[x]);
             if (keys.length && !keys.some((k) => event.key === KEYS[k])) return;
-            for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;
         }
+        /** .shift, .ctrl, .alt, .meta: held during the event, a key's or a click's. */
+        for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;
         /** nitro:submit never lets the browser post the form: the handler is what submitting does. */
         if (m.includes('prevent') || event.type === 'submit') event.preventDefault();
         if (!this.answers.has(event)) this.answers.set(event, new Map());

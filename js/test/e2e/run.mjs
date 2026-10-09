@@ -1055,6 +1055,17 @@ await scenario('server calls from children', async () => {
     keys.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await until('and the second', () => text(document.querySelector('.key')) === 'escape');
 
+    /** .ctrl, .shift: held during the event, a key's or a click's; without them, nothing. */
+    const ctrlKeys = document.querySelector('.ctrl-keys');
+    ctrlKeys.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    document.querySelector('.shift-click').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    check('Enter without Ctrl, a click without Shift: neither handler runs', text(document.querySelector('.key')) === 'escape', text(document.querySelector('.key')));
+    ctrlKeys.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+    await until('nitro:keydown.ctrl.enter: Ctrl+Enter', () => text(document.querySelector('.key')) === 'ctrl-enter');
+    document.querySelector('.shift-click').dispatchEvent(new window.MouseEvent('click', { shiftKey: true, bubbles: true }));
+    await until('nitro:click.shift: a click with Shift held', () => text(document.querySelector('.key')) === 'shift-click');
+
     window.close();
 });
 
