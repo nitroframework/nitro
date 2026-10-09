@@ -41,6 +41,7 @@ Route::fusion('/showcase', Showcase::class)->name('showcase');
 Route::fusion('/stress', \Nitro\Fusion\Tests\Fixtures\Pages\Stress::class)->name('stress');
 Route::fusion('/catalog', \Nitro\Fusion\Tests\Fixtures\Pages\Catalog::class)->name('catalog');
 Route::fusion('/nested', \Nitro\Fusion\Tests\Fixtures\Pages\Nested::class)->name('nested');
+Route::fusion('/outage', \Nitro\Fusion\Tests\Fixtures\Pages\Outage::class)->name('outage');
 Route::fusion('/engines', \Nitro\Fusion\Tests\Fixtures\Pages\Engines::class)->name('engines');
 Route::fusion('/parity', \Nitro\Fusion\Tests\Fixtures\Pages\Parity::class)->name('parity');
 Route::fusion('/talk', \Nitro\Fusion\Tests\Fixtures\Pages\Talk::class)->name('talk');

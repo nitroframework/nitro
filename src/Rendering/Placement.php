@@ -141,9 +141,10 @@ final class Placement
     }
 
     /**
-     * A component started and rendered by $place, or its fallback when that fails (Fallbacks). Not
-     * while a call or a visit collects children's states: only those travel, so the failure is the
-     * call's (the browser shows the component's fallback) or the visit's (the page loads in full).
+     * A component started and rendered by $place, or its fallback when that fails (Fallbacks). While
+     * a visit collects children's states, the fallback goes with them, by the child's id (the browser
+     * puts it in the child's place); while a call does, the failure is the call's (the browser shows
+     * the component's fallback).
      *
      * @param  Closure(?Component &): string  $place  sets the component once it is made
      */
@@ -154,11 +155,17 @@ final class Placement
         try {
             return $place($component);
         } catch (Throwable $exception) {
-            if ($this->renderer->collecting()) {
+            if ($this->renderer->collecting() && ! $this->renderer->collectsFallbacks()) {
                 throw $exception;
             }
 
-            return $this->fallbacks->placed($id, $component, $exception);
+            $html = $this->fallbacks->placed($id, $component, $exception);
+
+            if ($this->renderer->collecting()) {
+                $this->renderer->collectFallback($id, $html);
+            }
+
+            return $html;
         }
     }
 

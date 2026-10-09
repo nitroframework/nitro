@@ -292,7 +292,7 @@ final class PageResponses
         $snapshots = $this->app->make(Snapshots::class);
 
         $children = $this->children->placedBy($meta)
-            ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $memo))
+            ? $this->renderer->collectChildren(fn () => $this->renderer->render($component, $meta, $memo), fallbacks: true)
             : [];
 
         /** In development, the page or a component it renders that does not compile: its error. */

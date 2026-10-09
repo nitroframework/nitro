@@ -35,6 +35,8 @@ final class ComponentRenderer
     /** @var array<string, array>|null the children with mount() rendered while collecting, by id */
     private ?array $collected = null;
 
+    private bool $collectsFallbacks = false;
+
     /** @var array<string, true> the names of the components rendered (@fusionScripts loads their chunks) */
     private array $rendered = [];
 
@@ -173,20 +175,36 @@ final class ComponentRenderer
      * it created, by id: the browser renders the page itself, but only the server can create a child
      * with mount(), and only the server can sign the state a #[Server] call sends back.
      *
+     * With $fallbacks (a visit's), a child that fails goes as its fallback ({"fallback": html}, by
+     * its id: Fallbacks) and the render goes on; without (a call's), its failure is the call's.
+     *
      * @return array<string, array>
      */
-    public function collectChildren(callable $render): array
+    public function collectChildren(callable $render, bool $fallbacks = false): array
     {
-        $outer = $this->collected;
+        [$outer, $outerFallbacks] = [$this->collected, $this->collectsFallbacks];
         $this->collected = [];
+        $this->collectsFallbacks = $fallbacks;
 
         try {
             $render();
 
             return $this->collected;
         } finally {
-            $this->collected = $outer;
+            [$this->collected, $this->collectsFallbacks] = [$outer, $outerFallbacks];
         }
+    }
+
+    /** Whether a child that fails while children are collected goes as its fallback (a visit's), not as the render's failure. */
+    public function collectsFallbacks(): bool
+    {
+        return $this->collected !== null && $this->collectsFallbacks;
+    }
+
+    /** A child that failed, as the browser places it: its fallback's HTML, by its id. */
+    public function collectFallback(string $id, string $html): void
+    {
+        $this->collected[$id] = ['fallback' => $html];
     }
 
     /** Whether a render is collecting children's states (a call's, a visit's): only those go to the browser, not HTML. */

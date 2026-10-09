@@ -77,6 +77,14 @@ export class Placement {
 
             /** Created by the server for the page being rendered (withProvided()), with its signed state: one with mount() or #[Server] methods. */
             const envelope = this.provided.get(spec.id);
+            /** A child that failed on the server (Rendering\Fallbacks): its fallback, in its place. */
+            if (typeof envelope?.fallback === 'string') {
+                this.provided.delete(spec.id);
+                const template = placeholder.ownerDocument.createElement('template');
+                template.innerHTML = envelope.fallback;
+                placeholder.replaceWith(...template.content.childNodes);
+                continue;
+            }
             const provided = envelope ? readState(envelope) : null;
             if (provided && provided.id === spec.id && provided.name === spec.name) {
                 this.provided.delete(spec.id);

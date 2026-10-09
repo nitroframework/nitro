@@ -84,6 +84,30 @@ class FallbackTest extends TestCase
         $this->assertArrayNotHasKey('fallback', $this->json($this->update(['snapshot' => $flaky, 'call' => ['method' => 'save', 'params' => []]])));
     }
 
+    /**
+     * A visit (fusion:navigate asks for the page's data): a child that fails goes as its fallback,
+     * by its id, and the page renders in place; the browser puts it where the child goes.
+     */
+    #[DataProvider('frameworks')]
+    public function test_a_visit_carries_a_failed_childs_fallback(string $framework): void
+    {
+        $this->boot($framework);
+        $this->fallbacks(true);
+        $visit = fn () => $this->request('GET', '/outage', ['HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_ACCEPT' => 'application/json']);
+
+        $response = $visit();
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $children = $this->json($response)['children'];
+
+        $failed = array_filter($children, fn (array $child) => isset($child['fallback']));
+        $this->assertCount(1, $failed, 'Flaky failed: its fallback');
+        [$id, $child] = [array_key_first($failed), reset($failed)];
+        $this->assertSame('<div fusion:fallback fusion:id="'.$id.'">Flaky is resting &lt;for now&gt;.</div>', $child['fallback']);
+
+        $this->fallbacks(false);
+        $this->assertSame(500, $visit()->getStatusCode(), 'off, the failure is the visit\'s, as in development');
+    }
+
     /** What a component that fails to render in the browser shows: given with @fusionScripts. */
     #[DataProvider('frameworks')]
     public function test_the_browser_is_given_the_default(string $framework): void
