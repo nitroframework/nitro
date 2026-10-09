@@ -125,10 +125,15 @@ export function connect(handle, { status = (initial) => initial } = {}) {
 
     /**
      * A nitro:navigate link's attributes, for the view to spread on an <a>: link('/students'),
-     * link('/reports', 'prefetch', 'keypress'). A framework's own syntax can't always write the
-     * attribute (JSX and Svelte take no dots in a name; React drops one with no value).
+     * link('/reports', 'keypress'), and nitro:prefetch with it: link('/reports', 'prefetch.visible').
+     * A framework's own syntax can't always write the attribute (JSX and Svelte take no dots in a
+     * name; React drops one with no value).
      */
-    functions.link = (href, ...modifiers) => ({ href, [['nitro:navigate', ...modifiers].join('.')]: '' });
+    functions.link = (href, ...modifiers) => {
+        const prefetch = modifiers.find((m) => m === 'prefetch' || m.startsWith('prefetch.'));
+        const navigate = modifiers.filter((m) => m !== prefetch);
+        return { href, [['nitro:navigate', ...navigate].join('.')]: '', ...(prefetch ? { [`nitro:${prefetch}`]: '' } : {}) };
+    };
 
     /** A nitro:navigate visit, as $visit() is in a Blade handler. */
     functions.visit = (url) => globalThis.Nitro.visit(url);

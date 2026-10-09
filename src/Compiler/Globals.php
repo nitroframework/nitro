@@ -67,7 +67,14 @@ final class Globals
     public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload', 'hasMore'];
 
     /** nitro: attributes that are not events (the runtime reads them from the DOM). */
-    public const ATTRIBUTES = ['model', 'key', 'loading', 'dirty', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];
+    public const ATTRIBUTES = ['model', 'key', 'loading', 'dirty', 'target', 'navigate', 'prefetch', 'current', 'ignore', 'confirm', 'ref', 'transition'];
+
+    /**
+     * nitro:prefetch, on a nitro:navigate link: its page asked for ahead of the click, once the
+     * pointer has rested on it (75ms; nitro:prefetch.150ms or .wait.150ms: that long), or with
+     * .visible once it comes into view; kept 30 seconds (.keep.60s: that long).
+     */
+    public const PREFETCH_MODIFIERS = ['visible', 'wait', 'keep'];
 
     /**
      * nitro:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
@@ -91,14 +98,13 @@ final class Globals
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
      * nitro:navigate.keypress starts the visit on mouse down, nitro:navigate.preserve-scroll
-     * keeps the scroll position, nitro:navigate.prefetch asks for the page while the pointer rests
-     * on the link (.prefetch.60s: kept that long; .prefetch.visible: once the link is in view),
-     * nitro:navigate.transition changes the page in a View Transition, nitro:current.exact matches the path only,
-     * nitro:confirm.prompt asks for a word to be typed. nitro:loading's, nitro:model's and
-     * nitro:transition's are checked by their own rules (LOADING_FORMS); the others take none.
+     * keeps the scroll position, nitro:navigate.transition changes the page in a View Transition,
+     * nitro:current.exact matches the path only, nitro:confirm.prompt asks for a word to be typed.
+     * nitro:loading's, nitro:model's, nitro:transition's and nitro:prefetch's are checked by their
+     * own rules (LOADING_FORMS, PREFETCH_MODIFIERS); the others take none.
      */
     public const ATTRIBUTE_MODIFIERS = [
-        'navigate' => ['keypress', 'preserve-scroll', 'prefetch', 'visible', 'transition'],
+        'navigate' => ['keypress', 'preserve-scroll', 'transition'],
         'current' => ['exact'],
         'confirm' => ['prompt'],
         'key' => [],

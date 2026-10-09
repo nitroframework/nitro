@@ -1,6 +1,6 @@
 /**
  * The pages a visit can show without asking the server: answers a link prefetched
- * (nitro:navigate.prefetch) and pages already visited, for back and forward. Part of the
+ * (prefetch.js) and pages already visited, for back and forward. Part of the
  * navigator (navigate.js).
  *
  * It holds a page's data as the server sent it, in memory only: never in localStorage or the
@@ -8,7 +8,7 @@
  * computer starts without it. It is short-lived, and any #[Server] call empties it: a page shown
  * from it is never older than the visitor's own last change.
  *
- *   prefetched   kept for the link's time (nitro:navigate.prefetch.60s; 30s by default), taken
+ *   prefetched   kept for the link's time (nitro:prefetch.keep.60s; 30s by default), taken
  *                by the visit it was for; a prefetch still on its way is waited for, not sent twice
  *   visited      kept for back and forward, five minutes; without its flash messages, which were
  *                for the first showing only

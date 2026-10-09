@@ -20,8 +20,8 @@
  * up (the click): the page is on its way during the press. The click that follows is the same
  * visit. Touch keeps the tap (a finger going down may be a scroll), and so does the keyboard.
  *
- * nitro:navigate.prefetch asks for the page's data ahead of the click (prefetch.js: when the pointer
- * rests on the link, or with .prefetch.visible when it comes into view). Back and forward show the
+ * A link with nitro:prefetch asks for the page's data ahead of the click (prefetch.js: when the
+ * pointer rests on it, or with .visible when it comes into view). Back and forward show the
  * pages visited in the last five minutes without asking again. Both are in memory only, and any
  * #[Server] call forgets them (pages.js).
  *
@@ -453,7 +453,7 @@ export class Navigator {
     }
 }
 
-/** A nitro:navigate link's modifiers (keypress, preserve-scroll, prefetch, visible, transition, a duration); null for another link. */
+/** A nitro:navigate link's modifiers (keypress, preserve-scroll, transition); null for another link. */
 function navigateModifiers(link) {
     const attribute = [...link.attributes].find((a) => a.name === 'nitro:navigate' || a.name.startsWith('nitro:navigate.'));
     return attribute ? attribute.name.split('.').slice(1) : null;

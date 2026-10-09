@@ -53,9 +53,10 @@ return [
     'compiled' => $generic.': the protocol\'s compiled format, the compiled files\' folder (nitro.compiled)',
     'destroyed' => 'a hook\'s name: the runtime names the hook it calls (HomesTest\'s hook rule watches where)',
 
-    'debounce' => $modifier, 'once' => $modifier.'; also the once data, reviewed with 17.13', 'prefetch' => $modifier,
+    'debounce' => $modifier, 'once' => $modifier.'; also the once data, reviewed with 17.13', 'prefetch' => 'an attribute (nitro:prefetch: Globals::ATTRIBUTES), and the runtime\'s prefetching',
     'delay' => $modifier, 'duration' => $modifier, 'origin' => $modifier, 'out-in' => $modifier, 'in-out' => $modifier,
     'remove' => $modifier, 'attr' => $modifier, 'loading' => $modifier, 'poll' => $modifier, 'visible' => $modifier,
+    'wait' => $modifier.' (nitro:prefetch.wait.150ms)', 'keep' => $modifier.' (nitro:prefetch.keep.60s); also #[Url]\'s keep',
     'navigate' => $modifier, 'init' => $modifier.' (a trigger: Globals::TRIGGERS)',
     '$reload' => 'a handler action ($reload: Globals::ACTIONS): what plugins hear a reload of the page\'s properties as',
     '$refresh' => 'a handler action ($refresh: Globals::ACTIONS): what a call with no method is named',

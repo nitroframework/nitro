@@ -102,9 +102,14 @@ class CompileErrorsTest extends TestCase
             '@push' => ["<div>\n\n@push('scripts') x</div>", '@push cannot render in the browser', 3],
             'unknown nitro attribute' => ['<div nitro:clik="save"></div>', 'Unknown attribute nitro:clik', 1],
             'unknown modifier' => ['<form nitro:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
-            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" nitro:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on nitro:navigate (it takes .keypress, .preserve-scroll, .prefetch, .visible, .transition)', 2],
-            'a time without prefetch' => ['<div><a href="/x" nitro:navigate.60s>x</a></div>', 'Unknown modifier .60s on nitro:navigate', 1],
-            'a prefetch time that is none' => ['<div><a href="/x" nitro:navigate.prefetch.soon>x</a></div>', 'Unknown modifier .soon on nitro:navigate', 1],
+            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" nitro:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on nitro:navigate (it takes .keypress, .preserve-scroll, .transition)', 2],
+            'prefetch on navigate' => ['<div><a href="/x" nitro:navigate.visible>x</a></div>', 'Unknown modifier .visible on nitro:navigate', 1],
+            'unknown prefetch modifier' => ['<div><a href="/x" nitro:navigate nitro:prefetch.hover>x</a></div>', 'Unknown modifier .hover on nitro:prefetch (it takes .visible, .wait, .keep, or a time first: .150ms)', 1],
+            'a wait without a time' => ['<div><a href="/x" nitro:navigate nitro:prefetch.wait>x</a></div>', 'nitro:prefetch.wait needs a time', 1],
+            'a keep that is no time' => ['<div><a href="/x" nitro:navigate nitro:prefetch.keep.soon>x</a></div>', 'nitro:prefetch.keep needs a time', 1],
+            'a time not first' => ['<div><a href="/x" nitro:navigate nitro:prefetch.visible.60s>x</a></div>', 'Unknown modifier .60s on nitro:prefetch', 1],
+            'a wait in view' => ['<div><a href="/x" nitro:navigate nitro:prefetch.visible.wait.100ms>x</a></div>', 'nitro:prefetch.visible has no wait', 1],
+            'a bare wait in view' => ['<div><a href="/x" nitro:navigate nitro:prefetch.150ms.visible>x</a></div>', 'nitro:prefetch.visible has no wait', 1],
             'unknown current modifier' => ['<div><a href="/x" nitro:current.exat="on">x</a></div>', 'Unknown modifier .exat on nitro:current', 1],
             'unknown confirm modifier' => ['<div><button nitro:click="helper" nitro:confirm.promt="x">x</button></div>', 'Unknown modifier .promt on nitro:confirm', 1],
             'unknown loading modifier' => ["<div>\n<span nitro:loading.slow>x</span></div>", 'nitro:loading takes .delay (.delay.500ms) first if it waits, then nothing or one of .remove, .class, .class.remove, .attr (not .slow)', 2],
@@ -348,12 +353,15 @@ class CompileErrorsTest extends TestCase
 
     public function test_navigate_and_current_take_their_modifiers(): void
     {
-        [$prefetching] = $this->compiled('<div><a href="/x" nitro:navigate.prefetch>x</a><a href="/y" nitro:navigate.prefetch.60s.keypress>y</a><a href="/z" nitro:navigate.prefetch.500ms>z</a></div>');
-        $this->assertSame('nitro:navigate.prefetch.60s.keypress', $prefetching['h'][0]['h'][1]['a'][1]['c'], '.prefetch, with how long it is kept');
+        [$prefetching] = $this->compiled('<div><a href="/x" nitro:navigate nitro:prefetch>x</a><a href="/y" nitro:navigate.keypress nitro:prefetch.150ms>y</a><a href="/z" nitro:navigate nitro:prefetch.wait.150ms.keep.60s>z</a><a href="/w" nitro:navigate nitro:prefetch.visible.keep.500ms>w</a></div>');
+        $links = $prefetching['h'][0]['h'];
+        $this->assertSame('nitro:prefetch', $links[0]['a'][2]['c'], 'on hover: passed through for the runtime');
+        $this->assertSame('nitro:prefetch.150ms', $links[1]['a'][2]['c'], 'a time first: the hover wait');
+        $this->assertSame('nitro:prefetch.wait.150ms.keep.60s', $links[2]['a'][2]['c'], 'the wait and the keep, spelled out');
+        $this->assertSame('nitro:prefetch.visible.keep.500ms', $links[3]['a'][2]['c'], 'in view, kept 500ms');
 
-        [$visible] = $this->compiled('<nav><a href="/x" nitro:navigate.prefetch.visible>x</a><a href="/y" nitro:navigate.transition>y</a></nav>');
-        $this->assertSame('nitro:navigate.prefetch.visible', $visible['h'][0]['h'][0]['a'][1]['c'], '.prefetch.visible: asked for once in view');
-        $this->assertSame('nitro:navigate.transition', $visible['h'][0]['h'][1]['a'][1]['c'], '.transition: a View Transition for this link');
+        [$transition] = $this->compiled('<nav><a href="/y" nitro:navigate.transition>y</a></nav>');
+        $this->assertSame('nitro:navigate.transition', $transition['h'][0]['h'][0]['a'][1]['c'], '.transition: a View Transition for this link');
 
         [$tree] = $this->compiled('<nav><a href="/a" nitro:navigate.keypress nitro:current.exact="on">a</a><a href="/b" nitro:navigate nitro:current>b</a></nav>');
 

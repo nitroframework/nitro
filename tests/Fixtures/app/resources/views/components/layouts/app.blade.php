@@ -39,9 +39,9 @@
         <a href="/counter" nitro:navigate nitro:current="active">Counter</a>
         <a href="/board" nitro:navigate nitro:current="active" class="board-link">Board</a>
         <a href="/counter" nitro:navigate.keypress class="press-link">Counter (on press)</a>
-        <a href="/board" nitro:navigate.prefetch class="prefetch-link">Board (prefetched)</a>
+        <a href="/board" nitro:navigate nitro:prefetch class="prefetch-link">Board (prefetched)</a>
         <a href="/nested" nitro:navigate class="nested-link">Nested</a>
-        <a href="/journal" nitro:navigate.prefetch.visible class="visible-link">Journal (prefetched in view)</a>
+        <a href="/journal" nitro:navigate nitro:prefetch.visible class="visible-link">Journal (prefetched in view)</a>
     </nav>
     <main nitro:layout="app">{{ $slot }}</main>
     <div id="toasts">@portal('toasts')</div>

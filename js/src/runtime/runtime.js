@@ -172,7 +172,7 @@ export class Runtime {
             this.styled = true;
         }
 
-        /** nitro:navigate.prefetch.visible links outside components too (the layout's). */
+        /** nitro:prefetch.visible links outside components too (the layout's). */
         this.navigator.prefetcher.watch(root);
         const islands = islandsIn(root);
         const elements = withState(root).filter((el) => !islands.some((island) => island.contains(el)));

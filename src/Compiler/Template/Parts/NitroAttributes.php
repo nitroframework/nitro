@@ -47,12 +47,11 @@ final class NitroAttributes extends Part
                 $this->checkTransition($parts);
             }
 
-            foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $index => $modifier) {
-                /** nitro:navigate.prefetch.60s: how long the prefetched page is kept. */
-                if ($name === 'navigate' && ($parts[$index - 1] ?? null) === 'prefetch' && Duration::is($modifier)) {
-                    continue;
-                }
+            if ($name === 'prefetch') {
+                $this->checkPrefetch($parts);
+            }
 
+            foreach (isset(Globals::ATTRIBUTE_MODIFIERS[$name]) ? $parts : [] as $modifier) {
                 if (! in_array($modifier, Globals::ATTRIBUTE_MODIFIERS[$name], true)) {
                     throw $context->error(Globals::ATTRIBUTE_MODIFIERS[$name] === []
                         ? "nitro:{$name} takes no modifiers (.{$modifier})"
@@ -207,6 +206,43 @@ final class NitroAttributes extends Part
             }
 
             if ($modifier === 'duration' || $modifier === 'origin') {
+                $i++;
+            }
+        }
+    }
+
+    /**
+     * nitro:prefetch: on hover, or .visible; a time first or after .wait is the hover wait (none in
+     * view), a time after .keep how long the page is kept.
+     *
+     * @param  list<string>  $modifiers
+     */
+    private function checkPrefetch(array $modifiers): void
+    {
+        $context = $this->context;
+        $visible = in_array('visible', $modifiers, true);
+
+        for ($i = 0; $i < count($modifiers); $i++) {
+            $modifier = $modifiers[$i];
+            $wait = ($i === 0 && Duration::is($modifier)) || $modifier === 'wait';
+
+            if ($wait && $visible) {
+                throw $context->error('nitro:prefetch.visible has no wait: it asks for the page once the link is in view (.keep.60s sets how long it is kept)');
+            }
+
+            if ($i === 0 && Duration::is($modifier)) {
+                continue;
+            }
+
+            if (! in_array($modifier, Globals::PREFETCH_MODIFIERS, true)) {
+                throw $context->error("Unknown modifier .{$modifier} on nitro:prefetch (it takes .".implode(', .', Globals::PREFETCH_MODIFIERS).', or a time first: .150ms)');
+            }
+
+            if (($modifier === 'wait' || $modifier === 'keep') && ! Duration::is($modifiers[$i + 1] ?? null)) {
+                throw $context->error("nitro:prefetch.{$modifier} needs a time: .{$modifier}.150ms or .{$modifier}.60s");
+            }
+
+            if ($modifier === 'wait' || $modifier === 'keep') {
                 $i++;
             }
         }

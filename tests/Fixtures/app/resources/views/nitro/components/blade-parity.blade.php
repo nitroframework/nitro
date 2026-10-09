@@ -16,6 +16,6 @@
     <input type="file" class="photos" multiple nitro:model="photos">
     <span class="photo-name">{{ $photo?->getClientOriginalName() }}</span>
     <span class="photos-count">{{ count($photos) }}</span>
-    <a class="away" href="/counter" nitro:navigate.prefetch>Away</a>
+    <a class="away" href="/counter" nitro:navigate nitro:prefetch>Away</a>
     <span class="photo-error">@error('photo'){{ $message }}@enderror</span>
 </div>

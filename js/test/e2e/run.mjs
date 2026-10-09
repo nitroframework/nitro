@@ -1771,7 +1771,7 @@ await scenario('nested layouts', async () => {
     window.close();
 });
 
-/** nitro:navigate.prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
+/** nitro:prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
 await scenario('prefetch in view', async () => {
     const window = await open('/counter');
     const { document } = window;
@@ -1797,7 +1797,7 @@ await scenario('prefetch in view', async () => {
 });
 
 /**
- * nitro:navigate.prefetch and back/forward: pages asked for once. Hovering asks for the page; the
+ * nitro:prefetch and back/forward: pages asked for once. Hovering asks for the page; the
  * click takes it; back and forward show visited pages; a #[Server] call forgets them all.
  */
 await scenario('prefetch and back/forward', async () => {
@@ -2269,7 +2269,7 @@ await scenario('parity', async () => {
         await until(is('a good file clears the error'), () => text($('.photo-error')) === '' && text($('.photo-name')) === 'again.png');
 
         /** A nitro:navigate link: written in Blade, link() in the others (their syntax can't always write the attribute). */
-        check(is('a nitro:navigate link, its modifier on it'), $('.away')?.getAttribute('href') === '/counter' && $('.away').hasAttribute('nitro:navigate.prefetch'), $('.away')?.outerHTML);
+        check(is('a nitro:navigate link, its modifier on it'), $('.away')?.getAttribute('href') === '/counter' && $('.away').hasAttribute('nitro:navigate') && $('.away').hasAttribute('nitro:prefetch'), $('.away')?.outerHTML);
     }
 
     check('the five are their own: each changed only itself', [...document.querySelectorAll('.parities .count')].map(text).join() === '4,4,4,4,4');
