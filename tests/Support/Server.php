@@ -18,7 +18,7 @@ final class Server
     {
         $port = self::freePort();
         $root = dirname(__DIR__).'/Fixtures/app/public';
-        $env = [...getenv(), 'FUSION_FRAMEWORK' => $framework, 'FUSION_TEST_DB' => $database];
+        $env = [...getenv(), 'FUSION_TEST_DB' => $database];
 
         $this->process = proc_open(
             [PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', $root, $root.'/index.php'],

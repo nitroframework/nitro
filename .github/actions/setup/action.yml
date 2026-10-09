@@ -1,5 +1,5 @@
 name: Set up Fusion
-description: PHP, Node and the dependencies, for a job that checked out nitro-fusion and nitro-framework side by side.
+description: PHP, Node and the dependencies, for a job that checked out the repository into nitro-fusion.
 
 runs:
   using: composite

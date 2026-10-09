@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d88a9b1a548ca3168c76a503fa8745a4",
+    "content-hash": "5a04ce3da4b5e91e94bf5efdec390c69",
     "packages": [
         {
             "name": "brick/math",
@@ -6033,73 +6033,6 @@
             "time": "2026-08-11T10:17:44+00:00"
         },
         {
-            "name": "nitro/framework",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "../nitro-framework",
-                "reference": "94678a07325477727dd5872f7ef17136ed897d4d"
-            },
-            "require": {
-                "laravel/framework": "^13.33",
-                "php": "^8.3"
-            },
-            "require-dev": {
-                "fakerphp/faker": "^1.23",
-                "phpstan/phpstan": "^2.2",
-                "phpunit/phpunit": "^12.0",
-                "symfony/cache": "^7.4|^8.0"
-            },
-            "suggest": {
-                "fakerphp/faker": "Required for model factories and the fake() helper (as in Laravel).",
-                "symfony/cache": "Required for the PSR-6 cache adapter, cache.psr6 (as in Laravel)."
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Nitro\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Nitro\\Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "@php vendor/phpunit/phpunit/phpunit --colors=always"
-                ],
-                "analyse": [
-                    "@php vendor/bin/phpstan analyse --memory-limit=1G"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Zeeshan Ali",
-                    "homepage": "https://github.com/ZeeshanX4",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Nitro: a PHP framework built on Laravel, with a compiled request path.",
-            "homepage": "https://github.com/NitroFramework/framework",
-            "keywords": [
-                "framework",
-                "laravel",
-                "nitro"
-            ],
-            "support": {
-                "issues": "https://github.com/NitroFramework/framework/issues",
-                "source": "https://github.com/NitroFramework/framework"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
             "name": "phar-io/manifest",
             "version": "2.0.4",
             "source": {
@@ -7742,9 +7675,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "nitro/framework": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

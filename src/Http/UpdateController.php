@@ -429,8 +429,8 @@ final class UpdateController
     }
 
     /**
-     * This request's Fusion. The router keeps a controller between requests (Octane, Nitro's
-     * workers): Fusion, bound per request, is not kept with it.
+     * This request's Fusion. The router keeps a controller between requests (Octane, a
+     * long-running server): Fusion, bound per request, is not kept with it.
      */
     private function incoming(): IncomingState
     {

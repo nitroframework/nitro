@@ -498,8 +498,6 @@ class BuildTest extends TestCase
     #[DataProvider('frameworks')]
     public function test_optimize_leaves_fusion_alone(string $framework): void
     {
-        /** optimize boots bootstrap/app.php afresh (route:cache): it must be the same framework. */
-        putenv('FUSION_FRAMEWORK='.$framework);
         $this->boot($framework);
         $manifest = self::APP.'/bootstrap/cache/fusion.php';
 
@@ -514,7 +512,6 @@ class BuildTest extends TestCase
             $this->assertCount(1 + count(self::CHUNKS), glob(self::COMPILED.'/app-*.js'), 'the bundle and its chunks');
         } finally {
             $this->console()->call('fusion:clear');
-            putenv('FUSION_FRAMEWORK');
         }
     }
 }

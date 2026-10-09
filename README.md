@@ -1,6 +1,6 @@
 # Nitro Fusion
 
-Nitro Fusion is a full-stack framework for Laravel and Nitro. You write components and pages as a
+Fusion is a full-stack framework for Laravel. You write components and pages as a
 PHP class and a Blade view, the way you already write Laravel code, and Fusion compiles them to
 JavaScript that runs in the browser.
 
@@ -1522,7 +1522,7 @@ with the framework's source; they are not part of the published package.
 
 | Kind | What it is | What it checks here |
 | --- | --- | --- |
-| Feature (integration) tests | Requests through the real HTTP kernel of a fixture application, on Laravel and on Nitro | Pages, visits, `#[Server]` calls, validation, uploads, partial reloads, shared and flash data, builds |
+| Feature (integration) tests | Requests through the real HTTP kernel of a fixture application | Pages, visits, `#[Server]` calls, validation, uploads, partial reloads, shared and flash data, builds |
 | Compiler tests | The compiler fed known PHP and Blade | What compiles, what is refused, and the error it gives |
 | Parity tests | The same code run by PHP and, compiled, by the browser's runtime | PHP's functions, `Str::` helpers, methods and templates give the same results |
 | End-to-end (e2e) tests | Real pages served by `php -S`, loaded in a browser (jsdom) and driven like a user | Hydration, events, children, navigation, transitions, islands, the progress bar |
@@ -1552,10 +1552,6 @@ composer test     # PHP and Node: parity with PHP, rendering, security, the runt
 composer analyse  # PHPStan
 npm run build     # rebuild dist/fusion.js after changing js/src
 ```
-
-The feature tests run on Laravel, and on Nitro too when `nitro/framework` is installed. It is a
-development dependency loaded from `../nitro-framework`; without that checkout, remove it from
-`require-dev`, and the Nitro cases are skipped.
 
 ## License
 

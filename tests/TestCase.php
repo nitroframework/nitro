@@ -19,8 +19,7 @@ use PHPUnit\Framework\TestCase as BaseTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Every feature test runs twice: on stock Laravel and on Nitro (the fixture app has one
- * bootstrap file for each).
+ * The feature tests boot the fixture app on Laravel, as the applications that use Fusion.
  */
 abstract class TestCase extends BaseTestCase
 {
@@ -71,9 +70,9 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * The framework's provider and package manifests, one pair per framework, out of the
-     * bootstrap/cache that setUp() clears: written once and reused, not rewritten on each boot.
-     * Rewritten on each boot (the two frameworks' providers differ), Laravel's rename of a new one
+     * The framework's provider and package manifests, out of the bootstrap/cache that setUp()
+     * clears: written once and reused, not rewritten on each boot. Rewritten on each boot, Laravel's
+     * rename of a new one
      * into place failed now and then on Windows while an indexer or a virus scanner had it open
      * ("Access is denied"). Relative to the app: Laravel reads a path starting with a drive letter
      * as relative.
@@ -90,12 +89,10 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
-    /** Laravel always; Nitro when it is installed (it is a development dependency). */
+    /** The framework each test boots the fixture app on: Laravel, as the applications that use Fusion. */
     public static function frameworks(): array
     {
-        return class_exists(\Nitro\Foundation\Application::class)
-            ? ['laravel' => ['laravel'], 'nitro' => ['nitro']]
-            : ['laravel' => ['laravel']];
+        return ['laravel' => ['laravel']];
     }
 
     protected function boot(string $framework): Application

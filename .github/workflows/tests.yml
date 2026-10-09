@@ -17,11 +17,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: nitro-fusion
-      # composer.json takes nitro/framework from ../nitro-framework, as on a developer's machine.
-      - uses: actions/checkout@v4
-        with:
-          repository: NitroFramework/framework
-          path: nitro-framework
       - uses: ./nitro-fusion/.github/actions/setup
       - name: Architecture guards
         working-directory: nitro-fusion
@@ -46,19 +41,13 @@ jobs:
             args: --testsuite unit
           - name: feature
             args: --testsuite feature
-          # The runtime in jsdom, the whole fixture app per case (about a minute each): one job per framework.
-          - name: browser (laravel)
-            args: --testsuite browser --filter '/data set "laravel"|ProgressTest/'
-          - name: browser (nitro)
-            args: --testsuite browser --filter '/data set "nitro"/'
+          # The runtime in jsdom, the whole fixture app per case (about a minute each).
+          - name: browser
+            args: --testsuite browser
     steps:
       - uses: actions/checkout@v4
         with:
           path: nitro-fusion
-      - uses: actions/checkout@v4
-        with:
-          repository: NitroFramework/framework
-          path: nitro-framework
       - uses: ./nitro-fusion/.github/actions/setup
       - name: Tests
         working-directory: nitro-fusion

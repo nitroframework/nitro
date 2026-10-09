@@ -310,7 +310,7 @@ abstract class Component
     }
 
     /**
-     * A routed page (Route::fusion()) is dispatched as a controller: Laravel (and Nitro) resolve
+     * A routed page (Route::fusion()) is dispatched as a controller: Laravel resolves
      * mount()'s route parameters, bindings included, and call this.
      *
      * The router keeps one controller instance per route for the life of the process, so the page

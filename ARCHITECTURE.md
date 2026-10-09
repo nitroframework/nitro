@@ -15,7 +15,7 @@ and runs in two places:
   component's state signed by the server.
 
 Fusion does not replace anything Laravel does. Routing, rendering, validation, sessions and
-authorization stay Laravel's (or Nitro's, which is Laravel with a compiled request path); Fusion
+authorization stay Laravel's; Fusion
 adds the compiler, the browser runtime and one endpoint. Its four sides agree through one contract,
 `js/protocol.json`:
 
@@ -291,8 +291,8 @@ back unchanged, plus the properties the browser changed and the method with its 
 Models are never trusted from the browser: the state carries their attributes for display, and the
 server reads them again by class and key. The endpoint sits in the `web` group (session, cookies,
 CSRF). A redirect goes to http(s) URLs and paths only (`redirect()` on the server, and the runtime
-whatever it is sent), so a URL from a visitor cannot run script. Every rule above has a test, on
-Laravel and on Nitro (`tests/Feature/ServerCallTest`, `SecurityTest`, `UploadTest`).
+whatever it is sent), so a URL from a visitor cannot run script. Every rule above has a test
+(`tests/Feature/ServerCallTest`, `SecurityTest`, `UploadTest`).
 
 ## Known limits
 
