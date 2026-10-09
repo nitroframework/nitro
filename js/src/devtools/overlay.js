@@ -104,7 +104,7 @@ export class Overlay {
 
     render() {
         const components = this.nitro.components();
-        this.badge.innerHTML = `<b>F</b> ${components.length}${this.errors.length ? ` <i>${this.errors.length}</i>` : ''}`;
+        this.badge.innerHTML = `<b>N</b> ${components.length}${this.errors.length ? ` <i>${this.errors.length}</i>` : ''}`;
         this.drawer.hidden = !this.open;
         if (!this.open) return;
 
