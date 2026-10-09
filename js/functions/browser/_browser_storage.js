@@ -1,5 +1,5 @@
 /**
- * Fusion::browser()->storage() (localStorage) and ->session() (sessionStorage): values as JSON;
+ * Nitro::browser()->storage() (localStorage) and ->session() (sessionStorage): values as JSON;
  * plain text another script stored reads as a string. Blocked storage reads as empty.
  */
 function _browser_storage(browser, session) {

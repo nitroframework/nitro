@@ -1,7 +1,7 @@
 /**
- * fusion:model="path": two-way binding between a form control and a property (or a key under it).
+ * nitro:model="path": two-way binding between a form control and a property (or a key under it).
  *
- *   fusion:model            updates on input
+ *   nitro:model            updates on input
  *   .blur / .change / .lazy updates on change
  *   .debounce.300ms         waits for a pause in typing
  *   .number                 stores a number (as PHP's (float) or (int) would read it)
@@ -15,7 +15,7 @@ import { timing } from './events.js';
 import { upload } from '../server/upload.js';
 
 export function modelAttribute(el) {
-    return el.getAttributeNames().find((n) => n === 'fusion:model' || n.startsWith('fusion:model.')) ?? null;
+    return el.getAttributeNames().find((n) => n === 'nitro:model' || n.startsWith('nitro:model.')) ?? null;
 }
 
 export class Model {

@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
-use Nitro\Fusion\Compiler\Globals;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Compiler\Globals;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Support\Protocol;
 
 /**
  * What the browser calls components, methods and properties: an obfuscated build's aliases
- * (fusion.build.obfuscate, when the bundle it is served is one), or their own names. Names going
+ * (nitro.build.obfuscate, when the bundle it is served is one), or their own names. Names going
  * out are given as the browser has them; names coming back are read as what they stand for.
  */
 final class BrowserNames
@@ -51,7 +51,7 @@ final class BrowserNames
     }
 
     /**
-     * $this->js() code, reading $fusion.<name> by the browser's names.
+     * $this->js() code, reading $nitro.<name> by the browser's names.
      *
      * @param  list<string>  $properties
      * @param  list<string>  $methods
@@ -95,9 +95,9 @@ final class BrowserNames
 
     /**
      * A component's rendered HTML as an obfuscated build's page has it: handlers' text left out
-     * (fusion:click="save" becomes fusion:click=""; the compiled code is what runs), and
-     * fusion:target naming the component's methods by their aliases (a property's, as an upload's,
-     * too), and fusion:model's path starting with its property's alias. Unchanged otherwise.
+     * (nitro:click="save" becomes nitro:click=""; the compiled code is what runs), and
+     * nitro:target naming the component's methods by their aliases (a property's, as an upload's,
+     * too), and nitro:model's path starting with its property's alias. Unchanged otherwise.
      *
      * @param  list<string>  $methods  the component's methods
      * @param  list<string>  $properties  the component's properties
@@ -112,7 +112,7 @@ final class BrowserNames
 
         $handlers = implode('|', array_map(fn (string $name) => preg_quote($name, '/'), [...Globals::EVENTS, ...array_keys(Globals::TRIGGERS)]));
 
-        /** Each start tag (quoted values may hold ">"), then its fusion attributes. */
+        /** Each start tag (quoted values may hold ">"), then its nitro attributes. */
         $target = fn (string $name) => match (true) {
             in_array(trim($name), $methods, true) => $names->method(trim($name)),
             in_array(trim($name), $properties, true) => $names->property(trim($name)),
@@ -125,10 +125,10 @@ final class BrowserNames
                 return $tag[0];
             }
 
-            $tag = (string) preg_replace('/(\sfusion:(?:'.$handlers.')(?:\.[\w\-.]+)?)\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '$1=""', $tag[0]);
-            $tag = (string) preg_replace_callback('/(\sfusion:model(?:\.[\w\-.]+)?\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].$path($match[3]).$match[2], $tag);
+            $tag = (string) preg_replace('/(\snitro:(?:'.$handlers.')(?:\.[\w\-.]+)?)\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '$1=""', $tag[0]);
+            $tag = (string) preg_replace_callback('/(\snitro:model(?:\.[\w\-.]+)?\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].$path($match[3]).$match[2], $tag);
 
-            return (string) preg_replace_callback('/(\sfusion:target\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].implode(',', array_map($target, explode(',', $match[3]))).$match[2], $tag);
+            return (string) preg_replace_callback('/(\snitro:target\s*=\s*)(["\'])(.*?)\2/', fn (array $match) => $match[1].$match[2].implode(',', array_map($target, explode(',', $match[3]))).$match[2], $tag);
         }, $html);
     }
 }

@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Support\Facades\Blade;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateCompiler;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -16,9 +16,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class UseDirectiveTest extends TestCase
 {
-    private const MONEY = 'Fusion.classes["Nitro\\\\Fusion\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"]["format"]';
+    private const MONEY = 'Nitro.classes["Nitro\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"]["format"]';
 
-    private const PAID = 'Fusion.classes["Nitro\\\\Fusion\\\\Tests\\\\Fixtures\\\\Browser\\\\OrderStatus"].$cases["Paid"]';
+    private const PAID = 'Nitro.classes["Nitro\\\\Tests\\\\Fixtures\\\\Browser\\\\OrderStatus"].$cases["Paid"]';
 
     private function compile(string $template): TemplateCompiler
     {
@@ -36,12 +36,12 @@ class UseDirectiveTest extends TestCase
     public static function forms(): array
     {
         return [
-            'the class' => ["@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money')\n<p>{{ Money::format(\$pence) }}</p>", self::MONEY],
-            'double quotes, a leading backslash' => ["@use(\"\\Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money\")\n<p>{{ Money::format(\$pence) }}</p>", self::MONEY],
-            'an alias' => ["@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money', 'Cash')\n<p>{{ Cash::format(\$pence) }}</p>", self::MONEY],
-            'a group' => ["@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\{Money, OrderStatus}')\n<p>{{ Money::format(\$pence) }} {{ OrderStatus::Paid->label() }}</p>", self::PAID],
-            'written after its use, as PHP\'s use statements apply to the whole file' => ["<p>{{ Money::format(\$pence) }}</p>\n@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money')", self::MONEY],
-            'in a handler' => ["@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\OrderStatus')\n<button fusion:click=\"\$set('status', OrderStatus::Paid)\">Pay</button>", self::PAID],
+            'the class' => ["@use('Nitro\\Tests\\Fixtures\\Browser\\Money')\n<p>{{ Money::format(\$pence) }}</p>", self::MONEY],
+            'double quotes, a leading backslash' => ["@use(\"\\Nitro\\Tests\\Fixtures\\Browser\\Money\")\n<p>{{ Money::format(\$pence) }}</p>", self::MONEY],
+            'an alias' => ["@use('Nitro\\Tests\\Fixtures\\Browser\\Money', 'Cash')\n<p>{{ Cash::format(\$pence) }}</p>", self::MONEY],
+            'a group' => ["@use('Nitro\\Tests\\Fixtures\\Browser\\{Money, OrderStatus}')\n<p>{{ Money::format(\$pence) }} {{ OrderStatus::Paid->label() }}</p>", self::PAID],
+            'written after its use, as PHP\'s use statements apply to the whole file' => ["<p>{{ Money::format(\$pence) }}</p>\n@use('Nitro\\Tests\\Fixtures\\Browser\\Money')", self::MONEY],
+            'in a handler' => ["@use('Nitro\\Tests\\Fixtures\\Browser\\OrderStatus')\n<button nitro:click=\"\$set('status', OrderStatus::Paid)\">Pay</button>", self::PAID],
         ];
     }
 
@@ -80,10 +80,10 @@ class UseDirectiveTest extends TestCase
         $this->boot('laravel');
 
         try {
-            $this->compile("@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money')\n<p>\n\n{{ Money::nope(\$pence) }}</p>");
+            $this->compile("@use('Nitro\\Tests\\Fixtures\\Browser\\Money')\n<p>\n\n{{ Money::nope(\$pence) }}</p>");
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
-            $this->assertStringContainsString('Call to undefined method Nitro\Fusion\Tests\Fixtures\Browser\Money::nope()', $e->getMessage());
+            $this->assertStringContainsString('Call to undefined method Nitro\Tests\Fixtures\Browser\Money::nope()', $e->getMessage());
             $this->assertSame(4, $e->sourceLine);
         }
     }
@@ -91,7 +91,7 @@ class UseDirectiveTest extends TestCase
     public function test_an_escaped_use_is_text(): void
     {
         $this->boot('laravel');
-        $compiler = $this->compile("<p>@@use('Nitro\\Fusion\\Tests\\Fixtures\\Browser\\Money')</p>");
+        $compiler = $this->compile("<p>@@use('Nitro\\Tests\\Fixtures\\Browser\\Money')</p>");
 
         $this->assertSame('', TemplateCompiler::imports("<p>@@use('X')</p>"));
         $this->assertStringContainsString("@use('Nitro", json_encode($compiler->fragment(), JSON_UNESCAPED_SLASHES));

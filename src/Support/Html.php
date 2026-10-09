@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
  * HTML's rules for elements, as the HTML standard has them, for what reads markup: the template

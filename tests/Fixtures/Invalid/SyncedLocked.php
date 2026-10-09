@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Sync;
-use Nitro\Fusion\Store;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Sync;
+use Nitro\Store;
 
 /** #[Sync] on a #[Locked] property: only the server sets it. */
 class SyncedLocked extends Store

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 /**
- * Name-like literals (identifiers, paths, fusion: names) and where they are spelled: a name
- * written in several parts of Fusion is a concept without a home, unless it is something
- * outside Fusion's choosing (a PHP type, an HTTP method, a DOM property).
+ * Name-like literals (identifiers, paths, nitro: names) and where they are spelled: a name
+ * written in several parts of Nitro is a concept without a home, unless it is something
+ * outside Nitro's choosing (a PHP type, an HTTP method, a DOM property).
  */
 final class Literals
 {
@@ -53,7 +53,7 @@ final class Literals
         return $spread;
     }
 
-    /** A part of Fusion: src/Compiler, src/Http, ..., js/src/runtime, js/src/php, js/adapters. */
+    /** A part of Nitro: src/Compiler, src/Http, ..., js/src/runtime, js/src/php, js/adapters. */
     public static function area(string $path): string
     {
         $parts = explode('/', $path);

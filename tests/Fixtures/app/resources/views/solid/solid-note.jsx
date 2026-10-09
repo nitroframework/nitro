@@ -1,25 +1,25 @@
-import { useFusion } from 'nitro-fusion/solid';
+import { useNitro } from 'nitro/solid';
 
 function Email() {
-    const fusion = useFusion();
+    const nitro = useNitro();
 
     return (
         <>
-            <input class="email" value={fusion.form.email} onInput={(e) => fusion.set('form.email', e.currentTarget.value)} />
-            <span class="email-shown">{fusion.form.email}</span>
+            <input class="email" value={nitro.form.email} onInput={(e) => nitro.set('form.email', e.currentTarget.value)} />
+            <span class="email-shown">{nitro.form.email}</span>
         </>
     );
 }
 
 export default function SolidNote() {
-    const fusion = useFusion();
+    const nitro = useNitro();
 
     return (
         <div class="solid-note">
-            <input class="text" value={fusion.text} onInput={(e) => fusion.set('text', e.currentTarget.value)} /> <span class="shown">{fusion.text}</span>
-            <button type="button" class="shout" onClick={() => fusion.shout()}>Shout</button>
+            <input class="text" value={nitro.text} onInput={(e) => nitro.set('text', e.currentTarget.value)} /> <span class="shown">{nitro.text}</span>
+            <button type="button" class="shout" onClick={() => nitro.shout()}>Shout</button>
             <Email />
-            <button type="button" class="tag" onClick={() => fusion.addTag('b')}>Tag</button> <span class="tags">{fusion.form.tags.join(',')}</span>
+            <button type="button" class="tag" onClick={() => nitro.addTag('b')}>Tag</button> <span class="tags">{nitro.form.tags.join(',')}</span>
         </div>
     );
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Support;
+namespace Nitro\Tests\Support;
 
 use RuntimeException;
 
@@ -12,7 +12,7 @@ final class Node
 {
     public static function run(string $script, mixed $input, int $timeout = 120): mixed
     {
-        $stderr = tempnam(sys_get_temp_dir(), 'fusion-node');
+        $stderr = tempnam(sys_get_temp_dir(), 'nitro-node');
 
         $process = proc_open(
             ['node', $script],

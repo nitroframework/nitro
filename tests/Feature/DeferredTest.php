@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
-use Nitro\Fusion\Facades\Fusion;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Testing\AssertableFusion;
-use Nitro\Fusion\Tests\Fixtures\Components\Counter;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Pages\Counter as CounterPage;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Facades\Nitro;
+use Nitro\Support\Wire;
+use Nitro\Testing\AssertableNitro;
+use Nitro\Tests\Fixtures\Components\Counter;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Pages\Counter as CounterPage;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -25,7 +25,7 @@ class DeferredTest extends TestCase
         Store::$log = [];
     }
 
-    /** A request of its own, as in production (Fusion's per-request state starts afresh). */
+    /** A request of its own, as in production (Nitro's per-request state starts afresh). */
     private function response(string $uri, array $headers = []): TestResponse
     {
         $this->app->forgetScopedInstances();
@@ -43,9 +43,9 @@ class DeferredTest extends TestCase
     {
         return $this->response($uri, array_filter([
             'Accept' => 'application/json',
-            'X-Fusion-Navigate' => '1',
-            'X-Fusion-Partial' => $id,
-            'X-Fusion-Only' => $only,
+            'X-Nitro-Navigate' => '1',
+            'X-Nitro-Partial' => $id,
+            'X-Nitro-Only' => $only,
         ]));
     }
 
@@ -60,7 +60,7 @@ class DeferredTest extends TestCase
             ->assertDontSee('orders,')
             ->assertDontSee('Chart:');
 
-        $response->assertFusion(fn (AssertableFusion $page) => $page
+        $response->assertNitro(fn (AssertableNitro $page) => $page
             ->deferred('stats', 'chart')
             ->where('stats', null)
             ->where('chart', []));
@@ -73,9 +73,9 @@ class DeferredTest extends TestCase
     {
         $this->boot($framework);
 
-        $this->response('/report', ['Accept' => 'application/json', 'X-Fusion-Navigate' => '1'])
+        $this->response('/report', ['Accept' => 'application/json', 'X-Nitro-Navigate' => '1'])
             ->assertOk()
-            ->assertFusion(fn (AssertableFusion $page) => $page->deferred('stats', 'chart')->where('stats', null));
+            ->assertNitro(fn (AssertableNitro $page) => $page->deferred('stats', 'chart')->where('stats', null));
 
         $this->assertSame([], Store::$log);
     }
@@ -87,7 +87,7 @@ class DeferredTest extends TestCase
 
         $response = $this->load('/report', only: 'stats,chart')->assertOk();
 
-        $response->assertFusion(fn (AssertableFusion $page) => $page
+        $response->assertNitro(fn (AssertableNitro $page) => $page
             ->page('pages::report')
             ->notDeferred()
             ->where('title', 'Sales')
@@ -104,7 +104,7 @@ class DeferredTest extends TestCase
     {
         $this->boot($framework);
 
-        $this->load('/report', only: 'title')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+        $this->load('/report', only: 'title')->assertOk()->assertNitro(fn (AssertableNitro $page) => $page
             ->notDeferred()
             ->where('stats', null)
             ->where('chart', []));
@@ -128,9 +128,9 @@ class DeferredTest extends TestCase
         $this->boot($framework);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Fusion page [pages::counter] has no public property $nothing to defer.');
+        $this->expectExceptionMessage('Nitro page [pages::counter] has no public property $nothing to defer.');
 
-        app(\Nitro\Fusion\Http\PageResponses::class)->deferProperty(new CounterPage, 'nothing', fn () => 1);
+        app(\Nitro\Http\PageResponses::class)->deferProperty(new CounterPage, 'nothing', fn () => 1);
     }
 
     #[DataProvider('frameworks')]
@@ -141,6 +141,6 @@ class DeferredTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Only pages defer properties: [counter] is a component.');
 
-        app(\Nitro\Fusion\Http\PageResponses::class)->deferProperty(new Counter, 'count', fn () => 1);
+        app(\Nitro\Http\PageResponses::class)->deferProperty(new Counter, 'count', fn () => 1);
     }
 }

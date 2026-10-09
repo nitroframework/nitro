@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Modelable;
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
+use Nitro\Attributes\Modelable;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Pages\Shelf;
 
 /**
- * A child bound with fusion:model (#[Modelable]), dispatching the Livewire ways: ->to() a
+ * A child bound with nitro:model (#[Modelable]), dispatching the Livewire ways: ->to() a
  * component, ->self(), from the browser and from the server; $parent in its view.
  */
 class SearchBox extends Component

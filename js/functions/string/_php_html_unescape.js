@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Helpers/PhpHtmlUnescape.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Helpers/PhpHtmlUnescape.js, for Nitro's values.
 // uses: _php_html_entities
 /**
  * The shared body of htmlspecialchars_decode/html_entity_decode, in one pass so &amp;lt; stays
@@ -8,7 +8,7 @@
  */
 function _php_html_unescape(str, flags, all) {
   flags = flags === undefined || flags === null ? 11 : flags
-  /** Fusion: the entity table is HTML 4.01's (Viewi's); PHP's XML1, XHTML and HTML5 ones are not in the browser. */
+  /** Nitro: the entity table is HTML 4.01's (Viewi's); PHP's XML1, XHTML and HTML5 ones are not in the browser. */
   if (all && (flags & 48) !== 0) throw new P.PhpError('Error', 'html_entity_decode() with ENT_XML1, ENT_XHTML or ENT_HTML5 is not available in the browser: use ENT_HTML401 (the default)')
   const named = { amp: '&', lt: '<', gt: '>' }
   if (all) {

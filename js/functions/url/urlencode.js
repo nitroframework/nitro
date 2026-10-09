@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Url/Urlencode.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/Urlencode.js, for Nitro's values.
 function urlencode (str) {
   //       discuss at: https://locutus.io/php/urlencode/
   //      original by: Philip Peterson

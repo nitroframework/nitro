@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 
@@ -19,12 +19,12 @@ use PhpParser\Node\Identifier;
  *  - destructuring takes the value first (so [$a, $b] = [$b, $a] swaps), then assigns in order
  *  - an assignment used as a value ($x = $y = 1) keeps the assigned value in a temporary
  *
- * The Fusion details, in target():
+ * The Nitro details, in target():
  *
  *  - $this->prop writes the component's state ($this.prop, by the browser's name), and only a
  *    public property: a #[Computed] one is worked out, a #[Locked] one only the server changes
  *  - a template cannot assign to variables (it renders; methods change state)
- *  - $x = Fusion::browser()->...: the variable keeps that browser API's class, for the calls on it
+ *  - $x = Nitro::browser()->...: the variable keeps that browser API's class, for the calls on it
  *
  * @internal
  */
@@ -33,7 +33,7 @@ final class Writes extends Part
     /** JavaScript with no effects and nothing to evaluate: a variable, a number, a string (read later, it is the same). */
     private const SIMPLE = '/^(\$\w+|-?\d+(\.\d+)?|"(?:[^"\\\\]|\\\\.)*")$/';
 
-    /** $x = ...: an assignment; a variable given a Fusion::browser() API keeps its class, for the calls on it. */
+    /** $x = ...: an assignment; a variable given a Nitro::browser() API keeps its class, for the calls on it. */
     public function assignment(Expr\Assign $expression, bool $valueUsed): string
     {
         if ($expression->var instanceof Expr\Variable && is_string($expression->var->name)) {

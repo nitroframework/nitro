@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
 /** The parity component (Parity) with its Vue view. */
 #[View(vue: 'vue-parity')]

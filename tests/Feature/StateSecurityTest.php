@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Signed component state, hardened (fusion.state): bound to the session it was made in, so
+ * Signed component state, hardened (nitro.state): bound to the session it was made in, so
  * another visitor's snapshot or one from before a logout is refused; signed with the time it was
  * issued, so with a lifetime an old one is refused too.
  */
@@ -45,7 +45,7 @@ class StateSecurityTest extends TestCase
         $state['issued'] -= $seconds;
         $json = Wire::json($state);
 
-        return ['state' => $json, 'checksum' => app(\Nitro\Fusion\Support\Signer::class)->sign('state', $json)];
+        return ['state' => $json, 'checksum' => app(\Nitro\Support\Signer::class)->sign('state', $json)];
     }
 
     #[DataProvider('frameworks')]
@@ -87,7 +87,7 @@ class StateSecurityTest extends TestCase
     public function test_a_lifetime_refuses_older_snapshots(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.state.lifetime', 60);
+        $this->app->make('config')->set('nitro.state.lifetime', 60);
         $snapshot = $this->snapshot();
 
         $this->assertSame(200, $this->call($this->issuedAgo($snapshot, 30))->getStatusCode(), 'within its lifetime');
@@ -109,7 +109,7 @@ class StateSecurityTest extends TestCase
     public function test_unbound_state_works_across_sessions(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.state.bind_to_session', false);
+        $this->app->make('config')->set('nitro.state.bind_to_session', false);
         $snapshot = $this->snapshot();
 
         $this->anotherSession();

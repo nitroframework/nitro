@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Octdec.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Octdec.js, for Nitro's values.
 function octdec(str) {
   //  discuss at: https://www.php.net/manual/en/function.octdec.php
   // Characters that are not base-8 digits are ignored, as PHP does; '' is 0.

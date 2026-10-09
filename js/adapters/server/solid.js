@@ -1,7 +1,7 @@
 /**
  * Solid views in the render service:
  *
- *     import { renderSolid } from 'nitro-fusion/solid/server';
+ *     import { renderSolid } from 'nitro/solid/server';
  *
  *     serve({ solid: renderSolid(import.meta.glob('../views/solid/**\/*.jsx', { eager: true })) });
  *

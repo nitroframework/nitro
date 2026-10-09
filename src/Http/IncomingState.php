@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Illuminate\Http\Request;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\State\Snapshot;
-use Nitro\Fusion\State\Snapshots;
+use Nitro\Compiler\Components;
+use Nitro\State\Snapshot;
+use Nitro\State\Snapshots;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * The state a request brings from the browser (a #[Server] call's component and stores, an
  * upload's component), made trusted: signed by this application for this session and not expired
  * (Snapshots), a component's whole state (not a partial reload's), the component it names (an
- * obfuscated build's alias read as its own name) known to Fusion, and the page it was rendered
+ * obfuscated build's alias read as its own name) known to Nitro, and the page it was rendered
  * for still admitting the request (its persistent middleware, again); given back by its own
  * names (Snapshots::ownNames()). The one place this is done.
  */
@@ -27,10 +27,10 @@ final class IncomingState
 
     /**
      * The envelope, trusted; with $expected, it must be that component's (a store a component
-     * uses), else any Fusion knows.
+     * uses), else any Nitro knows.
      *
      * @throws HttpException 419 when the signature does not hold (Snapshots), 403 for a partial
-     *                       reload's state or another component's, 404 for a component Fusion
+     *                       reload's state or another component's, 404 for a component Nitro
      *                       does not know; what the page's middleware answers
      */
     public function snapshot(mixed $envelope, Request $request, ?string $expected = null): Snapshot

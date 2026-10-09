@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * fusion:build (the production bundle, minified with esbuild) and fusion:clear; the bundle
- * compiled on first use without a build; and optimize leaving Fusion alone.
+ * nitro:build (the production bundle, minified with esbuild) and nitro:clear; the bundle
+ * compiled on first use without a build; and optimize leaving Nitro alone.
  */
 class BuildTest extends TestCase
 {
-    private const COMPILED = self::APP.'/storage/framework/fusion';
+    private const COMPILED = self::APP.'/storage/framework/nitro';
 
     /** The fixture's chunks: one per page (pages::student-page in its #[LazyLoad] group), and todo-item's group. */
     private const CHUNKS = ['article', 'board', 'catalog', 'chapter', 'counter', 'devices', 'engines', 'feed', 'gallery', 'greeting', 'inbox', 'islands', 'journal', 'lifecycle', 'live', 'mounted-timeline', 'nested', 'notice', 'orders', 'outage', 'pages', 'pair', 'panels', 'parity', 'report', 'shelf', 'shop', 'shop-cart', 'showcase', 'stress', 'talk', 'terms', 'todos', 'transitions'];
@@ -21,13 +21,13 @@ class BuildTest extends TestCase
     public function test_build_minifies_the_bundle_and_caches_the_component_list(string $framework): void
     {
         $this->boot($framework);
-        $manifest = self::APP.'/bootstrap/cache/fusion.php';
+        $manifest = self::APP.'/bootstrap/cache/nitro.php';
 
         /** A bundle from an earlier version: nothing asks for it any more. */
         @mkdir(self::COMPILED, 0777, true);
         file_put_contents(self::COMPILED.'/app-0000000000000000.js', '// old');
 
-        $code = $this->console()->call('fusion:build');
+        $code = $this->console()->call('nitro:build');
         $output = $this->console()->output(); // fetch() empties the buffer: read it once
         $this->assertSame(0, $code, $output);
         $this->assertStringContainsString('Compiling 40 components (22 Blade, 5 Vue, 5 React, 4 Solid, 3 Svelte, 1 Plain), 1 store and 33 pages to JavaScript', $output);
@@ -58,7 +58,7 @@ class BuildTest extends TestCase
         $this->assertLessThan(strlen($readable) * 0.8, strlen($built), strlen($built).' of '.strlen($readable).' bytes');
         $this->assertMatchesRegularExpression('/[\w$]\.define\("counter",\{/', $built);
         $this->assertMatchesRegularExpression('/template:JSON\.parse\(\'\{"t":"r","h":\[/', $built);
-        $this->assertStringNotContainsString("\n})(window.Fusion", $built);
+        $this->assertStringNotContainsString("\n})(window.Nitro", $built);
 
         /** Pages and #[LazyLoad] components are in their chunks, not the bundle. */
         $this->assertDoesNotMatchRegularExpression('/define\("(pages::board|pages::student-page|todo-item)"/', $built);
@@ -68,10 +68,10 @@ class BuildTest extends TestCase
         /** The build is app-<version>.min.js, and pages ask for it by a version of its own. */
         $tag = $bundle->tag();
         $this->assertStringEndsWith('.min', $tag);
-        $this->assertSame($built, $this->get('/_fusion/app.js?v='.$tag)->getContent());
+        $this->assertSame($built, $this->get('/_nitro/app.js?v='.$tag)->getContent());
 
         /**
-         * Published under public/ (fusion.static), as `vite build` writes public/build: the page
+         * Published under public/ (nitro.static), as `vite build` writes public/build: the page
          * points at those files, served without PHP. The names carry the version; chunks are
          * named by a hash, and app.js maps the pages to those names.
          */
@@ -80,47 +80,47 @@ class BuildTest extends TestCase
         $this->assertSame('counter', $bundle->groupFor($counterChunk));
         $this->assertStringContainsString('"pages::counter":"'.$counterChunk.'"', $built);
         $this->assertStringNotContainsString('"pages::counter":"counter"', $built);
-        $this->assertFileEquals(self::COMPILED."/app-{$version}.min.js", self::APP."/public/fusion/app-{$version}.js");
-        $this->assertFileEquals(self::COMPILED."/app-{$version}.counter.chunk.min.js", self::APP."/public/fusion/{$counterChunk}-{$version}.js");
-        $this->assertFileExists(self::APP.'/public/fusion/fusion-'.app(\Nitro\Fusion\Build\Bundle::class)->runtimeVersion().'.js');
-        $this->assertStringContainsString('The scripts are now plain files in public/fusion', $output);
+        $this->assertFileEquals(self::COMPILED."/app-{$version}.min.js", self::APP."/public/nitro/app-{$version}.js");
+        $this->assertFileEquals(self::COMPILED."/app-{$version}.counter.chunk.min.js", self::APP."/public/nitro/{$counterChunk}-{$version}.js");
+        $this->assertFileExists(self::APP.'/public/nitro/nitro-'.app(\Nitro\Build\Bundle::class)->runtimeVersion().'.js');
+        $this->assertStringContainsString('The scripts are now plain files in public/nitro', $output);
 
         $page = (string) $this->get('/counter')->getContent();
-        $this->assertStringContainsString('<script src="http://localhost/fusion/fusion-'.app(\Nitro\Fusion\Build\Bundle::class)->runtimeVersion().'.js" ', $page);
-        $this->assertStringContainsString('<script src="http://localhost/fusion/app-'.$version.'.js" defer></script>', $page);
-        $this->assertStringContainsString('<script src="http://localhost/fusion/'.$counterChunk.'-'.$version.'.js" defer></script>', $page);
-        $this->assertStringContainsString('data-chunks="http://localhost/fusion/{id}-'.$version.'.js"', $page);
-        $this->assertStringNotContainsString('/_fusion/app', $page);
+        $this->assertStringContainsString('<script src="http://localhost/nitro/nitro-'.app(\Nitro\Build\Bundle::class)->runtimeVersion().'.js" ', $page);
+        $this->assertStringContainsString('<script src="http://localhost/nitro/app-'.$version.'.js" defer></script>', $page);
+        $this->assertStringContainsString('<script src="http://localhost/nitro/'.$counterChunk.'-'.$version.'.js" defer></script>', $page);
+        $this->assertStringContainsString('data-chunks="http://localhost/nitro/{id}-'.$version.'.js"', $page);
+        $this->assertStringNotContainsString('/_nitro/app', $page);
 
         /** The routes still serve them by those names (the fallback until the next build). */
         $this->app->forgetScopedInstances();
-        $this->assertSame((string) file_get_contents(self::COMPILED."/app-{$version}.counter.chunk.min.js"), $this->get('/_fusion/app/'.$counterChunk.'.js?v='.$tag)->getContent());
+        $this->assertSame((string) file_get_contents(self::COMPILED."/app-{$version}.counter.chunk.min.js"), $this->get('/_nitro/app/'.$counterChunk.'.js?v='.$tag)->getContent());
 
-        $this->assertSame(0, $this->console()->call('fusion:clear'));
+        $this->assertSame(0, $this->console()->call('nitro:clear'));
         $this->assertFileDoesNotExist($manifest);
         $this->assertCount(0, glob(self::COMPILED.'/app-*.js'));
-        $this->assertCount(0, glob(self::APP.'/public/fusion/*.js'), 'and the published files');
+        $this->assertCount(0, glob(self::APP.'/public/nitro/*.js'), 'and the published files');
     }
 
-    /** fusion.attributes: listing one changes the version; a name of Fusion's own fails every compile, with why. */
+    /** nitro.attributes: listing one changes the version; a name of Nitro's own fails every compile, with why. */
     #[DataProvider('frameworks')]
     public function test_the_applications_own_attributes(string $framework): void
     {
         $this->boot($framework);
         $listed = $this->app->make(Bundle::class)->version();
 
-        $this->app->make('config')->set('fusion.attributes', ['tooltip']);
+        $this->app->make('config')->set('nitro.attributes', ['tooltip']);
         $this->app->forgetScopedInstances();
         $this->assertNotSame($listed, $this->app->make(Bundle::class)->version(), 'another list, another build');
 
-        $this->app->make('config')->set('fusion.attributes', ['tooltip', 'click']);
+        $this->app->make('config')->set('nitro.attributes', ['tooltip', 'click']);
         $this->app->forgetScopedInstances();
 
         try {
             $this->app->make(Bundle::class)->compile();
             $this->fail('Expected a compile error');
-        } catch (\Nitro\Fusion\Compiler\CompileException $e) {
-            $this->assertStringContainsString("fusion.attributes: fusion:click is Fusion's own", $e->getMessage());
+        } catch (\Nitro\Compiler\CompileException $e) {
+            $this->assertStringContainsString("nitro.attributes: nitro:click is Nitro's own", $e->getMessage());
         }
     }
 
@@ -133,17 +133,17 @@ class BuildTest extends TestCase
     public function test_browser_classes_are_bundled_and_editing_one_makes_a_new_version(string $framework): void
     {
         $this->boot($framework);
-        $this->console()->call('fusion:clear');
-        $money = (new \ReflectionClass(\Nitro\Fusion\Tests\Fixtures\Browser\Money::class))->getFileName();
+        $this->console()->call('nitro:clear');
+        $money = (new \ReflectionClass(\Nitro\Tests\Fixtures\Browser\Money::class))->getFileName();
         $mtime = filemtime($money);
 
         try {
             $bundle = $this->app->make(Bundle::class);
             $uses = $bundle->uses();
             $version = $bundle->version();
-            $this->assertContains('Nitro\Fusion\Tests\Fixtures\Browser\Money::format', $uses['classes']);
+            $this->assertContains('Nitro\Tests\Fixtures\Browser\Money::format', $uses['classes']);
             $this->assertFileExists(self::COMPILED."/app-{$version}.js", 'the files are under the version the classes settled');
-            $this->assertStringContainsString('Fusion.classes["Nitro\\\\Fusion\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"] = {', (string) file_get_contents(self::COMPILED."/app-{$version}.js"));
+            $this->assertStringContainsString('Nitro.classes["Nitro\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"] = {', (string) file_get_contents(self::COMPILED."/app-{$version}.js"));
 
             $this->app->forgetScopedInstances();
             $this->assertSame($version, $this->app->make(Bundle::class)->version(), 'the next request agrees');
@@ -162,7 +162,7 @@ class BuildTest extends TestCase
     }
 
     /**
-     * Laravel's helpers in the browser: the bundle knows what its code names; @fusionScripts ships
+     * Laravel's helpers in the browser: the bundle knows what its code names; @nitroScripts ships
      * those only (route definitions, this locale's translations, public config), and a config key
      * the application did not make public fails the build.
      */
@@ -190,12 +190,12 @@ class BuildTest extends TestCase
              * view and advance() call on the case, and isFinal() and label(), which badge() calls; never audit().
              */
             'classes' => [
-                'Nitro\Fusion\Tests\Fixtures\Browser\Basket::delivery', 'Nitro\Fusion\Tests\Fixtures\Browser\Basket::summary',
-                'Nitro\Fusion\Tests\Fixtures\Browser\Money::digits', 'Nitro\Fusion\Tests\Fixtures\Browser\Money::format', 'Nitro\Fusion\Tests\Fixtures\Browser\Money::total',
-                'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::', 'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::badge', 'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::isFinal',
-                'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::label', 'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::next',
+                'Nitro\Tests\Fixtures\Browser\Basket::delivery', 'Nitro\Tests\Fixtures\Browser\Basket::summary',
+                'Nitro\Tests\Fixtures\Browser\Money::digits', 'Nitro\Tests\Fixtures\Browser\Money::format', 'Nitro\Tests\Fixtures\Browser\Money::total',
+                'Nitro\Tests\Fixtures\Browser\OrderStatus::', 'Nitro\Tests\Fixtures\Browser\OrderStatus::badge', 'Nitro\Tests\Fixtures\Browser\OrderStatus::isFinal',
+                'Nitro\Tests\Fixtures\Browser\OrderStatus::label', 'Nitro\Tests\Fixtures\Browser\OrderStatus::next',
                 /** Priority, which the view imports under an alias (Level): its definition only. */
-                'Nitro\Fusion\Tests\Fixtures\Browser\Priority::',
+                'Nitro\Tests\Fixtures\Browser\Priority::',
             ],
         ], $uses);
 
@@ -236,13 +236,13 @@ class BuildTest extends TestCase
             'pages::transitions' => 'transitions',
             'todo-item' => 'todos',
         ], $chunks);
-        $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_fusion/app.js')->getContent());
-        $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_fusion/app.js')->getContent());
+        $this->assertStringContainsString('P.fns.str_word_count = (function () {', $this->get('/_nitro/app.js')->getContent());
+        $this->assertStringNotContainsString('P.fns.soundex', $this->get('/_nitro/app.js')->getContent());
 
         $page = (string) $this->get('/embed')->getContent();
-        $this->assertMatchesRegularExpression('#<script type="application/json" data-fusion-globals>\{"url":"http://localhost".*"app\.name":"Fusion Tests"\},"shared":\{"\$m":\[\["user",\{"\$m":\[\["name","Ada"\]\]\}\],\["countries",\["PK","US"\]\]\]\},"once":\{"countries":null\},"flash":\[\]\}</script>#', $page);
+        $this->assertMatchesRegularExpression('#<script type="application/json" data-nitro-globals>\{"url":"http://localhost".*"app\.name":"Nitro Tests"\},"shared":\{"\$m":\[\["user",\{"\$m":\[\["name","Ada"\]\]\}\],\["countries",\["PK","US"\]\]\]\},"once":\{"countries":null\},"flash":\[\]\}</script>#', $page);
 
-        $globals = app(\Nitro\Fusion\Rendering\Scripts::class)->globals();
+        $globals = app(\Nitro\Rendering\Scripts::class)->globals();
         $this->assertSame('http://localhost', $globals['url']);
         $this->assertSame(['uri' => 'posts/{post}', 'bindings' => ['post' => 'slug']], (array) $globals['routes']->{'posts.show'});
         $this->assertSame("Open :Name's record", $globals['lang']->{'Open :name'});
@@ -251,14 +251,14 @@ class BuildTest extends TestCase
         $this->assertSame(['app.name'], array_keys((array) $globals['config']));
         $this->assertObjectNotHasProperty('login', $globals['routes'], 'only the routes the compiled code names');
 
-        $this->app->make('config')->set('fusion.public_config', []);
+        $this->app->make('config')->set('nitro.public_config', []);
         $this->app->forgetScopedInstances();
 
         try {
             $this->app->make(Bundle::class)->compileAll();
             $this->fail('config() of a key that is not public must fail the build');
-        } catch (\Nitro\Fusion\Compiler\CompileException $e) {
-            $this->assertStringContainsString("config('app.name') runs in the browser, which sees only public config: add 'app.name' to fusion.public_config", $e->getMessage());
+        } catch (\Nitro\Compiler\CompileException $e) {
+            $this->assertStringContainsString("config('app.name') runs in the browser, which sees only public config: add 'app.name' to nitro.public_config", $e->getMessage());
         }
     }
 
@@ -283,25 +283,25 @@ class BuildTest extends TestCase
         foreach (['"todo-item":"todos"', '"pages::student-page":"pages"', '"pages::board":"board"', '["^/students/(?<student>[^/]+)/?$","pages"]', '["^/board/?$","board"]'] as $entry) {
             $this->assertStringContainsString($entry, $files['']);
         }
-        $this->assertStringNotContainsString('Fusion.define("todo-item"', $files['']);
-        $this->assertStringContainsString('Fusion.define("todo-item", {', $files['todos']);
-        $this->assertStringContainsString('Fusion.define("pages::student-page", {', $files['pages']);
+        $this->assertStringNotContainsString('Nitro.define("todo-item"', $files['']);
+        $this->assertStringContainsString('Nitro.define("todo-item", {', $files['todos']);
+        $this->assertStringContainsString('Nitro.define("pages::student-page", {', $files['pages']);
 
         $tag = $bundle->tag();
-        $chunk = $this->get('/_fusion/app/todos.js?v='.$tag);
+        $chunk = $this->get('/_nitro/app/todos.js?v='.$tag);
         $this->assertSame(200, $chunk->getStatusCode());
         $this->assertSame($files['todos'], $chunk->getContent());
         $this->assertStringContainsString('immutable', (string) $chunk->headers->get('Cache-Control'));
-        $this->assertSame(404, $this->get('/_fusion/app/nope.js')->getStatusCode());
+        $this->assertSame(404, $this->get('/_nitro/app/nope.js')->getStatusCode());
 
         /** Pages list the chunks of what they render: the runtime has them when it starts. */
         $page = fn (string $uri) => tap((string) $this->get($uri)->getContent(), fn () => $this->app->forgetScopedInstances()); // each request its own, as in production
         $student = $page('/students/1');
         $this->assertStringContainsString('data-bundle="'.$tag.'"', $student);
-        $this->assertStringContainsString('<script src="/_fusion/app/pages.js?v='.$tag.'" defer></script>', $student);
-        $this->assertStringNotContainsString('/_fusion/app/todos.js', $student);
-        $this->assertStringContainsString('<script src="/_fusion/app/todos.js?v='.$tag.'" defer></script>', $page('/embed'));
-        $this->assertStringNotContainsString('<script src="/_fusion/app/', $page('/links'), '#[LazyLoad(false)]: in app.js, no chunk loaded');
+        $this->assertStringContainsString('<script src="/_nitro/app/pages.js?v='.$tag.'" defer></script>', $student);
+        $this->assertStringNotContainsString('/_nitro/app/todos.js', $student);
+        $this->assertStringContainsString('<script src="/_nitro/app/todos.js?v='.$tag.'" defer></script>', $page('/embed'));
+        $this->assertStringNotContainsString('<script src="/_nitro/app/', $page('/links'), '#[LazyLoad(false)]: in app.js, no chunk loaded');
     }
 
     /**
@@ -317,35 +317,35 @@ class BuildTest extends TestCase
         $files = $bundle->compileAll();
 
         foreach (['article', 'counter', 'devices', 'engines', 'feed', 'gallery', 'greeting', 'inbox', 'journal', 'live', 'mounted-timeline', 'notice', 'orders', 'pair', 'panels', 'report', 'shelf', 'showcase', 'stress', 'terms', 'transitions'] as $page) {
-            $this->assertStringNotContainsString('Fusion.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
-            $this->assertStringContainsString('Fusion.define("pages::'.$page.'", {', $files[$page]);
+            $this->assertStringNotContainsString('Nitro.define("pages::'.$page.'"', $files[''], "{$page} is a page: not in app.js");
+            $this->assertStringContainsString('Nitro.define("pages::'.$page.'", {', $files[$page]);
         }
 
-        $this->assertStringContainsString('Fusion.define("pages::links", {', $files[''], '#[LazyLoad(false)]');
-        $this->assertStringContainsString('Fusion.define("pages::student-page", {', $files['pages'], "#[LazyLoad('pages')]");
-        $this->assertStringContainsString('Fusion.define("counter", {', $files[''], 'the component a page extends: in app.js');
-        $this->assertStringContainsString('Fusion.define("todo-list", {', $files[''], 'a component');
+        $this->assertStringContainsString('Nitro.define("pages::links", {', $files[''], '#[LazyLoad(false)]');
+        $this->assertStringContainsString('Nitro.define("pages::student-page", {', $files['pages'], "#[LazyLoad('pages')]");
+        $this->assertStringContainsString('Nitro.define("counter", {', $files[''], 'the component a page extends: in app.js');
+        $this->assertStringContainsString('Nitro.define("todo-list", {', $files[''], 'a component');
         $this->assertStringContainsString('["^/counter/?$","counter"]', $files['']);
         $this->assertStringContainsString('["^/private/?$","counter"]', $files['']);
         $this->assertSame('counter', $bundle->uses()['chunks']['pages::counter']);
 
         $tag = $bundle->tag();
-        $this->assertSame($files['counter'], $this->get('/_fusion/app/counter.js?v='.$tag)->getContent());
+        $this->assertSame($files['counter'], $this->get('/_nitro/app/counter.js?v='.$tag)->getContent());
 
         $page = fn (string $uri) => tap((string) $this->get($uri)->getContent(), fn () => $this->app->forgetScopedInstances());
-        $this->assertStringContainsString('<script src="/_fusion/app/counter.js?v='.$tag.'" defer></script>', $page('/counter'));
-        $this->assertStringNotContainsString('<script src="/_fusion/app/', $page('/links'));
+        $this->assertStringContainsString('<script src="/_nitro/app/counter.js?v='.$tag.'" defer></script>', $page('/counter'));
+        $this->assertStringNotContainsString('<script src="/_nitro/app/', $page('/links'));
     }
 
     #[DataProvider('frameworks')]
     public function test_without_a_build_the_bundle_is_compiled_on_first_use_readable(string $framework): void
     {
         $this->boot($framework);
-        $this->console()->call('fusion:clear');
+        $this->console()->call('nitro:clear');
 
-        $bundle = (string) $this->get('/_fusion/app.js')->getContent();
+        $bundle = (string) $this->get('/_nitro/app.js')->getContent();
 
-        $this->assertStringContainsString("Fusion.define(\"counter\", {\n", $bundle);
+        $this->assertStringContainsString("Nitro.define(\"counter\", {\n", $bundle);
         $this->assertGreaterThan(100, substr_count($bundle, "\n"));
     }
 
@@ -353,12 +353,12 @@ class BuildTest extends TestCase
     public function test_with_minify_on_change_a_changed_component_is_built_minified_and_replaces_the_last_build(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.minify_on_change', true);
-        $this->console()->call('fusion:build');
+        $this->app->make('config')->set('nitro.minify_on_change', true);
+        $this->console()->call('nitro:build');
         $this->app->forgetScopedInstances();
         $before = $this->app->make(Bundle::class)->version();
 
-        $source = self::APP.'/resources/views/fusion/components/counter.blade.php';
+        $source = self::APP.'/resources/views/nitro/components/counter.blade.php';
         $time = filemtime($source);
         touch($source, $time + 10);
         clearstatcache();
@@ -369,7 +369,7 @@ class BuildTest extends TestCase
             $version = $bundle->version();
             $this->assertNotSame($before, $version);
 
-            $script = (string) $this->get('/_fusion/app.js?v='.$version.'.min')->getContent();
+            $script = (string) $this->get('/_nitro/app.js?v='.$version.'.min')->getContent();
 
             $this->assertSame($version.'.min', $bundle->tag());
             $this->assertMatchesRegularExpression('/[\w$]\.define\("counter",\{/', $script, 'minified');
@@ -385,15 +385,15 @@ class BuildTest extends TestCase
     public function test_with_minify_on_change_and_no_esbuild_the_bundle_is_compiled_readable(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.minify_on_change', true);
-        $this->app->make('config')->set('fusion.esbuild.root', sys_get_temp_dir());
-        $this->app->make('config')->set('fusion.esbuild.node', 'no-such-node-binary');
-        $this->console()->call('fusion:clear');
+        $this->app->make('config')->set('nitro.minify_on_change', true);
+        $this->app->make('config')->set('nitro.esbuild.root', sys_get_temp_dir());
+        $this->app->make('config')->set('nitro.esbuild.node', 'no-such-node-binary');
+        $this->console()->call('nitro:clear');
         $this->app->forgetScopedInstances();
 
-        $bundle = (string) $this->get('/_fusion/app.js')->getContent();
+        $bundle = (string) $this->get('/_nitro/app.js')->getContent();
 
-        $this->assertStringContainsString("Fusion.define(\"counter\", {\n", $bundle);
+        $this->assertStringContainsString("Nitro.define(\"counter\", {\n", $bundle);
         $bundle = $this->app->make(Bundle::class);
         $this->assertSame($bundle->version(), $bundle->tag(), 'not built');
     }
@@ -402,10 +402,10 @@ class BuildTest extends TestCase
     public function test_build_fails_clearly_without_esbuild(string $framework): void
     {
         $this->boot($framework);
-        $this->app->make('config')->set('fusion.esbuild.root', sys_get_temp_dir());
+        $this->app->make('config')->set('nitro.esbuild.root', sys_get_temp_dir());
         $this->app->forgetScopedInstances();
 
-        $code = $this->console()->call('fusion:build');
+        $code = $this->console()->call('nitro:build');
 
         $this->assertSame(1, $code);
         $this->assertStringContainsString('npm install --save-dev esbuild', $this->console()->output());
@@ -444,7 +444,7 @@ class BuildTest extends TestCase
     }
 
     /**
-     * fusion:build says how it goes, a line a step with its time; it minifies every chunk in one
+     * nitro:build says how it goes, a line a step with its time; it minifies every chunk in one
      * Node process, and a chunk unchanged since the last build comes from the cache.
      */
     #[DataProvider('frameworks')]
@@ -453,14 +453,14 @@ class BuildTest extends TestCase
         $this->boot($framework);
 
         try {
-            $this->assertSame(0, $this->console()->call('fusion:build'));
+            $this->assertSame(0, $this->console()->call('nitro:build'));
             $output = $this->console()->output();
             $this->assertMatchesRegularExpression('/Compiling \d+ components( \([^)]+\))?(, \d+ stores?)? and \d+ pages( \([^)]+\))? to JavaScript .*DONE/', $output);
             $this->assertMatchesRegularExpression('/Minifying the main bundle and \d+ on-demand files with esbuild \(\d+ minified(, \d+ cached)?\) .*DONE/', $output);
-            $this->assertMatchesRegularExpression('/Copying \d+ files to public\/fusion .*DONE/', $output);
+            $this->assertMatchesRegularExpression('/Copying \d+ files to public\/nitro .*DONE/', $output);
 
             $this->app->forgetScopedInstances();
-            $this->assertSame(0, $this->console()->call('fusion:build'));
+            $this->assertSame(0, $this->console()->call('nitro:build'));
             $this->assertMatchesRegularExpression('/\(all \d+ cached\)/', $this->console()->output());
 
             $bundle = $this->app->make(Bundle::class);
@@ -471,13 +471,13 @@ class BuildTest extends TestCase
             $this->assertSame(0, $minified, 'from the cache');
             $this->assertSame($first['a'], $bundle->minify('const total = 1 + 2; console.log(total);'));
         } finally {
-            $this->console()->call('fusion:clear');
+            $this->console()->call('nitro:clear');
         }
     }
 
-    /** fusion:clear removes what Fusion wrote there, not the directory's own files. */
+    /** nitro:clear removes what Nitro wrote there, not the directory's own files. */
     #[DataProvider('frameworks')]
-    public function test_clear_removes_fusions_files_only(string $framework): void
+    public function test_clear_removes_nitros_files_only(string $framework): void
     {
         $this->boot($framework);
         $this->app->make(Bundle::class)->compileAll();
@@ -485,7 +485,7 @@ class BuildTest extends TestCase
         file_put_contents(self::COMPILED.'/.gitignore-test', "*\n");
 
         try {
-            $this->assertSame(0, $this->console()->call('fusion:clear'));
+            $this->assertSame(0, $this->console()->call('nitro:clear'));
             $this->assertCount(0, glob(self::COMPILED.'/app-*'), 'its bundles go');
             $this->assertDirectoryDoesNotExist(self::COMPILED.'/minified');
             $this->assertFileExists(self::COMPILED.'/.gitignore-test', 'the directory\'s own files stay (a .gitignore)');
@@ -494,24 +494,24 @@ class BuildTest extends TestCase
         }
     }
 
-    /** fusion:build is its own step, as `vite build` is: optimize neither builds nor clears it. */
+    /** nitro:build is its own step, as `vite build` is: optimize neither builds nor clears it. */
     #[DataProvider('frameworks')]
-    public function test_optimize_leaves_fusion_alone(string $framework): void
+    public function test_optimize_leaves_nitro_alone(string $framework): void
     {
         $this->boot($framework);
-        $manifest = self::APP.'/bootstrap/cache/fusion.php';
+        $manifest = self::APP.'/bootstrap/cache/nitro.php';
 
         try {
-            $this->console()->call('fusion:clear');
+            $this->console()->call('nitro:clear');
             $this->assertSame(0, $this->console()->call('optimize'), $this->console()->output());
-            $this->assertFileDoesNotExist($manifest, 'optimize does not build Fusion');
+            $this->assertFileDoesNotExist($manifest, 'optimize does not build Nitro');
 
-            $this->assertSame(0, $this->console()->call('fusion:build'), $this->console()->output());
+            $this->assertSame(0, $this->console()->call('nitro:build'), $this->console()->output());
             $this->assertSame(0, $this->console()->call('optimize:clear'), $this->console()->output());
-            $this->assertFileExists($manifest, 'optimize:clear does not clear Fusion');
+            $this->assertFileExists($manifest, 'optimize:clear does not clear Nitro');
             $this->assertCount(1 + count(self::CHUNKS), glob(self::COMPILED.'/app-*.js'), 'the bundle and its chunks');
         } finally {
-            $this->console()->call('fusion:clear');
+            $this->console()->call('nitro:clear');
         }
     }
 }

@@ -1,4 +1,4 @@
-// Fusion: PHP's php_charmask: the bytes of a character list, "a..z" a range.
+// Nitro: PHP's php_charmask: the bytes of a character list, "a..z" a range.
 function _charmask(list) {
     const bytes = P.utf8(P.toStr(list));
     const mask = new Set();

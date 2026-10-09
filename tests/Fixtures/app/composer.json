@@ -1,6 +1,6 @@
 {
-    "name": "fusion/fixture-app",
-    "description": "The application Fusion's tests run against, on Laravel.",
+    "name": "nitro/fixture-app",
+    "description": "The application Nitro's tests run against, on Laravel.",
     "type": "project",
     "autoload": {
         "psr-4": {

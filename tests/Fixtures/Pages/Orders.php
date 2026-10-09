@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Components\Store;
 
 /**
  * Partial reloads ($reload, $this->reload()): a page whose properties come from the session.

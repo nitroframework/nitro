@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /**
- * fusion:poll (a browser method and a #[Server] one), fusion:init, fusion:confirm and #[Computed].
+ * nitro:poll (a browser method and a #[Server] one), nitro:init, nitro:confirm and #[Computed].
  */
 class Clock extends Component
 {

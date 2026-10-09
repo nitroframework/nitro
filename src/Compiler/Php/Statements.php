@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
@@ -8,7 +8,7 @@ use PhpParser\Node\Stmt;
 
 /**
  * Statements: if / elseif / else, foreach, for, while, do-while, switch, break and continue (with
- * levels), and unset, as JavaScript with PHP's semantics. General PHP, nothing Fusion-specific:
+ * levels), and unset, as JavaScript with PHP's semantics. General PHP, nothing Nitro-specific:
  *
  *  - conditions go through P.bool(), PHP's truthiness ("0" and [] are false)
  *  - foreach iterates a PHP array in its order through P.iter(), over a copy (writes in the loop

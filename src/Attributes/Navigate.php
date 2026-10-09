@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
-use Nitro\Fusion\NavigationMode;
+use Nitro\NavigationMode;
 
 /**
- * How a fusion:navigate visit shows this page, in place of fusion.navigation: a NavigationMode,
+ * How a nitro:navigate visit shows this page, in place of nitro.navigation: a NavigationMode,
  * or its value ('data', 'markup', 'client'). What each means is NavigationMode's.
  *
  *   #[Navigate('markup')]

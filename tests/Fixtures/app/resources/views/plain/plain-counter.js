@@ -7,19 +7,19 @@ window.plainUpdates = window.plainUpdates ?? [];
 window.plainUnmounts = window.plainUnmounts ?? 0;
 
 window.plainViews['plain-counter'] = {
-    mount(el, fusion) {
+    mount(el, nitro) {
         el.innerHTML = '<span class="label"></span>: <span class="count"></span> (<span class="doubled"></span>)'
             + ' <button type="button" class="inc">+2</button> <button type="button" class="save">Save</button>'
             + ' <span class="saved"></span> <span class="names"></span>';
         const $ = (selector) => el.querySelector(selector);
         const render = () => {
-            $('.label').textContent = fusion.get('label');
-            $('.count').textContent = fusion.get('count');
-            $('.doubled').textContent = fusion.get('doubled');
+            $('.label').textContent = nitro.get('label');
+            $('.count').textContent = nitro.get('count');
+            $('.doubled').textContent = nitro.get('doubled');
         };
-        $('.inc').addEventListener('click', () => fusion.call('increment', 2));
-        $('.save').addEventListener('click', () => fusion.call('save').then((said) => ($('.saved').textContent = said)));
-        $('.names').textContent = [fusion.properties.join(','), fusion.methods.join(','), fusion.server.join(','), fusion.computed.join(',')].join(' | ');
+        $('.inc').addEventListener('click', () => nitro.call('increment', 2));
+        $('.save').addEventListener('click', () => nitro.call('save').then((said) => ($('.saved').textContent = said)));
+        $('.names').textContent = [nitro.properties.join(','), nitro.methods.join(','), nitro.server.join(','), nitro.computed.join(',')].join(' | ');
         render();
 
         return {

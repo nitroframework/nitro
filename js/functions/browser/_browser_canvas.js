@@ -1,5 +1,5 @@
 /**
- * Fusion::browser()->canvas('chart'): the 2D context of <canvas fusion:ref="chart">. The calls are
+ * Nitro::browser()->canvas('chart'): the 2D context of <canvas nitro:ref="chart">. The calls are
  * kept and run in order once the component has rendered, so a canvas the same change adds is
  * there. size() sets the size in CSS pixels and scales for the screen's density.
  */
@@ -20,7 +20,7 @@ function _browser_canvas(browser, ref) {
     browser.after(() => {
         const canvas = browser.ref(name);
         if (typeof canvas?.getContext !== 'function') {
-            browser.report(new Error(`Fusion::browser()->canvas('${name}'): the component has no <canvas fusion:ref="${name}">`));
+            browser.report(new Error(`Nitro::browser()->canvas('${name}'): the component has no <canvas nitro:ref="${name}">`));
             return;
         }
         const context = canvas.getContext('2d');

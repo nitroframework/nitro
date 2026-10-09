@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Browser\BrowserOnlyException;
-use Nitro\Fusion\Facades\Fusion;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Browser\BrowserOnlyException;
+use Nitro\Facades\Nitro;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Fusion::browser(): compiled to JavaScript in browser methods (tests/Browser), never run on the
+ * Nitro::browser(): compiled to JavaScript in browser methods (tests/Browser), never run on the
  * server. Its page renders there as any other.
  */
 class BrowserApiTest extends TestCase
@@ -19,9 +19,9 @@ class BrowserApiTest extends TestCase
         $this->boot($framework);
 
         $this->expectException(BrowserOnlyException::class);
-        $this->expectExceptionMessage('Fusion::browser() runs in the browser');
+        $this->expectExceptionMessage('Nitro::browser() runs in the browser');
 
-        Fusion::browser()->clipboard()->write('x');
+        Nitro::browser()->clipboard()->write('x');
     }
 
     #[DataProvider('frameworks')]
@@ -31,7 +31,7 @@ class BrowserApiTest extends TestCase
         $response = $this->get('/devices');
 
         $this->assertSame(200, $response->getStatusCode());
-        $this->assertStringContainsString('<canvas fusion:ref="chart"', (string) $response->getContent());
+        $this->assertStringContainsString('<canvas nitro:ref="chart"', (string) $response->getContent());
         $this->assertStringContainsString('not copied', (string) $response->getContent());
     }
 }

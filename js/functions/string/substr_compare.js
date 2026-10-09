@@ -1,7 +1,7 @@
-// Viewi's PhpJsFunctions/Strings/SubstrCompare.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/SubstrCompare.js (locutus), for Nitro's values.
 // uses: _bytes_cmp
 function substr_compare(mainStr, str, offset, length = null, caseInsensitivity = false) {
-    /** Fusion: bytes, PHP's offsets and errors, and its results (strcmp's, strcasecmp's): FunctionParityTest. */
+    /** Nitro: bytes, PHP's offsets and errors, and its results (strcmp's, strcasecmp's): FunctionParityTest. */
     const main = P.utf8(P.toStr(mainStr));
     let other = P.utf8(P.toStr(str));
     offset = P.toInt(offset);

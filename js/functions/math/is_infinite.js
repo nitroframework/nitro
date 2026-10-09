@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/IsInfinite.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/IsInfinite.js, for Nitro's values.
 function is_infinite (val) { // eslint-disable-line camelcase
   //  discuss at: https://locutus.io/php/is_infinite/
   // original by: Onno Marsman (https://twitter.com/onnomarsman)

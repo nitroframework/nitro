@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
 use Illuminate\Support\Str;
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Models\Student;
 
 /**
  * Laravel's helpers in a component: route() (named, positional, optional, a binding field, a

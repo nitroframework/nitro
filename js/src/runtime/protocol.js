@@ -4,22 +4,22 @@
  */
 import protocol from '../../protocol.json' with { type: 'json' };
 
-/** What every Fusion attribute's name starts with: Protocol::namespace(). */
+/** What every Nitro attribute's name starts with: Protocol::namespace(). */
 export const NAMESPACE = protocol.namespace;
 
-/** Among a child's props: the value of its tag's fusion:model: Protocol::modelProp(). */
+/** Among a child's props: the value of its tag's nitro:model: Protocol::modelProp(). */
 export const MODEL_PROP = protocol.compiled.model;
 
-/** The engine of a view Fusion compiles itself: Protocol::bladeEngine(). Its definitions name no engine. */
+/** The engine of a view Nitro compiles itself: Protocol::bladeEngine(). Its definitions name no engine. */
 export const BLADE_ENGINE = protocol.view.bladeEngine;
 
-/** Attributes Fusion puts on elements, by role (id, name, snapshot, page, placeholder, serverHtml, hydrate, static, handler, directive): Protocol::attribute(). */
+/** Attributes Nitro puts on elements, by role (id, name, snapshot, page, placeholder, serverHtml, hydrate, static, handler, directive): Protocol::attribute(). */
 export const ATTRIBUTES = protocol.attributes;
 
-/** A CSS selector for an attribute by its name: [fusion\:id]. */
+/** A CSS selector for an attribute by its name: [nitro\:id]. */
 export const selectorOf = (name) => `[${name.replace(/:/g, '\\:')}]`;
 
-/** A CSS selector for an attribute by its role: selector('id') is [fusion\:id]. */
+/** A CSS selector for an attribute by its role: selector('id') is [nitro\:id]. */
 export const selector = (role) => selectorOf(ATTRIBUTES[role]);
 
 /** What changed besides properties, for what reads it to render again (errors, deferred, unsaved, status, uploads, scroll): Protocol::signal(). */
@@ -28,7 +28,7 @@ export const SIGNALS = protocol.signals;
 /** HTTP headers, by role (navigate, version, partial, id, only, once, location, call): Protocol::header(). */
 export const HEADERS = protocol.headers;
 
-/** Paths under the endpoint, by role (update, upload, ...): Protocol::path(). The chunks' URL comes whole from @fusionScripts. */
+/** Paths under the endpoint, by role (update, upload, ...): Protocol::path(). The chunks' URL comes whole from @nitroScripts. */
 export const PATHS = protocol.paths;
 
 /** Server-Timing's metrics in development (Http\ServerTiming): the server's time on the request, its database's. */

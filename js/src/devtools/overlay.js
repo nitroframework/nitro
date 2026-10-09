@@ -1,7 +1,7 @@
 /**
  * The overlay: a badge in a corner, and a drawer with a tab for each thing it shows. Everything
  * lives in a shadow root (the page's CSS and its own never meet) and is kept as it comes (the
- * plugin's events, fusion:error); what the open tab shows is rendered again when it changes.
+ * plugin's events, nitro:error); what the open tab shows is rendered again when it changes.
  */
 import { pageDataSizes } from '../runtime/page-data.js';
 import { ATTRIBUTES, selector } from '../runtime/protocol.js';
@@ -12,10 +12,10 @@ const TABS = ['Components', 'Requests', 'Page', 'Stores', 'Errors'];
 const KEEP = 100;
 
 export class Overlay {
-    constructor(window, fusion) {
+    constructor(window, nitro) {
         this.window = window;
         this.document = window.document;
-        this.fusion = fusion;
+        this.nitro = nitro;
         this.requests = [];
         this.errors = [];
         this.stores = new Map();
@@ -26,7 +26,7 @@ export class Overlay {
     }
 
     install() {
-        this.fusion.use(({ on }) => {
+        this.nitro.use(({ on }) => {
             on('component', () => this.changed());
             on('render', () => this.changed('Components'));
             on('store', (store) => {
@@ -40,15 +40,15 @@ export class Overlay {
                 this.changed('Requests');
             });
         });
-        this.window.addEventListener('fusion:error', (event) => {
+        this.window.addEventListener('nitro:error', (event) => {
             this.errors.unshift({ at: new Date(), ...event.detail });
             this.errors.length = Math.min(this.errors.length, KEEP);
             this.changed('Errors');
         });
 
-        const host = this.document.createElement('fusion-devtools');
+        const host = this.document.createElement('nitro-devtools');
         this.root = host.attachShadow({ mode: 'open' });
-        this.root.innerHTML = `<style>${STYLE}</style><button class="badge" title="Fusion"></button><section class="drawer" hidden></section>`;
+        this.root.innerHTML = `<style>${STYLE}</style><button class="badge" title="Nitro"></button><section class="drawer" hidden></section>`;
         this.badge = this.root.querySelector('.badge');
         this.drawer = this.root.querySelector('.drawer');
         this.badge.addEventListener('click', () => this.toggle());
@@ -95,7 +95,7 @@ export class Overlay {
         this.outlined?.style.removeProperty('outline');
         this.outlined = null;
         const id = event?.target.closest?.('[data-component]')?.dataset.component;
-        const el = id ? this.fusion.find(id)?.el : null;
+        const el = id ? this.nitro.find(id)?.el : null;
         if (el?.style) {
             el.style.outline = '2px solid #e11d48';
             this.outlined = el;
@@ -103,7 +103,7 @@ export class Overlay {
     }
 
     render() {
-        const components = this.fusion.components();
+        const components = this.nitro.components();
         this.badge.innerHTML = `<b>F</b> ${components.length}${this.errors.length ? ` <i>${this.errors.length}</i>` : ''}`;
         this.drawer.hidden = !this.open;
         if (!this.open) return;
@@ -113,7 +113,7 @@ export class Overlay {
     }
 
     renderComponents() {
-        const rows = this.fusion.components().map((component) => {
+        const rows = this.nitro.components().map((component) => {
             const depth = depthOf(component);
             const open = this.selected === component.id;
             const state = open ? `<tr class="state"><td colspan="3"><pre>${escape(json(plain(component.data)))}</pre>${errorsOf(component)}</td></tr>` : '';
@@ -133,9 +133,9 @@ export class Overlay {
         const sizes = pageDataSizes(this.document);
         const states = Object.entries(sizes.states).sort((a, b) => b[1] - a[1]);
         const total = states.reduce((sum, [, bytes]) => sum + bytes, 0);
-        const rows = states.map(([id, bytes]) => `<tr data-component="${escape(id)}"><td>${escape(this.fusion.find(id)?.name ?? '')}</td><td>${escape(id)}</td><td>${size(bytes)}</td></tr>`);
+        const rows = states.map(([id, bytes]) => `<tr data-component="${escape(id)}"><td>${escape(this.nitro.find(id)?.name ?? '')}</td><td>${escape(id)}</td><td>${size(bytes)}</td></tr>`);
         return `<dl><dt>URL</dt><dd>${escape(this.window.location.pathname + this.window.location.search)}</dd>`
-            + `<dt>Layout</dt><dd>${page ? escape(page.getAttribute(ATTRIBUTES.page)) : 'not a Fusion page'}</dd>`
+            + `<dt>Layout</dt><dd>${page ? escape(page.getAttribute(ATTRIBUTES.page)) : 'not a Nitro page'}</dd>`
             + `<dt>Page data</dt><dd>${size(total + sizes.globals)}: the state of ${states.length} components ${size(total)}, the globals ${size(sizes.globals)}</dd></dl>`
             + (rows.length ? `<table><tr><th>Component</th><th>Id</th><th>Its state</th></tr>${rows.join('')}</table>` : '');
     }
@@ -147,7 +147,7 @@ export class Overlay {
 
     renderErrors() {
         if (!this.errors.length) return empty('No errors.');
-        return this.errors.map((e) => `<article class="error"><header>${time(e.at)} ${escape(e.component ?? 'Fusion')}${e.status !== undefined ? ` · ${e.status}` : ''}</header><pre>${escape(e.message)}</pre>${e.body ? `<details><summary>The answer</summary><pre>${escape(String(e.body).slice(0, 4000))}</pre></details>` : ''}</article>`).join('');
+        return this.errors.map((e) => `<article class="error"><header>${time(e.at)} ${escape(e.component ?? 'Nitro')}${e.status !== undefined ? ` · ${e.status}` : ''}</header><pre>${escape(e.message)}</pre>${e.body ? `<details><summary>The answer</summary><pre>${escape(String(e.body).slice(0, 4000))}</pre></details>` : ''}</article>`).join('');
     }
 }
 

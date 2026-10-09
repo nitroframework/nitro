@@ -1,4 +1,4 @@
-// Fusion: strspn() and strcspn() as PHP has them (Viewi's two, one way of offsets): the length of
+// Nitro: strspn() and strcspn() as PHP has them (Viewi's two, one way of offsets): the length of
 // the start of the string's part [start, start + length) made of the mask's bytes (strspn) or of
 // others (strcspn). Bytes, as PHP counts them: FunctionParityTest.
 function _span(str, mask, start, length, inMask) {

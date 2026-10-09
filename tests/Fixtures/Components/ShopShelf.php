@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Stores\Cart;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Stores\Cart;
 
 /** Changes the cart store through its methods, in the browser and on the server. */
 class ShopShelf extends Component

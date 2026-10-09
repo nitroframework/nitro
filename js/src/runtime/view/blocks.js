@@ -19,12 +19,12 @@ import { SIGNALS } from '../protocol.js';
 export function renderChain(target, instance, chain, scope, hydrate, insert, ifConditions) {
     const first = chain[0].i[0].c;
 
-    /** Fusion: untracked (fusion:ignore), or a block a @break leaves: part of what is around it. */
+    /** Nitro: untracked (nitro:ignore), or a block a @break leaves: part of what is around it. */
     if (scope.untracked || chain.some((node) => leak(instance, node) > 0)) {
         return renderBranches(target, instance, chain, scope, hydrate, insert);
     }
 
-    /** Fusion: a loop a @break ends, @for, @while and @switch render again as a whole. */
+    /** Nitro: a loop a @break ends, @for, @while and @switch render again as a whole. */
     if (first === 'for' || first === 'while' || first === 'switch' || (first === 'foreach' && innerLeak(instance, chain[0]) > 0)) {
         const inlined = chain.flatMap((node) => inlinedCodes(instance, node.i[0].c === 'switch' ? (node.h ?? []).flatMap((c) => c.h ?? []) : node.h ?? []));
         const codes = [...chain.flatMap((node) => directiveCodes(node)), ...inlined];
@@ -45,7 +45,7 @@ export function renderChain(target, instance, chain, scope, hydrate, insert, ifC
             case 'else':
             case 'empty':
                 if (!ifConditions) {
-                    console.warn(`Fusion: @${directive.c} has no block before it`, directive);
+                    console.warn(`Nitro: @${directive.c} has no block before it`, directive);
                     break;
                 }
                 renderCondition(target, instance, node, scope, hydrate, insert, ifConditions);
@@ -54,13 +54,13 @@ export function renderChain(target, instance, chain, scope, hydrate, insert, ifC
                 ifConditions = renderForeachBlock(target, instance, node, scope, hydrate, insert);
                 break;
             default:
-                throw new Error(`Fusion: unknown directive ${directive.c}`);
+                throw new Error(`Nitro: unknown directive ${directive.c}`);
         }
     }
     return ifConditions;
 }
 
-/** Viewi's if / else-if / else (and Fusion's @error, @empty): a branch between anchors. */
+/** Viewi's if / else-if / else (and Nitro's @error, @empty): a branch between anchors. */
 function renderCondition(target, instance, node, scope, hydrate, insert, ifConditions) {
     const directive = node.i[0];
     let nextValue = true;
@@ -94,7 +94,7 @@ function renderForeachBlock(target, instance, node, scope, hydrate, insert) {
     const data = evaluate(instance, directive.forData, scope);
     const anchor = hydrate ? getAnchor(instance, target) : undefined;
     const anchorBegin = createAnchorNode(instance, target, insert, anchor); // begin foreach
-    /** Fusion: a Map keeps PHP's order and its keys' types (Viewi keeps an object). */
+    /** Nitro: a Map keeps PHP's order and its keys' types (Viewi keeps an object). */
     const dataArrayScope = { data: new Map() };
     const state = B.loop(data, directive.parentLoop ? scope.arguments[directive.loop] : null);
     for (const [dataKey, dataItem] of P.iter(data)) {
@@ -108,7 +108,7 @@ function renderForeachBlock(target, instance, node, scope, hydrate, insert) {
     }
     const anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end foreach
 
-    /** Fusion: @forelse's @empty continues from whether there were items. */
+    /** Nitro: @forelse's @empty continues from whether there were items. */
     const ifConditions = { values: [dataArrayScope.data.size > 0], index: 1, subs: [directive.forData] };
     track(instance, [directive.forData], scope, () => renderForeach(instance, node, { anchorBegin, anchorNode }, dataArrayScope, scope, ifConditions));
     return ifConditions;
@@ -150,7 +150,7 @@ export function renderBranches(target, instance, chain, scope, hydrate, insert) 
                 return undefined;
             }
             default:
-                throw new Error(`Fusion: unknown directive ${directive.c}`);
+                throw new Error(`Nitro: unknown directive ${directive.c}`);
         }
     }
     return undefined;

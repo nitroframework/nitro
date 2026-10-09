@@ -1,10 +1,10 @@
 /**
- * A component's view: its compiled template (Fusion.define's template, expressions and subs)
+ * A component's view: its compiled template (Nitro.define's template, expressions and subs)
  * rendered as Viewi renders its viewi.json (runtime/view, ported from Viewi's core/render,
  * core/hydrate, core/anchor and core/reactivity).
  *
  *  - hydrate(el): the server's HTML taken over, node by node (Viewi's hydration)
- *  - create(): a new root element (a child made in the browser, a page from fusion:navigate)
+ *  - create(): a new root element (a child made in the browser, a page from nitro:navigate)
  *  - update(names): the properties that changed; what reads them renders (Viewi's $$r)
  *
  * A component renders one root element. A block around it (an @if at the top of the view) is
@@ -44,7 +44,7 @@ export class View {
             rootSubs: new Set(),
             /** The slot regions in its view, rendered again when the parent's slots change. */
             slotRegions: new Set(),
-            /** Fusion: where its @teleport content went */
+            /** Nitro: where its @teleport content went */
             teleports: new Set(),
         };
         this.template = definition.template.h ?? [];
@@ -149,5 +149,5 @@ export class View {
 }
 
 function rootError() {
-    return new Error('A Fusion component must render a single root element.');
+    return new Error('A Nitro component must render a single root element.');
 }

@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 class TodoList extends Component
 {

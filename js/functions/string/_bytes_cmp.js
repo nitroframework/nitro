@@ -1,4 +1,4 @@
-// Fusion: PHP's zend_binary_strcmp / zend_binary_strcasecmp on UTF-8 bytes. strcmp() gives -1, 0
+// Nitro: PHP's zend_binary_strcmp / zend_binary_strcasecmp on UTF-8 bytes. strcmp() gives -1, 0
 // or 1 (PHP 8.2+); strcasecmp() the difference of the first bytes that differ (ASCII letters
 // lowered), else -1, 0 or 1 by length: FunctionParityTest.
 function _bytes_cmp(bytes1, bytes2, caseless) {

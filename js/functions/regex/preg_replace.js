@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_replace(): $1, \1 and ${1} (one or two digits) in the replacement; a
+// Nitro: PHP's preg_replace(): $1, \1 and ${1} (one or two digits) in the replacement; a
 // backslash before \ or $ makes it literal (preg_do_repl's walk).
 // uses: _pcre_replace, _pcre_each_subject
 function preg_replace(pattern, replacement, subject, limit = -1) {

@@ -1,28 +1,28 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Compiler\Template\ChildTag;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\State\MethodCache;
-use Nitro\Fusion\State\Stores;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Registry;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\PropertyMeta;
+use Nitro\Compiler\Template\ChildTag;
+use Nitro\Component;
+use Nitro\Lifecycle\Features;
+use Nitro\State\MethodCache;
+use Nitro\State\Stores;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\Protocol;
+use Nitro\Support\Registry;
 use Throwable;
 
 /**
- * A component placed in a view and rendered on the server: <fusion:name /> in a page, a layout or
- * another component's view (a child), @fusion, <fusion:dynamic-component>. Made with its mount()
+ * A component placed in a view and rendered on the server: <nitro:name /> in a page, a layout or
+ * another component's view (a child), @nitro, <nitro:dynamic-component>. Made with its mount()
  * or its props, then rendered.
  */
 final class Placement
@@ -41,9 +41,9 @@ final class Placement
     }
 
     /**
-     * A component placed in a view: <fusion:name /> in a page or layout, or a child in another
+     * A component placed in a view: <nitro:name /> in a page or layout, or a child in another
      * component's view (keyed as the browser keys it: ChildTag::key()). $hydrate: an island's start
-     * (fusion:hydrate, fusion:static), for a component that is not a child.
+     * (nitro:hydrate, nitro:static), for a component that is not a child.
      *
      * @param  array<string, string>  $slots  name => its HTML
      */
@@ -51,12 +51,12 @@ final class Placement
     {
         $parent = $this->renderer->current();
 
-        /** <fusion:dynamic-component :is="$name">: the component :is names (none for ""); its key has the name. */
+        /** <nitro:dynamic-component :is="$name">: the component :is names (none for ""); its key has the name. */
         $dynamic = $name === ChildTag::DYNAMIC;
 
         if ($dynamic) {
             if (! array_key_exists('is', $props)) {
-                throw new InvalidArgumentException('<fusion:dynamic-component> needs :is, the name of the component to render');
+                throw new InvalidArgumentException('<nitro:dynamic-component> needs :is, the name of the component to render');
             }
 
             /** null names none, as "" does (the browser reads it as a string). */
@@ -64,7 +64,7 @@ final class Placement
             unset($props['is']);
 
             if (! is_string($is)) {
-                throw new UnplaceableComponent('<fusion:dynamic-component> :is names a component: a string, not '.get_debug_type($is).'.');
+                throw new UnplaceableComponent('<nitro:dynamic-component> :is names a component: a string, not '.get_debug_type($is).'.');
             }
 
             if ($is === '') {
@@ -76,8 +76,8 @@ final class Placement
 
             if ($class === null || $this->registry->isPageClass($class)) {
                 throw new UnplaceableComponent($class === null
-                    ? "<fusion:dynamic-component> :is names [{$name}], which is not a Fusion component."
-                    : "[{$name}] is a page: pages are routed (Route::fusion()), not placed in views. Place a component instead.");
+                    ? "<nitro:dynamic-component> :is names [{$name}], which is not a Nitro component."
+                    : "[{$name}] is a page: pages are routed (Route::nitro()), not placed in views. Place a component instead.");
             }
         }
 
@@ -86,7 +86,7 @@ final class Placement
         }
 
         if ($hydrate !== null) {
-            throw new InvalidArgumentException("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$name}> is a child of [{$parent->fusion()->name}], and starts with it.");
+            throw new InvalidArgumentException("nitro:hydrate and nitro:static are for islands, components placed in Blade views: <nitro:{$name}> is a child of [{$parent->nitro()->name}], and starts with it.");
         }
 
         $key = ($key !== null ? (string) $key : ChildTag::key($number, $this->renderer->loopIndexes())).($dynamic ? ':'.$name : '');
@@ -95,10 +95,10 @@ final class Placement
     }
 
     /**
-     * Render a component that is not inside another (in a page, a layout, @fusion).
+     * Render a component that is not inside another (in a page, a layout, @nitro).
      *
-     * An island that starts later ($hydrate: fusion:hydrate) is marked for the browser, and the
-     * chunks of its components are not loaded with the page; a static one (fusion:static) is its
+     * An island that starts later ($hydrate: nitro:hydrate) is marked for the browser, and the
+     * chunks of its components are not loaded with the page; a static one (nitro:static) is its
      * HTML only, without state for the browser.
      *
      * @param  array<string, string>  $slots  name => its HTML
@@ -109,7 +109,7 @@ final class Placement
         $render = fn (): string => $this->guarded($id, function (?Component &$component) use ($name, $id, $props, $slots, $hydrate): string {
             $meta = $this->placeable($name);
             $this->create($meta, $id, $props, $component);
-            $component->fusion()->slots = $slots;
+            $component->nitro()->slots = $slots;
             $attributes = $hydrate === null || $hydrate === 'static' ? [] : [Protocol::attribute('hydrate') => $hydrate];
             /** No parent renders its slots in the browser: their HTML goes with its state. */
             $memo = $this->renderer->pageMemo() + (array_filter($slots, fn (string $html) => trim($html) !== '') === [] ? [] : ['slots' => $slots]);
@@ -134,7 +134,7 @@ final class Placement
         return $this->guarded($id, function (?Component &$component) use ($name, $id, $props, $slots): string {
             $meta = $this->placeable($name);
             $this->create($meta, $id, $props, $component);
-            $component->fusion()->slots = $slots;
+            $component->nitro()->slots = $slots;
 
             return $this->renderer->render($component, $meta, $this->renderer->pageMemo());
         });
@@ -169,13 +169,13 @@ final class Placement
         }
     }
 
-    /** A component placed in a view (<fusion:...>, @fusion, a dynamic component): not a page. */
+    /** A component placed in a view (<nitro:...>, @nitro, a dynamic component): not a page. */
     private function placeable(string $name): ComponentMeta
     {
         $meta = $this->components->meta($name);
 
         if ($meta->page) {
-            throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::fusion()), not placed in views. Place a component instead.");
+            throw new InvalidArgumentException("[{$meta->name}] is a page: pages are routed (Route::nitro()), not placed in views. Place a component instead.");
         }
 
         if ($meta->store) {
@@ -199,12 +199,12 @@ final class Placement
         /** @var Component $component */
         $component = $this->app->make($meta->class);
 
-        /** fusion:model on its tag: the parent's value, for its #[Modelable] property (once mounted). */
+        /** nitro:model on its tag: the parent's value, for its #[Modelable] property (once mounted). */
         $model = array_key_exists(Protocol::modelProp(), $props) ? [$props[Protocol::modelProp()]] : null;
         unset($props[Protocol::modelProp()]);
 
         if ($model !== null && $meta->modelable === null) {
-            throw new InvalidArgumentException("fusion:model on <fusion:{$meta->name}>: the component has no #[Modelable] property.");
+            throw new InvalidArgumentException("nitro:model on <nitro:{$meta->name}>: the component has no #[Modelable] property.");
         }
 
         $this->stores->give($component, $meta);
@@ -232,12 +232,12 @@ final class Placement
     {
         foreach ($props as $prop => $value) {
             if (($property = $meta->property($prop)) === null) {
-                throw new InvalidArgumentException("Fusion component [{$meta->name}] has no public property \${$prop}.");
+                throw new InvalidArgumentException("Nitro component [{$meta->name}] has no public property \${$prop}.");
             }
 
             /** An enum property given its value (a child the browser placed): the case it names. */
             if ($property->kind === PropertyMeta::ENUM && ! $property->accepts($value)) {
-                throw new InvalidArgumentException("Fusion component [{$meta->name}]: \${$prop} takes a case of {$property->types[0]}.");
+                throw new InvalidArgumentException("Nitro component [{$meta->name}]: \${$prop} takes a case of {$property->types[0]}.");
             }
 
             $component->{$prop} = $property->kind === PropertyMeta::ENUM ? $property->cast($value) : $value;

@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /** A child whose destroyed() runs on the server: it notes its leaving in the session. */
 class LifecycleChild extends Component

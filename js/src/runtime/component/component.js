@@ -17,8 +17,8 @@ import { ErrorBag } from './errors.js';
 
 export class Component {
     /**
-     * @param {object} runtime      the Fusion runtime (registry, network, bus, ...)
-     * @param {object} definition   the compiled definition (Fusion.define)
+     * @param {object} runtime      the Nitro runtime (registry, network, bus, ...)
+     * @param {object} definition   the compiled definition (Nitro.define)
      * @param {Element} el          the root element
      * @param {Map} data            the state (property => PHP value)
      * @param {object|null} snapshot the signed envelope from the server (null for browser-made children)
@@ -39,7 +39,7 @@ export class Component {
         this.deferred = new Set();
         /** Where its scroll props' paginators are: property => Map {pageName, currentPage, nextPage, previousPage}. */
         this.scroll = new Map();
-        /** element => (attribute => {event, modifiers, fn, key}): its fusion:<event> handlers, several per event (fusion:keydown.enter and fusion:keydown.escape) */
+        /** element => (attribute => {event, modifiers, fn, key}): its nitro:<event> handlers, several per event (nitro:keydown.enter and nitro:keydown.escape) */
         this.handlers = new WeakMap();
         /** The event types it has handlers for. */
         this.events = new Set();
@@ -49,20 +49,20 @@ export class Component {
         this.memo = new Map();
         /** Properties changed since the last update ("*": anything). */
         this.dirty = new Set();
-        /** JavaScript from $this->js() (and functions from Fusion::browser()), to run after the next render. */
+        /** JavaScript from $this->js() (and functions from Nitro::browser()), to run after the next render. */
         this.pendingJs = [];
-        /** What Fusion::browser() opened (sockets): closed when it leaves the page. */
+        /** What Nitro::browser() opened (sockets): closed when it leaves the page. */
         this.cleanups = [];
         /** The slots its parent passed: name => {nodes, instance, scope} (the parent renders them). */
         this.slots = {};
-        /** The component whose view placed it ($parent), and fusion:model on its tag: {parent, path}. */
+        /** The component whose view placed it ($parent), and nitro:model on its tag: {parent, path}. */
         this.parent = null;
         this.model = null;
         this.scheduled = false;
         this.destroyed = false;
         /** It failed and shows its fallback (fail()): it renders no more. */
         this.failed = false;
-        /** Renders of what changed so far (fusion:visible: whether a call changed anything). */
+        /** Renders of what changed so far (nitro:visible: whether a call changed anything). */
         this.renders = 0;
         this.ctx = contextOf(this);
         /** The stores it uses: a change in one renders again what reads its property here. */
@@ -107,7 +107,7 @@ export class Component {
         return [...(this.handlers.get(el)?.values() ?? [])].filter((handler) => handler.event === event);
     }
 
-    /** The element's first handler for the event (fusion:poll, fusion:init and fusion:visible have one). */
+    /** The element's first handler for the event (nitro:poll, nitro:init and nitro:visible have one). */
     handler(el, event) {
         return this.handlersOf(el, event)[0] ?? null;
     }
@@ -122,7 +122,7 @@ export class Component {
         this.modelChanged(name);
     }
 
-    /** #[Modelable]: what fusion:model on its tag binds goes back to the parent's property. */
+    /** #[Modelable]: what nitro:model on its tag binds goes back to the parent's property. */
     modelChanged(name) {
         if (name === this.definition.modelable && this.model) {
             this.model.parent.setPath(this.model.path, this.data.get(name) ?? null);
@@ -152,9 +152,9 @@ export class Component {
     /** $parent->method(...) in a handler: the component around this one (compiled, or #[Server]). */
     callParent(method, args) {
         const parent = this.parent;
-        if (!parent || parent.destroyed) throw new Error(`Fusion [${this.name}]: $parent->${method}(): it has no parent component`);
+        if (!parent || parent.destroyed) throw new Error(`Nitro [${this.name}]: $parent->${method}(): it has no parent component`);
         if (parent.definition.server.includes(method)) return parent.runtime.network.call(parent, method, args);
-        if (typeof parent.definition.methods[method] !== 'function') throw new Error(`Fusion [${parent.name}]: ${method}() is not a method it has in the browser`);
+        if (typeof parent.definition.methods[method] !== 'function') throw new Error(`Nitro [${parent.name}]: ${method}() is not a method it has in the browser`);
         return parent.ctx[method](...args);
     }
 
@@ -176,7 +176,7 @@ export class Component {
         return P.getIn(this.data.get(root) ?? null, keys);
     }
 
-    /** $set('form.email', 'x') and fusion:model: a property or a key under it, between its updating and updated hooks. */
+    /** $set('form.email', 'x') and nitro:model: a property or a key under it, between its updating and updated hooks. */
     setPath(path, value) {
         const [root, ...keys] = String(path).split('.');
         const prop = this.definition.props[root];
@@ -254,7 +254,7 @@ export class Component {
         for (const code of pending) {
             try {
                 if (typeof code === 'function') code();
-                else new Function('$fusion', '$refs', '$el', code).call(this.ctx, this.ctx, this.refs(), this.el);
+                else new Function('$nitro', '$refs', '$el', code).call(this.ctx, this.ctx, this.refs(), this.el);
             } catch (error) {
                 this.runtime.report(this, error);
             }
@@ -262,7 +262,7 @@ export class Component {
     }
 
     /**
-     * The component, as Fusion::browser()'s APIs see it: its element and refs, work to do once it
+     * The component, as Nitro::browser()'s APIs see it: its element and refs, work to do once it
      * has rendered, what to close when it leaves, and a place to keep what they opened.
      */
     browser() {
@@ -289,11 +289,11 @@ export class Component {
         return all;
     }
 
-    /** fusion:ref="name": the component's own elements by name (the first of a name). */
+    /** nitro:ref="name": the component's own elements by name (the first of a name). */
     refs() {
         const refs = {};
-        for (const el of this.scan('[fusion\\:ref]')) {
-            const name = el.getAttribute('fusion:ref');
+        for (const el of this.scan('[nitro\\:ref]')) {
+            const name = el.getAttribute('nitro:ref');
             if (name && !(name in refs) && this.runtime.owner(el) === this) refs[name] = el;
         }
         return refs;
@@ -363,7 +363,7 @@ export class Component {
             render();
         } catch (error) {
             this.runtime.report(this, error);
-            /** With fallbacks on (@fusionScripts gives the default), it shows in the component's place. */
+            /** With fallbacks on (@nitroScripts gives the default), it shows in the component's place. */
             if (typeof this.runtime.config.fallback === 'string') this.fail(this.runtime.config.fallback);
             return false;
         }

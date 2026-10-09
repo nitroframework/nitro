@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Validate;
+use Nitro\Component;
 
 /**
- * <fusion:dynamic-component :is="...">: the child is the component its expression names, and
+ * <nitro:dynamic-component :is="...">: the child is the component its expression names, and
  * another one when the name changes (none for "").
  */
 class Panels extends Component
@@ -21,7 +21,7 @@ class Panels extends Component
     #[Validate(['rows' => 'array|max:50', 'rows.*' => 'string|max:20'])]
     public array $rows = ['a'];
 
-    /** The key last pressed in .keys: two fusion:keydown handlers on one element. */
+    /** The key last pressed in .keys: two nitro:keydown handlers on one element. */
     public string $key = '';
 
     /** Labels of Badge children (mount()): added by a #[Server] call, which creates them. */

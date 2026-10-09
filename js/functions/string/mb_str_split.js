@@ -1,4 +1,4 @@
-// Fusion: PHP's mb_str_split(): characters, length at a time.
+// Nitro: PHP's mb_str_split(): characters, length at a time.
 function mb_str_split(string, length = 1) {
     const chars = [...P.toStr(string)];
     length = P.toInt(length);

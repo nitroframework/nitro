@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/IsNan.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/IsNan.js, for Nitro's values.
 function is_nan (val) { // eslint-disable-line camelcase
   //  discuss at: https://locutus.io/php/is_nan/
   // original by: Onno Marsman (https://twitter.com/onnomarsman)

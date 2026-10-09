@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
- * The layout a page renders in, as the browser compares it (fusion:page): its view, and a hash of
+ * The layout a page renders in, as the browser compares it (nitro:page): its view, and a hash of
  * its data when it has any (the title aside, which a visit sets). A markup-first visit renders
  * the page at once only into the same one.
  */

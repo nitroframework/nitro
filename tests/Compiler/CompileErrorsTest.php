@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Compiler\Transpiler;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateCompiler;
+use Nitro\Compiler\Transpiler;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\ParserFactory;
@@ -55,18 +55,18 @@ class CompileErrorsTest extends TestCase
             'magic constant' => ['return __LINE__;', 'Magic constants', 3],
             'unknown constant' => ['return SOME_CONSTANT;', 'The constant SOME_CONSTANT', 3],
             'named arguments' => ['return str_pad(string: "x", length: 2);', 'Named arguments', 3],
-            'server-side Fusion' => ['Fusion::flash("saved", true);', 'Fusion:: runs on the server; in the browser, Fusion::browser()', 3],
-            'unknown browser API' => ['Fusion::browser()->camera();', 'Fusion::browser()->camera() does not exist: it has clipboard(), storage(), session(), canvas(), socket()', 3],
-            'unknown browser API method' => ["\$c = Fusion::browser()->canvas('c');\n\$c->drawCircle();", 'Fusion::browser()->canvas()->drawCircle() does not exist', 4],
-            'browser API without its argument' => ['Fusion::browser()->canvas();', 'Fusion::browser()->canvas($ref) takes 1 argument', 3],
-            'browser API with too many' => ['Fusion::browser()->storage()->get("a", 1, 2);', 'Fusion::browser()->storage()->get($key, $default) takes 1 to 2 arguments', 3],
-            'browser API named arguments' => ['Fusion::browser()->storage()->get(key: "a");', 'takes its arguments in order', 3],
+            'server-side Nitro' => ['Nitro::flash("saved", true);', 'Nitro:: runs on the server; in the browser, Nitro::browser()', 3],
+            'unknown browser API' => ['Nitro::browser()->camera();', 'Nitro::browser()->camera() does not exist: it has clipboard(), storage(), session(), canvas(), socket()', 3],
+            'unknown browser API method' => ["\$c = Nitro::browser()->canvas('c');\n\$c->drawCircle();", 'Nitro::browser()->canvas()->drawCircle() does not exist', 4],
+            'browser API without its argument' => ['Nitro::browser()->canvas();', 'Nitro::browser()->canvas($ref) takes 1 argument', 3],
+            'browser API with too many' => ['Nitro::browser()->storage()->get("a", 1, 2);', 'Nitro::browser()->storage()->get($key, $default) takes 1 to 2 arguments', 3],
+            'browser API named arguments' => ['Nitro::browser()->storage()->get(key: "a");', 'takes its arguments in order', 3],
         ];
     }
 
     public function test_browser_apis_compile_to_their_functions(): void
     {
-        $source = "<?php class C {\n    public function run() {\n        \$canvas = \\Nitro\\Fusion\\Facades\\Fusion::browser()->canvas('chart')->size(10, 10);\n        \$canvas->arc(1, 2, 3);\n        \$draw = fn () => \$canvas->fill();\n        Fusion::browser()->session()->set('k', \$this->count);\n    }\n}";
+        $source = "<?php class C {\n    public function run() {\n        \$canvas = \\Nitro\\Facades\\Nitro::browser()->canvas('chart')->size(10, 10);\n        \$canvas->arc(1, 2, 3);\n        \$draw = fn () => \$canvas->fill();\n        Nitro::browser()->session()->set('k', \$this->count);\n    }\n}";
         $method = (new NodeFinder)->findFirstInstanceOf((new ParserFactory)->createForNewestSupportedVersion()->parse($source), Stmt\ClassMethod::class);
         $transpiler = new Transpiler;
         $js = $transpiler->method($method, $this->scope());
@@ -100,28 +100,28 @@ class CompileErrorsTest extends TestCase
             '@php' => ["<div>\n@php \$x = 1; @endphp\n</div>", '@php cannot render in the browser', 2],
             /** @include and <x-components> are inlined (BladeInliner, tests/Feature/InlinedViewsTest). */
             '@push' => ["<div>\n\n@push('scripts') x</div>", '@push cannot render in the browser', 3],
-            'unknown fusion attribute' => ['<div fusion:clik="save"></div>', 'Unknown attribute fusion:clik', 1],
-            'unknown modifier' => ['<form fusion:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
-            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" fusion:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on fusion:navigate (it takes .keypress, .preserve-scroll, .prefetch, .visible, .transition)', 2],
-            'a time without prefetch' => ['<div><a href="/x" fusion:navigate.60s>x</a></div>', 'Unknown modifier .60s on fusion:navigate', 1],
-            'a prefetch time that is none' => ['<div><a href="/x" fusion:navigate.prefetch.soon>x</a></div>', 'Unknown modifier .soon on fusion:navigate', 1],
-            'unknown current modifier' => ['<div><a href="/x" fusion:current.exat="on">x</a></div>', 'Unknown modifier .exat on fusion:current', 1],
-            'unknown confirm modifier' => ['<div><button fusion:click="helper" fusion:confirm.promt="x">x</button></div>', 'Unknown modifier .promt on fusion:confirm', 1],
-            'unknown loading modifier' => ["<div>\n<span fusion:loading.slow>x</span></div>", 'fusion:loading takes .delay (.delay.500ms) first if it waits, then nothing or one of .remove, .class, .class.remove, .attr (not .slow)', 2],
-            'loading modifiers out of order' => ['<div><span fusion:loading.remove.class="a">x</span></div>', '(not .remove.class)', 1],
-            'delay after the form' => ['<div><span fusion:loading.class.delay="a">x</span></div>', '(not .class.delay)', 1],
-            'delay with a bad time' => ['<div><span fusion:loading.delay.fast>x</span></div>', '(not .delay.fast)', 1],
-            'delay on fusion:dirty' => ['<div><span fusion:dirty.delay>x</span></div>', 'fusion:dirty takes nothing or one of .remove, .class, .class.remove, .attr (not .delay)', 1],
-            'modifier on fusion:ignore' => ['<div><span fusion:ignore.self>x</span></div>', 'fusion:ignore takes no modifiers (.self)', 1],
-            'modifier on fusion:target' => ['<div><span fusion:loading fusion:target.x="save">x</span></div>', 'fusion:target takes no modifiers', 1],
-            'unknown poll modifier' => ['<div fusion:poll.visibel="helper"></div>', 'Unknown modifier .visibel on fusion:poll', 1],
-            'poll calls an unknown method' => ["<div>\n<span fusion:poll.5s=\"nope\"></span></div>", '$this->nope() is not a method', 2],
-            'init takes no interval' => ['<div fusion:init.5s="helper"></div>', 'Unknown modifier .5s on fusion:init', 1],
-            'writing a computed value' => ['<div><button fusion:click="$set(\'total\', 1)">x</button></div>', 'total is not a public property', 1],
-            'echo in a handler' => ['<button fusion:click="remove({{ $count }})"></button>', 'without {{ }}', 1],
-            'handler that is not a call' => ['<button fusion:click="$count + 1"></button>', 'An event handler is a method call', 1],
-            'model on a locked property' => ['<input fusion:model="balance">', 'is #[Locked]', 1],
-            'model on an unknown property' => ['<input fusion:model="nope">', 'nope is not a public property', 1],
+            'unknown nitro attribute' => ['<div nitro:clik="save"></div>', 'Unknown attribute nitro:clik', 1],
+            'unknown modifier' => ['<form nitro:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
+            'unknown navigate modifier' => ["<div>\n<a href=\"/x\" nitro:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on nitro:navigate (it takes .keypress, .preserve-scroll, .prefetch, .visible, .transition)', 2],
+            'a time without prefetch' => ['<div><a href="/x" nitro:navigate.60s>x</a></div>', 'Unknown modifier .60s on nitro:navigate', 1],
+            'a prefetch time that is none' => ['<div><a href="/x" nitro:navigate.prefetch.soon>x</a></div>', 'Unknown modifier .soon on nitro:navigate', 1],
+            'unknown current modifier' => ['<div><a href="/x" nitro:current.exat="on">x</a></div>', 'Unknown modifier .exat on nitro:current', 1],
+            'unknown confirm modifier' => ['<div><button nitro:click="helper" nitro:confirm.promt="x">x</button></div>', 'Unknown modifier .promt on nitro:confirm', 1],
+            'unknown loading modifier' => ["<div>\n<span nitro:loading.slow>x</span></div>", 'nitro:loading takes .delay (.delay.500ms) first if it waits, then nothing or one of .remove, .class, .class.remove, .attr (not .slow)', 2],
+            'loading modifiers out of order' => ['<div><span nitro:loading.remove.class="a">x</span></div>', '(not .remove.class)', 1],
+            'delay after the form' => ['<div><span nitro:loading.class.delay="a">x</span></div>', '(not .class.delay)', 1],
+            'delay with a bad time' => ['<div><span nitro:loading.delay.fast>x</span></div>', '(not .delay.fast)', 1],
+            'delay on nitro:dirty' => ['<div><span nitro:dirty.delay>x</span></div>', 'nitro:dirty takes nothing or one of .remove, .class, .class.remove, .attr (not .delay)', 1],
+            'modifier on nitro:ignore' => ['<div><span nitro:ignore.self>x</span></div>', 'nitro:ignore takes no modifiers (.self)', 1],
+            'modifier on nitro:target' => ['<div><span nitro:loading nitro:target.x="save">x</span></div>', 'nitro:target takes no modifiers', 1],
+            'unknown poll modifier' => ['<div nitro:poll.visibel="helper"></div>', 'Unknown modifier .visibel on nitro:poll', 1],
+            'poll calls an unknown method' => ["<div>\n<span nitro:poll.5s=\"nope\"></span></div>", '$this->nope() is not a method', 2],
+            'init takes no interval' => ['<div nitro:init.5s="helper"></div>', 'Unknown modifier .5s on nitro:init', 1],
+            'writing a computed value' => ['<div><button nitro:click="$set(\'total\', 1)">x</button></div>', 'total is not a public property', 1],
+            'echo in a handler' => ['<button nitro:click="remove({{ $count }})"></button>', 'without {{ }}', 1],
+            'handler that is not a call' => ['<button nitro:click="$count + 1"></button>', 'An event handler is a method call', 1],
+            'model on a locked property' => ['<input nitro:model="balance">', 'is #[Locked]', 1],
+            'model on an unknown property' => ['<input nitro:model="nope">', 'nope is not a public property', 1],
             'undefined variable' => ["<div>\n{{ \$undefined }}</div>", 'Undefined variable $undefined', 2],
             'assignment in an echo' => ['<div>{{ $count = 5 }}</div>', 'cannot assign', 1],
             'server call while rendering' => ['<div>{{ $this->save() }}</div>', 'runs on the server', 1],
@@ -143,13 +143,13 @@ class CompileErrorsTest extends TestCase
             'rows in a loop without tbody' => ['<table>@foreach ($items as $item)<tr><td>1</td></tr>@endforeach</table>', 'inside <tbody>', 1],
             'echo in a tag' => ['<div {{ $count }}>x</div>', 'An echo inside a tag must be an attribute value', 1],
             'mismatched end' => ["<div>\n@if (\$count)\n@endforeach\n</div>", 'Unexpected @endforeach', 3],
-            'child tag not closed' => ["<div><fusion:card>\ntext</div>", '</div> closes an element opened outside', 2],
-            'child tag left open' => ["<div></div>\n<fusion:card>text", '<fusion:card> is not closed', 2],
-            'child tag closed by another' => ['<div><fusion:card>x</fusion:panel></div>', '</fusion:panel> closes no <fusion:panel> (<fusion:card> from line 1 is open)', 1],
-            'slot outside a child tag' => ['<div><fusion:slot name="x">y</fusion:slot></div>', '<fusion:slot> belongs directly inside a <fusion:...> tag', 1],
-            'slot inside an element' => ['<div><fusion:card><p><fusion:slot name="x">y</fusion:slot></p></fusion:card></div>', '<fusion:slot> belongs directly inside a <fusion:...> tag (<p> from line 1 is still open)', 1],
-            'slot without a name' => ['<div><fusion:card><fusion:slot>y</fusion:slot></fusion:card></div>', '<fusion:slot> needs a name', 1],
-            'slot not closed' => ['<div><fusion:card><fusion:slot name="x">y</fusion:card></div>', '</fusion:card> closes no <fusion:card> (<fusion:slot name="x"> from line 1 is open)', 1],
+            'child tag not closed' => ["<div><nitro:card>\ntext</div>", '</div> closes an element opened outside', 2],
+            'child tag left open' => ["<div></div>\n<nitro:card>text", '<nitro:card> is not closed', 2],
+            'child tag closed by another' => ['<div><nitro:card>x</nitro:panel></div>', '</nitro:panel> closes no <nitro:panel> (<nitro:card> from line 1 is open)', 1],
+            'slot outside a child tag' => ['<div><nitro:slot name="x">y</nitro:slot></div>', '<nitro:slot> belongs directly inside a <nitro:...> tag', 1],
+            'slot inside an element' => ['<div><nitro:card><p><nitro:slot name="x">y</nitro:slot></p></nitro:card></div>', '<nitro:slot> belongs directly inside a <nitro:...> tag (<p> from line 1 is still open)', 1],
+            'slot without a name' => ['<div><nitro:card><nitro:slot>y</nitro:slot></nitro:card></div>', '<nitro:slot> needs a name', 1],
+            'slot not closed' => ['<div><nitro:card><nitro:slot name="x">y</nitro:card></div>', '</nitro:card> closes no <nitro:card> (<nitro:slot name="x"> from line 1 is open)', 1],
             'teleport not closed' => ["<div>@teleport('body')<p>x</p></div>", '</div> closes an element opened outside the @teleport of line 1', 1],
             'element closed in a teleport' => ["<div><p>@teleport('body')x</p>@endteleport</div>", '</p> closes an element opened outside the @teleport of line 1', 1],
             'teleport without its end' => ["<div>@teleport('body')<p>x</p>@endif</div>", 'Unexpected @endif (@teleport from line 1 is still open)', 1],
@@ -163,18 +163,18 @@ class CompileErrorsTest extends TestCase
             'teleport to an expression' => ['<div>@teleport($name)x@endteleport</div>', "@teleport takes the name of a @portal, as a string literal: @teleport('modals')", 1],
             'teleport to a selector' => ["<div>@teleport('#modals')x@endteleport</div>", '@teleport takes the name of a @portal', 1],
             'teleport in a teleport' => ["<div>@teleport('a')@teleport('b')x@endteleport@endteleport</div>", '@teleport cannot be inside another @teleport', 1],
-            'unknown visible modifier' => ['<div><p fusion:visible.twice="helper">x</p></div>', 'Unknown modifier .twice on fusion:visible', 1],
-            'island inside a component' => ["<div>\n<fusion:counter fusion:hydrate.idle /></div>", 'fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:counter> is a child of this component', 2],
-            'unknown transition modifier' => ['<div><p fusion:transition.durration.200ms>x</p></div>', 'Unknown modifier .durration on fusion:transition', 1],
-            'transition duration without a time' => ['<div><p fusion:transition.duration>x</p></div>', 'fusion:transition.duration needs a time', 1],
-            'transition with both modes' => ['<div><p fusion:transition.out-in.in-out>x</p></div>', 'fusion:transition takes one mode: .out-in or .in-out', 1],
-            'transition origin without a side' => ['<div><p fusion:transition.scale.origin.middle>x</p></div>', 'fusion:transition.origin needs a side', 1],
-            'set with named arguments' => ['<div><button fusion:click="$set(value: 1, property: \'count\')">x</button></div>', '$set takes its arguments in order', 1],
-            'reload of no property' => ['<div><button fusion:click="$reload(\'nothing\')">x</button></div>', '$reload takes the names of public properties', 1],
+            'unknown visible modifier' => ['<div><p nitro:visible.twice="helper">x</p></div>', 'Unknown modifier .twice on nitro:visible', 1],
+            'island inside a component' => ["<div>\n<nitro:counter nitro:hydrate.idle /></div>", 'nitro:hydrate and nitro:static are for islands, components placed in Blade views: <nitro:counter> is a child of this component', 2],
+            'unknown transition modifier' => ['<div><p nitro:transition.durration.200ms>x</p></div>', 'Unknown modifier .durration on nitro:transition', 1],
+            'transition duration without a time' => ['<div><p nitro:transition.duration>x</p></div>', 'nitro:transition.duration needs a time', 1],
+            'transition with both modes' => ['<div><p nitro:transition.out-in.in-out>x</p></div>', 'nitro:transition takes one mode: .out-in or .in-out', 1],
+            'transition origin without a side' => ['<div><p nitro:transition.scale.origin.middle>x</p></div>', 'nitro:transition.origin needs a side', 1],
+            'set with named arguments' => ['<div><button nitro:click="$set(value: 1, property: \'count\')">x</button></div>', '$set takes its arguments in order', 1],
+            'reload of no property' => ['<div><button nitro:click="$reload(\'nothing\')">x</button></div>', '$reload takes the names of public properties', 1],
             'deferred by expression' => ['<div>@deferred($name)x@enddeferred</div>', "@deferred names properties as strings: @deferred('stats')", 1],
             'placeholder outside deferred' => ['<div>@if($count)<p>x</p>@placeholder<p>y</p>@endif</div>', '@placeholder outside of @deferred', 1],
             'deferred without its end' => ['<div>@deferred(\'count\')<p>x</p>@endif</div>', 'Unexpected @endif (@deferred from line 1 is still open)', 1],
-            'dynamic component without is' => ['<div><fusion:dynamic-component /></div>', '<fusion:dynamic-component> needs :is, the name of the component to render', 1],
+            'dynamic component without is' => ['<div><nitro:dynamic-component /></div>', '<nitro:dynamic-component> needs :is, the name of the component to render', 1],
             'unclosed echo' => ["<div>\n{{ \$count </div>", 'Unclosed {{', 2],
             'malformed foreach' => ['<div>@foreach ($items) @endforeach</div>', 'Malformed @foreach', 1],
             'text before the first case' => ["<div>@switch(\$count) text @case(1) @endswitch</div>", 'Only @case and @default can follow @switch', 1],
@@ -201,8 +201,8 @@ class CompileErrorsTest extends TestCase
         $scope = new Scope(properties: ['page'], clientMethods: ['goTo', 'print', 'list', 'save'], file: 'Component.php');
         $compiler = new TemplateCompiler(fn () => false);
 
-        $js = $compiler->compile('<div><button fusion:click="goTo($page - 1)">a</button><button fusion:click="print">b</button>'
-            .'<button fusion:click="list(); save">c</button><button fusion:click="$set(\'page\', 1)">d</button></div>', $scope);
+        $js = $compiler->compile('<div><button nitro:click="goTo($page - 1)">a</button><button nitro:click="print">b</button>'
+            .'<button nitro:click="list(); save">c</button><button nitro:click="$set(\'page\', 1)">d</button></div>', $scope);
 
         $this->assertStringContainsString('$this.goTo(P.sub($this.page, 1))', $js);
         $this->assertStringContainsString('$this.print()', $js);
@@ -216,8 +216,8 @@ class CompileErrorsTest extends TestCase
         $scope = new Scope(properties: ['note'], clientMethods: ['notify', 'go'], file: 'Component.php');
         $compiler = new TemplateCompiler(fn () => false);
 
-        $js = $compiler->compile('<div><button fusion:click="$set(\'note\', \'a;b;\')">a</button>'
-            .'<button fusion:click="$set(\'note\', \'x; go(1)\'); notify(\'item;save\')">b</button></div>', $scope);
+        $js = $compiler->compile('<div><button nitro:click="$set(\'note\', \'a;b;\')">a</button>'
+            .'<button nitro:click="$set(\'note\', \'x; go(1)\'); notify(\'item;save\')">b</button></div>', $scope);
 
         $this->assertStringContainsString('$this.$set("note", "a;b;")', $js);
         $this->assertStringContainsString('$this.$set("note", "x; go(1)")', $js);
@@ -278,50 +278,50 @@ class CompileErrorsTest extends TestCase
 
     public function test_handlers_are_expressions_given_the_variables_they_were_rendered_with(): void
     {
-        [$tree, $expressions] = $this->compiled('<div>@for ($n = 1; $n <= 3; $n++)<button fusion:click="helper($n, $count)">{{ $n }}</button>@endfor</div>');
+        [$tree, $expressions] = $this->compiled('<div>@for ($n = 1; $n <= 3; $n++)<button nitro:click="helper($n, $count)">{{ $n }}</button>@endfor</div>');
 
         $for = $tree['h'][0]['h'][0];
         $this->assertSame(['c' => 'for', 'code' => 0, 'vars' => [0]], $for['i'][0]);
 
         $button = $for['h'][0];
-        $this->assertSame(['c' => 'fusion:click', 'h' => [['c' => 'helper($n, $count)']], 'on' => ['e' => 'click', 'm' => [], 'code' => 1]], $button['a'][0]);
+        $this->assertSame(['c' => 'nitro:click', 'h' => [['c' => 'helper($n, $count)']], 'on' => ['e' => 'click', 'm' => [], 'code' => 1]], $button['a'][0]);
         $this->assertStringContainsString("function (\$this, \$n) { return (\$event) => {\n\$this.helper(\$n, \$this.count);", $expressions[1]);
     }
 
     public function test_a_model_path_can_be_built_with_blade(): void
     {
-        [$tree, $expressions] = $this->compiled('<div>@foreach ($items as $i => $item)<input fusion:model="items.{{ $i }}.name" class="x">@endforeach</div>');
+        [$tree, $expressions] = $this->compiled('<div>@foreach ($items as $i => $item)<input nitro:model="items.{{ $i }}.name" class="x">@endforeach</div>');
 
         $input = $tree['h'][0]['h'][0]['h'][0];
-        $this->assertSame(['c' => 'fusion:model', 'h' => [['c' => 'items.'], ['e' => 1, 'code' => 1], ['c' => '.name']]], $input['a'][0]);
+        $this->assertSame(['c' => 'nitro:model', 'h' => [['c' => 'items.'], ['e' => 1, 'code' => 1], ['c' => '.name']]], $input['a'][0]);
         $this->assertStringContainsString('return P.toStr($i);', $expressions[1]);
 
         $this->expectExceptionMessage('nope is not a public property');
-        $this->compiled('<div>@foreach ($items as $i => $item)<input fusion:model="nope.{{ $i }}.name">@endforeach</div>');
+        $this->compiled('<div>@foreach ($items as $i => $item)<input nitro:model="nope.{{ $i }}.name">@endforeach</div>');
     }
 
     public function test_a_childs_model_path_can_be_built_with_blade(): void
     {
-        [$tree, $expressions] = $this->compiled('<div>@foreach ($items as $i => $item)<fusion:counter fusion:model="items.{{ $i }}.qty" />@endforeach</div>');
+        [$tree, $expressions] = $this->compiled('<div>@foreach ($items as $i => $item)<nitro:counter nitro:model="items.{{ $i }}.qty" />@endforeach</div>');
 
         $child = $tree['h'][0]['h'][0]['h'][0];
         $this->assertSame('c', $child['t']);
         $this->assertSame('"items." + P.toStr($i) + ".qty"', preg_replace('/^.*return (.*);.*$/s', '$1', $expressions[$child['model']]));
         $this->assertStringContainsString('"$model": P.get(P.get($this.items, $i), "qty")', $expressions[$child['props']]);
 
-        [$tree] = $this->compiled('<div><fusion:counter fusion:model="items.0.qty" /></div>');
+        [$tree] = $this->compiled('<div><nitro:counter nitro:model="items.0.qty" /></div>');
         $this->assertSame('items.0.qty', $tree['h'][0]['h'][0]['model'], 'a path without {{ }} stays a string');
     }
 
     public static function childModels(): array
     {
         return [
-            'not a property' => ['<div><fusion:counter fusion:model="nope.{{ $count }}" /></div>', 'nope must be a public property of this component'],
-            'part of a segment' => ['<div><fusion:counter fusion:model="items.a{{ $count }}" /></div>', 'names a property of this component, or a key under it'],
-            'the root' => ['<div><fusion:counter fusion:model="{{ $count }}.qty" /></div>', 'names a property of this component, or a key under it'],
-            'bound' => ['<div><fusion:counter :fusion:model="$count" /></div>', 'names a property of this component, or a key under it'],
-            'not an expression' => ['<div><fusion:counter fusion:model="items.{{ ; }}" /></div>', '{{ ; }} is not a PHP expression'],
-            'another attribute' => ['<div><fusion:counter label="{{ $count }}" /></div>', 'Use :label="$value" to pass a value to <fusion:counter>, not {{ }}'],
+            'not a property' => ['<div><nitro:counter nitro:model="nope.{{ $count }}" /></div>', 'nope must be a public property of this component'],
+            'part of a segment' => ['<div><nitro:counter nitro:model="items.a{{ $count }}" /></div>', 'names a property of this component, or a key under it'],
+            'the root' => ['<div><nitro:counter nitro:model="{{ $count }}.qty" /></div>', 'names a property of this component, or a key under it'],
+            'bound' => ['<div><nitro:counter :nitro:model="$count" /></div>', 'names a property of this component, or a key under it'],
+            'not an expression' => ['<div><nitro:counter nitro:model="items.{{ ; }}" /></div>', '{{ ; }} is not a PHP expression'],
+            'another attribute' => ['<div><nitro:counter label="{{ $count }}" /></div>', 'Use :label="$value" to pass a value to <nitro:counter>, not {{ }}'],
         ];
     }
 
@@ -334,32 +334,32 @@ class CompileErrorsTest extends TestCase
 
     public function test_computed_values_poll_init_and_confirm_compile(): void
     {
-        [$tree, $expressions] = $this->compiled('<div fusion:init="helper"><p>{{ $this->total }}</p><span fusion:poll.5s.visible="save"></span><span fusion:poll></span>'
-            .'<button fusion:click="save" fusion:confirm="Sure?">x</button></div>');
+        [$tree, $expressions] = $this->compiled('<div nitro:init="helper"><p>{{ $this->total }}</p><span nitro:poll.5s.visible="save"></span><span nitro:poll></span>'
+            .'<button nitro:click="save" nitro:confirm="Sure?">x</button></div>');
 
         $div = $tree['h'][0];
         $this->assertSame(['e' => 'init', 'm' => [], 'code' => 0], $div['a'][0]['on']);
         $this->assertStringContainsString('P.toStr($this.$computed("total"))', $expressions[1]);
         $this->assertSame(['e' => 'poll', 'm' => ['5s', 'visible'], 'code' => 2], $div['h'][1]['a'][0]['on']);
-        $this->assertSame(['c' => 'fusion:poll', 'on' => ['e' => 'poll', 'm' => [], 'code' => 3]], $div['h'][2]['a'][0]);
+        $this->assertSame(['c' => 'nitro:poll', 'on' => ['e' => 'poll', 'm' => [], 'code' => 3]], $div['h'][2]['a'][0]);
         $this->assertStringContainsString('$this.$refresh()', $expressions[3]);
-        $this->assertSame(['c' => 'fusion:confirm', 'h' => [['c' => 'Sure?']]], $div['h'][3]['a'][1]);
+        $this->assertSame(['c' => 'nitro:confirm', 'h' => [['c' => 'Sure?']]], $div['h'][3]['a'][1]);
     }
 
     public function test_navigate_and_current_take_their_modifiers(): void
     {
-        [$prefetching] = $this->compiled('<div><a href="/x" fusion:navigate.prefetch>x</a><a href="/y" fusion:navigate.prefetch.60s.keypress>y</a><a href="/z" fusion:navigate.prefetch.500ms>z</a></div>');
-        $this->assertSame('fusion:navigate.prefetch.60s.keypress', $prefetching['h'][0]['h'][1]['a'][1]['c'], '.prefetch, with how long it is kept');
+        [$prefetching] = $this->compiled('<div><a href="/x" nitro:navigate.prefetch>x</a><a href="/y" nitro:navigate.prefetch.60s.keypress>y</a><a href="/z" nitro:navigate.prefetch.500ms>z</a></div>');
+        $this->assertSame('nitro:navigate.prefetch.60s.keypress', $prefetching['h'][0]['h'][1]['a'][1]['c'], '.prefetch, with how long it is kept');
 
-        [$visible] = $this->compiled('<nav><a href="/x" fusion:navigate.prefetch.visible>x</a><a href="/y" fusion:navigate.transition>y</a></nav>');
-        $this->assertSame('fusion:navigate.prefetch.visible', $visible['h'][0]['h'][0]['a'][1]['c'], '.prefetch.visible: asked for once in view');
-        $this->assertSame('fusion:navigate.transition', $visible['h'][0]['h'][1]['a'][1]['c'], '.transition: a View Transition for this link');
+        [$visible] = $this->compiled('<nav><a href="/x" nitro:navigate.prefetch.visible>x</a><a href="/y" nitro:navigate.transition>y</a></nav>');
+        $this->assertSame('nitro:navigate.prefetch.visible', $visible['h'][0]['h'][0]['a'][1]['c'], '.prefetch.visible: asked for once in view');
+        $this->assertSame('nitro:navigate.transition', $visible['h'][0]['h'][1]['a'][1]['c'], '.transition: a View Transition for this link');
 
-        [$tree] = $this->compiled('<nav><a href="/a" fusion:navigate.keypress fusion:current.exact="on">a</a><a href="/b" fusion:navigate fusion:current>b</a></nav>');
+        [$tree] = $this->compiled('<nav><a href="/a" nitro:navigate.keypress nitro:current.exact="on">a</a><a href="/b" nitro:navigate nitro:current>b</a></nav>');
 
         [$a, $b] = $tree['h'][0]['h'];
-        $this->assertSame([['c' => 'href', 'h' => [['c' => '/a']]], ['c' => 'fusion:navigate.keypress'], ['c' => 'fusion:current.exact', 'h' => [['c' => 'on']]]], $a['a']);
-        $this->assertSame([['c' => 'href', 'h' => [['c' => '/b']]], ['c' => 'fusion:navigate'], ['c' => 'fusion:current']], $b['a']);
+        $this->assertSame([['c' => 'href', 'h' => [['c' => '/a']]], ['c' => 'nitro:navigate.keypress'], ['c' => 'nitro:current.exact', 'h' => [['c' => 'on']]]], $a['a']);
+        $this->assertSame([['c' => 'href', 'h' => [['c' => '/b']]], ['c' => 'nitro:navigate'], ['c' => 'nitro:current']], $b['a']);
     }
 
     public function test_alpine_attributes_and_email_addresses_are_left_alone(): void

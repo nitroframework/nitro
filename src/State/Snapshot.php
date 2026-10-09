@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\State;
 
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use JsonException;
 use LogicException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\PropertyMeta;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\PropertyMeta;
 use Closure;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Merge;
-use Nitro\Fusion\Support\Signer;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\StateProperties;
+use Nitro\Component;
+use Nitro\Merge;
+use Nitro\Support\Signer;
+use Nitro\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -84,7 +84,7 @@ final class Snapshot
             }
         }
 
-        $context = $component->fusion();
+        $context = $component->nitro();
 
         return new self($context->name, $context->id, $data, array_filter([
             ...$memo,
@@ -98,7 +98,7 @@ final class Snapshot
     private static function modelReference(Model $model, string $component, string $property): array
     {
         if (! $model->exists) {
-            throw new LogicException("Fusion component [{$component}]: \${$property} holds an unsaved model; only saved models can be part of the state.");
+            throw new LogicException("Nitro component [{$component}]: \${$property} holds an unsaved model; only saved models can be part of the state.");
         }
 
         $relations = $model->getQueueableRelations();
@@ -199,7 +199,7 @@ final class Snapshot
     public function toJson(Signer $signer, ?string $name = null, ?Obfuscator $names = null): string
     {
         [$data, $memo] = $names === null ? [$this->data, $this->memo] : $this->renamed($names->property(...), $names->path(...));
-        /** issued: when it was signed, for fusion.state.lifetime. */
+        /** issued: when it was signed, for nitro.state.lifetime. */
         $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo, 'issued' => time()]);
 
         return json_encode(['state' => $state, 'checksum' => $signer->sign(self::PURPOSE, $state)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -256,7 +256,7 @@ final class Snapshot
             };
         }
 
-        $context = $component->fusion();
+        $context = $component->nitro();
         $context->id = $this->id;
         $context->name = $this->name;
         $context->errors->merge($this->memo['errors'] ?? []);

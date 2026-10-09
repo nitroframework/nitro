@@ -1,4 +1,4 @@
-// Fusion: PHP's mb_strimwidth(): the string from start (characters), cut to width, the trim
+// Nitro: PHP's mb_strimwidth(): the string from start (characters), cut to width, the trim
 // marker in the width when it is cut.
 // uses: _mb_char_width, mb_strwidth
 function mb_strimwidth(string, start, width, trimMarker = '') {

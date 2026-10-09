@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\View\Adapters;
+namespace Nitro\View\Adapters;
 
-use Nitro\Fusion\View\ScriptEngine;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
+use Nitro\View\ScriptEngine;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
 
 /**
  * Svelte: #[View(svelte: 'cart/badge')] is cart/badge.svelte in resources/views/svelte or
  * resources/js/svelte. A Svelte 5 component; its component's PHP, when it holds it, is a <php>
- * block in it, as in a .vue file. In the browser: nitro-fusion/svelte (js/adapters/svelte.svelte.js).
+ * block in it, as in a .vue file. In the browser: nitro/svelte (js/adapters/svelte.svelte.js).
  */
 final class SvelteAdapter extends ScriptEngine
 {

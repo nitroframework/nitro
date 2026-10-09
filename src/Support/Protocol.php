@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
  * What the server and the browser must agree on, read from js/protocol.json, which the runtime
@@ -11,34 +11,34 @@ final class Protocol
     /** @var array<string, mixed>|null */
     private static ?array $protocol = null;
 
-    /** What every Fusion attribute's name starts with: fusion:click, fusion:model, fusion:id. */
+    /** What every Nitro attribute's name starts with: nitro:click, nitro:model, nitro:id. */
     public static function namespace(): string
     {
         return self::get('namespace');
     }
 
-    /** The engine of a view Fusion compiles itself (BladeEngine): a component's, unless #[View] names a JavaScript framework's. */
+    /** The engine of a view Nitro compiles itself (BladeEngine): a component's, unless #[View] names a JavaScript framework's. */
     public static function bladeEngine(): string
     {
         return self::get('view')['bladeEngine'];
     }
 
-    /** Among a child's props: the value of its tag's fusion:model, for its #[Modelable] property. */
+    /** Among a child's props: the value of its tag's nitro:model, for its #[Modelable] property. */
     public static function modelProp(): string
     {
         return self::get('compiled')['model'];
     }
 
     /**
-     * An attribute Fusion puts on an element for the runtime, by its role:
+     * An attribute Nitro puts on an element for the runtime, by its role:
      *
      *   id, name, snapshot   a component's root: its id, its name, its signed state
      *   page                 a routed page's root: the layout it renders in
      *   placeholder          where the runtime puts a child it creates
      *   serverHtml           a JavaScript view's element holds the server's HTML: hydrate it
      *   hydrate, static      an island: when it starts; never (also written on its tag)
-     *   handler              the prefix of a handler's mark (fusion:h-click, fusion:h-poll)
-     *   directive            an element with directives of the app's own (Fusion.directive())
+     *   handler              the prefix of a handler's mark (nitro:h-click, nitro:h-poll)
+     *   directive            an element with directives of the app's own (Nitro.directive())
      */
     public static function attribute(string $role): string
     {
@@ -63,7 +63,7 @@ final class Protocol
      *   partial    a partial reload: the id of the page asking (deferred properties, reload())
      *   id         a markup-first visit: the id the browser gave the page it rendered early
      *   only       a partial reload's properties, comma-separated (all when absent)
-     *   once       the once data the browser has (Fusion::once()), comma-separated
+     *   once       the once data the browser has (Nitro::once()), comma-separated
      *   location   where a 409 answer sends the browser for a full load
      *   call       marks a #[Server] call or an upload the runtime made (for the app's middleware and logs)
      */
@@ -73,8 +73,8 @@ final class Protocol
     }
 
     /**
-     * A path under Fusion's endpoint (fusion.endpoint), by role: update (#[Server] calls),
-     * upload, preview (an upload's), runtime (fusion.js), bundle (app.js), chunk (app/{id}.js:
+     * A path under Nitro's endpoint (nitro.endpoint), by role: update (#[Server] calls),
+     * upload, preview (an upload's), runtime (nitro.js), bundle (app.js), chunk (app/{id}.js:
      * {id} is the chunk's).
      */
     public static function path(string $role): string

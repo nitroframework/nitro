@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Remember;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Remember;
+use Nitro\Component;
 
 /** #[Remember] on a property the browser cannot change. */
 class RememberedLocked extends Component

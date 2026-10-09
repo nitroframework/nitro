@@ -1,7 +1,7 @@
 <php>
 use Illuminate\Support\Str;
 
-/** A component written in its Svelte view: Fusion makes its class (ColocatedViews). */
+/** A component written in its Svelte view: Nitro makes its class (ColocatedViews). */
 new class extends Component {
     public int $score = 0;
 

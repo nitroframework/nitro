@@ -1,23 +1,23 @@
 <?php
 
-namespace Nitro\Fusion\Console;
+namespace Nitro\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Support\Naming;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\View\ScriptEngine;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\Components;
+use Nitro\Support\Naming;
+use Nitro\Support\Protocol;
+use Nitro\Support\Registry;
+use Nitro\View\ScriptEngine;
+use Nitro\View\ViewEngines;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\ProgressBar;
 
 /**
- * `php artisan fusion:build`: the production build. Every component compiled for the browser and
- * minified with esbuild (as `vite build` does), published under public/ (fusion.static), and the
+ * `php artisan nitro:build`: the production build. Every component compiled for the browser and
+ * minified with esbuild (as `vite build` does), published under public/ (nitro.static), and the
  * component list cached. A component that cannot run in the browser fails the build, naming the
  * file and line.
  *
@@ -26,12 +26,12 @@ use Symfony\Component\Console\Helper\ProgressBar;
  * build come from its cache), copying to public/. Then what was built: each file and its size
  * (-v: every on-demand file and what is in it), what a first visit downloads, the version.
  */
-#[AsCommand(name: 'fusion:build')]
+#[AsCommand(name: 'nitro:build')]
 class BuildCommand extends Command
 {
-    protected $signature = 'fusion:build';
+    protected $signature = 'nitro:build';
 
-    protected $description = 'Build the Fusion components for the browser (minified with esbuild)';
+    protected $description = 'Build the Nitro components for the browser (minified with esbuild)';
 
     private ?ProgressBar $bar = null;
 
@@ -112,14 +112,14 @@ class BuildCommand extends Command
         $this->newLine();
 
         if ($built['directory'] === null) {
-            $this->components->info('Done. The scripts are in '.$this->laravel->make('config')->get('fusion.compiled').', served by Fusion\'s routes.');
+            $this->components->info('Done. The scripts are in '.$this->laravel->make('config')->get('nitro.compiled').', served by Nitro\'s routes.');
 
             return;
         }
 
         $this->components->info('Done. The scripts are now plain files in <fg=cyan>public/'.basename($built['directory']).'</>.');
         $this->line('  The web server sends them directly, without PHP, and browsers can cache them,');
-        $this->line('  since every build gets new file names. @fusionScripts in your layout already points at them.');
+        $this->line('  since every build gets new file names. @nitroScripts in your layout already points at them.');
         $this->newLine();
     }
 
@@ -146,7 +146,7 @@ class BuildCommand extends Command
             return '';
         }
 
-        /** Blade first, then the engines as fusion.views lists them; each by its label. */
+        /** Blade first, then the engines as nitro.views lists them; each by its label. */
         $registry = $this->laravel->make(ViewEngines::class);
         $order = [Protocol::bladeEngine(), ...array_map(fn (ScriptEngine $engine) => $engine->name(), $registry->scripts())];
         $position = fn (string $engine) => array_search($engine, $order, true) === false ? PHP_INT_MAX : (int) array_search($engine, $order, true);

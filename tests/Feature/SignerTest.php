@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Signer;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Signer;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * One signer for what Fusion signs: each signature for its purpose, and good after APP_KEY is
+ * One signer for what Nitro signs: each signature for its purpose, and good after APP_KEY is
  * rotated while the old key is in APP_PREVIOUS_KEYS.
  */
 class SignerTest extends TestCase

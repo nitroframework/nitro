@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
 /** A trait's methods compile with the component that uses it. */
 trait Doubles

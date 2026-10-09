@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Hexdec.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Hexdec.js, for Nitro's values.
 function hexdec(str) {
   //  discuss at: https://www.php.net/manual/en/function.hexdec.php
   // Characters that are not base-16 digits are ignored, as PHP does; '' is 0.

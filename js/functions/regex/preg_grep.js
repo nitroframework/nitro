@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_grep(): the entries (keys kept) whose value matches; PREG_GREP_INVERT (1)
+// Nitro: PHP's preg_grep(): the entries (keys kept) whose value matches; PREG_GREP_INVERT (1)
 // those that do not.
 // uses: _pcre_start, _pcre_exec
 function preg_grep(pattern, array, flags = 0) {

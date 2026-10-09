@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\On;
+use Nitro\Component;
 
 /**
  * A page passing slots to its children: the content is this component's (its state, its

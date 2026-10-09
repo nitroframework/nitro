@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Attributes;
+namespace Nitro\Tests\Fixtures\Attributes;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Validate;
+use Nitro\Component;
 
 /** A component with attributes that work as features, on its class, a property and a #[Server] method (FeatureAttributeTest). */
 #[Stamped]

@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_split() (php_pcre_split_impl): PREG_SPLIT_NO_EMPTY (1),
+// Nitro: PHP's preg_split() (php_pcre_split_impl): PREG_SPLIT_NO_EMPTY (1),
 // PREG_SPLIT_DELIM_CAPTURE (2), PREG_SPLIT_OFFSET_CAPTURE (4).
 // uses: _pcre_start, _pcre_exec
 function preg_split(pattern, subject, limit = -1, flags = 0) {

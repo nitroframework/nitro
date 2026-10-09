@@ -1,6 +1,6 @@
 /**
  * A store in the browser (extends Store on the server): state several components share, one per
- * tab, kept across fusion:navigate visits. Its methods are compiled like a component's, and run
+ * tab, kept across nitro:navigate visits. Its methods are compiled like a component's, and run
  * with the store as $this; #[Server] ones are calls with its signed state, as a component's are.
  *
  * The components that use it (public Cart $cart) read it through their property: a change
@@ -14,8 +14,8 @@ import { defaultsOf, readState, sameValue, updatesOf } from './snapshot.js';
 
 export class Store {
     /**
-     * @param {object} runtime     the Fusion runtime
-     * @param {object} definition  the compiled store (Fusion.store)
+     * @param {object} runtime     the Nitro runtime
+     * @param {object} definition  the compiled store (Nitro.store)
      * @param {string} name        its name ("stores::cart", or an obfuscated build's alias)
      * @param {object|null} envelope  its signed state from the server; null: its defaults
      */

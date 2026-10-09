@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\View\Adapters;
+namespace Nitro\View\Adapters;
 
-use Nitro\Fusion\View\ScriptEngine;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
+use Nitro\View\ScriptEngine;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
 
 /**
  * React: #[View(react: 'chart')] is chart.jsx (or .tsx) in resources/views/react or
  * resources/js/react. Its component's PHP, when it holds it, is a leading
- * / * <php> ... </php> * / comment. In the browser: nitro-fusion/react (js/adapters/react.js).
+ * / * <php> ... </php> * / comment. In the browser: nitro/react (js/adapters/react.js).
  */
 final class ReactAdapter extends ScriptEngine
 {

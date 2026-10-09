@@ -1,27 +1,27 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\ChildTag;
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Compiler\Template\ChildTag;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Support\Protocol;
 
 /**
- * Child components in a component's view: <fusion:name ... /> and <fusion:slot>. Fusion's
+ * Child components in a component's view: <nitro:name ... /> and <nitro:slot>. Nitro's
  * component model:
  *
  *  - a child tag is a component node ({t: "c"}) with its props as one expression, keyed as the
  *    server keys it (ChildTag: its number in the view, plus the indexes of the @foreach loops
  *    around it, or its :key); without a :key, the loops around it are marked positional, so the
  *    runtime renders an iteration again rather than moving it
- *  - fusion:model on a child binds its #[Modelable] property to this component's property, which
+ *  - nitro:model on a child binds its #[Modelable] property to this component's property, which
  *    must be public and not #[Locked]
- *  - <fusion:dynamic-component :is="$name">: the component :is names, worked out as it renders
- *  - a child's content is its default slot, and <fusion:slot name="footer"> a named one; slots
+ *  - <nitro:dynamic-component :is="$name">: the component :is names, worked out as it renders
+ *  - a child's content is its default slot, and <nitro:slot name="footer"> a named one; slots
  *    are this view's nodes (this component's state, variables and handlers), rendered inside the
  *    child where its view puts {{ $slot }}
  *  - children belong in the component's own view, not in an inlined @include or Blade component
- *    (the server numbers them per view file); fusion:hydrate / fusion:static are for islands only
+ *    (the server numbers them per view file); nitro:hydrate / nitro:static are for islands only
  *  - an obfuscated build names the child and its props by the browser's names
  *
  * @internal
@@ -29,7 +29,7 @@ use Nitro\Fusion\Support\Protocol;
 final class ChildComponents extends Part
 {
     /**
-     * <fusion:name ... />: a child component. It is keyed like on the server (ChildTag::key: its
+     * <nitro:name ... />: a child component. It is keyed like on the server (ChildTag::key: its
      * number and the indexes of the @foreach loops around it, or its :key).
      */
     public function child(string $text, int $at): int
@@ -39,13 +39,13 @@ final class ChildComponents extends Part
 
         /** Children are numbered by the server per view file: inlined, the numbers would not match. */
         if ($context->frames !== []) {
-            throw $context->error("<fusion:...> inside {$context->frames[count($context->frames) - 1]['label']}: put Fusion children in the component's own view, not in an included view or a Blade component");
+            throw $context->error("<nitro:...> inside {$context->frames[count($context->frames) - 1]['label']}: put Nitro children in the component's own view, not in an included view or a Blade component");
         }
 
         $tag = ChildTag::parse($text, $at, $context->children++, $context->file, $context->line);
 
         if ($tag->hydrate !== null) {
-            throw $context->error("fusion:hydrate and fusion:static are for islands, components placed in Blade views: <fusion:{$tag->name}> is a child of this component, and starts with it");
+            throw $context->error("nitro:hydrate and nitro:static are for islands, components placed in Blade views: <nitro:{$tag->name}> is a child of this component, and starts with it");
         }
 
         /**
@@ -64,15 +64,15 @@ final class ChildComponents extends Part
             $root = $tag->modelPath[0];
 
             if (! $context->scope->isProperty($root) || $context->scope->isLocked($root)) {
-                throw $context->error("fusion:model on <fusion:{$tag->name}> binds \"{$tag->model}\": {$root} must be a public property of this component that the browser can change");
+                throw $context->error("nitro:model on <nitro:{$tag->name}> binds \"{$tag->model}\": {$root} must be a public property of this component that the browser can change");
             }
         }
 
-        /** Livewire's <fusion:dynamic-component :is="$name">, Viewi's tag named by an expression: the component :is names. */
+        /** Livewire's <nitro:dynamic-component :is="$name">, Viewi's tag named by an expression: the component :is names. */
         $dynamic = $tag->name === ChildTag::DYNAMIC;
 
         if ($dynamic && ! isset($tag->props['is'])) {
-            throw $context->error('<fusion:dynamic-component> needs :is, the name of the component to render (as in <fusion:name>)');
+            throw $context->error('<nitro:dynamic-component> needs :is, the name of the component to render (as in <nitro:name>)');
         }
 
         $props = [];
@@ -98,7 +98,7 @@ final class ChildComponents extends Part
         $this->compiler->tree->append($node);
 
         /**
-         * <fusion:name> with content: its slots. They are this template's nodes (this component's
+         * <nitro:name> with content: its slots. They are this template's nodes (this component's
          * state, variables and handlers), rendered inside the child where its view puts $slot.
          */
         if (! $tag->selfClosing) {
@@ -110,7 +110,7 @@ final class ChildComponents extends Part
     }
 
     /**
-     * A child's fusion:model path in the browser: the path, or, with {{ }} segments, the index of
+     * A child's nitro:model path in the browser: the path, or, with {{ }} segments, the index of
      * the expression that builds it as the view renders.
      *
      * @param  list<string|array{php: string}>  $segments
@@ -143,20 +143,20 @@ final class ChildComponents extends Part
         return $this->compiler->expressionTable->expression(implode(' + ', $parts));
     }
 
-    /** <fusion:slot name="footer">: a named slot of the child tag around it. */
+    /** <nitro:slot name="footer">: a named slot of the child tag around it. */
     public function slotOpen(string $text, int $at): int
     {
         $context = $this->context;
         $this->compiler->tree->flushText();
 
         if (! preg_match(substr(ChildTag::SLOT_PATTERN, 0, 1).'\G'.substr(ChildTag::SLOT_PATTERN, 1), $text, $match, 0, $at)) {
-            throw $context->error('<fusion:slot> needs a name: <fusion:slot name="footer">');
+            throw $context->error('<nitro:slot> needs a name: <nitro:slot name="footer">');
         }
 
         $top = end($context->stack);
 
         if ($top['kind'] !== 'child') {
-            throw $context->error('<fusion:slot> belongs directly inside a <fusion:...> tag'.($top['kind'] === 'element' ? " (<{$top['tag']}> from line {$top['line']} is still open)" : ''));
+            throw $context->error('<nitro:slot> belongs directly inside a <nitro:...> tag'.($top['kind'] === 'element' ? " (<{$top['tag']}> from line {$top['line']} is still open)" : ''));
         }
 
         $name = $match[1] !== '' ? $match[1] : $match[2];
@@ -166,14 +166,14 @@ final class ChildComponents extends Part
         return $at + strlen($match[0]);
     }
 
-    /** </fusion:slot> or </fusion:name>: the slot, or the child tag, ends. */
+    /** </nitro:slot> or </nitro:name>: the slot, or the child tag, ends. */
     public function childClose(string $text, int $at): int
     {
         $context = $this->context;
         $this->compiler->tree->flushText();
 
-        if (! preg_match('/\G<\/fusion:([a-z0-9][a-z0-9\-.]*)\s*>/i', $text, $match, 0, $at)) {
-            throw $context->error('Malformed </fusion:...> tag');
+        if (! preg_match('/\G<\/nitro:([a-z0-9][a-z0-9\-.]*)\s*>/i', $text, $match, 0, $at)) {
+            throw $context->error('Malformed </nitro:...> tag');
         }
 
         $name = strtolower($match[1]);
@@ -181,10 +181,10 @@ final class ChildComponents extends Part
         $expected = $name === 'slot' ? 'slot' : 'child';
 
         if ($top['kind'] !== $expected || ($expected === 'child' && $top['tag'] !== $name)) {
-            throw $context->error("</fusion:{$name}> closes no <fusion:{$name}>".match ($top['kind']) {
+            throw $context->error("</nitro:{$name}> closes no <nitro:{$name}>".match ($top['kind']) {
                 'element' => " (<{$top['tag']}> from line {$top['line']} is still open)",
-                'child' => " (<fusion:{$top['tag']}> from line {$top['line']} is open)",
-                'slot' => " (<fusion:slot name=\"{$top['name']}\"> from line {$top['line']} is open)",
+                'child' => " (<nitro:{$top['tag']}> from line {$top['line']} is open)",
+                'slot' => " (<nitro:slot name=\"{$top['name']}\"> from line {$top['line']} is open)",
                 'root' => '',
                 default => " (@{$top['kind']} from line {$top['line']} is open)",
             });

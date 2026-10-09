@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Parity;
+namespace Nitro\Tests\Parity;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Browser\OrderStatus;
+use Nitro\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 
 /**

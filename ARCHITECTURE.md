@@ -1,6 +1,6 @@
-# Fusion's architecture
+# Nitro's architecture
 
-How Fusion is put together, and where new code goes. Read this before writing a feature: a
+How Nitro is put together, and where new code goes. Read this before writing a feature: a
 feature is added through one of the seams below, in the layer its job belongs to. The
 architecture guards (`tests/Architecture`) hold the code to it.
 
@@ -14,8 +14,8 @@ and runs in two places:
   re-rendering, its event handlers. Only `#[Server]` methods reach the server, with the
   component's state signed by the server.
 
-Fusion does not replace anything Laravel does. Routing, rendering, validation, sessions and
-authorization stay Laravel's; Fusion
+Nitro does not replace anything Laravel does. Routing, rendering, validation, sessions and
+authorization stay Laravel's; Nitro
 adds the compiler, the browser runtime and one endpoint. Its four sides agree through one contract,
 `js/protocol.json`:
 
@@ -23,7 +23,7 @@ adds the compiler, the browser runtime and one endpoint. Its four sides agree th
 |---|---|---|
 | Compiler | `src/Compiler` | reads a component class and its view; writes the JavaScript the browser runs |
 | Server | the rest of `src/` | renders components to HTML, answers pages, visits and `#[Server]` calls, signs state |
-| Runtime | `js/src` (built to `dist/fusion.js`) | makes the server's HTML live, renders, navigates, calls the server |
+| Runtime | `js/src` (built to `dist/nitro.js`) | makes the server's HTML live, renders, navigates, calls the server |
 | Adapters | `js/adapters`, `src/View` | the JavaScript frameworks' views, in the browser and on the server |
 
 ## The server's layers
@@ -32,7 +32,7 @@ Each folder under `src/` is a layer. A layer uses the layers below it, never one
 it (`DependencyTest`).
 
 ```
-entry points   Http, Console, Blade, Testing, FusionServiceProvider
+entry points   Http, Console, Blade, Testing, NitroServiceProvider
 Rendering      a component or a page to HTML
 State          signed state, shared and flash data, stores
 Lifecycle      hooks, features, an instance's Context          } beside each other:
@@ -46,8 +46,8 @@ Support        the vocabulary every part shares
 |---|---|
 | `Http` | controllers and middleware; `PageResponses` (a routed page's answer, visits, partial reloads, merge and deferred props) |
 | `Console` | the artisan commands |
-| `Blade` | the `<fusion:...>` precompiler |
-| `Rendering` | `ComponentRenderer`, `Placement` (a component placed in a view), `Tags`, `Portals`, `PageHead` (`@fusionHead`), `Scripts` (`@fusionScripts`) |
+| `Blade` | the `<nitro:...>` precompiler |
+| `Rendering` | `ComponentRenderer`, `Placement` (a component placed in a view), `Tags`, `Portals`, `PageHead` (`@nitroHead`), `Scripts` (`@nitroScripts`) |
 | `State` | `Snapshot` / `Snapshots` (state sealed for the browser and opened again), `SharedData`, `Stores` |
 | `Lifecycle` | `Features` (runs the hooks), `Context`, `Validation`, `AttributeHandlers` |
 | `Build` | `Bundle` and its parts (`BundleCompiler`, `Chunks`, `CompiledFiles`, `StaticFiles`, `Sources`, `Minifier`, `PageRoutes`, `BrowserClassFiles`); `BrowserNames`, `ServerChildren` |
@@ -55,7 +55,7 @@ Support        the vocabulary every part shares
 | `Compiler` | `Components` (`ComponentMeta` by name or class), `ComponentCompiler`, `Transpiler`, `Template/`, `Globals`, `Uses`, `Obfuscator` (its parts below) |
 | `Support` | only what every part uses and none owns: `Protocol`, `Config`, `Signer`, `Wire`, `Types`, `Html`, `Duration`, `UrlValues`, `LayoutKey`, `Naming`, `Registry`, `ComponentHooks`, `PropertyHooks` (`PlacementTest`) |
 
-**How parts reach each other.** `FusionServiceProvider` builds every part, once per request
+**How parts reach each other.** `NitroServiceProvider` builds every part, once per request
 (`scoped`), and each part takes what it needs in its constructor. Nothing goes through another
 part to reach a third. Two kinds of code resolve their parts where they use them instead
 (`app(X::class)`): the controllers, since a route keeps its controller between requests (Nitro
@@ -72,7 +72,7 @@ holds anything about a request is registered `scoped`, never as a singleton.
 ```
 Transpiler        methods, template expressions and handlers (nikic/php-parser AST -> JS):
                   the entry points and expr()/stmt() dispatch, each node sent to a part in Php/
-Php/              each part says in its docblock whether it is general PHP or Fusion:
+Php/              each part says in its docblock whether it is general PHP or Nitro:
   Statements        if, loops, switch, break/continue levels, unset            (PHP)
   Expressions       values, operators, isset/empty, match, constants          (PHP)
   Writes            assignments with PHP's array value semantics (P.setIn)    (PHP)
@@ -80,28 +80,28 @@ Php/              each part says in its docblock whether it is general PHP or Fu
   FunctionDefinitions  methods, closures, arrow functions, type coercion      (PHP)
   Catalog           what of PHP exists in the browser: functions, constants   (PHP)
   ComponentAccess   $this->prop, $this->method(), #[Server], dispatch,
-                    Fusion::browser()                                         (Fusion)
-  Handlers          event handlers, magic actions, template-expression rules  (Fusion)
+                    Nitro::browser()                                         (Nitro)
+  Handlers          event handlers, magic actions, template-expression rules  (Nitro)
   Context           the state the parts share while compiling one piece of code
 Template/         the Blade subset -> a render function (Lexer, TemplateCompiler, ChildTag)
   TemplateCompiler  the front door: the token loop, each token sent to a part in Parts/
   BladeInliner      @include and anonymous <x-components>, inlined into the view
   ComponentParts    an <x-component>'s slots, @props, variables and attribute bag, as Blade makes them
-  Parts/            each says in its docblock whether it is HTML, Blade or Fusion:
+  Parts/            each says in its docblock whether it is HTML, Blade or Nitro:
     HtmlScanner       the markup as the browser's HTML parser reads it      (HTML)
     Tree              the open stack and the nodes it builds                (HTML)
     Directives        each @directive where it belongs                      (Blade)
     Blocks            loops, @switch, @break/@continue, @error, @teleport   (Blade)
     InlinedViews      @include and <x-component> (BladeInliner's markers)   (Blade)
-    ExpressionTable   numbered expressions and what each reads              (Fusion)
-    FusionAttributes  fusion:click, fusion:model, fusion:transition, ...    (Fusion)
-    ChildComponents   <fusion:child />, <fusion:slot>                       (Fusion)
-    StaticParts       clone mode: marks static parts for the browser to copy (Fusion)
+    ExpressionTable   numbered expressions and what each reads              (Nitro)
+    NitroAttributes  nitro:click, nitro:model, nitro:transition, ...    (Nitro)
+    ChildComponents   <nitro:child />, <nitro:slot>                       (Nitro)
+    StaticParts       clone mode: marks static parts for the browser to copy (Nitro)
     Syntax            what a view may contain: directives, the template's rules
     Context           the state the parts share while compiling one view
 ComponentReader   reads a class once, checking it as it reads (what cannot work fails the build)
 ComponentMeta     what it found: properties, #[Server], #[On], mount, ... and questions about them
-ComponentCompiler class + view -> Fusion.define(...), compiling only what the browser reaches
+ComponentCompiler class + view -> Nitro.define(...), compiling only what the browser reaches
 BrowserClassCompiler  the #[Browser] classes and enums the components reach, once for the bundle
 Globals           everything a component can use without declaring it, in one table
 ```
@@ -113,9 +113,9 @@ What an application's code names (`PublicApiTest`):
 - the root namespace: `Component`, `Store`, `Upload`, `Once`, `Merge`, `Head`, `PendingDispatch`,
   `Feature`, `FeatureAttribute`, `NavigationMode`
 - `Attributes`, `Browser`, `Concerns`, `Facades`, `Testing`
-- the `Fusion` facade: `share`, `shared`, `once`, `shareOnce`, `flash`, `flashed`, `store`,
+- the `Nitro` facade: `share`, `shared`, `once`, `shareOnce`, `flash`, `flashed`, `store`,
   `browser`; nothing else
-- in the browser, `window.Fusion`: `define`, `store`, `lazy`, `markupPages` (for app.js),
+- in the browser, `window.Nitro`: `define`, `store`, `lazy`, `markupPages` (for app.js),
   `directive`, `engine`, `use`, `visit`
 
 A class an app receives or passes through these must be public. Every other folder is internal and
@@ -135,13 +135,13 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | HTML's element rules | `Support/Html` |
 | Durations (`300ms`, `1s`) | `Support/Duration`, `duration()` in `runtime/dom/events.js` |
 | Signing | `Support/Signer` (purposes, key rotation) |
-| Fusion's config | `Support/Config` |
+| Nitro's config | `Support/Config` |
 | What compiled code uses | `Compiler/Uses` |
 | Template vocabulary (attributes, modifiers, triggers) | `Compiler/Globals` |
-| Fusion's Blade directives (`@teleport`, `@deferred`, ...) | `Compiler/Globals::DIRECTIVES`: each registered for the server and compiled for the browser (`CompiledFormatTest`) |
-| What `@fusionScripts` gives the browser (`B.globals`) | `js/protocol.json`'s `globals` (`CompiledFormatTest` holds `Scripts` and the runtime to it) |
-| The name of Fusion's own view engine | `js/protocol.json`'s `view.bladeEngine` (`Protocol::bladeEngine()`); a definition Fusion compiled names no engine |
-| `<fusion:dynamic-component>` | `Compiler/Template/ChildTag::DYNAMIC` |
+| Nitro's Blade directives (`@teleport`, `@deferred`, ...) | `Compiler/Globals::DIRECTIVES`: each registered for the server and compiled for the browser (`CompiledFormatTest`) |
+| What `@nitroScripts` gives the browser (`B.globals`) | `js/protocol.json`'s `globals` (`CompiledFormatTest` holds `Scripts` and the runtime to it) |
+| The name of Nitro's own view engine | `js/protocol.json`'s `view.bladeEngine` (`Protocol::bladeEngine()`); a definition Nitro compiled names no engine |
+| `<nitro:dynamic-component>` | `Compiler/Template/ChildTag::DYNAMIC` |
 | Change signals (`$errors`, `$deferred`, ...) | `js/protocol.json`'s `signals` (`SIGNALS` in `runtime/protocol.js`) |
 | A page's data in its HTML: the globals, and one block with each component's signed state by id (as Next.js and Nuxt carry theirs) | `Rendering/PageData` writes it (filled once the page is rendered, `Http/FinishPage`), `runtime/page-data.js` reads it |
 | Starting an instance (a component, a page, a store): id and name, `boot`, its inputs, the features' `mounting`, `mount()` | `Lifecycle/Features::start()` |
@@ -150,13 +150,13 @@ A concept is written in one place; everything else reads it from there (`HomesTe
 | The request being answered, and its session | `Support/CurrentRequest` |
 | Whether the application is in development (`APP_DEBUG`) | `Support/Config::debug()` |
 | The dev overlay: on or off, its file and script | `Rendering/Devtools`; `Http/ServerTiming` times each answer for it |
-| What `@fusionScripts` tells the runtime (endpoint, build, chunks, CSRF token, progress bar) | `Rendering/Scripts` writes it, `runtime/page-data.js` reads it; the CSRF token is `session.token` (`laravel/blade.js`) |
+| What `@nitroScripts` tells the runtime (endpoint, build, chunks, CSRF token, progress bar) | `Rendering/Scripts` writes it, `runtime/page-data.js` reads it; the CSRF token is `session.token` (`laravel/blade.js`) |
 | The browser's names in an obfuscated build, both ways | `Build/BrowserNames` |
 | A method's source for the compiler | `Compiler/MethodSource` |
 | A component's and a store's state in the browser: defaults, what changed, the `$this` properties | `runtime/component/snapshot.js`, `runtime/component/context.js` |
 | Every request the runtime sends (visits, reloads, calls, uploads) | `runtime/server/request.js` |
-| Cached results (`#[Cached]`): their keys, the tags' versions, `Fusion::expire()` | `State/MethodCache`; `mount()` and `#[Server]` calls ask it where they run |
-| What a component that failed shows (its `fallback()`, `fusion.fallbacks.view`, Fusion's message) | `Rendering/Fallbacks` (placed on the server, carried by a visit for a failed child, a failed call's answer, the browser's default); `fail()` in `runtime/component/component.js` shows it |
+| Cached results (`#[Cached]`): their keys, the tags' versions, `Nitro::expire()` | `State/MethodCache`; `mount()` and `#[Server]` calls ask it where they run |
+| What a component that failed shows (its `fallback()`, `nitro.fallbacks.view`, Nitro's message) | `Rendering/Fallbacks` (placed on the server, carried by a visit for a failed child, a failed call's answer, the browser's default); `fail()` in `runtime/component/component.js` shows it |
 
 ## The seams: where a new feature goes
 
@@ -164,16 +164,16 @@ A new feature should be new code in one of these, not edits across the codebase.
 
 | A feature that... | Goes in | Example |
 |---|---|---|
-| runs around every component on the server | a `Feature`, listed in `fusion.features` | logging every call |
+| runs around every component on the server | a `Feature`, listed in `nitro.features` | logging every call |
 | an attribute switches on, for a class, property or method | a `FeatureAttribute` in `Attributes/` | `#[Url]` |
 | the compiler must know about (a property's kind, a class's option) | an attribute in `Attributes/`, read by `ComponentMeta` / `PropertyMeta`; a field in the protocol's `compiled.prop` when the browser needs it | `#[Locked]`, `#[Remember]` |
-| is an application's own `fusion:` attribute | `fusion.attributes` and `Fusion.directive()` | a tooltip |
-| is a new `fusion:` attribute of Fusion's own | `Compiler/Globals` (what the compiler accepts) and a module under `runtime/dom` (what runs it) | `fusion:dirty` |
-| listens to the runtime (calls, renders, stores) | a plugin, `Fusion.use()` (`js/src/plugins`) | `#[Persist]`, `#[Sync]` |
-| supports another JavaScript framework's views | a `ViewEngine` (`ScriptEngine`), an adapter in `js/adapters`, `fusion.views` | Svelte |
+| is an application's own `nitro:` attribute | `nitro.attributes` and `Nitro.directive()` | a tooltip |
+| is a new `nitro:` attribute of Nitro's own | `Compiler/Globals` (what the compiler accepts) and a module under `runtime/dom` (what runs it) | `nitro:dirty` |
+| listens to the runtime (calls, renders, stores) | a plugin, `Nitro.use()` (`js/src/plugins`) | `#[Persist]`, `#[Sync]` |
+| supports another JavaScript framework's views | a `ViewEngine` (`ScriptEngine`), an adapter in `js/adapters`, `nitro.views` | Svelte |
 | is something both sides must name | `js/protocol.json` first, then each side reads it | a new header |
-| holds per-request work on the server | a class in its layer, registered `scoped` in `FusionServiceProvider` | `BrowserNames` |
-| is something apps call | a method on the `Fusion` facade or `Component` that hands the work to its part | `Fusion::shareOnce()` |
+| holds per-request work on the server | a class in its layer, registered `scoped` in `NitroServiceProvider` | `BrowserNames` |
+| is something apps call | a method on the `Nitro` facade or `Component` that hands the work to its part | `Nitro::shareOnce()` |
 
 **A mechanism has a home, not only its names.** How something crosses from the server to the
 browser (a page's data, a call's answer, an upload) is written in one place on each side, with
@@ -187,22 +187,22 @@ seam is the real work. The feature itself should then be small.
 
 ## The browser
 
-`window.Fusion` is the `Runtime` (`js/src/runtime/runtime.js`): the public API above, the
+`window.Nitro` is the `Runtime` (`js/src/runtime/runtime.js`): the public API above, the
 components on the page, and the services they share. Each job is its own module:
 
 | Folder | Holds |
 |---|---|
 | `runtime/component` | `Component`; its `$this` for compiled code (`context.js`); the state the server signed, read and taken in (`snapshot.js`); hooks, errors, merge props, shared data, stores, placement (children and components made in the browser), `#[Remember]` |
-| `runtime/view` | rendering a compiled template, hydrating the server's HTML, blocks, transitions, view engines (`Fusion.engine()`) |
-| `runtime/dom` | events, `fusion:model`, loading, dirty, poll / init / visible, islands |
-| `runtime/navigation` | `fusion:navigate` visits (in View Transitions when on), prefetching (`prefetch.js`: on hover, in view), the page cache, swapping pages (`swap.js`: only the innermost `fusion:layout` both pages share) and mounting them, the progress bar |
+| `runtime/view` | rendering a compiled template, hydrating the server's HTML, blocks, transitions, view engines (`Nitro.engine()`) |
+| `runtime/dom` | events, `nitro:model`, loading, dirty, poll / init / visible, islands |
+| `runtime/navigation` | `nitro:navigate` visits (in View Transitions when on), prefetching (`prefetch.js`: on hover, in view), the page cache, swapping pages (`swap.js`: only the innermost `nitro:layout` both pages share) and mounting them, the progress bar |
 | `runtime/server` | `#[Server]` calls and reloads, uploads, a call's effects, broadcasts |
 | `php.js`, `php/` | PHP semantics in JavaScript: values, operators, the functions |
 | `laravel/` | Blade's helpers (`$loop`, `@class`, `@csrf`, ...) and Laravel's (`route()`, `__()`, `config()`) |
-| `plugins/` | Fusion's own plugins: `#[Persist]`, `#[Sync]` |
-| `devtools/` | the dev overlay (`dist/fusion-devtools.js`, development only): a plugin on the public runtime, in a shadow root |
-| `js/adapters` | the frameworks' views given the component (`useFusion()`), imported by the app's Vite |
-| `js/vite.js` | Fusion's Vite plugin |
+| `plugins/` | Nitro's own plugins: `#[Persist]`, `#[Sync]` |
+| `devtools/` | the dev overlay (`dist/nitro-devtools.js`, development only): a plugin on the public runtime, in a shadow root |
+| `js/adapters` | the frameworks' views given the component (`useNitro()`), imported by the app's Vite |
+| `js/vite.js` | Nitro's Vite plugin |
 | `js/functions` | PHP functions a bundle includes when its components call them |
 
 `chunks.js` (lazy chunks, markup-first pages), `directives.js`, `plugins.js` and `protocol.js`
@@ -233,7 +233,7 @@ states, both in PHP and in Node, and requires the same results, the same state a
 The browser does not track dependencies: any write to a property schedules one render (a
 microtask), which runs the compiled render function and morphs the result into the page. Child
 components are islands (their element is kept; a child without `mount()` receives new props), and
-`fusion:ignore` opts an element out. So the output is always what the view says for the current
+`nitro:ignore` opts an element out. So the output is always what the view says for the current
 state; there is no subscription to get wrong.
 
 Children are keyed by their position in the view (`c2`) plus the indexes of the loops around them
@@ -248,14 +248,14 @@ nothing but the handler markers.
 ## Pages and navigation
 
 The server renders the first page and the browser renders the pages after it. Routing stays
-Laravel's: a `fusion:navigate` visit requests the page's own URL with `X-Fusion-Navigate`, so the
+Laravel's: a `nitro:navigate` visit requests the page's own URL with `X-Nitro-Navigate`, so the
 route's middleware, bindings and redirects all apply. `PageResponses::page()` runs `mount()` and,
-for such a visit, answers with JSON instead of HTML (`Vary: X-Fusion-Navigate` keeps caches apart):
+for such a visit, answers with JSON instead of HTML (`Vary: X-Nitro-Navigate` keeps caches apart):
 
 - `snapshot`: the page's signed state, exactly as a server-rendered page carries it;
 - `title`: the layout's `<title>`, rendered with an empty slot (the layout owns the format);
 - `layout`: the layout key (`Support\LayoutKey`); the page element carries the same value in
-  `fusion:page`, and a different layout is a full load;
+  `nitro:page`, and a different layout is a full load;
 - `children`: the signed state of the children with `mount()`, by id. Only the server may create
   those, with the props its own render passes (props from the browser would reach `mount()`
   unchecked), so when the view places one (`Build\ServerChildren`: the view files, followed
@@ -265,7 +265,7 @@ for such a visit, answers with JSON instead of HTML (`Vary: X-Fusion-Navigate` k
 The browser mounts the page component in place of the current page (`navigation/page-mount.js`),
 consuming the children's state as the render places them (`component/placement.js`). A
 markup-first or client page (`#[Navigate]`) renders at once, before its data. Back and forward
-visit again. Anything else (an error, a 401, HTML from a non-Fusion route) loads normally.
+visit again. Anything else (an error, a 401, HTML from a non-Nitro route) loads normally.
 
 ## Security of #[Server] calls
 
@@ -279,7 +279,7 @@ back unchanged, plus the properties the browser changed and the method with its 
 
 1. the envelope is one this application signed, unchanged (else 419);
 2. the component exists;
-3. the page's authorization middleware (`fusion.persistent_middleware`, and middleware extending
+3. the page's authorization middleware (`nitro.persistent_middleware`, and middleware extending
    it) still admits the visitor (re-run against the original route, with its bindings; a route
    that is gone, matched by a fallback only, is refused), and every partial reload laid over the
    snapshot was rendered for that same page (method and path);
@@ -320,7 +320,7 @@ whatever it is sent), so a URL from a visitor cannot run script. Every rule abov
 |---|---|
 | `HomesTest` | a concept is written only in its home |
 | `LiteralsTest` | a name spelled in 3+ files across 2+ parts is allowed with a reason, or is a known break |
-| `DependencyTest` | the layers' direction; Fusion's parts never go through the `Fusion` class |
+| `DependencyTest` | the layers' direction; Nitro's parts never go through the `Nitro` class |
 | `PublicApiTest` | what apps reach is public |
 | `PlacementTest` | what `Http`, `Support` and `Rendering` may hold |
 | `SizeTest` | over 500 lines or 30 public methods is one job too many |

@@ -1,5 +1,5 @@
 /**
- * A fusion:navigate visit's page, mounted in place of the current one: from the data the server
+ * A nitro:navigate visit's page, mounted in place of the current one: from the data the server
  * sent (mountPage()), or, for a markup-first page, rendered at once before its data comes
  * (renderEarly()), which then arrives (arrive()).
  */

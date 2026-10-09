@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 use InvalidArgumentException;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\TestCase;
 use Throwable;
 
 /**

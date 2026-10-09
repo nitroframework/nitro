@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Invalid\CachedBrowserMethod;
-use Nitro\Fusion\Tests\Fixtures\Pages\Catalog;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Invalid\CachedBrowserMethod;
+use Nitro\Tests\Fixtures\Pages\Catalog;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * #[Cached]: mount()'s state and a #[Server] method's result kept in the application's cache, by
- * what they were worked out from, until their time is up or Fusion::expire() names a tag of theirs.
+ * what they were worked out from, until their time is up or Nitro::expire() names a tag of theirs.
  */
 class CachedTest extends TestCase
 {
@@ -56,13 +56,13 @@ class CachedTest extends TestCase
         $this->boot($framework);
 
         $this->page('/catalog');
-        $this->fusion()->expire('catalog');
+        $this->nitro()->expire('catalog');
         $again = $this->page('/catalog');
 
         $this->assertSame(2, Catalog::$mounts);
         $this->assertSame(['by name', 'mount 2'], $again['items']);
 
-        $this->fusion()->expire('another');
+        $this->nitro()->expire('another');
         $this->page('/catalog');
         $this->assertSame(2, Catalog::$mounts, 'another tag leaves it');
     }
@@ -82,7 +82,7 @@ class CachedTest extends TestCase
         $this->assertSame(['bea', 2], $search('bea'), 'another argument');
         $this->assertSame(2, Catalog::$searches);
 
-        $this->fusion()->expire('catalog');
+        $this->nitro()->expire('catalog');
         $this->assertSame(['ada', 3], $search('ada'));
     }
 
@@ -128,7 +128,7 @@ class CachedTest extends TestCase
         $this->boot($framework);
 
         try {
-            ComponentReader::read(CachedBrowserMethod::class, 'cached-browser-method', 'fusion.components.cached-browser-method');
+            ComponentReader::read(CachedBrowserMethod::class, 'cached-browser-method', 'nitro.components.cached-browser-method');
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
             $this->assertStringContainsString('#[Cached] on total(): it keeps what mount() or a #[Server] method gives, and total() runs in the browser', $e->getMessage());
@@ -139,6 +139,6 @@ class CachedTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
 
-        new \Nitro\Fusion\Attributes\Cached(0);
+        new \Nitro\Attributes\Cached(0);
     }
 }

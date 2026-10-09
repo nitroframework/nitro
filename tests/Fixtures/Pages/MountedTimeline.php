@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Components\Store;
 
 /**
- * Timeline's merge props from mount() rather than a controller (Route::fusion()): $this->scroll(),
+ * Timeline's merge props from mount() rather than a controller (Route::nitro()): $this->scroll(),
  * $this->merge(), $this->deepMerge(); and $this->wants(), skipping work a partial reload does not
  * need. Each closure logs that it ran (Store::$log).
  */
@@ -47,7 +47,7 @@ class MountedTimeline extends Component
             return [['id' => 1, 'name' => 'php'], ['id' => 2, 'name' => 'js']];
         })->matchOn('id');
 
-        $this->deepMerge('settings', fn () => request()->hasHeader('X-Fusion-Partial')
+        $this->deepMerge('settings', fn () => request()->hasHeader('X-Nitro-Partial')
             ? ['theme' => ['color' => 'teal']]
             : ['theme' => ['color' => 'red', 'size' => 'large']]);
 

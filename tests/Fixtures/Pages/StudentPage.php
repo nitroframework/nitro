@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Grade;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\StudentByEmail;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Title;
+use Nitro\Attributes\Validate;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Grade;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\StudentByEmail;
 
 /**
  * A routed page: /students/{student} binds the model through mount()'s signature.

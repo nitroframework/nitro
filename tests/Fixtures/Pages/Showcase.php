@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Browser\Basket;
-use Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Browser\Basket;
+use Nitro\Tests\Fixtures\Browser\OrderStatus;
 
 /**
- * The inlining fixture: Blade components (<x-...>) and @include in a Fusion view, rendered in the
+ * The inlining fixture: Blade components (<x-...>) and @include in a Nitro view, rendered in the
  * browser as Blade renders them. And #[Browser] classes: Money in the view, Basket in a method.
  */
 class Showcase extends Component
@@ -51,7 +51,7 @@ class Showcase extends Component
         $this->status = $this->status->next();
     }
 
-    /** What fusion:tell's directive dispatched (the application's own fusion: attribute). */
+    /** What nitro:tell's directive dispatched (the application's own nitro: attribute). */
     public string $told = '';
 
     #[On('told')]

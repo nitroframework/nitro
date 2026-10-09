@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
@@ -11,36 +11,36 @@ use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Build\ServerChildren;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Merge;
-use Nitro\Fusion\Rendering\ComponentRenderer;
-use Nitro\Fusion\Rendering\PageHead;
-use Nitro\Fusion\Rendering\Portals;
-use Nitro\Fusion\State\MethodCache;
-use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\State\Snapshot;
-use Nitro\Fusion\State\Snapshots;
-use Nitro\Fusion\State\Stores;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\CurrentRequest;
-use Nitro\Fusion\Support\LayoutKey;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\UrlValues;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Build\BrowserNames;
+use Nitro\Build\Bundle;
+use Nitro\Build\ServerChildren;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Component;
+use Nitro\Lifecycle\Features;
+use Nitro\Merge;
+use Nitro\Rendering\ComponentRenderer;
+use Nitro\Rendering\PageHead;
+use Nitro\Rendering\Portals;
+use Nitro\State\MethodCache;
+use Nitro\State\SharedData;
+use Nitro\State\Snapshot;
+use Nitro\State\Snapshots;
+use Nitro\State\Stores;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\Config;
+use Nitro\Support\CurrentRequest;
+use Nitro\Support\LayoutKey;
+use Nitro\Support\Protocol;
+use Nitro\Support\UrlValues;
+use Nitro\View\ViewEngines;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * A routed page's answer (Route::fusion()): mount() with the route's parameters, then the page in
- * its layout as HTML, or for a fusion:navigate visit the data the browser renders it from (a 409
+ * A routed page's answer (Route::nitro()): mount() with the route's parameters, then the page in
+ * its layout as HTML, or for a nitro:navigate visit the data the browser renders it from (a 409
  * when the browser runs another build). Partial reloads, and the merge and deferred properties
- * mount() declares, are answered here too. A part of Fusion.
+ * mount() declares, are answered here too. A part of Nitro.
  */
 final class PageResponses
 {
@@ -63,8 +63,8 @@ final class PageResponses
     }
 
     /**
-     * A routed page (Route::fusion()): mount() with the route's parameters, then the component
-     * inside its layout; or, for a fusion:navigate visit, only what the browser needs to render
+     * A routed page (Route::nitro()): mount() with the route's parameters, then the component
+     * inside its layout; or, for a nitro:navigate visit, only what the browser needs to render
      * the page itself (pageData()).
      */
     public function page(Component $component, array $parameters): Response
@@ -140,19 +140,19 @@ final class PageResponses
         }
 
         if ($meta->property($property) === null) {
-            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to merge into.");
+            throw new InvalidArgumentException("Nitro page [{$meta->name}] has no public property \${$property} to merge into.");
         }
 
         if ($this->wants($property)) {
             $page->{$property} = $merge->resolve($this->app->call(...));
 
             if ($merge->position() !== null) {
-                $page->fusion()->scroll[$property] = $merge->position();
+                $page->nitro()->scroll[$property] = $merge->position();
             }
         }
 
         if ($this->partial() !== null) {
-            $page->fusion()->mergeProps[$property] = $merge;
+            $page->nitro()->mergeProps[$property] = $merge;
         }
 
         return $merge;
@@ -172,18 +172,18 @@ final class PageResponses
         }
 
         if ($meta->property($property) === null) {
-            throw new InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to defer.");
+            throw new InvalidArgumentException("Nitro page [{$meta->name}] has no public property \${$property} to defer.");
         }
 
         if ($this->partial() === null) {
-            $page->fusion()->deferred[] = $property;
+            $page->nitro()->deferred[] = $property;
         } elseif ($this->wants($property)) {
             $page->{$property} = $this->app->call($value);
         }
     }
 
     /**
-     * A page reloading its properties in the browser (X-Fusion-Partial): the ones it wants, an
+     * A page reloading its properties in the browser (X-Nitro-Partial): the ones it wants, an
      * empty list for all of them. Null for any other request.
      *
      * @return list<string>|null
@@ -210,7 +210,7 @@ final class PageResponses
     }
 
     /**
-     * The layout a page renders in, as the browser compares it (fusion:page): a markup-first
+     * The layout a page renders in, as the browser compares it (nitro:page): a markup-first
      * visit renders the page at once only into the same one.
      */
     public function pageLayout(ComponentMeta $meta): string
@@ -252,7 +252,7 @@ final class PageResponses
         return CurrentRequest::of($this->app) ?? throw new LogicException('A page answers a request: there is none.');
     }
 
-    /** The page's answer: HTML in its layout, or the page data for a fusion:navigate visit. */
+    /** The page's answer: HTML in its layout, or the page data for a nitro:navigate visit. */
     private function respond(Component $component, ComponentMeta $meta): Response
     {
         $head = $this->head->forPage($component, $meta);
@@ -303,13 +303,13 @@ final class PageResponses
         $only = $this->partial();
 
         return new JsonResponse([
-            'fusion' => 1,
+            'nitro' => 1,
             'snapshot' => $snapshots->envelope($snapshot, $meta->name),
             /** A partial reload of some properties: those alone, signed, for the browser to lay over its own state. */
-            'partial' => $only === null || $only === [] ? null : $snapshots->envelope($snapshot->only($this->partialProperties($only, $meta), $component->fusion()->mergeRules()), $meta->name),
+            'partial' => $only === null || $only === [] ? null : $snapshots->envelope($snapshot->only($this->partialProperties($only, $meta), $component->nitro()->mergeRules()), $meta->name),
             'children' => (object) $children,
             'title' => $this->head->layoutTitle($layout, $layoutData),
-            /** @fusionHead's tags but the title, when the layout has it (layoutTitle() just rendered it): the browser puts them in place of the last page's. */
+            /** @nitroHead's tags but the title, when the layout has it (layoutTitle() just rendered it): the browser puts them in place of the last page's. */
             'head' => $this->head->printed() ? $this->head->tags() : null,
             'layout' => LayoutKey::of($layout, $layoutData),
             ...$this->data->forBrowser(),

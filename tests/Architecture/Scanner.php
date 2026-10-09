@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Fusion's own code, as the architecture guards read it: every PHP file under src/ and every
+ * Nitro's own code, as the architecture guards read it: every PHP file under src/ and every
  * JavaScript file of the runtime and adapters, with comments taken out (prose may name
  * anything; code may not). Paths are relative to the package, with forward slashes.
  */

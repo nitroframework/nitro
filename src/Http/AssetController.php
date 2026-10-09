@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Rendering\Devtools;
-use Nitro\Fusion\Support\Config;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Rendering\Devtools;
+use Nitro\Support\Config;
 
 /**
- * Serves the runtime (fusion.js), the application's compiled components (app.js, and the
- * #[LazyLoad] chunks, app/<group>.js), and in development the dev overlay (fusion-devtools.js). Requests carrying the current version are cached for a
+ * Serves the runtime (nitro.js), the application's compiled components (app.js, and the
+ * #[LazyLoad] chunks, app/<group>.js), and in development the dev overlay (nitro-devtools.js). Requests carrying the current version are cached for a
  * year; the version changes with the content.
  */
 final class AssetController
@@ -53,7 +53,7 @@ final class AssetController
         $asked = $request->query('v');
 
         if (is_string($asked) && $asked !== '' && explode('.', $asked)[0] !== $bundle->version()) {
-            return $this->script('window.Fusion && window.Fusion.stale();', false);
+            return $this->script('window.Nitro && window.Nitro.stale();', false);
         }
 
         try {
@@ -64,7 +64,7 @@ final class AssetController
                 throw $exception;
             }
 
-            return $this->script('console.error('.json_encode('Fusion: '.$exception->getMessage()).');', false);
+            return $this->script('console.error('.json_encode('Nitro: '.$exception->getMessage()).');', false);
         }
 
         return $this->script((string) file_get_contents($path), $request->query('v') === $bundle->tag());

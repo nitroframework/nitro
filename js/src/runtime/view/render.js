@@ -1,5 +1,5 @@
 /**
- * Viewi's render (core/render/render.ts), for Fusion's templates: render nodes into a target
+ * Viewi's render (core/render/render.ts), for Nitro's templates: render nodes into a target
  * element, hydrating the server's HTML (hydrate) or making new nodes, at the target's end or
  * before it (insert: the target is an anchor), and track what each part reads.
  *
@@ -9,7 +9,7 @@
  *
  * Blocks, as Viewi's: an @if chain renders a branch between anchors, again only when which
  * branch it is changes (renderIf); a @foreach keeps its iterations, moving, adding and removing
- * them (renderForeach). Fusion's own: @error and @forelse's @empty are branches like @else;
+ * them (renderForeach). Nitro's own: @error and @forelse's @empty are branches like @else;
  * @for, @while and @switch render again as a whole when what they read changes (renderDynamic),
  * a @switch only when its case changes; a block a @break leaves is part of the loop it breaks.
  */
@@ -56,7 +56,7 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
                     renderRawNode(target, instance, node, scope, hydrate, insert);
                     break;
                 }
-                /** Fusion: text next to text is one text node (Viewi joins them when it compiles). */
+                /** Nitro: text next to text is one text node (Viewi joins them when it compiles). */
                 let last = i;
                 while (nodes[last + 1]?.t === 'x' && !nodes[last + 1].raw) last++;
                 const group = nodes.slice(i, last + 1);
@@ -79,7 +79,7 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
                 break;
             }
             case 't':
-                /** Clone mode (fusion.rendering): a static part, copied rather than created. */
+                /** Clone mode (nitro.rendering): a static part, copied rather than created. */
                 node.s && !hydrate ? cloneStatic(target, instance, node, scope, insert) : renderTag(target, instance, node, scope, hydrate, insert);
                 break;
             case 'c':
@@ -97,7 +97,7 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
                 }
                 break;
             default:
-                throw new Error(`Fusion: unknown template node ${node.t}`);
+                throw new Error(`Nitro: unknown template node ${node.t}`);
         }
     }
     return undefined;
@@ -120,11 +120,11 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         created = true;
     }
 
-    /** Fusion: the component whose view rendered it (its handlers, models, refs), wherever it sits. */
-    if (instance.ownerId !== undefined) element.fusionOwner = instance.ownerId;
+    /** Nitro: the component whose view rendered it (its handlers, models, refs), wherever it sits. */
+    if (instance.ownerId !== undefined) element.nitroOwner = instance.ownerId;
 
-    /** Fusion: fusion:ignore keeps an element and everything in it as it is. */
-    if (!created && element.hasAttribute('fusion:ignore')) return element;
+    /** Nitro: nitro:ignore keeps an element and everything in it as it is. */
+    if (!created && element.hasAttribute('nitro:ignore')) return element;
 
     const root = rootEl !== null;
     renderAttributeValue(instance, node, element, scope, root, hydrate && !created);
@@ -133,7 +133,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         track(instance, codes, scope, () => renderAttributeValue(instance, node, element, scope, root, false));
     }
 
-    /** Fusion: fusion:<event> handlers, made with the variables the element renders with. */
+    /** Nitro: nitro:<event> handlers, made with the variables the element renders with. */
     for (const attribute of node.a ?? []) {
         if (!attribute.on) continue;
         const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(instance, attribute.on.code, scope), attribute.c);
@@ -142,7 +142,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
     }
 
     let childScope = scope;
-    if (created && element.hasAttribute('fusion:ignore')) {
+    if (created && element.hasAttribute('nitro:ignore')) {
         childScope = createScope(scope, 'ignore');
         childScope.untracked = true;
     }
@@ -157,7 +157,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         append(target, element, insert);
         instance.host.added?.(element);
 
-        /** fusion:transition: it enters animated, once the component is live (on its first render too with .appear). */
+        /** nitro:transition: it enters animated, once the component is live (on its first render too with .appear). */
         const transition = transitionOf(element);
         if (transition?.enter && (instance.live || transition.appear) && !motionless(element)) entering(element, transition);
     }
@@ -165,7 +165,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
 }
 
 /**
- * Clone mode (config fusion.rendering = 'clone', the default; the compiler marks static parts s: 1, see
+ * Clone mode (config nitro.rendering = 'clone', the default; the compiler marks static parts s: 1, see
  * StaticParts.php): a part without data, copied. The first time it renders (per namespace it lands
  * in) it is made as create mode makes it, into a detached element, with no component's marks; that
  * one is kept, and every render copies it. The copy then gets what create mode gives a new element
@@ -188,7 +188,7 @@ function cloneStatic(target, instance, node, scope, insert) {
     }
 
     const element = source.cloneNode(true);
-    if (instance.ownerId !== undefined) element.fusionOwner = instance.ownerId;
+    if (instance.ownerId !== undefined) element.nitroOwner = instance.ownerId;
     append(target, element, insert);
     instance.host.added?.(element);
     return element;
@@ -204,7 +204,7 @@ function namespaceOf(parent, tag) {
     return null;
 }
 
-/** Fusion: a <textarea>'s text is its initial value; after that the value is what it shows. */
+/** Nitro: a <textarea>'s text is its initial value; after that the value is what it shows. */
 function renderTextarea(instance, element, node, scope, created) {
     const content = () => {
         const scratch = instance.document.createElement('div');

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
 
@@ -12,8 +12,8 @@ use Attribute;
  * Pages are chunks of their own without it: #[LazyLoad('group')] puts a page in a group's chunk
  * instead, #[LazyLoad(false)] keeps it in app.js.
  *
- * A routed page's chunk loads while a fusion:navigate visit fetches the page's data, and a page
- * rendered on the server lists the chunks it uses in @fusionScripts: neither waits for the other.
+ * A routed page's chunk loads while a nitro:navigate visit fetches the page's data, and a page
+ * rendered on the server lists the chunks it uses in @nitroScripts: neither waits for the other.
  */
 #[Attribute(Attribute::TARGET_CLASS)]
 final class LazyLoad

@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Registry;
+use Nitro\Tests\TestCase;
 
 /**
- * The component list fusion:build caches: used while the component directories are as they were,
+ * The component list nitro:build caches: used while the component directories are as they were,
  * found again once a file was added, removed or renamed in them (a component made after a build).
  */
 class RegistryTest extends TestCase
@@ -16,7 +16,7 @@ class RegistryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->root = sys_get_temp_dir().'/fusion-registry-'.bin2hex(random_bytes(4));
+        $this->root = sys_get_temp_dir().'/nitro-registry-'.bin2hex(random_bytes(4));
         mkdir($this->root.'/Components/Shop', 0777, true);
     }
 
@@ -33,7 +33,7 @@ class RegistryTest extends TestCase
 
     public function test_the_cached_list_is_used_until_a_directory_changes(): void
     {
-        $namespace = 'FusionRegistryTest'.bin2hex(random_bytes(4));
+        $namespace = 'NitroRegistryTest'.bin2hex(random_bytes(4));
         $this->component($namespace, 'Alpha');
 
         file_put_contents($this->root.'/cache.php', $this->registry($namespace)->export());
@@ -62,8 +62,8 @@ class RegistryTest extends TestCase
     private function registry(string $namespace): Registry
     {
         return new Registry(
-            ['namespace' => $namespace, 'path' => $this->root.'/Components', 'views' => 'fusion.components'],
-            ['namespace' => $namespace.'\\Pages', 'path' => $this->root.'/Pages', 'views' => 'fusion.pages'],
+            ['namespace' => $namespace, 'path' => $this->root.'/Components', 'views' => 'nitro.components'],
+            ['namespace' => $namespace.'\\Pages', 'path' => $this->root.'/Pages', 'views' => 'nitro.pages'],
             $this->root.'/cache.php',
         );
     }
@@ -72,7 +72,7 @@ class RegistryTest extends TestCase
     private function component(string $namespace, string $class, string $directory = 'Components'): void
     {
         $file = $this->root.'/'.$directory.'/'.$class.'.php';
-        file_put_contents($file, "<?php\n\nnamespace {$namespace};\n\nclass {$class} extends \\Nitro\\Fusion\\Component\n{\n}\n");
+        file_put_contents($file, "<?php\n\nnamespace {$namespace};\n\nclass {$class} extends \\Nitro\\Component\n{\n}\n");
         require $file;
     }
 }

@@ -1,7 +1,7 @@
 /**
- * The tab's stores: their compiled definitions (Fusion.store, from app.js), the instances made so
+ * The tab's stores: their compiled definitions (Nitro.store, from app.js), the instances made so
  * far, and the server's signed states of those not made yet. One per name for the tab, kept
- * across fusion:navigate visits.
+ * across nitro:navigate visits.
  */
 import { Store } from './store.js';
 
@@ -33,7 +33,7 @@ export class Stores {
     named(name) {
         if (!this.instances.has(name)) {
             const definition = this.definitions.get(name);
-            if (!definition) throw new Error(`Fusion: store [${name}] is not compiled`);
+            if (!definition) throw new Error(`Nitro: store [${name}] is not compiled`);
             this.instances.set(name, new Store(this.runtime, definition, name, this.states.get(name) ?? null));
             this.states.delete(name);
             this.runtime.plugins.madeStore(this.instances.get(name));

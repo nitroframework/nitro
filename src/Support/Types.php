@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
- * PHP's scalar types as Fusion takes values from the browser: the list, and whether a value
+ * PHP's scalar types as Nitro takes values from the browser: the list, and whether a value
  * fits one. No coercion: a property or a #[Server] parameter takes a value of its own type
  * (an int is accepted for a float, which JSON cannot tell apart).
  */

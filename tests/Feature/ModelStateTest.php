@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 

@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Browser;
+namespace Nitro\Tests\Fixtures\Browser;
 
-use Nitro\Fusion\Attributes\Browser;
+use Nitro\Attributes\Browser;
 
 /** A #[Browser] class: money in pence, formatted the same on both sides. */
 #[Browser]

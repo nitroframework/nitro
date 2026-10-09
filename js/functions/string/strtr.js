@@ -1,8 +1,8 @@
-// Viewi's PhpJsFunctions/Strings/Strtr.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Strtr.js, for Nitro's values.
 function strtr(str, from, to) {
     str = P.toStr(str);
     if (to !== undefined) {
-        /** Fusion: bytes, as PHP (FunctionParityTest). */
+        /** Nitro: bytes, as PHP (FunctionParityTest). */
         const bytes = P.utf8(str);
         from = P.utf8(P.toStr(from));
         to = P.utf8(P.toStr(to));

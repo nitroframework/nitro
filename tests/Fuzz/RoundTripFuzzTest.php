@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 use Illuminate\Support\Facades\Route;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Support\Node;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Support\Node;
+use Nitro\Tests\TestCase;
 
 /**
  * #[Server] round trips: random values (nested arrays with int and string keys, "05", "$m",
@@ -21,7 +21,7 @@ use Nitro\Fusion\Tests\TestCase;
  */
 class RoundTripFuzzTest extends TestCase
 {
-    private const PAGE = 'Nitro\Fusion\Tests\Fuzz\Generated\RoundTrip';
+    private const PAGE = 'Nitro\Tests\Fuzz\Generated\RoundTrip';
 
     private const PROPERTIES = ['any' => 'any', 'data' => 'array', 'text' => 'string', 'ratio' => 'float', 'count' => 'int', 'flag' => 'bool'];
 
@@ -77,7 +77,7 @@ class RoundTripFuzzTest extends TestCase
 
             /** 2. As an update of a #[Server] call: what the method sees, and the snapshot it answers with. */
             $this->app->forgetScopedInstances();
-            app(\Nitro\Fusion\Support\Registry::class)->register('pages::fuzz-roundtrip', self::PAGE);
+            app(\Nitro\Support\Registry::class)->register('pages::fuzz-roundtrip', self::PAGE);
             $response = $this->update(['snapshot' => $envelope, 'updates' => [$case['property'] => json_decode($wire, true)], 'call' => ['method' => 'keep', 'params' => []]]);
 
             if ($response->getStatusCode() !== 200) {
@@ -114,16 +114,16 @@ class RoundTripFuzzTest extends TestCase
     /** The fuzz page: a property of each kind, and a #[Server] method returning what it sees. */
     private function page(): array
     {
-        $views = sys_get_temp_dir().DIRECTORY_SEPARATOR.'fusion-roundtrip-fuzz';
+        $views = sys_get_temp_dir().DIRECTORY_SEPARATOR.'nitro-roundtrip-fuzz';
         @mkdir($views);
         file_put_contents("{$views}/roundtrip.blade.php", '<div>{{ $count }}</div>');
         $this->app['view']->addLocation($views);
 
         eval(<<<'PHP'
-            namespace Nitro\Fusion\Tests\Fuzz\Generated;
+            namespace Nitro\Tests\Fuzz\Generated;
 
-            #[\Nitro\Fusion\Attributes\View('roundtrip')]
-            class RoundTrip extends \Nitro\Fusion\Component
+            #[\Nitro\Attributes\View('roundtrip')]
+            class RoundTrip extends \Nitro\Component
             {
                 public $any = null;
                 public array $data = [];
@@ -132,15 +132,15 @@ class RoundTripFuzzTest extends TestCase
                 public int $count = 0;
                 public bool $flag = false;
 
-                #[\Nitro\Fusion\Attributes\Server]
+                #[\Nitro\Attributes\Server]
                 public function keep(): array
                 {
                     return ['any' => $this->any, 'data' => $this->data, 'text' => $this->text, 'ratio' => $this->ratio, 'count' => $this->count, 'flag' => $this->flag];
                 }
             }
             PHP);
-        app(\Nitro\Fusion\Support\Registry::class)->register('pages::fuzz-roundtrip', 'Nitro\\Fusion\\Tests\\Fuzz\\Generated\\RoundTrip');
-        Route::middleware('web')->group(fn () => Route::fusion('/fuzz-roundtrip', 'Nitro\\Fusion\\Tests\\Fuzz\\Generated\\RoundTrip'));
+        app(\Nitro\Support\Registry::class)->register('pages::fuzz-roundtrip', 'Nitro\\Tests\\Fuzz\\Generated\\RoundTrip');
+        Route::middleware('web')->group(fn () => Route::nitro('/fuzz-roundtrip', 'Nitro\\Tests\\Fuzz\\Generated\\RoundTrip'));
         $this->app['router']->getRoutes()->refreshNameLookups();
 
         $response = $this->request('GET', '/fuzz-roundtrip');

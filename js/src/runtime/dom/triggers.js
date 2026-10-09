@@ -1,12 +1,12 @@
 /**
  * Triggers: handlers no DOM event starts (Globals::TRIGGERS), set up after each render:
  *
- *  - fusion:poll="method" calls it every 2.5s (.5s, .750ms: another interval; a bare fusion:poll
+ *  - nitro:poll="method" calls it every 2.5s (.5s, .750ms: another interval; a bare nitro:poll
  *    refreshes). It waits while the tab is hidden (.keep-alive: it does not), polls only while
  *    the element is on screen with .visible, and skips a tick while the component's previous
  *    #[Server] call is still on its way. It stops when its element leaves the page.
- *  - fusion:init="method" calls it once when its element appears.
- *  - fusion:visible="method" calls it when its element comes into view (.once: the first time
+ *  - nitro:init="method" calls it once when its element appears.
+ *  - nitro:visible="method" calls it when its element comes into view (.once: the first time
  *    only; .200px: that far before it does). While the element stays in view, it calls it again
  *    once the call is done, as long as the call changed something: a "load more" at the end of a
  *    list keeps loading until the list fills the screen or has no more.
@@ -22,10 +22,10 @@ export class Triggers {
         this.window = window;
         this.polls = new Map(); // element => timer
         this.initialized = new WeakSet();
-        /** fusion:visible: element => {component, once, inView, running}; an observer per margin. */
+        /** nitro:visible: element => {component, once, inView, running}; an observer per margin. */
         this.watched = new Map();
         this.observers = new Map();
-        /** fusion:visible.once elements already called. */
+        /** nitro:visible.once elements already called. */
         this.done = new WeakSet();
     }
 
@@ -68,7 +68,7 @@ export class Triggers {
         this.call(component, el, ATTRIBUTES.handler + 'poll');
     }
 
-    /** fusion:visible: observe the element (without IntersectionObserver: call it once, now). */
+    /** nitro:visible: observe the element (without IntersectionObserver: call it once, now). */
     watch(component, el) {
         const modifiers = this.handler(component, el, ATTRIBUTES.handler + 'visible')?.modifiers ?? [];
         const once = modifiers.includes('once');

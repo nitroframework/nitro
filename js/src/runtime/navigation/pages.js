@@ -1,6 +1,6 @@
 /**
  * The pages a visit can show without asking the server: answers a link prefetched
- * (fusion:navigate.prefetch) and pages already visited, for back and forward. Part of the
+ * (nitro:navigate.prefetch) and pages already visited, for back and forward. Part of the
  * navigator (navigate.js).
  *
  * It holds a page's data as the server sent it, in memory only: never in localStorage or the
@@ -8,7 +8,7 @@
  * computer starts without it. It is short-lived, and any #[Server] call empties it: a page shown
  * from it is never older than the visitor's own last change.
  *
- *   prefetched   kept for the link's time (fusion:navigate.prefetch.60s; 30s by default), taken
+ *   prefetched   kept for the link's time (nitro:navigate.prefetch.60s; 30s by default), taken
  *                by the visit it was for; a prefetch still on its way is waited for, not sent twice
  *   visited      kept for back and forward, five minutes; without its flash messages, which were
  *                for the first showing only
@@ -30,7 +30,7 @@ export class PageCache {
         this.set(key, entry);
         answer.then((result) => {
             if (this.entries.get(key) !== entry) return;
-            if (result?.page?.fusion === 1 && !result.page.partial) {
+            if (result?.page?.nitro === 1 && !result.page.partial) {
                 delete entry.pending;
                 entry.answer = result;
             } else {
@@ -47,7 +47,7 @@ export class PageCache {
 
     /** A page visited: kept for back and forward, without its flash messages. */
     visited(url, answer) {
-        if (answer?.page?.fusion !== 1 || answer.page.partial) return;
+        if (answer?.page?.nitro !== 1 || answer.page.partial) return;
         const page = copy(answer.page);
         page.flash = [];
         this.set(keyOf(url), { kind: 'visited', until: this.clock() + VISITED_FOR, answer: { ...answer, page } });
@@ -63,7 +63,7 @@ export class PageCache {
         if (!entry || (entry.kind === 'visited' && !history)) return null;
         if (entry.kind === 'prefetched') this.entries.delete(key);
         const answer = entry.pending ? await entry.pending : entry.answer;
-        return answer?.page?.fusion === 1 ? { ...answer, page: copy(answer.page) } : null;
+        return answer?.page?.nitro === 1 ? { ...answer, page: copy(answer.page) } : null;
     }
 
     /** Everything forgotten: a #[Server] call changed something these pages may show. */

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
@@ -64,13 +64,13 @@ final class Minifier
             try {
                 $process->run();
             } catch (Throwable $exception) {
-                throw new RuntimeException('fusion:build minifies with esbuild, run by Node: '.$exception->getMessage(), 0, $exception);
+                throw new RuntimeException('nitro:build minifies with esbuild, run by Node: '.$exception->getMessage(), 0, $exception);
             }
 
             if (! $process->isSuccessful()) {
                 $error = trim($process->getErrorOutput()) ?: trim($process->getOutput());
 
-                throw new RuntimeException('fusion:build could not minify the components with esbuild: '
+                throw new RuntimeException('nitro:build could not minify the components with esbuild: '
                     .($error !== '' ? $error : 'node exited with '.$process->getExitCode()).'.');
             }
 

@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 /**
- * Random Blade views for the template fuzzer, in the subset Fusion compiles: elements with static
+ * Random Blade views for the template fuzzer, in the subset Nitro compiles: elements with static
  * and dynamic attributes (@class, @checked, @disabled), echoes ({{ }}, {!! !!}), @if/@elseif/@else,
  * @unless, @isset, @empty, @foreach (with $loop), @forelse, @for, @switch, @break/@continue, @json.
  * The view reads the properties $a, $b, $c (scalars), $items (a list) and $map (an array with keys),

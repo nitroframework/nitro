@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Testing\AssertableFusion;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Pages\Orders;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Testing\AssertableNitro;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Pages\Orders;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Partial reloads ($reload, $this->reload()), as Inertia's: the page asks its URL again
- * (X-Fusion-Partial, X-Fusion-Only), and mount() loads only what is wanted ($this->wants()).
+ * (X-Nitro-Partial, X-Nitro-Only), and mount() loads only what is wanted ($this->wants()).
  */
 class PartialReloadTest extends TestCase
 {
@@ -23,7 +23,7 @@ class PartialReloadTest extends TestCase
         Store::$log = [];
     }
 
-    /** A request of its own, as in production (Fusion's per-request state starts afresh). */
+    /** A request of its own, as in production (Nitro's per-request state starts afresh). */
     private function page(?string $only = null, bool $partial = true): TestResponse
     {
         $this->app->forgetScopedInstances();
@@ -31,9 +31,9 @@ class PartialReloadTest extends TestCase
 
         $server = $partial ? array_filter([
             'HTTP_ACCEPT' => 'application/json',
-            'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_PARTIAL' => 'fabcdefghij',
-            'HTTP_X_FUSION_ONLY' => $only,
+            'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_PARTIAL' => 'fabcdefghij',
+            'HTTP_X_NITRO_ONLY' => $only,
         ]) : [];
 
         return TestResponse::fromBaseResponse($this->request('GET', '/orders', $server));
@@ -55,7 +55,7 @@ class PartialReloadTest extends TestCase
     {
         $this->boot($framework);
 
-        $this->page(partial: false)->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+        $this->page(partial: false)->assertOk()->assertNitro(fn (AssertableNitro $page) => $page
             ->where('orders', [])
             ->where('total', 0));
 
@@ -70,12 +70,12 @@ class PartialReloadTest extends TestCase
 
         $response = $this->page('orders')->assertOk();
         $this->assertSame(['orders'], Store::$log);
-        $response->assertFusion(fn (AssertableFusion $page) => $page->where('orders', ['tea'])->where('total', 0));
+        $response->assertNitro(fn (AssertableNitro $page) => $page->where('orders', ['tea'])->where('total', 0));
 
         $state = Wire::fromJson((string) $response->json('snapshot.state'));
         $this->assertSame('fabcdefghij', $state['id'], 'The page keeps the id it has in the browser.');
 
-        $this->page()->assertFusion(fn (AssertableFusion $page) => $page->where('orders', ['tea'])->where('total', 1));
+        $this->page()->assertNitro(fn (AssertableNitro $page) => $page->where('orders', ['tea'])->where('total', 1));
         $this->assertSame(['orders', 'total'], Store::$log, 'without names: all of them');
     }
 
@@ -117,7 +117,7 @@ class PartialReloadTest extends TestCase
         $this->addOrder('add');
         $this->app->forgetScopedInstances();
         $partial = json_decode((string) $this->request('GET', '/orders', [
-            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_X_FUSION_PARTIAL' => $id, 'HTTP_X_FUSION_ONLY' => 'total',
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1', 'HTTP_X_NITRO_PARTIAL' => $id, 'HTTP_X_NITRO_ONLY' => 'total',
         ])->getContent(), true)['partial'];
 
         $this->app->forgetScopedInstances();
@@ -150,7 +150,7 @@ class PartialReloadTest extends TestCase
         $this->boot($framework);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Fusion page [pages::orders] has no public property $nothing to reload.');
+        $this->expectExceptionMessage('Nitro page [pages::orders] has no public property $nothing to reload.');
 
         (fn () => $this->reload('nothing'))->call(new Orders);
     }

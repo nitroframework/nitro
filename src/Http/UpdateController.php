@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use BackedEnum;
 use Illuminate\Contracts\Container\Container;
@@ -12,28 +12,28 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use JsonException;
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Build\ServerChildren;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Http\IncomingState;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Rendering\ComponentRenderer;
-use Nitro\Fusion\Rendering\Fallbacks;
-use Nitro\Fusion\State\MethodCache;
-use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\State\Snapshot;
-use Nitro\Fusion\State\Snapshots;
-use Nitro\Fusion\State\Stores;
-use Nitro\Fusion\Store;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Naming;
-use Nitro\Fusion\Support\PropertyHooks;
-use Nitro\Fusion\Support\Types;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Build\BrowserNames;
+use Nitro\Build\ServerChildren;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\PropertyMeta;
+use Nitro\Component;
+use Nitro\Http\IncomingState;
+use Nitro\Lifecycle\Features;
+use Nitro\Rendering\ComponentRenderer;
+use Nitro\Rendering\Fallbacks;
+use Nitro\State\MethodCache;
+use Nitro\State\SharedData;
+use Nitro\State\Snapshot;
+use Nitro\State\Snapshots;
+use Nitro\State\Stores;
+use Nitro\Store;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\Config;
+use Nitro\Support\Naming;
+use Nitro\Support\PropertyHooks;
+use Nitro\Support\Types;
+use Nitro\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -143,7 +143,7 @@ final class UpdateController
         }
         $this->features()->dehydrate($component);
         $next = Snapshot::capture($component, $meta, $memo);
-        $context = $component->fusion();
+        $context = $component->nitro();
 
         return new JsonResponse([
             'snapshot' => $this->snapshots()->envelope($next, $meta->name),
@@ -160,7 +160,7 @@ final class UpdateController
                     'self' => ($dispatch['self'] ?? false) ?: null,
                 ], fn ($value) => $value !== null), $context->dispatches),
                 'redirect' => $context->redirect,
-                /** Reading $fusion.<name> by the browser's names (an obfuscated build). */
+                /** Reading $nitro.<name> by the browser's names (an obfuscated build). */
                 'js' => array_map(fn (string $code) => $this->names()->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]), $context->js),
                 /** $this->reload(): an object, so that "all of them" ([]) is not filtered out. */
                 'reload' => $context->reload === null ? null : ['only' => array_map(fn (string $property) => $this->names()->property($property), $context->reload)],
@@ -295,7 +295,7 @@ final class UpdateController
         }
 
         $arguments = $this->arguments($meta->serverParameters[$method], $params);
-        $context = $component->fusion();
+        $context = $component->nitro();
         $context->errors = new \Illuminate\Support\MessageBag;
 
         $features = $this->features();
@@ -429,8 +429,8 @@ final class UpdateController
     }
 
     /**
-     * This request's Fusion. The router keeps a controller between requests (Octane, a
-     * long-running server): Fusion, bound per request, is not kept with it.
+     * This request's Nitro. The router keeps a controller between requests (Octane, a
+     * long-running server): Nitro, bound per request, is not kept with it.
      */
     private function incoming(): IncomingState
     {

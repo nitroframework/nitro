@@ -1,7 +1,7 @@
 /**
  * Svelte views in the render service:
  *
- *     import { renderSvelte } from 'nitro-fusion/svelte/server';
+ *     import { renderSvelte } from 'nitro/svelte/server';
  *
  *     serve({ svelte: renderSvelte(import.meta.glob('../views/svelte/**\/*.svelte', { eager: true })) });
  *

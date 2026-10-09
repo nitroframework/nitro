@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Tests\TestCase;
 use Throwable;
 
 /**
- * Robustness fuzzing of the Blade precompiler (<fusion:...> tags in any view): random views made
+ * Robustness fuzzing of the Blade precompiler (<nitro:...> tags in any view): random views made
  * of tags (with props, keys, slots, quotes and > in attributes), tags written in PHP, echoes,
  * comments and @verbatim, and broken pieces, compiled by Blade. Whatever the view:
  *
@@ -21,23 +21,23 @@ class PrecompilerFuzzTest extends TestCase
 {
     /** Pieces a view is made of; each is balanced Blade, so a failure is the precompiler's. */
     private const PIECES = [
-        '<fusion:counter />', '<fusion:counter :count="$a" />', '<fusion:counter :count="1 + 2" :key="$i" />', "<fusion:counter :count=\"'a > b'\" />",
-        '<fusion:counter :label="\'it\\\'s\'" />', '<fusion:counter count="5" />', '<fusion:counter :items="[1, 2, \'x\' => [3]]" />', "<fusion:counter\n    :count=\"\$a\"\n/>",
-        '<fusion:search-box fusion:model="query" />', '<fusion:students.table />', '<fusion:dynamic-component :is="$name" />', '<fusion:counter fusion:hydrate.idle />',
-        '<fusion:card>text</fusion:card>', '<fusion:card><fusion:slot name="footer">f</fusion:slot>body</fusion:card>', '<fusion:card><fusion:counter /></fusion:card>',
-        '<FUSION:counter />', '<fusion:counter/>', '<fusion:counter ></fusion:counter>',
-        "@php \$t = '<fusion:counter />'; @endphp", "<?php \$t = '<fusion:counter />'; ?>", "{{ '<fusion:counter />' }}", "{!! '<fusion:counter />' !!}",
-        '{{-- <fusion:counter /> --}}', "@verbatim <fusion:counter /> {{ x }} @endverbatim", '@{{ <fusion:counter /> }}', "{{ \$a ?? '<fusion:x>' }}",
-        '<div class="a">', '</div>', '<p>', '</p>', 'text', "\n", ' ', '&lt;fusion:x&gt;', 'fusion:counter', '<fusion', 'ada@example.com',
-        '@if ($a) <fusion:counter /> @endif', '@foreach ($items as $i) <fusion:counter :key="$i" /> @endforeach', '@if ($a) x @else <fusion:card>y</fusion:card> @endif', '{{ $a }}', '{!! $b !!}', '@csrf', '<!-- <fusion:counter /> -->',
-        '<script>let x = "<fusion:counter />";</script>', "<input value=\"{{ '>' }}\">",
+        '<nitro:counter />', '<nitro:counter :count="$a" />', '<nitro:counter :count="1 + 2" :key="$i" />', "<nitro:counter :count=\"'a > b'\" />",
+        '<nitro:counter :label="\'it\\\'s\'" />', '<nitro:counter count="5" />', '<nitro:counter :items="[1, 2, \'x\' => [3]]" />', "<nitro:counter\n    :count=\"\$a\"\n/>",
+        '<nitro:search-box nitro:model="query" />', '<nitro:students.table />', '<nitro:dynamic-component :is="$name" />', '<nitro:counter nitro:hydrate.idle />',
+        '<nitro:card>text</nitro:card>', '<nitro:card><nitro:slot name="footer">f</nitro:slot>body</nitro:card>', '<nitro:card><nitro:counter /></nitro:card>',
+        '<NITRO:counter />', '<nitro:counter/>', '<nitro:counter ></nitro:counter>',
+        "@php \$t = '<nitro:counter />'; @endphp", "<?php \$t = '<nitro:counter />'; ?>", "{{ '<nitro:counter />' }}", "{!! '<nitro:counter />' !!}",
+        '{{-- <nitro:counter /> --}}', "@verbatim <nitro:counter /> {{ x }} @endverbatim", '@{{ <nitro:counter /> }}', "{{ \$a ?? '<nitro:x>' }}",
+        '<div class="a">', '</div>', '<p>', '</p>', 'text', "\n", ' ', '&lt;nitro:x&gt;', 'nitro:counter', '<nitro', 'ada@example.com',
+        '@if ($a) <nitro:counter /> @endif', '@foreach ($items as $i) <nitro:counter :key="$i" /> @endforeach', '@if ($a) x @else <nitro:card>y</nitro:card> @endif', '{{ $a }}', '{!! $b !!}', '@csrf', '<!-- <nitro:counter /> -->',
+        '<script>let x = "<nitro:counter />";</script>', "<input value=\"{{ '>' }}\">",
     ];
 
-    /** Pieces that are not a tag Fusion can make sense of: a CompileException, or text. */
+    /** Pieces that are not a tag Nitro can make sense of: a CompileException, or text. */
     private const BROKEN = [
-        '<fusion:', '<fusion:counter', '<fusion:counter :count="$a', '</fusion:counter>', '</fusion:slot>', '<fusion:slot>', '<fusion:slot name="">',
-        '<fusion:counter :count=$a />', '<fusion:counter ::x="1" />', '<fusion:counter :="1" />', '<fusion:-x />', '<fusion:counter fusion:hydrate.soon />',
-        "<fusion:counter :count=\"'\" />", '<fusion:counter :count="{{ $a }}" />', '<fusion:counter :count="$a" :count="$b" />',
+        '<nitro:', '<nitro:counter', '<nitro:counter :count="$a', '</nitro:counter>', '</nitro:slot>', '<nitro:slot>', '<nitro:slot name="">',
+        '<nitro:counter :count=$a />', '<nitro:counter ::x="1" />', '<nitro:counter :="1" />', '<nitro:-x />', '<nitro:counter nitro:hydrate.soon />',
+        "<nitro:counter :count=\"'\" />", '<nitro:counter :count="{{ $a }}" />', '<nitro:counter :count="$a" :count="$b" />',
     ];
 
     public function test_random_views_compile_to_php_or_are_refused(): void
@@ -87,8 +87,8 @@ class PrecompilerFuzzTest extends TestCase
                 continue;
             }
 
-            /** Text Fusion must leave alone, still there as written. */
-            foreach (["@php \$t = '<fusion:counter />'; @endphp" => "\$t = '<fusion:counter />';", "{{ '<fusion:counter />' }}" => "e('<fusion:counter />')", '{{-- <fusion:counter /> --}}' => null, "<?php \$t = '<fusion:counter />'; ?>" => "\$t = '<fusion:counter />';"] as $written => $kept) {
+            /** Text Nitro must leave alone, still there as written. */
+            foreach (["@php \$t = '<nitro:counter />'; @endphp" => "\$t = '<nitro:counter />';", "{{ '<nitro:counter />' }}" => "e('<nitro:counter />')", '{{-- <nitro:counter /> --}}' => null, "<?php \$t = '<nitro:counter />'; ?>" => "\$t = '<nitro:counter />';"] as $written => $kept) {
                 if ($kept !== null && str_contains($view, $written) && ! str_contains($php, $kept)) {
                     $failures[] = "seed {$caseSeed}: {$written} was changed\n{$view}\n--- PHP\n{$php}";
                 }

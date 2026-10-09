@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 /**
  * Random PHP for the differential fuzzer: a method body over four variables ($a, $b, $c, $d) and
- * the property $this->p, written with what Fusion compiles for the browser (operators, casts,
+ * the property $this->p, written with what Nitro compiles for the browser (operators, casts,
  * array writes, loops, switch, match, closures, the functions of Catalog::FUNCTIONS).
  *
  * The same seed gives the same program. Programs avoid the documented limits (integers of 1e14

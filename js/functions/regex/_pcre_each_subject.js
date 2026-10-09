@@ -1,4 +1,4 @@
-// Fusion: preg_replace()'s patterns (a string or an array, with replacements to match) on a
+// Nitro: preg_replace()'s patterns (a string or an array, with replacements to match) on a
 // subject or each of an array of them (keys kept, null where PHP fails).
 function _pcre_each_subject(patterns, subject, one) {
     const apply = (value) => {

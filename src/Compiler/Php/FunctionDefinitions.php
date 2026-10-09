@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Support\Types;
+use Nitro\Support\Types;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
@@ -21,7 +21,7 @@ use PhpParser\Node\Stmt;
  *    the outer variables it uses; neither sees the others
  *  - by-reference parameters and captures have no equivalent and fail to compile
  *
- * The one Fusion detail: a component method starts with `const $this = this;`, the component
+ * The one Nitro detail: a component method starts with `const $this = this;`, the component
  * (Transpiler::method()); and a closure in a template resolves the template's variables (the
  * component's properties) where it uses them.
  *
@@ -224,7 +224,7 @@ final class FunctionDefinitions extends Part
         $context = $this->context;
         [$savedLocals, $savedTemps, $savedLoops, $savedApis] = [$context->locals, $context->temps, $context->loops, $context->browserVariables];
         $context->locals = array_fill_keys($captured, true);
-        /** A captured variable keeps its Fusion::browser() API. */
+        /** A captured variable keeps its Nitro::browser() API. */
         $context->browserVariables = array_intersect_key($context->browserVariables, $context->locals);
         $context->temps = [];
         $context->loops = [];

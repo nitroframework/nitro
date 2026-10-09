@@ -1,34 +1,34 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Component;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\Config;
+use Nitro\Support\Protocol;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 /**
  * What shows in place of a component that failed, so the rest of the page works on: its
- * fallback() (a view, HTML, or text), else fusion.fallbacks.view, else a short message with a link
+ * fallback() (a view, HTML, or text), else nitro.fallbacks.view, else a short message with a link
  * that loads the page again. The error goes to the application's exception handler. The one place
  * a failure turns into a fallback: a component placed on the server, a #[Server] call, and (the
- * default, given with @fusionScripts) a render in the browser.
+ * default, given with @nitroScripts) a render in the browser.
  *
- * Off when fusion.fallbacks.enabled is false, or null and APP_DEBUG is on: in development the
+ * Off when nitro.fallbacks.enabled is false, or null and APP_DEBUG is on: in development the
  * error itself shows.
  *
  * @internal
  */
 final class Fallbacks
 {
-    private const MESSAGE = '<p class="fusion-fallback">This part of the page could not load. <a href="">Try again</a></p>';
+    private const MESSAGE = '<p class="nitro-fallback">This part of the page could not load. <a href="">Try again</a></p>';
 
     public function __construct(
         private readonly Container $app,

@@ -35,7 +35,7 @@ export class Broadcasts {
         if (!echo) {
             if (!this.warned) {
                 this.warned = true;
-                this.runtime.report(component, new Error(`Fusion: [${component.name}] listens to broadcasts (#[On('echo:...')]), which needs Laravel Echo: window.Echo is not set`));
+                this.runtime.report(component, new Error(`Nitro: [${component.name}] listens to broadcasts (#[On('echo:...')]), which needs Laravel Echo: window.Echo is not set`));
             }
             return;
         }

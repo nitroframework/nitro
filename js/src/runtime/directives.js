@@ -1,8 +1,8 @@
 /**
- * The application's own fusion: attributes (fusion.attributes on the server), each run by the
- * Fusion.directive() of its name:
+ * The application's own nitro: attributes (nitro.attributes on the server), each run by the
+ * Nitro.directive() of its name:
  *
- *     Fusion.directive('tooltip', ({ el, value, modifiers, component }) => {
+ *     Nitro.directive('tooltip', ({ el, value, modifiers, component }) => {
  *         const tip = makeTooltip(el, value);
  *         return () => tip.remove();
  *     });
@@ -12,7 +12,7 @@
  * before it runs again and when the element or its component goes. component.dispatch(event,
  * ...params) dispatches an event, as $this->dispatch() does: #[On] methods hear it.
  *
- * The compiled view marks the elements that have one (fusion:h-directive); after each render of a
+ * The compiled view marks the elements that have one (nitro:h-directive); after each render of a
  * component, its marked elements are matched against the directives registered.
  */
 import * as P from '../php.js';
@@ -33,10 +33,10 @@ export class Directives {
 
     register(name, directive) {
         if (typeof name !== 'string' || !NAME.test(name)) {
-            throw new Error(`Fusion.directive(): ${JSON.stringify(name)} is not a fusion: attribute name (lowercase words joined by hyphens)`);
+            throw new Error(`Nitro.directive(): ${JSON.stringify(name)} is not a nitro: attribute name (lowercase words joined by hyphens)`);
         }
-        if (typeof directive !== 'function') throw new Error(`Fusion.directive('${name}'): the directive is a function`);
-        if (this.registered.has(name)) throw new Error(`Fusion.directive('${name}') is registered already`);
+        if (typeof directive !== 'function') throw new Error(`Nitro.directive('${name}'): the directive is a function`);
+        if (this.registered.has(name)) throw new Error(`Nitro.directive('${name}') is registered already`);
         this.registered.set(name, directive);
 
         /** Registered after the page started: the elements already there. */
@@ -84,7 +84,7 @@ export class Directives {
         }
     }
 
-    /** fusion:<name>.<modifiers>="value" attributes of registered directives: name => {value, modifiers}. */
+    /** nitro:<name>.<modifiers>="value" attributes of registered directives: name => {value, modifiers}. */
     attributes(el) {
         const found = new Map();
         for (const attribute of el.attributes) {
@@ -113,7 +113,7 @@ export class Directives {
                 },
             });
             if (cleanup !== undefined && typeof cleanup !== 'function') {
-                throw new Error(`Fusion.directive('${name}') returned ${typeof cleanup}: return nothing, or a function that cleans up`);
+                throw new Error(`Nitro.directive('${name}') returned ${typeof cleanup}: return nothing, or a function that cleans up`);
             }
             return cleanup ?? null;
         } catch (error) {

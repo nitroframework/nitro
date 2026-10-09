@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use Closure;
-use Nitro\Fusion\Compiler\Php\Calls;
-use Nitro\Fusion\Compiler\Php\Catalog;
-use Nitro\Fusion\Compiler\Php\ComponentAccess;
-use Nitro\Fusion\Compiler\Php\Context;
-use Nitro\Fusion\Support\PropertyHooks;
-use Nitro\Fusion\Compiler\Php\Expressions;
-use Nitro\Fusion\Compiler\Php\FunctionDefinitions;
-use Nitro\Fusion\Compiler\Php\Handlers;
-use Nitro\Fusion\Compiler\Php\Statements;
-use Nitro\Fusion\Compiler\Php\Writes;
-use Nitro\Fusion\Compiler\Template\VariableSubstitution;
+use Nitro\Compiler\Php\Calls;
+use Nitro\Compiler\Php\Catalog;
+use Nitro\Compiler\Php\ComponentAccess;
+use Nitro\Compiler\Php\Context;
+use Nitro\Support\PropertyHooks;
+use Nitro\Compiler\Php\Expressions;
+use Nitro\Compiler\Php\FunctionDefinitions;
+use Nitro\Compiler\Php\Handlers;
+use Nitro\Compiler\Php\Statements;
+use Nitro\Compiler\Php\Writes;
+use Nitro\Compiler\Template\VariableSubstitution;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -46,11 +46,11 @@ use Throwable;
  *  - general PHP: Statements, Expressions, Writes (PHP's array value semantics), Calls (PHP's
  *    functions and Laravel's helpers), FunctionDefinitions (methods, closures, arrow functions),
  *    Catalog (what of PHP exists in the browser)
- *  - Fusion: ComponentAccess ($this, #[Server], dispatch, Fusion::browser()), Handlers (event
+ *  - Nitro: ComponentAccess ($this, #[Server], dispatch, Nitro::browser()), Handlers (event
  *    handlers, magic actions, what a template expression may not do)
  *  - Context: the state they share while compiling one piece of code
  *
- * Each part's docblock says what it does and whether it is general PHP or Fusion.
+ * Each part's docblock says what it does and whether it is general PHP or Nitro.
  */
 final class Transpiler
 {
@@ -179,8 +179,8 @@ final class Transpiler
     }
 
     /**
-     * An event handler (fusion:click="save", fusion:click="remove($item['id'])"): component method
-     * calls, the magic actions $set, $toggle, $refresh and $dispatch, and Fusion::browser() calls.
+     * An event handler (nitro:click="save", nitro:click="remove($item['id'])"): component method
+     * calls, the magic actions $set, $toggle, $refresh and $dispatch, and Nitro::browser() calls.
      * $event is the DOM event.
      *
      * @param  list<string>  $locals

@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /** A child with mount(): only the server can create it (on a page load, a visit or a #[Server] call). */
 class Badge extends Component

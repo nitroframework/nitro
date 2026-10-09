@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Support;
+namespace Nitro\Tests\Support;
 
 use RuntimeException;
 
@@ -18,11 +18,11 @@ final class Server
     {
         $port = self::freePort();
         $root = dirname(__DIR__).'/Fixtures/app/public';
-        $env = [...getenv(), 'FUSION_TEST_DB' => $database];
+        $env = [...getenv(), 'NITRO_TEST_DB' => $database];
 
         $this->process = proc_open(
             [PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', $root, $root.'/index.php'],
-            [0 => ['pipe', 'r'], 1 => ['file', sys_get_temp_dir().'/fusion-server.log', 'a'], 2 => ['file', sys_get_temp_dir().'/fusion-server.log', 'a']],
+            [0 => ['pipe', 'r'], 1 => ['file', sys_get_temp_dir().'/nitro-server.log', 'a'], 2 => ['file', sys_get_temp_dir().'/nitro-server.log', 'a']],
             $pipes,
             $root,
             $env

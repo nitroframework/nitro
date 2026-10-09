@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Store;
+use Nitro\Component;
+use Nitro\Nitro;
+use Nitro\Store;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionIntersectionType;
@@ -14,10 +14,10 @@ use ReflectionType;
 use ReflectionUnionType;
 
 /**
- * Fusion's public API is what an app's code names: the root namespace (Component, Store, Upload,
+ * Nitro's public API is what an app's code names: the root namespace (Component, Store, Upload,
  * Once, Merge, Head, PendingDispatch...) and Attributes, Browser, Concerns, Facades and Testing. Every
  * other folder is internal, free to move. A class an app receives or passes, through what it
- * calls on a component, a store or the Fusion facade, must be public, or moving an internal
+ * calls on a component, a store or the Nitro facade, must be public, or moving an internal
  * class would break apps.
  */
 final class PublicApiTest extends TestCase
@@ -26,7 +26,7 @@ final class PublicApiTest extends TestCase
     public const PUBLIC_FOLDERS = ['Attributes', 'Browser', 'Concerns', 'Facades', 'Testing'];
 
     /** What an app calls: a component's and a store's methods ($this->...), the facade's. */
-    private const SURFACES = [Component::class, Store::class, Fusion::class];
+    private const SURFACES = [Component::class, Store::class, Nitro::class];
 
     public function test_what_an_app_receives_or_passes_is_public(): void
     {
@@ -36,7 +36,7 @@ final class PublicApiTest extends TestCase
             foreach ((new ReflectionClass($surface))->getMethods() as $method) {
                 /** An app never constructs these, and a method marked @internal is not its to call. */
                 if ($method->isPrivate() || $method->isConstructor() || str_contains((string) $method->getDocComment(), '@internal')
-                    || ($method->isProtected() && $surface === Fusion::class)) {
+                    || ($method->isProtected() && $surface === Nitro::class)) {
                     continue;
                 }
 
@@ -55,7 +55,7 @@ final class PublicApiTest extends TestCase
         $this->assertSame([], array_keys(array_diff_key($known, $exposed)), 'Fixed: take it out of known-breaks.php');
     }
 
-    /** @return list<class-string> Fusion's classes the method takes or gives */
+    /** @return list<class-string> Nitro's classes the method takes or gives */
     private function classesOf(ReflectionMethod $method): array
     {
         $types = [$method->getReturnType()];
@@ -68,7 +68,7 @@ final class PublicApiTest extends TestCase
 
         foreach ($types as $type) {
             foreach ($this->named($type) as $name) {
-                if (str_starts_with($name, 'Nitro\\Fusion\\')) {
+                if (str_starts_with($name, 'Nitro\\')) {
                     $classes[] = $name;
                 }
             }
@@ -89,7 +89,7 @@ final class PublicApiTest extends TestCase
 
     private function isPublic(string $class): bool
     {
-        $relative = explode('\\', substr($class, strlen('Nitro\\Fusion\\')));
+        $relative = explode('\\', substr($class, strlen('Nitro\\')));
 
         return count($relative) === 1 || in_array($relative[0], self::PUBLIC_FOLDERS, true);
     }

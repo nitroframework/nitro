@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use BackedEnum;
 use Closure;
@@ -37,8 +37,8 @@ final class BrowserClassCompiler
     /**
      * The classes and enums reached, as the main bundle defines them:
      *
-     *   Fusion.classes["App\\Support\\Money"] = { format: function ($cents) {...} };
-     *   Fusion.classes["App\\Enums\\Status"] = P.defineEnum("App\\Enums\\Status", [["Draft", "draft"], ...], {static methods}, {methods});
+     *   Nitro.classes["App\\Support\\Money"] = { format: function ($cents) {...} };
+     *   Nitro.classes["App\\Enums\\Status"] = P.defineEnum("App\\Enums\\Status", [["Draft", "draft"], ...], {static methods}, {methods});
      */
     public function definitions(): string
     {
@@ -59,7 +59,7 @@ final class BrowserClassCompiler
             $name = json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
             if (! enum_exists($class)) {
-                $definitions[] = '// '.$class." · #[Browser]\n"."Fusion.classes[{$name}] = {\n".$list($methods)."\n};";
+                $definitions[] = '// '.$class." · #[Browser]\n"."Nitro.classes[{$name}] = {\n".$list($methods)."\n};";
 
                 continue;
             }
@@ -68,7 +68,7 @@ final class BrowserClassCompiler
             $cases = array_map(fn (UnitEnum $case) => $case instanceof BackedEnum ? [$case->name, $case->value] : [$case->name], $class::cases());
 
             $definitions[] = '// '.$class." · #[Browser] enum\n"
-                ."Fusion.classes[{$name}] = P.defineEnum({$name}, ".json_encode($cases, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+                ."Nitro.classes[{$name}] = P.defineEnum({$name}, ".json_encode($cases, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
                 .", {\n".$list($static)."\n}, {\n".$list(array_diff_key($methods, $static))."\n});";
         }
 

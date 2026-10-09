@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 use Illuminate\Support\Str;
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
 
@@ -203,7 +203,7 @@ final class ComponentParts
         $vars = [];
 
         foreach ($attributes as $attribute => $code) {
-            /** fusion:click, x-on:click, ... are attributes only (no variable can be named so). */
+            /** nitro:click, x-on:click, ... are attributes only (no variable can be named so). */
             if (preg_match('/^[A-Za-z_]\w*$/', Str::camel($attribute))) {
                 $vars[Str::camel($attribute)] = $code;
             }

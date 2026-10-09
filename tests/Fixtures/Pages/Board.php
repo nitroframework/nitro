@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 /**
- * A routed page that places a child with mount() (the todo list): a fusion:navigate visit gets
+ * A routed page that places a child with mount() (the todo list): a nitro:navigate visit gets
  * that child's state from the server, since the browser cannot run mount().
  */
 #[Title('Board')]

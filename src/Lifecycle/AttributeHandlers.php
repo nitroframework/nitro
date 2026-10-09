@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Lifecycle;
+namespace Nitro\Lifecycle;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Feature;
-use Nitro\Fusion\FeatureAttribute;
+use Nitro\Component;
+use Nitro\Feature;
+use Nitro\FeatureAttribute;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use Illuminate\Support\Str;
 
 /**
- * The property hooks: what runs when the view changes a property (fusion:model, $set(), a
+ * The property hooks: what runs when the view changes a property (nitro:model, $set(), a
  * JavaScript view's set() or binding). Not when a method assigns one: the method knows what it
  * changed. The one place their names are read; the compiler gives the browser each component's
  * hooks by property, so the runtime never builds a hook's name itself.

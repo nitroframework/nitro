@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Browser;
+namespace Nitro\Browser;
 
 /**
  * A <canvas>'s 2D context, chained. The calls are kept and run, in order, once the component has

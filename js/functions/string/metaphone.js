@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Metaphone.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Metaphone.js, for Nitro's values.
 function metaphone (word, maxPhonemes) {
   //  discuss at: https://locutus.io/php/metaphone/
   // original by: Greg Frazier

@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Models\User;
-use Nitro\Fusion\Tests\TestCase;
-use Nitro\Fusion\Upload;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Models\User;
+use Nitro\Tests\TestCase;
+use Nitro\Upload;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * fusion:model on a file input: POST /_fusion/upload takes files for a component's upload
+ * nitro:model on a file input: POST /_nitro/upload takes files for a component's upload
  * property, the component gets them as Upload, validates and stores them; previews are images only.
  */
 class UploadTest extends TestCase
@@ -26,11 +26,11 @@ class UploadTest extends TestCase
         return $this->snapshots((string) $response->getContent())[0]['envelope'];
     }
 
-    /** POST /_fusion/upload, as the runtime sends it (FormData). */
+    /** POST /_nitro/upload, as the runtime sends it (FormData). */
     private function upload(array $envelope, string $property, array $files): Response
     {
         $kernel = $this->app->make(HttpKernel::class);
-        $request = Request::create('/_fusion/upload', 'POST', ['snapshot' => json_encode($envelope), 'property' => $property], $this->cookies, ['files' => $files], [
+        $request = Request::create('/_nitro/upload', 'POST', ['snapshot' => json_encode($envelope), 'property' => $property], $this->cookies, ['files' => $files], [
             'HTTP_ACCEPT' => 'application/json',
             'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
             'HTTP_SEC_FETCH_SITE' => 'same-origin',
@@ -61,7 +61,7 @@ class UploadTest extends TestCase
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
         $wire = $this->json($response)['uploads'][0];
         $this->assertSame(['Birthday Cake.jpg', 'image/jpeg', 'jpg'], [$wire['$u']['name'], $wire['$u']['mime'], $wire['$u']['ext']]);
-        $this->assertStringContainsString('/_fusion/upload/preview?t=', $wire['$u']['url']);
+        $this->assertStringContainsString('/_nitro/upload/preview?t=', $wire['$u']['url']);
 
         /** The same reference each time it is sent: the server's render and the browser's agree. */
         $upload = Wire::decode($wire);
@@ -105,7 +105,7 @@ class UploadTest extends TestCase
         $this->boot($framework);
         $envelope = $this->gallery();
 
-        /** fusion.uploads.rules: max 1024 KB. */
+        /** nitro.uploads.rules: max 1024 KB. */
         $response = $this->upload($envelope, 'photo', [UploadedFile::fake()->create('huge.jpg', 2048, 'image/jpeg')]);
         $this->assertSame(422, $response->getStatusCode());
         $this->assertArrayHasKey('photo', $this->json($response)['errors']);
@@ -132,8 +132,8 @@ class UploadTest extends TestCase
         /** A partial reload's state (signed, of this page): not a component's whole state, as a #[Server] call refuses it. */
         $this->app->forgetScopedInstances();
         $partial = json_decode((string) $this->request('GET', '/gallery', [
-            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_PARTIAL' => Wire::fromJson($envelope['state'])['id'], 'HTTP_X_FUSION_ONLY' => 'photo',
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_PARTIAL' => Wire::fromJson($envelope['state'])['id'], 'HTTP_X_NITRO_ONLY' => 'photo',
         ])->getContent(), true)['partial'];
         $this->assertIsArray($partial, 'the page gave a partial reload');
         $this->app->forgetScopedInstances();
@@ -202,9 +202,9 @@ class UploadTest extends TestCase
         $html = UploadedFile::fake()->createWithContent('cake.jpg', '<html><script>alert(1)</script></html>');
         $page = $this->json($this->upload($envelope, 'photos', [$html]))['uploads'][0]['$u'];
         $this->assertNull($page['url']);
-        $this->assertSame(404, $this->request('GET', '/_fusion/upload/preview?t='.urlencode($page['t']))->getStatusCode());
+        $this->assertSame(404, $this->request('GET', '/_nitro/upload/preview?t='.urlencode($page['t']))->getStatusCode());
 
-        $this->assertSame(404, $this->request('GET', '/_fusion/upload/preview?t=x.y')->getStatusCode());
+        $this->assertSame(404, $this->request('GET', '/_nitro/upload/preview?t=x.y')->getStatusCode());
     }
 
     #[DataProvider('frameworks')]

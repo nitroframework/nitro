@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
-use Nitro\Fusion\Support\Html;
+use Nitro\Support\Html;
 use RuntimeException;
 
 /**
- * A component renders exactly one root element; Fusion marks it with the component's id, name
+ * A component renders exactly one root element; Nitro marks it with the component's id, name
  * and state.
  */
 final class RootElement
@@ -19,7 +19,7 @@ final class RootElement
         self::assertSingleRoot($html, $component);
 
         if (! preg_match('/<([a-zA-Z][a-zA-Z0-9\-]*)/', $html, $match, PREG_OFFSET_CAPTURE)) {
-            throw new RuntimeException("Fusion component [{$component}] must render a single root element.");
+            throw new RuntimeException("Nitro component [{$component}] must render a single root element.");
         }
 
         $insert = '';
@@ -98,6 +98,6 @@ final class RootElement
 
     private static function notSingle(string $component): RuntimeException
     {
-        return new RuntimeException("Fusion component [{$component}] must render a single root element (wrap its view in one element).");
+        return new RuntimeException("Nitro component [{$component}] must render a single root element (wrap its view in one element).");
     }
 }

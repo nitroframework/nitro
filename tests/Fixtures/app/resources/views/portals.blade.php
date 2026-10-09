@@ -5,8 +5,8 @@
 </head>
 <body>
     <aside id="dock">@portal('dock')</aside>
-    <fusion:journal />
+    <nitro:journal />
     <div id="toasts">@portal('toasts')</div>
-    @fusionScripts
+    @nitroScripts
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Fusion: PHP 8.3's mb_str_pad(): str_pad() counting characters.
+// Nitro: PHP 8.3's mb_str_pad(): str_pad() counting characters.
 function mb_str_pad(string, length, padString = ' ', padType = 1) {
     const chars = [...P.toStr(string)];
     const pad = [...P.toStr(padString)];

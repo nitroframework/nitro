@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\View\ServerRendering;
+namespace Nitro\View\ServerRendering;
 
 use JsonSerializable;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Component;
+use Nitro\Support\Wire;
 
 /**
  * What a JavaScript view renders from on the server: what the browser's handle gives it on the
@@ -16,7 +16,7 @@ final class ViewState implements JsonSerializable
 {
     /**
      * @param  string  $id  the component's id: a view's own on the page (Solid keys its hydration by it)
-     * @param  string  $engine  the view's engine, as fusion.views names it
+     * @param  string  $engine  the view's engine, as nitro.views names it
      * @param  string  $view  the view's name: 'cart/badge'
      * @param  array<string, mixed>  $properties  name => value (wire format)
      * @param  array<string, mixed>  $computed  #[Computed] name => value (wire format)
@@ -52,7 +52,7 @@ final class ViewState implements JsonSerializable
         }
 
         /** @var array<string, list<string>> $errors */
-        $errors = $component->fusion()->errors->toArray();
+        $errors = $component->nitro()->errors->toArray();
 
         return new self($component->getId(), $meta->engine, $meta->view, $properties, $computed, $meta->publicMethods(), $meta->serverMethods, $errors);
     }

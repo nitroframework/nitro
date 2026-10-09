@@ -7,9 +7,9 @@ return [
     | Progress bar
     |--------------------------------------------------------------------------
     |
-    | The bar shown while a fusion:navigate visit loads the next page
+    | The bar shown while a nitro:navigate visit loads the next page
     | (nitro-progress). It shows at once, creeps forward while the server
-    | answers, and fills and fades as the new page appears. @fusionScripts
+    | answers, and fills and fades as the new page appears. @nitroScripts
     | passes these settings to the browser.
     |
     */

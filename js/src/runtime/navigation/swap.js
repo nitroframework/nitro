@@ -1,5 +1,5 @@
 /**
- * fusion:navigate to a page Fusion cannot render itself: a Blade view, a controller's view, a page
+ * nitro:navigate to a page Nitro cannot render itself: a Blade view, a controller's view, a page
  * in another layout, or from such a page. Its HTML is fetched and put in place of the current
  * document's, as wire:navigate and Turbo do: the runtime and app.js stay loaded, the components on
  * the old page are destroyed, and those on the new one (islands too) start as on a page load.
@@ -7,13 +7,13 @@
  * The head is merged: new stylesheets are added and waited for (no flash of an unstyled page),
  * what both pages have stays, and other elements the new page does not have (meta, canonical
  * links) go. Stylesheets and scripts are never taken away: what a script did cannot be undone.
- * The new page's scripts run, except Fusion's own (@fusionScripts) and those an earlier page
+ * The new page's scripts run, except Nitro's own (@nitroScripts) and those an earlier page
  * loaded already.
  *
- * A page with another build of Fusion (a deploy since this one loaded), or without
- * @fusionScripts, loads normally.
+ * A page with another build of Nitro (a deploy since this one loaded), or without
+ * @nitroScripts, loads normally.
  *
- * Nested layouts: a layout marks where its pages go with fusion:layout="name" on the element
+ * Nested layouts: a layout marks where its pages go with nitro:layout="name" on the element
  * around its slot. When both pages have the same layouts, outer to inner, only the innermost
  * one they share changes its content: what is around it (a sidebar, its scroll, its components)
  * stays as it was. With none in common, the whole body is replaced.
@@ -34,7 +34,7 @@ export class Swap {
         this.loaded = new Set([...this.document.querySelectorAll('script[src]')].map((script) => script.src));
         /**
          * The body's nodes that came with the page's HTML. A swap replaces those; what a script
-         * added to the body (a progress bar, Fusion's or the application's own, a chat widget)
+         * added to the body (a progress bar, Nitro's or the application's own, a chat widget)
          * stays where it is.
          */
         this.pageNodes = new WeakSet();
@@ -48,7 +48,7 @@ export class Swap {
     /** The page's HTML parsed, or null when it cannot replace this one (it loads normally then). */
     read(html, url) {
         const page = new this.window.DOMParser().parseFromString(html, 'text/html');
-        /** Fusion's runtime, as @fusionScripts writes it: the same build, from the same place. */
+        /** Nitro's runtime, as @nitroScripts writes it: the same build, from the same place. */
         const theirs = runtimeScriptOf(page);
         const ours = runtimeScriptOf(this.document);
         if (!theirs || !page.body) return null;
@@ -67,7 +67,7 @@ export class Swap {
         const keep = new Set();
         const adding = [];
         for (const el of page.head.children) {
-            if (el.tagName === 'TITLE' || (el.tagName === 'SCRIPT' && this.fusions(el, url))) continue;
+            if (el.tagName === 'TITLE' || (el.tagName === 'SCRIPT' && this.nitros(el, url))) continue;
             const same = current.get(el.outerHTML);
             same ? keep.add(same) : adding.push(el);
         }
@@ -92,7 +92,7 @@ export class Swap {
         /** The layout both pages have, innermost: only its content changes. */
         const shared = this.sharedLayout(page);
 
-        /** The old page's components go; Fusion's data for the new page (routes, shared, flash) comes. */
+        /** The old page's components go; Nitro's data for the new page (routes, shared, flash) comes. */
         this.runtime.forget(shared ? shared.ours : this.document.body);
         /** Unreadable: the page's components read what there was. */
         Object.assign(globals, globalsOf(page) ?? {});
@@ -114,7 +114,7 @@ export class Swap {
         if (shared) {
             const region = this.document.adoptNode(shared.theirs);
             for (const script of region.querySelectorAll('script')) {
-                if (!this.fusions(script, url)) script.replaceWith(this.script(script, url));
+                if (!this.nitros(script, url)) script.replaceWith(this.script(script, url));
             }
             for (const { name } of [...shared.ours.attributes]) shared.ours.removeAttribute(name);
             for (const { name, value } of [...region.attributes]) shared.ours.setAttribute(name, value);
@@ -124,7 +124,7 @@ export class Swap {
 
         const body = this.document.adoptNode(page.body);
         for (const script of body.querySelectorAll('script')) {
-            if (!this.fusions(script, url)) script.replaceWith(this.script(script, url));
+            if (!this.nitros(script, url)) script.replaceWith(this.script(script, url));
         }
         /**
          * The body is kept and the page's content in it replaced: what a script added stays where
@@ -144,7 +144,7 @@ export class Swap {
     }
 
     /**
-     * The innermost layout region both pages have: their fusion:layout elements, outer to inner,
+     * The innermost layout region both pages have: their nitro:layout elements, outer to inner,
      * the same names in the same nesting. Null when the first ones differ (the whole body changes).
      */
     sharedLayout(page) {
@@ -160,8 +160,8 @@ export class Swap {
         return shared;
     }
 
-    /** @fusionScripts' own: the globals, the runtime, app.js and the chunks (the runtime loads those it needs). */
-    fusions(script, url) {
+    /** @nitroScripts' own: the globals, the runtime, app.js and the chunks (the runtime loads those it needs). */
+    nitros(script, url) {
         if (isPageDataScript(script) || isRuntimeScript(script)) return true;
         const src = script.getAttribute('src');
         if (!src) return false;

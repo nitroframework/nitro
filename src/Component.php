@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 use Closure;
 use Illuminate\Support\Facades\Validator;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Lifecycle\Context;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Http\PageResponses;
-use Nitro\Fusion\State\SharedData;
+use Nitro\Compiler\Components;
+use Nitro\Lifecycle\Context;
+use Nitro\Compiler\StateProperties;
+use Nitro\Http\PageResponses;
+use Nitro\State\SharedData;
 use ReflectionClass;
 use ReflectionProperty;
 
 /**
- * A Fusion component: a class and a Blade view.
+ * A Nitro component: a class and a Blade view.
  *
  *   class Counter extends Component
  *   {
@@ -37,21 +37,21 @@ use ReflectionProperty;
  */
 abstract class Component
 {
-    private ?Context $fusion = null;
+    private ?Context $nitro = null;
 
     /**
-     * Fusion's bookkeeping for this instance (id, name, errors, effects).
+     * Nitro's bookkeeping for this instance (id, name, errors, effects).
      *
      * @internal
      */
-    final public function fusion(): Context
+    final public function nitro(): Context
     {
-        return $this->fusion ??= new Context;
+        return $this->nitro ??= new Context;
     }
 
     final public function getId(): string
     {
-        return $this->fusion()->id;
+        return $this->nitro()->id;
     }
 
     /**
@@ -66,7 +66,7 @@ abstract class Component
             return null;
         }
 
-        $context = $this->fusion();
+        $context = $this->nitro();
 
         if (! $context->rendering) {
             return $this->{$name}();
@@ -90,7 +90,7 @@ abstract class Component
      */
     final protected function dispatch(string $event, mixed ...$params): PendingDispatch
     {
-        $context = $this->fusion();
+        $context = $this->nitro();
         $context->dispatches[] = ['event' => $event, 'params' => $params];
 
         return new PendingDispatch($context, array_key_last($context->dispatches));
@@ -98,8 +98,8 @@ abstract class Component
 
     /**
      * Run JavaScript in the browser once it has rendered the component's new state, as Livewire's
-     * $this->js(): $fusion (the component: its properties and methods), $refs (the elements marked
-     * fusion:ref="name") and $el (its root element) are in scope.
+     * $this->js(): $nitro (the component: its properties and methods), $refs (the elements marked
+     * nitro:ref="name") and $el (its root element) are in scope.
      *
      *   $this->js('$refs.search.focus()');
      *
@@ -107,11 +107,11 @@ abstract class Component
      */
     final protected function js(string $expression): void
     {
-        $this->fusion()->js[] = $expression;
+        $this->nitro()->js[] = $expression;
     }
 
     /**
-     * Send the browser to another URL (with fusion:navigate when $navigate is true).
+     * Send the browser to another URL (with nitro:navigate when $navigate is true).
      */
     final protected function redirect(string $url, bool $navigate = false): void
     {
@@ -122,7 +122,7 @@ abstract class Component
             throw new \InvalidArgumentException("redirect() goes to http(s) URLs and paths, not {$scheme}:");
         }
 
-        $this->fusion()->redirect = ['url' => $url, 'navigate' => $navigate];
+        $this->nitro()->redirect = ['url' => $url, 'navigate' => $navigate];
     }
 
     /**
@@ -189,7 +189,7 @@ abstract class Component
     }
 
     /**
-     * Data shared with every component (Fusion::share()), or one value of it in dot notation.
+     * Data shared with every component (Nitro::share()), or one value of it in dot notation.
      * In the browser it reads the data the last page, visit or #[Server] call brought.
      */
     final public function shared(?string $key = null, mixed $default = null): mixed
@@ -198,7 +198,7 @@ abstract class Component
     }
 
     /**
-     * Fusion::flash()'s data for this response, or one value of it in dot notation. In the browser
+     * Nitro::flash()'s data for this response, or one value of it in dot notation. In the browser
      * it reads what the last page, visit or #[Server] call brought.
      */
     final public function flashed(?string $key = null, mixed $default = null): mixed
@@ -265,13 +265,13 @@ abstract class Component
 
     /**
      * The page's <head>: title, description, link-preview image, canonical URL, noindex. Set in
-     * mount(); what is left unset comes from #[Title], #[Description] and fusion.head.
+     * mount(); what is left unset comes from #[Title], #[Description] and nitro.head.
      *
      *   $this->head()->title("Invoice {$invoice->number}")->description('...');
      */
     final protected function head(): Head
     {
-        return $this->fusion()->head ??= new Head;
+        return $this->nitro()->head ??= new Head;
     }
 
     /**
@@ -280,7 +280,7 @@ abstract class Component
      */
     final public function hasMore(string $property): bool
     {
-        return ($this->fusion()->scroll[$property]['nextPage'] ?? null) !== null;
+        return ($this->nitro()->scroll[$property]['nextPage'] ?? null) !== null;
     }
 
     /**
@@ -300,17 +300,17 @@ abstract class Component
 
         foreach ($properties as $property) {
             if ($meta->property($property) === null) {
-                throw new \InvalidArgumentException("Fusion page [{$meta->name}] has no public property \${$property} to reload.");
+                throw new \InvalidArgumentException("Nitro page [{$meta->name}] has no public property \${$property} to reload.");
             }
         }
 
         /** Reloading all of them ([]) takes in any reload of some. */
-        $current = $this->fusion()->reload;
-        $this->fusion()->reload = $properties === [] || $current === [] ? [] : array_values(array_unique([...($current ?? []), ...$properties]));
+        $current = $this->nitro()->reload;
+        $this->nitro()->reload = $properties === [] || $current === [] ? [] : array_values(array_unique([...($current ?? []), ...$properties]));
     }
 
     /**
-     * A routed page (Route::fusion()) is dispatched as a controller: Laravel resolves
+     * A routed page (Route::nitro()) is dispatched as a controller: Laravel resolves
      * mount()'s route parameters, bindings included, and call this.
      *
      * The router keeps one controller instance per route for the life of the process, so the page

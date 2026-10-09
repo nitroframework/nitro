@@ -1,22 +1,22 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\State\Snapshot;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\State\Snapshot;
+use Nitro\Support\Wire;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * fusion:navigate visits: the page's URL, asked with X-Fusion-Navigate, answers with the data the
+ * nitro:navigate visits: the page's URL, asked with X-Nitro-Navigate, answers with the data the
  * browser renders the page from (Laravel still routes it: middleware, bindings, redirects).
  */
 class NavigationTest extends TestCase
 {
     private function visit(string $uri): Response
     {
-        return $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1']);
+        return $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1']);
     }
 
     private function state(array $envelope): array
@@ -34,10 +34,10 @@ class NavigationTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
         $this->assertStringContainsString('application/json', (string) $response->headers->get('Content-Type'));
-        $this->assertContains('X-Fusion-Navigate', $response->getVary());
+        $this->assertContains('X-Nitro-Navigate', $response->getVary());
         $this->assertStringNotContainsString('<h1>', (string) $response->getContent());
 
-        $this->assertSame(1, $page['fusion']);
+        $this->assertSame(1, $page['nitro']);
         $this->assertSame('Student', $page['title']);
         $this->assertSame('components.layouts.app', $page['layout']);
         $this->assertSame([], $page['children']);
@@ -61,7 +61,7 @@ class NavigationTest extends TestCase
         $this->boot($framework);
 
         /** No #[Title]: the layout's own default. */
-        $this->assertSame('Fusion', $this->json($this->visit('/counter'))['title']);
+        $this->assertSame('Nitro', $this->json($this->visit('/counter'))['title']);
     }
 
     #[DataProvider('frameworks')]
@@ -71,8 +71,8 @@ class NavigationTest extends TestCase
 
         $response = $this->get('/counter');
 
-        $this->assertContains('X-Fusion-Navigate', $response->getVary());
-        $this->assertStringContainsString('fusion:page="components.layouts.app"', (string) $response->getContent());
+        $this->assertContains('X-Nitro-Navigate', $response->getVary());
+        $this->assertStringContainsString('nitro:page="components.layouts.app"', (string) $response->getContent());
     }
 
     #[DataProvider('frameworks')]
@@ -93,7 +93,7 @@ class NavigationTest extends TestCase
         $this->assertSame('todo-list', $state['name']);
         $this->assertSame(['Plan', 'Build'], array_column($state['data']['todos'], 'title'));
         $this->assertSame(3, $state['data']['nextId'], 'mount() ran');
-        Snapshot::fromEnvelope($envelope, app(\Nitro\Fusion\Support\Signer::class));
+        Snapshot::fromEnvelope($envelope, app(\Nitro\Support\Signer::class));
 
         /** The todo items have no mount(): the browser creates them. */
         $this->assertStringNotContainsString('todo-item', json_encode($page['children']));
@@ -139,22 +139,22 @@ class NavigationTest extends TestCase
     public function test_a_visit_from_another_build_is_answered_with_a_full_load(string $framework): void
     {
         $this->boot($framework);
-        $tag = $this->app->make(\Nitro\Fusion\Build\Bundle::class)->tag();
+        $tag = $this->app->make(\Nitro\Build\Bundle::class)->tag();
         /** Each request its own, as in production. */
         $visit = fn (string $version) => tap($this->request('GET', '/students/1?tab=info', [
             'HTTP_ACCEPT' => 'application/json',
-            'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_VERSION' => $version,
+            'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_VERSION' => $version,
         ]), fn () => $this->app->forgetScopedInstances());
 
         $current = $visit($tag);
         $this->assertSame(200, $current->getStatusCode());
-        $this->assertSame(1, $this->json($current)['fusion']);
+        $this->assertSame(1, $this->json($current)['nitro']);
 
         $stale = $visit('an-earlier-build');
         $this->assertSame(409, $stale->getStatusCode());
-        $this->assertSame('http://localhost/students/1?tab=info', $stale->headers->get('X-Fusion-Location'));
-        $this->assertContains('X-Fusion-Navigate', $stale->getVary());
+        $this->assertSame('http://localhost/students/1?tab=info', $stale->headers->get('X-Nitro-Location'));
+        $this->assertContains('X-Nitro-Navigate', $stale->getVary());
 
         /** Without the header (not the runtime's visit) there is nothing to compare. */
         $this->assertSame(200, $this->visit('/students/1')->getStatusCode());

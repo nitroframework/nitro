@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Tests\Fixtures\Invalid\SetInVueView;
-use Nitro\Fusion\Tests\TestCase;
-use Nitro\Fusion\View\Adapters\VueAdapter;
-use Nitro\Fusion\View\ScriptEngine;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Tests\Fixtures\Invalid\SetInVueView;
+use Nitro\Tests\TestCase;
+use Nitro\View\Adapters\VueAdapter;
+use Nitro\View\ScriptEngine;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Each concept has one home, and the rest of Fusion asks it: a list of names written out again
+ * Each concept has one home, and the rest of Nitro asks it: a list of names written out again
  * elsewhere drifts from the first one. Where a name may be written is guarded by tests/Architecture;
  * these test that the homes themselves hold: config, the JavaScript views' names, the Vite plugin.
  */
@@ -27,8 +27,8 @@ class OneHomeTest extends TestCase
         $block = "<php>\nnew class extends Component {};\n</php>\n";
         $extensions = [];
 
-        /** Fusion's adapters, with their files' extensions as config/fusion.php gives them. */
-        foreach (require dirname(__DIR__, 2).'/config/fusion.php' as $key => $value) {
+        /** Nitro's adapters, with their files' extensions as config/nitro.php gives them. */
+        foreach (require dirname(__DIR__, 2).'/config/nitro.php' as $key => $value) {
             if ($key !== 'views') {
                 continue;
             }
@@ -54,10 +54,10 @@ class OneHomeTest extends TestCase
         $this->boot($framework);
         $config = $this->app->make('config');
 
-        $this->assertSame(5, $config->get('fusion.ssr.timeout'), 'the app\'s value wins');
-        $this->assertSame(base_path('bootstrap/ssr/ssr.js'), $config->get('fusion.ssr.bundle'), 'a key its published file lacks comes from Fusion\'s, deep inside');
-        $this->assertSame(['jsx', 'tsx'], $config->get('fusion.views.react.extensions'), 'a list is the app\'s whole');
-        $this->assertSame(['js'], $config->get('fusion.views.plain.extensions'), 'an entry of its own stays');
+        $this->assertSame(5, $config->get('nitro.ssr.timeout'), 'the app\'s value wins');
+        $this->assertSame(base_path('bootstrap/ssr/ssr.js'), $config->get('nitro.ssr.bundle'), 'a key its published file lacks comes from Nitro\'s, deep inside');
+        $this->assertSame(['jsx', 'tsx'], $config->get('nitro.views.react.extensions'), 'a list is the app\'s whole');
+        $this->assertSame(['js'], $config->get('nitro.views.plain.extensions'), 'an entry of its own stays');
         $this->assertNotNull($config->get('nprogress.trickle_speed'));
         $this->assertStringContainsString('public function get(string $key): mixed', (string) file_get_contents(dirname(__DIR__, 2).'/src/Support/Config.php'), 'Config::get() takes no default');
     }
@@ -71,8 +71,8 @@ class OneHomeTest extends TestCase
         $this->assertSame([], (new ScriptEngine('mine', [], ['mine']))->reservedNames(), 'an engine of the app\'s own reserves nothing');
 
         $this->expectException(CompileException::class);
-        $this->expectExceptionMessage('$set of '.SetInVueView::class.': a Vue view gets set from Fusion');
+        $this->expectExceptionMessage('$set of '.SetInVueView::class.': a Vue view gets set from Nitro');
 
-        ComponentReader::read(SetInVueView::class, 'set-in-vue-view', 'fusion.components.set-in-vue-view')->assertNamesFree($adapter->reservedNames(), $adapter->label());
+        ComponentReader::read(SetInVueView::class, 'set-in-vue-view', 'nitro.components.set-in-vue-view')->assertNamesFree($adapter->reservedNames(), $adapter->label());
     }
 }

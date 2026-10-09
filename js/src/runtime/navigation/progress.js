@@ -1,6 +1,6 @@
 /**
- * The progress bar (nitro-progress) while a fusion:navigate visit loads, and, when configured,
- * while #[Server] calls run. Settings come from config/nprogress.php through @fusionScripts.
+ * The progress bar (nitro-progress) while a nitro:navigate visit loads, and, when configured,
+ * while #[Server] calls run. Settings come from config/nprogress.php through @nitroScripts.
  *
  * A bar runs for at least minimumDuration once it shows: a visit faster than that keeps it
  * moving until then, so it is seen to complete rather than flash. A visit faster than `delay`
@@ -25,11 +25,11 @@ export class Progress {
         this.minimum = Math.max(0, Number(options.minimumDuration ?? 0));
         this.bar = createProgress(window, options);
 
-        window.addEventListener('fusion:navigating', () => this.update(() => (this.navigating = true)));
-        window.addEventListener('fusion:navigated', () => this.update(() => (this.navigating = false)));
+        window.addEventListener('nitro:navigating', () => this.update(() => (this.navigating = true)));
+        window.addEventListener('nitro:navigated', () => this.update(() => (this.navigating = false)));
         if (options.serverCalls) {
-            window.addEventListener('fusion:request', () => this.update(() => this.calls++));
-            window.addEventListener('fusion:response', () => this.update(() => (this.calls = Math.max(0, this.calls - 1))));
+            window.addEventListener('nitro:request', () => this.update(() => this.calls++));
+            window.addEventListener('nitro:response', () => this.update(() => (this.calls = Math.max(0, this.calls - 1))));
         }
     }
 

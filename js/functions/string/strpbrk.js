@@ -1,6 +1,6 @@
-// Viewi's PhpJsFunctions/Strings/Strpbrk.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Strpbrk.js (locutus), for Nitro's values.
 function strpbrk(haystack, charList) {
-    /** Fusion: bytes, as PHP (FunctionParityTest); PHP's ValueError. */
+    /** Nitro: bytes, as PHP (FunctionParityTest); PHP's ValueError. */
     const bytes = P.utf8(P.toStr(haystack));
     const chars = P.utf8(P.toStr(charList));
     if (chars.length === 0) throw new P.PhpError('ValueError', 'strpbrk(): Argument #2 ($characters) must be a non-empty string');

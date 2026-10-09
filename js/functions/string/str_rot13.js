@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/StrRot13.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/StrRot13.js (locutus), for Nitro's values.
 function str_rot13(str) {
     return P.toStr(str)
         .replace(/[a-z]/gi, function (s) {

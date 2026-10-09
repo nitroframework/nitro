@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 use Closure;
 use Illuminate\Pagination\AbstractCursorPaginator;

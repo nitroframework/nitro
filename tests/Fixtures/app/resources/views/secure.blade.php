@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body>
-    <fusion:wallet />
-    @fusionScripts
+    <nitro:wallet />
+    @nitroScripts
 </body>
 </html>

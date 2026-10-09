@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
+use Nitro\Compiler\Template\TemplateCompiler;
 
 /**
  * A part of the template compiler: one concern of turning a Blade view into a node tree and an

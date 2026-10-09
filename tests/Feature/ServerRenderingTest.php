@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
-use Nitro\Fusion\View\ServerRendering\NodeRenderer;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
-use Nitro\Fusion\View\ServerRendering\ViewState;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Tests\TestCase;
+use Nitro\View\ServerRendering\NodeRenderer;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
+use Nitro\View\ServerRendering\ViewState;
+use Nitro\View\ViewEngines;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\AbstractLogger;
 
 /**
- * Vue, React and Solid views in the first HTML (fusion.ssr): what the render service is sent,
+ * Vue, React and Solid views in the first HTML (nitro.ssr): what the render service is sent,
  * the element the browser hydrates, and the page going out as before when it cannot render.
  * The browser tests' "server rendering" scenario renders with the real service.
  */
@@ -24,7 +24,7 @@ class ServerRenderingTest extends TestCase
         $this->boot($framework);
 
         $this->assertInstanceOf(NullRenderer::class, $this->app->make(ServerRenderer::class));
-        $this->assertMatchesRegularExpression('/<div class="vue"><div fusion:id="[^"]+" fusion:name="vue-parity"><\/div><\/div>/', (string) $this->get('/parity')->getContent());
+        $this->assertMatchesRegularExpression('/<div class="vue"><div nitro:id="[^"]+" nitro:name="vue-parity"><\/div><\/div>/', (string) $this->get('/parity')->getContent());
     }
 
     #[DataProvider('frameworks')]
@@ -36,8 +36,8 @@ class ServerRenderingTest extends TestCase
         $html = (string) $this->get('/parity')->getContent();
 
         $this->assertSame(['vue', 'react', 'solid', 'svelte'], array_map(fn (ViewState $state) => $state->engine, $renderer->states));
-        $this->assertMatchesRegularExpression('/<div class="react"><div fusion:id="[^"]+" fusion:name="react-parity" fusion:rendered><p>react: 1<\/p><\/div><\/div>/', $html);
-        $this->assertMatchesRegularExpression('/<div class="blade"><div [^>]*fusion:name="blade-parity"[^>]*>\s*<span class="count">1<\/span>/', $html, 'Blade renders itself, as always');
+        $this->assertMatchesRegularExpression('/<div class="react"><div nitro:id="[^"]+" nitro:name="react-parity" nitro:rendered><p>react: 1<\/p><\/div><\/div>/', $html);
+        $this->assertMatchesRegularExpression('/<div class="blade"><div [^>]*nitro:name="blade-parity"[^>]*>\s*<span class="count">1<\/span>/', $html, 'Blade renders itself, as always');
 
         $vue = json_decode((string) json_encode($renderer->states[0]), true);
         $this->assertMatchesRegularExpression('/^f[a-z0-9]{10}\.c1$/', $vue['id'], 'the component\'s id on the page');
@@ -62,8 +62,8 @@ class ServerRenderingTest extends TestCase
 
         $html = (string) $this->get('/parity')->getContent();
 
-        $this->assertMatchesRegularExpression('/<div class="react"><div fusion:id="[^"]+" fusion:name="react-parity"><\/div>/', $html);
-        $this->assertMatchesRegularExpression('/<div class="solid"><div fusion:id=[^>]+ fusion:rendered><p>here<\/p>/', $html, 'the others are rendered');
+        $this->assertMatchesRegularExpression('/<div class="react"><div nitro:id="[^"]+" nitro:name="react-parity"><\/div>/', $html);
+        $this->assertMatchesRegularExpression('/<div class="solid"><div nitro:id=[^>]+ nitro:rendered><p>here<\/p>/', $html, 'the others are rendered');
     }
 
     public function test_a_service_that_is_not_running_is_asked_once_and_logged(): void
@@ -86,14 +86,14 @@ class ServerRenderingTest extends TestCase
         $this->assertNull($renderer->render($state));
 
         $this->assertLessThan(1.5, microtime(true) - $started, 'not held up by the timeout');
-        $this->assertSame(['warning: Fusion server rendering: no render service at http://127.0.0.1:1 (php artisan fusion:ssr); the browser renders this request\'s views.'], $log->lines, 'once: the second view is not tried');
+        $this->assertSame(['warning: Nitro server rendering: no render service at http://127.0.0.1:1 (php artisan nitro:ssr); the browser renders this request\'s views.'], $log->lines, 'once: the second view is not tried');
     }
 
     #[DataProvider('frameworks')]
     public function test_on_in_the_config_it_is_the_render_service(string $framework): void
     {
         $this->boot($framework);
-        $this->app['config']->set('fusion.ssr.enabled', true);
+        $this->app['config']->set('nitro.ssr.enabled', true);
         $this->app->forgetScopedInstances();
 
         $this->assertInstanceOf(NodeRenderer::class, $this->app->make(ServerRenderer::class));
@@ -109,7 +109,7 @@ class ServerRenderingTest extends TestCase
     {
         $this->boot($framework);
 
-        $this->assertSame(1, $this->console()->call('fusion:ssr', ['--bundle' => self::APP.'/bootstrap/ssr/missing.js']));
+        $this->assertSame(1, $this->console()->call('nitro:ssr', ['--bundle' => self::APP.'/bootstrap/ssr/missing.js']));
         $this->assertStringContainsString('npx vite build --ssr resources/js/ssr.js', $this->console()->output());
     }
 

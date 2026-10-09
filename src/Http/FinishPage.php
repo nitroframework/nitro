@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Closure;
 use Illuminate\Http\Request;
-use Nitro\Fusion\Rendering\PageData;
-use Nitro\Fusion\Rendering\Portals;
+use Nitro\Rendering\PageData;
+use Nitro\Rendering\Portals;
 use Symfony\Component\HttpFoundation\Response;
 
 /**

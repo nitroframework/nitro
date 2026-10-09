@@ -1,6 +1,6 @@
 /**
  * Viewi's renderDynamic (core/render/renderDynamic): what is between the anchors is disposed,
- * removed and rendered again. Fusion renders its @for, @while and @switch so, and a loop a
+ * removed and rendered again. Nitro renders its @for, @while and @switch so, and a loop a
  * @break ends; a @switch only when its case changes (choose).
  *
  * @param {Function} content  (target, scope, hydrate, insert) => void: renders the block

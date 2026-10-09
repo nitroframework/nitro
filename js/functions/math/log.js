@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Log.js (locutus), for Fusion's values: PHP's own (ext/standard/math.c): log2() and
+// Viewi's PhpJsFunctions/Math/Log.js (locutus), for Nitro's values: PHP's own (ext/standard/math.c): log2() and
 // log10() for those bases, a ValueError for a base of 0 or less (FunctionParityTest).
 function log(arg, base = Math.E) {
     arg = P.toFloat(arg);

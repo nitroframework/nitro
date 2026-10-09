@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\Support\UrlValues;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\PropertyMeta;
+use Nitro\Support\Registry;
+use Nitro\Support\UrlValues;
 
 /**
- * The application's Route::fusion() pages, as the bundle tells the browser about them: each one's
+ * The application's Route::nitro() pages, as the bundle tells the browser about them: each one's
  * path as a JavaScript pattern, so a visit knows the page (and its chunk) before the server answers.
  * A part of the Bundle.
  *
@@ -29,7 +29,7 @@ final class PageRoutes
     }
 
     /**
-     * Every Route::fusion() page reached with GET, as [path pattern, page name, route] (routes on
+     * Every Route::nitro() page reached with GET, as [path pattern, page name, route] (routes on
      * a domain left out: their path alone does not say the page).
      *
      * @return list<array{0: string, 1: string, 2: Route}>

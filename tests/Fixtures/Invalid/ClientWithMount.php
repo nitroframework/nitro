@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Navigate;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Navigate;
+use Nitro\Component;
 
 /**
  * A client page with mount(), which only the server runs (outside the discovered directories: it would fail the build).

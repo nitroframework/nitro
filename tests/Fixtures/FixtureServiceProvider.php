@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures;
+namespace Nitro\Tests\Fixtures;
 
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
-use Nitro\Fusion\Tests\Fixtures\Http\ShareFixtureData;
-use Nitro\Fusion\Tests\Fixtures\Livewire\Ticker;
+use Nitro\Tests\Fixtures\Http\ShareFixtureData;
+use Nitro\Tests\Fixtures\Livewire\Ticker;
 
 /**
- * The fixture app's own provider: registers the Livewire component used next to Fusion, and the
+ * The fixture app's own provider: registers the Livewire component used next to Nitro, and the
  * middleware that shares data with every component (ShareFixtureData).
  */
 class FixtureServiceProvider extends ServiceProvider
@@ -17,7 +17,7 @@ class FixtureServiceProvider extends ServiceProvider
     {
         Livewire::component('ticker', Ticker::class);
 
-        /** Shared data is set for each request (Fusion is created per request). */
+        /** Shared data is set for each request (Nitro is created per request). */
         $this->app->make('router')->pushMiddlewareToGroup('web', ShareFixtureData::class);
     }
 }

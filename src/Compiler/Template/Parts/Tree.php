@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
 use Closure;
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Support\Html;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Support\Html;
 
 /**
  * The node tree being built, through the open stack: where nodes go now, adding one, turning the
  * static text read so far into a text node, and opening, branching (@elseif / @else) and closing
- * a block. General: what the browser's HTML parser would build, nothing Fusion-specific.
+ * a block. General: what the browser's HTML parser would build, nothing Nitro-specific.
  *
  *  - nodes go into the innermost open element or block; in a @switch, into its current @case
  *  - text becomes a node with character references decoded, as the HTML parser does (not in

@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 /**
  * A component with a page's #[Title] (outside the discovered directories: it would fail the build).

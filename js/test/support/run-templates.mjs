@@ -12,8 +12,8 @@ import { readStdin } from './common.mjs';
 const input = await readStdin();
 const definitions = {};
 const stores = {};
-const Fusion = { define: (name, d) => (definitions[name] = d), store: (name, d) => (stores[name] = d), lazy: () => {}, markupPages: () => {}, classes: Object.create(null), P, B };
-new Function('window', input.bundle)({ Fusion });
+const Nitro = { define: (name, d) => (definitions[name] = d), store: (name, d) => (stores[name] = d), lazy: () => {}, markupPages: () => {}, classes: Object.create(null), P, B };
+new Function('window', input.bundle)({ Nitro });
 
 /** A store as a view reads it: its properties, its methods and #[Computed] values (read only while rendering). */
 function storeContext(definition, state) {
@@ -41,15 +41,15 @@ function parsed(html) {
 /** Without what differs by design (the runtime's attributes; children compared by id only), serialized as it is. */
 function normalize(root, server) {
     if (!root) return '';
-    for (const a of ['fusion:id', 'fusion:name', 'fusion:page']) root.removeAttribute?.(a);
+    for (const a of ['nitro:id', 'nitro:name', 'nitro:page']) root.removeAttribute?.(a);
     for (const el of [root, ...root.querySelectorAll('*')]) {
         if (!el.getAttributeNames) continue;
-        for (const name of el.getAttributeNames()) if (name.startsWith('fusion:h-')) el.removeAttribute(name);
+        for (const name of el.getAttributeNames()) if (name.startsWith('nitro:h-')) el.removeAttribute(name);
     }
-    const children = server ? root.querySelectorAll('[fusion\:id]') : root.querySelectorAll('[fusion\:placeholder]');
+    const children = server ? root.querySelectorAll('[nitro\:id]') : root.querySelectorAll('[nitro\:placeholder]');
     for (const child of children) {
-        const marker = document.createElement('fusion-child');
-        marker.setAttribute('id', child.getAttribute('fusion:id'));
+        const marker = document.createElement('nitro-child');
+        marker.setAttribute('id', child.getAttribute('nitro:id'));
         child.replaceWith(marker);
     }
     if (root === document.body) return root.innerHTML.trim();
@@ -69,7 +69,7 @@ for (const c of input.cases) {
     const ctx = Object.create(null);
     for (const name of Object.keys(definition.props)) {
         const prop = definition.props[name];
-        Object.defineProperty(ctx, name, { get: () => (prop.enum ? enumCase(Fusion, prop, data.get(name)) : data.get(name) ?? null), set: () => { throw new Error('render wrote state'); } });
+        Object.defineProperty(ctx, name, { get: () => (prop.enum ? enumCase(Nitro, prop, data.get(name)) : data.get(name) ?? null), set: () => { throw new Error('render wrote state'); } });
     }
     Object.assign(ctx, definition.methods);
     for (const [property, store] of Object.entries(c.stores ?? {})) {

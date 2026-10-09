@@ -1,5 +1,5 @@
 {
-    "namespace": "fusion:",
+    "namespace": "nitro:",
     "compiled": {
         "root": "r",
         "types": ["t", "c", "x", "m", "b", "p", "s", "template"],
@@ -16,19 +16,19 @@
         "bladeEngine": "blade"
     },
     "attributes": {
-        "id": "fusion:id",
-        "name": "fusion:name",
-        "page": "fusion:page",
-        "placeholder": "fusion:placeholder",
-        "serverHtml": "fusion:rendered",
-        "hydrate": "fusion:hydrate",
-        "static": "fusion:static",
-        "fallback": "fusion:fallback",
-        "layout": "fusion:layout",
-        "handler": "fusion:h-",
-        "directive": "fusion:h-directive",
-        "globals": "data-fusion-globals",
-        "state": "data-fusion-state"
+        "id": "nitro:id",
+        "name": "nitro:name",
+        "page": "nitro:page",
+        "placeholder": "nitro:placeholder",
+        "serverHtml": "nitro:rendered",
+        "hydrate": "nitro:hydrate",
+        "static": "nitro:static",
+        "fallback": "nitro:fallback",
+        "layout": "nitro:layout",
+        "handler": "nitro:h-",
+        "directive": "nitro:h-directive",
+        "globals": "data-nitro-globals",
+        "state": "data-nitro-state"
     },
     "snapshot": {
         "state": ["name", "id", "data", "memo", "issued"],
@@ -37,12 +37,12 @@
         "position": ["pageName", "currentPage", "nextPage", "previousPage"]
     },
     "timing": {
-        "app": "fusion",
+        "app": "nitro",
         "db": "db"
     },
     "answer": {
         "call": ["snapshot", "children", "stores", "shared", "once", "flash", "effects"],
-        "page": ["fusion", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
+        "page": ["nitro", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
         "effects": ["dispatches", "redirect", "js", "reload", "returns"],
         "dispatch": ["event", "params", "to", "self"],
         "failed": ["message", "fallback"]
@@ -57,24 +57,24 @@
         "scroll": "$scroll"
     },
     "headers": {
-        "navigate": "X-Fusion-Navigate",
-        "version": "X-Fusion-Version",
-        "partial": "X-Fusion-Partial",
-        "id": "X-Fusion-Id",
-        "only": "X-Fusion-Only",
-        "once": "X-Fusion-Once",
-        "location": "X-Fusion-Location",
-        "call": "X-Fusion",
+        "navigate": "X-Nitro-Navigate",
+        "version": "X-Nitro-Version",
+        "partial": "X-Nitro-Partial",
+        "id": "X-Nitro-Id",
+        "only": "X-Nitro-Only",
+        "once": "X-Nitro-Once",
+        "location": "X-Nitro-Location",
+        "call": "X-Nitro",
         "timing": "Server-Timing"
     },
     "paths": {
         "update": "update",
         "upload": "upload",
         "preview": "upload/preview",
-        "runtime": "fusion.js",
+        "runtime": "nitro.js",
         "bundle": "app.js",
         "chunk": "app/{id}.js",
-        "devtools": "fusion-devtools.js"
+        "devtools": "nitro-devtools.js"
     },
     "urlValues": {
         "int": "^[+-]?(0|[1-9][0-9]*)$",

@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Persist;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Persist;
+use Nitro\Component;
 
 /** #[Persist] on a component: it is for stores. */
 #[Persist]

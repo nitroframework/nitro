@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Support\Registry;
+use Nitro\Compiler\Components;
+use Nitro\Support\Registry;
 
 /**
  * What is not in app.js, and how the browser asks for it: every page in a chunk of its own (or its
@@ -50,7 +50,7 @@ final class Chunks
     /** A chunk's name in the browser: in a build, a short hash of its group; otherwise the group itself. */
     public function id(string $group, bool $built): string
     {
-        return $built ? substr(hash('sha256', 'fusion-chunk:'.$group), 0, 8) : $group;
+        return $built ? substr(hash('sha256', 'nitro-chunk:'.$group), 0, 8) : $group;
     }
 
     /** The group a chunk name (id()) stands for: by its hash, or by its group's own name. */
@@ -66,7 +66,7 @@ final class Chunks
     }
 
     /**
-     * The Route::fusion() pages of components in chunks, as [path pattern, group]: a visit to a
+     * The Route::nitro() pages of components in chunks, as [path pattern, group]: a visit to a
      * matching path loads the chunk while it fetches the page. A pattern that matches too much
      * only loads a chunk early; the page's own component name decides what it needs.
      *

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
 use Closure;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Uses;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Uses;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 
@@ -17,8 +17,8 @@ use PhpParser\Node\Expr;
  * temporaries ($$1, $$2: values computed once and reused), the labels of the loops around the
  * code (for break 2 / continue 2), and how errors name the file and line.
  *
- * Fusion state: the component's Scope (its properties, methods, constants, the browser's names
- * of an obfuscated build), the variables holding a Fusion::browser() API, the component methods
+ * Nitro state: the component's Scope (its properties, methods, constants, the browser's names
+ * of an obfuscated build), the variables holding a Nitro::browser() API, the component methods
  * the code calls, and what the Laravel helpers name (routes, translations, config) so the page
  * ships them.
  *
@@ -43,7 +43,7 @@ final class Context
 
     public int $labelCounter = 0;
 
-    /** @var array<string, class-string> variables holding a Fusion::browser() API: variable => its class */
+    /** @var array<string, class-string> variables holding a Nitro::browser() API: variable => its class */
     public array $browserVariables = [];
 
     /** @var list<string> component methods the compiled code calls (read and reset by the caller) */

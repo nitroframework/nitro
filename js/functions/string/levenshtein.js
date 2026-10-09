@@ -1,9 +1,9 @@
-// Viewi's PhpJsFunctions/Strings/Levenshtein.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Levenshtein.js (locutus), for Nitro's values.
 function levenshtein(s1, s2, costIns = 1, costRep = 1, costDel = 1) {
     costIns = P.toInt(costIns);
     costRep = P.toInt(costRep);
     costDel = P.toInt(costDel);
-    /** Fusion: bytes, as PHP (FunctionParityTest). */
+    /** Nitro: bytes, as PHP (FunctionParityTest). */
     s1 = P.utf8(P.toStr(s1));
     s2 = P.utf8(P.toStr(s2));
 

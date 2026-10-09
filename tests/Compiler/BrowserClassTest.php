@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
 use Closure;
-use Nitro\Fusion\Compiler\BrowserClasses;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Transpiler;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Browser\Checkout;
-use Nitro\Fusion\Tests\Fixtures\Browser\Money;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Compiler\BrowserClasses;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Transpiler;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Browser\Checkout;
+use Nitro\Tests\Fixtures\Browser\Money;
+use Nitro\Tests\Support\Node;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
@@ -59,7 +59,7 @@ class BrowserClassTest extends TestCase
     {
         [, $classes] = self::compile();
 
-        $this->assertStringContainsString('Fusion.classes["Nitro\\\\Fusion\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"]', $classes);
+        $this->assertStringContainsString('Nitro.classes["Nitro\\\\Tests\\\\Fixtures\\\\Browser\\\\Money"]', $classes);
         $this->assertStringContainsString('"digits": function', $classes, 'a private method its class calls');
         $this->assertStringContainsString('"summary": function', $classes, 'Basket, reached through Checkout');
         $this->assertStringNotContainsString('"instance"', $classes, 'an instance method is never compiled');
@@ -70,19 +70,19 @@ class BrowserClassTest extends TestCase
         $js = self::method('return Money::CURRENCY.Money::RATES["reduced"];');
 
         $this->assertStringContainsString('"£"', $js);
-        $this->assertStringNotContainsString('Fusion.classes', $js, 'a constant needs no class in the browser');
+        $this->assertStringNotContainsString('Nitro.classes', $js, 'a constant needs no class in the browser');
     }
 
     public static function refused(): array
     {
         return [
-            'a class without #[Browser]' => ['return \Nitro\Fusion\Tests\Fixtures\Browser\Checkout::make();', 'Checkout::make() is not a browser method: mark Nitro\Fusion\Tests\Fixtures\Browser\Checkout #[Browser]'],
-            'an unmarked class\'s constant' => ['return \Nitro\Fusion\State\SharedData::FLASH_KEY;', "Nitro\\Fusion\\State\\SharedData's constants are not in the browser: mark Nitro\\Fusion\\State\\SharedData #[Browser]"],
+            'a class without #[Browser]' => ['return \Nitro\Tests\Fixtures\Browser\Checkout::make();', 'Checkout::make() is not a browser method: mark Nitro\Tests\Fixtures\Browser\Checkout #[Browser]'],
+            'an unmarked class\'s constant' => ['return \Nitro\State\SharedData::FLASH_KEY;', "Nitro\\State\\SharedData's constants are not in the browser: mark Nitro\\State\\SharedData #[Browser]"],
             'an instance method' => ['return Money::instance();', 'Money::instance() is not static'],
             'a private method from outside' => ['return Money::digits(5);', 'Money::digits() is not public'],
             'a private constant from outside' => ['return Money::THOUSANDS;', 'Money::THOUSANDS is not public'],
-            'an undefined method' => ['return Money::parse("1");', 'Call to undefined method Nitro\Fusion\Tests\Fixtures\Browser\Money::parse()'],
-            'an undefined constant' => ['return Money::EURO;', 'Undefined constant Nitro\Fusion\Tests\Fixtures\Browser\Money::EURO'],
+            'an undefined method' => ['return Money::parse("1");', 'Call to undefined method Nitro\Tests\Fixtures\Browser\Money::parse()'],
+            'an undefined constant' => ['return Money::EURO;', 'Undefined constant Nitro\Tests\Fixtures\Browser\Money::EURO'],
             'a computed method name' => ['$m = "format"; return Money::$m(1);', 'must be named'],
         ];
     }
@@ -104,7 +104,7 @@ class BrowserClassTest extends TestCase
         $compile = Closure::bind(fn (array $keys) => $this->classes->reach($keys), $compiler, ComponentCompiler::class);
 
         try {
-            $compile([BrowserClasses::key(\Nitro\Fusion\Tests\Fixtures\Invalid\ServerHelper::class, 'stamp')]);
+            $compile([BrowserClasses::key(\Nitro\Tests\Fixtures\Invalid\ServerHelper::class, 'stamp')]);
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
             $this->assertStringContainsString('ServerHelper::stamp() runs in the browser (browser code calls it) but cannot be compiled', $e->getMessage());
@@ -114,7 +114,7 @@ class BrowserClassTest extends TestCase
 
         /** Every later component reaching it fails with the same error, without compiling it again. */
         $this->expectException(CompileException::class);
-        $compile([BrowserClasses::key(\Nitro\Fusion\Tests\Fixtures\Invalid\ServerHelper::class, 'stamp')]);
+        $compile([BrowserClasses::key(\Nitro\Tests\Fixtures\Invalid\ServerHelper::class, 'stamp')]);
     }
 
     /** @return array{0: array<string, string>, 1: string} Checkout's methods, and the classes they reach */
@@ -140,7 +140,7 @@ class BrowserClassTest extends TestCase
 
     private static function method(string $body): string
     {
-        $source = "<?php namespace Nitro\\Fusion\\Tests\\Fixtures\\Browser;\nclass C {\n    public function run() {\n        {$body}\n    }\n}";
+        $source = "<?php namespace Nitro\\Tests\\Fixtures\\Browser;\nclass C {\n    public function run() {\n        {$body}\n    }\n}";
         $method = (new NodeFinder)->findFirstInstanceOf(self::parse($source), Stmt\ClassMethod::class);
 
         return (new Transpiler)->method($method, new Scope(file: 'C.php'));

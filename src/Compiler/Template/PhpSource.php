@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;

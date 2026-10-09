@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Models;
+namespace Nitro\Tests\Fixtures\Models;
 
 /**
  * A backed enum, as a #[Server] parameter takes one: from its value.

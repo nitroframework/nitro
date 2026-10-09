@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 /**
  * A piece of a Blade template: text, an echo ({{ }} / {!! !!}) or a directive (@name(args)).

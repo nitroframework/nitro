@@ -1,31 +1,31 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Validator;
 use JsonException;
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Http\IncomingState;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Upload;
+use Nitro\Build\BrowserNames;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\PropertyMeta;
+use Nitro\Http\IncomingState;
+use Nitro\Support\Config;
+use Nitro\Support\Wire;
+use Nitro\Upload;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
- * POST {endpoint}/upload: files chosen in a fusion:model file input, before the component uses
+ * POST {endpoint}/upload: files chosen in a nitro:model file input, before the component uses
  * them. The request carries the component's signed snapshot and the property the input binds, so
  * a file is only taken for a component this application rendered, on a page the visitor may still
  * see, for a property that holds uploads:
  *
  *   snapshot  the signed envelope (419 when changed or foreign)
  *   property  a public, unlocked ?Upload property (one file) or array property (files) (403)
- *   files[]   each checked against fusion.uploads.rules (422 with the messages)
+ *   files[]   each checked against nitro.uploads.rules (422 with the messages)
  *
  * The answer is {"uploads": [<signed reference>, ...]}: the browser sets the property to them.
  *
@@ -96,8 +96,8 @@ final class UploadController
     }
 
     /**
-     * This request's Fusion. The router keeps a controller between requests (Octane, a
-     * long-running server): Fusion, bound per request, is not kept with it.
+     * This request's Nitro. The router keeps a controller between requests (Octane, a
+     * long-running server): Nitro, bound per request, is not kept with it.
      */
     private function names(): BrowserNames
     {

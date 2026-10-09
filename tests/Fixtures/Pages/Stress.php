@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Url;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Browser\Money;
-use Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Url;
+use Nitro\Attributes\Validate;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Browser\Money;
+use Nitro\Tests\Fixtures\Browser\OrderStatus;
 
 /**
- * The stress fixture: as much of Fusion as one page can hold, used together. Nested arrays written
+ * The stress fixture: as much of Nitro as one page can hold, used together. Nested arrays written
  * deep, #[Computed] filtering and sorting with closures, #[Url], an enum property, #[Browser]
  * classes, children with props and events, a #[Modelable] child bound to a nested path, nested
  * #[Validate] rules, a #[Server] method, @teleport (the browser tests' "stress", TemplateParityTest).
@@ -116,7 +116,7 @@ class Stress extends Component
     #[Server]
     public function save(): int
     {
-        /** Slow enough for fusion:loading.delay.100ms to show, not .delay.2s. */
+        /** Slow enough for nitro:loading.delay.100ms to show, not .delay.2s. */
         usleep(300_000);
         $this->validate();
         $id = $this->nextId++;

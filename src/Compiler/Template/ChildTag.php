@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Compiler\CompileException;
+use Nitro\Support\Protocol;
 
 /**
- * A child component in a template: <fusion:task-item :task="$task" label="Hi" :key="$task['id']" />.
+ * A child component in a template: <nitro:task-item :task="$task" label="Hi" :key="$task['id']" />.
  *
  * Children are numbered in the order they appear in the template. A child's key is that
  * number plus the indexes of the loops around it ("c2", "c2.0.3"), unless it sets :key.
@@ -15,14 +15,14 @@ use Nitro\Fusion\Support\Protocol;
  */
 final class ChildTag
 {
-    /** <fusion:name ...> or <fusion:name ... />; not <fusion:slot> (a slot of the child around it). */
-    /** <fusion:dynamic-component :is="...">: the component :is names, decided as the view renders. */
+    /** <nitro:name ...> or <nitro:name ... />; not <nitro:slot> (a slot of the child around it). */
+    /** <nitro:dynamic-component :is="...">: the component :is names, decided as the view renders. */
     public const DYNAMIC = 'dynamic-component';
 
-    public const PATTERN = '/<fusion:(?!slot[\s\/>])([a-z0-9][a-z0-9\-.]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';
+    public const PATTERN = '/<nitro:(?!slot[\s\/>])([a-z0-9][a-z0-9\-.]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';
 
-    /** <fusion:slot name="footer"> */
-    public const SLOT_PATTERN = '/<fusion:slot\s+name\s*=\s*(?:"([\w\-]+)"|\'([\w\-]+)\')\s*>/i';
+    /** <nitro:slot name="footer"> */
+    public const SLOT_PATTERN = '/<nitro:slot\s+name\s*=\s*(?:"([\w\-]+)"|\'([\w\-]+)\')\s*>/i';
 
     /**
      * @param  array<string, string>  $props  prop name (camelCase) => PHP expression of its value
@@ -30,24 +30,24 @@ final class ChildTag
     public function __construct(
         public readonly string $name,
         public readonly array $props,
-        /** The PHP expression of :key (or fusion:key), if set. */
+        /** The PHP expression of :key (or nitro:key), if set. */
         public readonly ?string $key,
         public readonly int $number,
         /** The length of the opening tag (the whole tag when it closes itself). */
         public readonly int $length,
-        /** <fusion:name /> (no slots); otherwise its content, up to </fusion:name>, is its slots. */
+        /** <nitro:name /> (no slots); otherwise its content, up to </nitro:name>, is its slots. */
         public readonly bool $selfClosing = true,
-        /** fusion:model="path": the parent's property (path) its #[Modelable] property is bound to. */
+        /** nitro:model="path": the parent's property (path) its #[Modelable] property is bound to. */
         public readonly ?string $model = null,
         /**
          * That path's segments: a key, or ['php' => $expression] for a {{ }} segment
-         * (fusion:model="lines.{{ $i }}.qty").
+         * (nitro:model="lines.{{ $i }}.qty").
          *
          * @var list<string|array{php: string}>
          */
         public readonly array $modelPath = [],
         /**
-         * An island's start (fusion:hydrate, fusion:static): "idle", "visible" ("visible:200px"),
+         * An island's start (nitro:hydrate, nitro:static): "idle", "visible" ("visible:200px"),
          * "interaction", "media:(query)" or "static". Null: it starts with the page.
          */
         public readonly ?string $hydrate = null,
@@ -77,7 +77,7 @@ final class ChildTag
     public static function parse(string $text, int $offset, int $number, ?string $file = null, int $line = 0): self
     {
         if (! preg_match(self::PATTERN, $text, $found, 0, $offset) || strpos($text, $found[0], $offset) !== $offset) {
-            throw new CompileException('Malformed <fusion:...> tag', $file, $line);
+            throw new CompileException('Malformed <nitro:...> tag', $file, $line);
         }
 
         [$whole, $name, $attributes, $selfClosing] = $found;
@@ -95,7 +95,7 @@ final class ChildTag
         $rest = trim((string) preg_replace('/([:\w\-.]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/', '', $attributes));
 
         if ($rest !== '') {
-            throw new CompileException("Malformed attributes on <fusion:{$name}>: \"{$rest}\" (a value goes in quotes: :count=\"\$count\")", $file, $line);
+            throw new CompileException("Malformed attributes on <nitro:{$name}>: \"{$rest}\" (a value goes in quotes: :count=\"\$count\")", $file, $line);
         }
 
         foreach ($matches as $match) {
@@ -105,26 +105,26 @@ final class ChildTag
             $bound = str_starts_with($attribute, ':');
             $prop = ltrim($attribute, ':');
 
-            $isModel = $prop === 'fusion:model' || str_starts_with($prop, 'fusion:model.');
+            $isModel = $prop === 'nitro:model' || str_starts_with($prop, 'nitro:model.');
 
             if (! $isModel && (str_contains($value, '{{') || str_contains($value, '{!!'))) {
-                throw new CompileException("Use :{$prop}=\"\$value\" to pass a value to <fusion:{$name}>, not {{ }}", $file, $line);
+                throw new CompileException("Use :{$prop}=\"\$value\" to pass a value to <nitro:{$name}>, not {{ }}", $file, $line);
             }
 
             /** Bound (:prop) values are PHP expressions; others are strings; a bare attribute is true. */
-            if (($bound || $prop === 'fusion:key') && ! self::isExpression($value)) {
-                throw new CompileException("The value of {$attribute} on <fusion:{$name}> is not a PHP expression: \"{$value}\"", $file, $line);
+            if (($bound || $prop === 'nitro:key') && ! self::isExpression($value)) {
+                throw new CompileException("The value of {$attribute} on <nitro:{$name}> is not a PHP expression: \"{$value}\"", $file, $line);
             }
 
             $expression = match (true) {
-                $bound || $prop === 'fusion:key' => $value,
+                $bound || $prop === 'nitro:key' => $value,
                 $hasValue => var_export($value, true),
                 default => 'true',
             };
 
             if ($prop === Protocol::attribute('static') || $prop === Protocol::attribute('hydrate') || str_starts_with($prop, Protocol::attribute('hydrate').'.')) {
                 if ($hydrate !== null) {
-                    throw new CompileException("<fusion:{$name}> has one fusion:hydrate or fusion:static", $file, $line);
+                    throw new CompileException("<nitro:{$name}> has one nitro:hydrate or nitro:static", $file, $line);
                 }
 
                 $hydrate = self::hydrate($prop, $bound ? null : ($hasValue ? $value : null), $name, $file, $line);
@@ -132,20 +132,20 @@ final class ChildTag
                 continue;
             }
 
-            if ($prop === 'key' || $prop === 'fusion:key') {
+            if ($prop === 'key' || $prop === 'nitro:key') {
                 $key = $expression;
 
                 continue;
             }
 
             /**
-             * fusion:model="form.email" on a child: its #[Modelable] property is bound to this
+             * nitro:model="form.email" on a child: its #[Modelable] property is bound to this
              * path of the parent, a segment of which may be {{ }} ("lines.{{ $i }}.qty"). The
              * parent's value travels as the "$model" prop.
              */
             if ($isModel) {
                 if ($bound || ! preg_match('/^[A-Za-z_]\w*(\.([\w\-]+|\{\{(?:(?!\}\}).)+\}\}))*$/s', $value)) {
-                    throw new CompileException("fusion:model on <fusion:{$name}> names a property of this component, or a key under it (form.email, lines.{{ \$i }}.qty): \"{$value}\" is not one", $file, $line);
+                    throw new CompileException("nitro:model on <nitro:{$name}> names a property of this component, or a key under it (form.email, lines.{{ \$i }}.qty): \"{$value}\" is not one", $file, $line);
                 }
 
                 $modelPath = array_map(function (string $segment) use ($name, $file, $line) {
@@ -155,7 +155,7 @@ final class ChildTag
 
                     $php = trim(substr($segment, 2, -2));
 
-                    return self::isExpression($php) ? ['php' => $php] : throw new CompileException("fusion:model on <fusion:{$name}>: {$segment} is not a PHP expression", $file, $line);
+                    return self::isExpression($php) ? ['php' => $php] : throw new CompileException("nitro:model on <nitro:{$name}>: {$segment} is not a PHP expression", $file, $line);
                 }, preg_split('/\.(?![^{]*\}\})/', $value));
 
                 $root = array_shift($modelPath);
@@ -173,26 +173,26 @@ final class ChildTag
     }
 
     /**
-     * When an island starts: fusion:hydrate.idle, .visible (.visible.200px), .interaction,
-     * .media="(max-width: 768px)"; fusion:static never.
+     * When an island starts: nitro:hydrate.idle, .visible (.visible.200px), .interaction,
+     * .media="(max-width: 768px)"; nitro:static never.
      */
     private static function hydrate(string $attribute, ?string $value, string $name, ?string $file, int $line): string
     {
         if ($attribute === Protocol::attribute('static')) {
-            return $value === null ? 'static' : throw new CompileException("fusion:static on <fusion:{$name}> takes no value", $file, $line);
+            return $value === null ? 'static' : throw new CompileException("nitro:static on <nitro:{$name}> takes no value", $file, $line);
         }
 
         $modifiers = array_slice(explode('.', $attribute), 1);
         $when = $modifiers[0] ?? null;
-        $usage = 'fusion:hydrate takes when the island starts: .idle, .visible (.visible.200px), .interaction or .media="(max-width: 768px)"';
+        $usage = 'nitro:hydrate takes when the island starts: .idle, .visible (.visible.200px), .interaction or .media="(max-width: 768px)"';
 
         return match (true) {
             in_array($when, ['idle', 'interaction'], true) && count($modifiers) === 1 && $value === null => $when,
             $when === 'visible' && count($modifiers) === 1 && $value === null => 'visible',
             $when === 'visible' && count($modifiers) === 2 && preg_match('/^\d+px$/', $modifiers[1]) === 1 && $value === null => 'visible:'.$modifiers[1],
             $when === 'media' && count($modifiers) === 1 && $value !== null && trim($value) !== '' => 'media:'.trim($value),
-            $when === 'media' => throw new CompileException("fusion:hydrate.media on <fusion:{$name}> needs a media query: fusion:hydrate.media=\"(max-width: 768px)\"", $file, $line),
-            default => throw new CompileException("{$usage} (on <fusion:{$name}>)", $file, $line),
+            $when === 'media' => throw new CompileException("nitro:hydrate.media on <nitro:{$name}> needs a media query: nitro:hydrate.media=\"(max-width: 768px)\"", $file, $line),
+            default => throw new CompileException("{$usage} (on <nitro:{$name}>)", $file, $line),
         };
     }
 

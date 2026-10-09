@@ -1,20 +1,20 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
-use Nitro\Fusion\Compiler\Template\ChildTag;
+use Nitro\Compiler\Template\ChildTag;
 
 /**
- * <fusion:...> tags with content, as a view renders them: the content renders into output
- * buffers, one per slot (<fusion:slot name="...">), until </fusion:...> mounts the component with
- * them (Fusion::tag()). A part of Fusion, which these tags call.
+ * <nitro:...> tags with content, as a view renders them: the content renders into output
+ * buffers, one per slot (<nitro:slot name="...">), until </nitro:...> mounts the component with
+ * them (Nitro::tag()). A part of Nitro, which these tags call.
  */
 final class Tags
 {
     /**
-     * <fusion:...> tags with content being rendered, innermost last: the slots they collect.
+     * <nitro:...> tags with content being rendered, innermost last: the slots they collect.
      *
      * @var list<array{name: string, props: array, key: mixed, number: int, hydrate: ?string, slots: array<string, string>, slot: ?string}>
      */
@@ -25,8 +25,8 @@ final class Tags
     }
 
     /**
-     * <fusion:name ...> with content: the content renders (here, in this view) into output buffers,
-     * one per slot, until </fusion:name> renders the component with them.
+     * <nitro:name ...> with content: the content renders (here, in this view) into output buffers,
+     * one per slot, until </nitro:name> renders the component with them.
      */
     public function start(string $name, array $props, mixed $key, int $number, ?string $hydrate = null): string
     {
@@ -38,13 +38,13 @@ final class Tags
         return '';
     }
 
-    /** <fusion:slot name="footer"> inside a tag with content. */
+    /** <nitro:slot name="footer"> inside a tag with content. */
     public function startSlot(string $name): string
     {
         $top = array_key_last($this->tags);
 
         if ($top === null || $this->tags[$top]['slot'] !== null) {
-            throw new InvalidArgumentException("<fusion:slot name=\"{$name}\"> belongs directly inside a <fusion:...> tag");
+            throw new InvalidArgumentException("<nitro:slot name=\"{$name}\"> belongs directly inside a <nitro:...> tag");
         }
 
         $this->tags[$top]['slot'] = $name;
@@ -58,7 +58,7 @@ final class Tags
         $top = array_key_last($this->tags);
 
         if ($top === null || $this->tags[$top]['slot'] === null) {
-            throw new InvalidArgumentException('</fusion:slot> closes no <fusion:slot>');
+            throw new InvalidArgumentException('</nitro:slot> closes no <nitro:slot>');
         }
 
         $this->tags[$top]['slots'][$this->tags[$top]['slot']] = (string) ob_get_clean();
@@ -67,13 +67,13 @@ final class Tags
         return '';
     }
 
-    /** </fusion:name>: the component, with what was between its tags as its default slot. */
+    /** </nitro:name>: the component, with what was between its tags as its default slot. */
     public function end(string $name): HtmlString
     {
         $tag = array_pop($this->tags);
 
         if ($tag === null || $tag['name'] !== $name || $tag['slot'] !== null) {
-            throw new InvalidArgumentException("</fusion:{$name}> closes no <fusion:{$name}>");
+            throw new InvalidArgumentException("</nitro:{$name}> closes no <nitro:{$name}>");
         }
 
         $slots = ['default' => (string) ob_get_clean(), ...$tag['slots']];

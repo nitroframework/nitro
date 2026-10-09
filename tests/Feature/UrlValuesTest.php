@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\UrlValues;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Support\UrlValues;
+use Nitro\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 
 /**

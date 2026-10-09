@@ -1,4 +1,4 @@
-// Laravel's Str::slug(). Fusion: transliterated as Str::ascii() does for "en" (the language
+// Laravel's Str::slug(). Nitro: transliterated as Str::ascii() does for "en" (the language
 // the browser has).
 // uses: Str_ascii, Str_lower, _pcre
 function Str_slug(title, separator = '-', language = 'en', dictionary = new Map([['@', 'at']])) {

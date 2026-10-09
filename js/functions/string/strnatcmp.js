@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Strnatcmp.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Strnatcmp.js, for Nitro's values.
 function strnatcmp (a, b) {
   //       discuss at: https://locutus.io/php/strnatcmp/
   //      original by: Martijn Wieringa

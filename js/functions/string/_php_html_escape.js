@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Helpers/PhpHtmlEscape.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Helpers/PhpHtmlEscape.js, for Nitro's values.
 // uses: _php_html_entities
 /**
  * The shared body of htmlspecialchars/htmlentities. flags are PHP's: ENT_HTML_QUOTE_SINGLE 1,
@@ -9,7 +9,7 @@
  */
 function _php_html_escape(str, flags, doubleEncode, all) {
   flags = flags === undefined || flags === null ? 11 : flags
-  /** Fusion: the entity table is HTML 4.01's (Viewi's); PHP's XML1, XHTML and HTML5 ones are not in the browser. */
+  /** Nitro: the entity table is HTML 4.01's (Viewi's); PHP's XML1, XHTML and HTML5 ones are not in the browser. */
   if (all && (flags & 48) !== 0) throw new P.PhpError('Error', 'htmlentities() with ENT_XML1, ENT_XHTML or ENT_HTML5 is not available in the browser: use ENT_HTML401 (the default)')
   const table = all ? P.fns._php_html_entities() : { '&': '&amp;', '<': '&lt;', '>': '&gt;' }
   const single = (flags & 48) === 48 ? '&apos;' : '&#039;'

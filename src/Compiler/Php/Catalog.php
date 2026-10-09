@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
 use PhpParser\Node\Name;
 
 /**
  * What of PHP exists in the browser: the functions, constants and parameter types the compiled
- * code can use. The single list of PHP's surface in Fusion: a function or constant missing here
+ * code can use. The single list of PHP's surface in Nitro: a function or constant missing here
  * is a compile error naming it ("... is not available in the browser").
  *
  * General PHP: the functions implemented in js/src/php.js (FUNCTIONS) and in js/functions
@@ -14,7 +14,7 @@ use PhpParser\Node\Name;
  * output parameter (preg_match()), the constants with their server values, and the scalar types
  * coerced on entry as PHP does.
  *
- * Fusion: the names Fusion goes by in a view or a use statement, for Fusion::browser().
+ * Nitro: the names Nitro goes by in a view or a use statement, for Nitro::browser().
  *
  * @internal
  */
@@ -51,8 +51,8 @@ final class Catalog
 
     public const ALIASES = ['join' => 'implode'];
 
-    /** Fusion, as a view (Blade's alias) or a use statement names it: Fusion::browser(). */
-    public const FUSION = ['Fusion', \Nitro\Fusion\Facades\Fusion::class, \Nitro\Fusion\Fusion::class];
+    /** Nitro, as a view (Blade's alias) or a use statement names it: Nitro::browser(). */
+    public const NITRO = ['Nitro', \Nitro\Facades\Nitro::class, \Nitro\Nitro::class];
 
     public const CONSTANTS = [
         /** The server's value: the page is rendered there too, and both renders must match. */

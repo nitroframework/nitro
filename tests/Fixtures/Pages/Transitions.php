@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /**
- * fusion:transition, as Vue's <Transition>: the built-in fade and scale, Vue's classes (a name),
+ * nitro:transition, as Vue's <Transition>: the built-in fade and scale, Vue's classes (a name),
  * and the rows of a list.
  */
 class Transitions extends Component

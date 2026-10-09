@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Atan2.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Atan2.js, for Nitro's values.
 function atan2 (y, x) {
   //  discuss at: https://locutus.io/php/atan2/
   // original by: Brett Zamir (https://brett-zamir.me)

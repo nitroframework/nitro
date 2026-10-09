@@ -1,28 +1,28 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Testing\TestResponse;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Testing\AssertableFusion;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Support\Wire;
+use Nitro\Testing\AssertableNitro;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * An obfuscated build (fusion.build.obfuscate): methods, #[Server] methods and pages under
+ * An obfuscated build (nitro.build.obfuscate): methods, #[Server] methods and pages under
  * aliases keyed by APP_KEY, in the bundle and in the page; handlers' text left out of the page.
  * (The browser tests run every scenario against one too.)
  */
 class ObfuscationTest extends TestCase
 {
-    private const COMPILED = self::APP.'/storage/framework/fusion';
+    private const COMPILED = self::APP.'/storage/framework/nitro';
 
     protected function tearDown(): void
     {
         if ($this->app !== null) {
-            $this->console()->call('fusion:clear');
+            $this->console()->call('nitro:clear');
         }
 
         parent::tearDown();
@@ -30,9 +30,9 @@ class ObfuscationTest extends TestCase
 
     private function build(): Obfuscator
     {
-        config(['fusion.build.obfuscate' => true]);
+        config(['nitro.build.obfuscate' => true]);
         $this->app->forgetScopedInstances();
-        $this->assertSame(0, $this->console()->call('fusion:build'), $this->console()->output());
+        $this->assertSame(0, $this->console()->call('nitro:build'), $this->console()->output());
 
         return $this->app->make(Bundle::class)->obfuscator() ?? $this->fail('the build is not obfuscated');
     }
@@ -63,7 +63,7 @@ class ObfuscationTest extends TestCase
         $this->assertStringNotContainsString('pages::', $code, 'pages by aliases');
         $this->assertStringContainsString('"'.$names->component('pages::counter').'"', $code);
         $this->assertSame('pages::counter', $names->componentName($names->component('pages::counter')));
-        $this->assertSame('counter', $names->component('counter'), 'components keep their names: the fixture app has a <fusion:dynamic-component>');
+        $this->assertSame('counter', $names->component('counter'), 'components keep their names: the fixture app has a <nitro:dynamic-component>');
         $this->assertNotSame('mounted', $names->method('mounted'), 'hooks are aliased as any method: the runtime finds them by the definition');
         $this->assertNotSame('updatedStep', $names->method('updatedStep'), 'a property hook too');
 
@@ -82,16 +82,16 @@ class ObfuscationTest extends TestCase
 
         $html = (string) $this->page('/counter')->getContent();
 
-        $this->assertStringNotContainsString('fusion:click="increment"', $html);
-        $this->assertStringContainsString('fusion:click=""', $html);
-        $this->assertStringContainsString('fusion:target="'.$names->method('save').'"', $html, "the counter's fusion:target");
-        $this->assertStringContainsString('fusion:model.number="'.$names->property('step').'"', $html, 'fusion:model by the property\'s alias');
+        $this->assertStringNotContainsString('nitro:click="increment"', $html);
+        $this->assertStringContainsString('nitro:click=""', $html);
+        $this->assertStringContainsString('nitro:target="'.$names->method('save').'"', $html, "the counter's nitro:target");
+        $this->assertStringContainsString('nitro:model.number="'.$names->property('step').'"', $html, 'nitro:model by the property\'s alias');
         $this->assertStringNotContainsString('\&quot;count\&quot;', $html, 'the snapshot names the properties by their aliases');
         $this->assertStringNotContainsString('pages::counter', $html);
-        $this->assertStringContainsString('fusion:name="'.$names->component('pages::counter').'"', $html);
+        $this->assertStringContainsString('nitro:name="'.$names->component('pages::counter').'"', $html);
 
-        /** The upload's fusion:target names a property: by its alias. */
-        $this->assertStringContainsString('fusion:target="'.$names->property('photo').'"', (string) $this->page('/gallery')->getContent());
+        /** The upload's nitro:target names a property: by its alias. */
+        $this->assertStringContainsString('nitro:target="'.$names->property('photo').'"', (string) $this->page('/gallery')->getContent());
     }
 
     #[DataProvider('frameworks')]
@@ -117,7 +117,7 @@ class ObfuscationTest extends TestCase
         $this->boot($framework);
         $this->build();
 
-        $this->page('/counter')->assertFusion(fn (AssertableFusion $page) => $page->page('pages::counter')->has('count')->where('step', 1));
+        $this->page('/counter')->assertNitro(fn (AssertableNitro $page) => $page->page('pages::counter')->has('count')->where('step', 1));
     }
 
     #[DataProvider('frameworks')]
@@ -126,7 +126,7 @@ class ObfuscationTest extends TestCase
         $this->boot($framework);
         $plain = $this->app->make(Bundle::class)->version();
 
-        config(['fusion.build.obfuscate' => true]);
+        config(['nitro.build.obfuscate' => true]);
         $this->app->forgetScopedInstances();
 
         $this->assertNotSame($plain, $this->app->make(Bundle::class)->version());
@@ -135,8 +135,8 @@ class ObfuscationTest extends TestCase
     public function test_error_fields_are_by_the_properties_aliases_written_out_or_built(): void
     {
         $names = new Obfuscator('key', [], aliasComponents: true);
-        $scope = (new \Nitro\Fusion\Compiler\Scope(properties: ['items', 'form']))->withNames($names);
-        $templates = new \Nitro\Fusion\Compiler\Template\TemplateCompiler(fn () => false);
+        $scope = (new \Nitro\Compiler\Scope(properties: ['items', 'form']))->withNames($names);
+        $templates = new \Nitro\Compiler\Template\TemplateCompiler(fn () => false);
         $templates->compile(
             "<div>\n@error('form.email') <p>{{ \$message }}</p> @enderror\n"
             ."@foreach (\$items as \$i => \$item)\n    @error('items.'.\$i.'.price') <p>{{ \$message }}</p> @enderror\n"

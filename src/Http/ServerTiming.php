@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Connection;
 use Illuminate\Http\Request;
-use Nitro\Fusion\Rendering\Devtools;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Rendering\Devtools;
+use Nitro\Support\Protocol;
 use Symfony\Component\HttpFoundation\Response;
 
 /**

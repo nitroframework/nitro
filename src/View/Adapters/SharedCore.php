@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\View\Adapters;
+namespace Nitro\View\Adapters;
 
 /**
- * Fusion's JavaScript adapters share one core (js/adapters/core.js), which gives every view
+ * Nitro's JavaScript adapters share one core (js/adapters/core.js), which gives every view
  * set(), upload(), errors and the rest besides the component's own names. Their list is
  * js/adapters/names.json, which the core reads too.
  */

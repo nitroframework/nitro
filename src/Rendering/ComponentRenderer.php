@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\View\Factory as ViewFactory;
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\State\Snapshot;
-use Nitro\Fusion\State\Snapshots;
-use Nitro\Fusion\Support\CurrentRequest;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Build\BrowserNames;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Component;
+use Nitro\Lifecycle\Features;
+use Nitro\State\Snapshot;
+use Nitro\State\Snapshots;
+use Nitro\Support\CurrentRequest;
+use Nitro\Support\Protocol;
+use Nitro\View\ViewEngines;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -37,7 +37,7 @@ final class ComponentRenderer
 
     private bool $collectsFallbacks = false;
 
-    /** @var array<string, true> the names of the components rendered (@fusionScripts loads their chunks) */
+    /** @var array<string, true> the names of the components rendered (@nitroScripts loads their chunks) */
     private array $rendered = [];
 
     /** Islands being rendered that start later (or never): their components' chunks wait for them. */
@@ -154,8 +154,8 @@ final class ComponentRenderer
     }
 
     /**
-     * Render an island that starts later (fusion:hydrate) or never (fusion:static): its
-     * components are not among those @fusionScripts loads the chunks of.
+     * Render an island that starts later (nitro:hydrate) or never (nitro:static): its
+     * components are not among those @nitroScripts loads the chunks of.
      *
      * @param  callable(): string  $render
      */
@@ -228,7 +228,7 @@ final class ComponentRenderer
     {
         $this->stack[] = $component;
         $this->orders[] = $this->started++;
-        $context = $component->fusion();
+        $context = $component->nitro();
         $context->rendering = true;
 
         try {

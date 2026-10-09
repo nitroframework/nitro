@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
 use Illuminate\Database\Eloquent\Collection;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\StudentByEmail;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\StudentByEmail;
 
 /**
  * Model properties read again on each call: a nullable one whose row may be deleted ($maybe), one

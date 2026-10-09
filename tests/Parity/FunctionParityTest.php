@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Parity;
+namespace Nitro\Tests\Parity;
 
 use Illuminate\Support\Str;
 use IntlChar;
-use Nitro\Fusion\Compiler\Functions;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Compiler\Functions;
+use Nitro\Support\Wire;
+use Nitro\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
@@ -431,7 +431,7 @@ class FunctionParityTest extends TestCase
     }
 
     /**
-     * js/functions: Viewi's PhpJsFunctions, ported to Fusion's values. Where PHP does something
+     * js/functions: Viewi's PhpJsFunctions, ported to Nitro's values. Where PHP does something
      * else than Viewi's (locutus') code, these cases are why the port does what PHP does.
      */
     private static function portedCases(): array

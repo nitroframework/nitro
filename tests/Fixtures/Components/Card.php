@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\On;
+use Nitro\Component;
 
 /**
  * A child with slots: $slot (the default) where its body goes, $slots['footer'] when there is

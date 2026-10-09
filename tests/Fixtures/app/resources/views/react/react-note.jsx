@@ -1,7 +1,7 @@
-import { useFusion } from 'nitro-fusion/react';
+import { useNitro } from 'nitro/react';
 
 function Email() {
-    const { form, set } = useFusion();
+    const { form, set } = useNitro();
 
     return (
         <>
@@ -12,7 +12,7 @@ function Email() {
 }
 
 export default function ReactNote() {
-    const { text, form, shout, addTag, set } = useFusion();
+    const { text, form, shout, addTag, set } = useNitro();
 
     return (
         <div className="react-note">

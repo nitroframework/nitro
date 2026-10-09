@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 use InvalidArgumentException;
 
 /**
- * How a fusion:navigate visit shows a page: the one place the modes are named and what each
- * means. A page chooses with #[Navigate] (a case, or its value); fusion.navigation is the
+ * How a nitro:navigate visit shows a page: the one place the modes are named and what each
+ * means. A page chooses with #[Navigate] (a case, or its value); nitro.navigation is the
  * default for the others.
  *
  *   Data     the browser waits for the page's data, then renders it complete
@@ -23,7 +23,7 @@ enum NavigationMode: string
     case Client = 'client';
 
     /**
-     * fusion.navigation: the mode of pages without #[Navigate]. Not Client: a page renders
+     * nitro.navigation: the mode of pages without #[Navigate]. Not Client: a page renders
      * without the server only when it says so, since it must need nothing from it.
      */
     public static function fromConfig(string $value): self
@@ -31,7 +31,7 @@ enum NavigationMode: string
         $mode = self::tryFrom($value);
 
         if ($mode === null || ! $mode->mayBeDefault()) {
-            throw new InvalidArgumentException('fusion.navigation is '.self::listed(array_filter(self::cases(), fn (self $mode) => $mode->mayBeDefault())).", not '{$value}'");
+            throw new InvalidArgumentException('nitro.navigation is '.self::listed(array_filter(self::cases(), fn (self $mode) => $mode->mayBeDefault())).", not '{$value}'");
         }
 
         return $mode;
@@ -56,7 +56,7 @@ enum NavigationMode: string
         return $this !== self::Data;
     }
 
-    /** Whether fusion.navigation may make it every page's. */
+    /** Whether nitro.navigation may make it every page's. */
     public function mayBeDefault(): bool
     {
         return $this !== self::Client;

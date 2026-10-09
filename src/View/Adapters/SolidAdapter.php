@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\View\Adapters;
+namespace Nitro\View\Adapters;
 
-use Nitro\Fusion\View\ScriptEngine;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
+use Nitro\View\ScriptEngine;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
 
 /**
  * Solid: #[View(solid: 'clock')] is clock.jsx (or .tsx) in resources/views/solid or
  * resources/js/solid. Its component's PHP, when it holds it, is a leading
- * / * <php> ... </php> * / comment. In the browser: nitro-fusion/solid (js/adapters/solid.js).
+ * / * <php> ... </php> * / comment. In the browser: nitro/solid (js/adapters/solid.js).
  */
 final class SolidAdapter extends ScriptEngine
 {

@@ -18,7 +18,7 @@ export class Network {
 
     /**
      * Call a #[Server] method (null: just sync the state, as $refresh does). A failure is reported
-     * (console and fusion:error) here, once; the promise still rejects for code that awaits it.
+     * (console and nitro:error) here, once; the promise still rejects for code that awaits it.
      */
     /** leaving: the component's goodbye, a #[Server] destroyed(): sent though it has left the page. */
     call(component, method, args = [], { leaving = false } = {}) {
@@ -32,7 +32,7 @@ export class Network {
     /**
      * Reload a page's properties from its route, as Inertia's partial reloads ($reload,
      * $this->reload(), and its deferred properties once it is shown): the page's URL asked again
-     * for its data (X-Fusion-Partial: its id; X-Fusion-Only: the properties, all when none), then
+     * for its data (X-Nitro-Partial: its id; X-Nitro-Only: the properties, all when none), then
      * the named properties taken from it. In the component's queue, after the calls before it.
      */
     reload(component, only = [], deferred = false, url = null) {
@@ -76,7 +76,7 @@ export class Network {
         } catch {
             // reported below
         }
-        if (!response.ok || page?.fusion !== 1) {
+        if (!response.ok || page?.nitro !== 1) {
             throw new ServerCallError(`$reload: the server answered ${response.status}`, response.status, text);
         }
         if (component.destroyed) return;
@@ -115,7 +115,7 @@ export class Network {
         };
 
         this.runtime.loading(component, method, true);
-        this.runtime.emit('fusion:request', { component: component.name, method });
+        this.runtime.emit('nitro:request', { component: component.name, method });
         const started = this.runtime.window.performance.now();
         let response;
         try {
@@ -124,7 +124,7 @@ export class Network {
             throw new ServerCallError(`${method ?? '$refresh'}(): the server could not be reached`, 0, String(error?.message ?? error));
         } finally {
             this.runtime.loading(component, method, false);
-            this.runtime.emit('fusion:response', { component: component.name, method, status: response?.status ?? 0 });
+            this.runtime.emit('nitro:response', { component: component.name, method, status: response?.status ?? 0 });
             if (!response) this.runtime.plugins.response(component, method, 0, timingOf(this.runtime, response, started));
         }
 
@@ -141,7 +141,7 @@ export class Network {
         try {
             answer = JSON.parse(text);
         } catch {
-            /** A 200 that is not Fusion's answer: PHP printing a warning or an error page, a proxy. */
+            /** A 200 that is not Nitro's answer: PHP printing a warning or an error page, a proxy. */
             throw new ServerCallError(`${method ?? '$refresh'}(): the server's answer is not JSON`, response.status, text);
         }
 
@@ -198,7 +198,7 @@ function fallbackIn(text) {
 /** A #[Server] call that failed; status 0 when the server was not reached. */
 export class ServerCallError extends Error {
     constructor(message, status, body) {
-        super(`Fusion: ${message}`);
+        super(`Nitro: ${message}`);
         this.name = 'ServerCallError';
         this.status = status;
         this.body = body;

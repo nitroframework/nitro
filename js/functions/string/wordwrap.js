@@ -1,5 +1,5 @@
 // Viewi's PhpJsFunctions/Strings/Wordwrap.js (locutus) wraps otherwise than PHP (a break after
-// the space, width 0, the spaces it keeps: FunctionParityTest): Fusion ports PHP's own
+// the space, width 0, the spaces it keeps: FunctionParityTest): Nitro ports PHP's own
 // (ext/standard/string.c), on bytes.
 function wordwrap(str, intWidth = 75, strBreak = '\n', cut = false) {
     const text = P.utf8(P.toStr(str));

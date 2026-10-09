@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 use PHPUnit\Framework\TestCase;
 
 /**
- * The direction of Fusion's parts. Each folder is a layer; a layer uses the layers below it,
- * never one above, and receives what it needs in its constructor (FusionServiceProvider wires
- * them). Apps call the Fusion class (the facade's); Fusion's own parts never do: it is the front
+ * The direction of Nitro's parts. Each folder is a layer; a layer uses the layers below it,
+ * never one above, and receives what it needs in its constructor (NitroServiceProvider wires
+ * them). Apps call the Nitro class (the facade's); Nitro's own parts never do: it is the front
  * door, not a hallway between them.
  *
- *   entry points   Http, Console, Blade, Testing, FusionServiceProvider
+ *   entry points   Http, Console, Blade, Testing, NitroServiceProvider
  *   Rendering      a component or page to HTML
  *   State          signed state, shared data, stores (booted through Lifecycle, named by Build)
  *   Lifecycle      hooks, features, an instance's Context      } beside each other:
@@ -35,12 +35,12 @@ final class DependencyTest extends TestCase
         'Support' => 1,
     ];
 
-    /** What may name the Fusion class, with why. */
-    private const FUSION_ALLOWED = [
-        'src/Fusion.php' => 'itself',
-        'src/Facades/Fusion.php' => 'its facade',
-        'src/FusionServiceProvider.php' => 'builds it',
-        'src/Compiler/Php/Catalog.php' => 'recognises Fusion::browser() in a component\'s code to compile it: names the class, never calls it',
+    /** What may name the Nitro class, with why. */
+    private const NITRO_ALLOWED = [
+        'src/Nitro.php' => 'itself',
+        'src/Facades/Nitro.php' => 'its facade',
+        'src/NitroServiceProvider.php' => 'builds it',
+        'src/Compiler/Php/Catalog.php' => 'recognises Nitro::browser() in a component\'s code to compile it: names the class, never calls it',
     ];
 
     public function test_a_layer_uses_only_the_layers_below_it(): void
@@ -69,23 +69,23 @@ final class DependencyTest extends TestCase
         $this->assertSame([], array_keys(array_diff_key($known, $upward)), 'Fixed: take it out of known-breaks.php');
     }
 
-    public function test_fusions_parts_do_not_go_through_fusion(): void
+    public function test_nitros_parts_do_not_go_through_nitro(): void
     {
         $through = [];
 
         foreach ($this->sources() as $path => $code) {
-            if (! isset(self::FUSION_ALLOWED[$path]) && $this->namesFusion($path, $code)) {
+            if (! isset(self::NITRO_ALLOWED[$path]) && $this->namesNitro($path, $code)) {
                 $through[$path] = true;
             }
         }
 
-        $known = Baseline::of('dependencies', 'through Fusion');
+        $known = Baseline::of('dependencies', 'through Nitro');
 
-        $this->assertSame([], array_keys(array_diff_key($through, $known)), 'A part reaches another through Fusion: take what it needs in its constructor');
+        $this->assertSame([], array_keys(array_diff_key($through, $known)), 'A part reaches another through Nitro: take what it needs in its constructor');
         $this->assertSame([], array_keys(array_diff_key($known, $through)), 'Fixed: take it out of known-breaks.php');
     }
 
-    /** @return array<string, string> Fusion's PHP files under src/ */
+    /** @return array<string, string> Nitro's PHP files under src/ */
     private function sources(): array
     {
         return array_filter(Scanner::code(), fn (string $path) => str_starts_with($path, 'src/') && Scanner::isPhp($path), ARRAY_FILTER_USE_KEY);
@@ -103,23 +103,23 @@ final class DependencyTest extends TestCase
         return self::LAYERS[$this->folderOf($path)] ?? null;
     }
 
-    /** @return list<string> the folders of Fusion's classes the code names (imported or written out) */
+    /** @return list<string> the folders of Nitro's classes the code names (imported or written out) */
     private function foldersUsed(string $code): array
     {
-        preg_match_all('/\\\\?Nitro\\\\Fusion\\\\([A-Z][A-Za-z]*)\\\\/', $code, $matches);
+        preg_match_all('/\\\\?Nitro\\\\([A-Z][A-Za-z]*)\\\\/', $code, $matches);
 
         return array_values(array_unique($matches[1]));
     }
 
-    /** Whether the file names the Fusion class: imported, written out, or (in the root namespace) by its short name. */
-    private function namesFusion(string $path, string $code): bool
+    /** Whether the file names the Nitro class: imported, written out, or (in the root namespace) by its short name. */
+    private function namesNitro(string $path, string $code): bool
     {
-        if (preg_match('/\\\\?Nitro\\\\Fusion\\\\Fusion\b(?!\\\\)/', $code) === 1) {
+        if (preg_match('/\\\\?Nitro\\\\Nitro\b(?!\\\\)/', $code) === 1) {
             return true;
         }
 
-        $inRoot = preg_match('/^namespace Nitro\\\\Fusion;/m', $code) === 1;
+        $inRoot = preg_match('/^namespace Nitro;/m', $code) === 1;
 
-        return $inRoot && preg_match('/(?<![\\\\\w$>])Fusion(::class|\s+\$|\s*\)|\s*\|)/', $code) === 1;
+        return $inRoot && preg_match('/(?<![\\\\\w$>])Nitro(::class|\s+\$|\s*\)|\s*\|)/', $code) === 1;
     }
 }

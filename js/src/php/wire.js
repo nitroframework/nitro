@@ -8,7 +8,7 @@ import { EnumCase } from './enums.js';
 /**
  * Values between PHP and JS: JSON, where every PHP array that is not a list is the object
  * {"$m": [[key, value], ...]}, so key order and integer keys survive. Mirrors
- * Nitro\Fusion\Support\Wire.
+ * Nitro\Support\Wire.
  */
 export function decode(x) {
     if (Array.isArray(x)) return x.map(decode);
@@ -39,7 +39,7 @@ export function encode(v) {
 // ---------------------------------------------------------------- uploads
 
 /**
- * A file a fusion:model file input uploaded (Nitro\Fusion\Upload on the server): its signed
+ * A file a nitro:model file input uploaded (Nitro\Upload on the server): its signed
  * reference, sent back unchanged, and what a view may show of it. Upload::toWire() made it.
  */
 export class Upload {

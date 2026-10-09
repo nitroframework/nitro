@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Lifecycle\Context;
+use Nitro\Compiler\Components;
+use Nitro\Lifecycle\Context;
 
 /**
  * $this->dispatch('saved', ...), as Livewire's: every component listening (#[On('saved')]) and

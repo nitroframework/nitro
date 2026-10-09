@@ -56,7 +56,7 @@ export class Chunks {
         return null;
     }
 
-    /** A chunk's components: loaded once, from where @fusionScripts says chunks are (data-chunks). */
+    /** A chunk's components: loaded once, from where @nitroScripts says chunks are (data-chunks). */
     load(group) {
         const { runtime } = this;
         /** Its components are here already (the page loaded the chunk with its own script tag). */
@@ -74,7 +74,7 @@ export class Chunks {
                     this.loads.delete(group);
                     /** Gone with a deploy since the page loaded (a build's files are replaced): the page loads again. */
                     runtime.stale();
-                    reject(new Error(`Fusion: the components of chunk [${group}] did not load`));
+                    reject(new Error(`Nitro: the components of chunk [${group}] did not load`));
                 };
                 runtime.document.head.appendChild(script);
             }));

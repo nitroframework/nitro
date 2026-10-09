@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Browser;
+namespace Nitro\Browser;
 
 use Closure;
 
 /**
- * A WebSocket connection. Fusion::browser()->socket($url) returns the component's connection to
+ * A WebSocket connection. Nitro::browser()->socket($url) returns the component's connection to
  * the URL, opening it the first time; a relative URL is on the page's host. It reconnects when
  * the connection drops, and closes when the component leaves the page.
  *

@@ -1,37 +1,37 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The data Fusion::share() gives every component, as Inertia's shared props: on the page, in
- * fusion:navigate visits and in #[Server] call answers.
+ * The data Nitro::share() gives every component, as Inertia's shared props: on the page, in
+ * nitro:navigate visits and in #[Server] call answers.
  */
 class SharedDataTest extends TestCase
 {
     private function visit(string $uri): Response
     {
-        return $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1']);
+        return $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1']);
     }
 
     #[DataProvider('frameworks')]
     public function test_shared_data_reaches_components_on_the_server(string $framework): void
     {
         $this->boot($framework);
-        $this->fusion()->share(['team' => fn () => collect(['name' => 'Analytical']), 'flags.beta' => true]);
+        $this->nitro()->share(['team' => fn () => collect(['name' => 'Analytical']), 'flags.beta' => true]);
 
         $html = (string) $this->get('/greeting')->getContent();
 
         $this->assertStringContainsString('<p class="hello">Hello Ada</p>', $html);
         $this->assertStringContainsString('<p class="missing">fallback</p>', $html);
         /** The fixture's middleware shares the user and the countries for each request, after what was shared before it. */
-        $this->assertSame(['team' => ['name' => 'Analytical'], 'flags' => ['beta' => true], 'user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], $this->fusion()->shared());
-        $this->assertSame('Analytical', $this->fusion()->shared('team.name'));
-        $this->assertSame('none', $this->fusion()->shared('team.missing', 'none'));
+        $this->assertSame(['team' => ['name' => 'Analytical'], 'flags' => ['beta' => true], 'user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], $this->nitro()->shared());
+        $this->assertSame('Analytical', $this->nitro()->shared('team.name'));
+        $this->assertSame('none', $this->nitro()->shared('team.missing', 'none'));
     }
 
     #[DataProvider('frameworks')]
@@ -40,7 +40,7 @@ class SharedDataTest extends TestCase
         $this->boot($framework);
 
         $html = (string) $this->get('/greeting')->getContent();
-        preg_match('#<script type="application/json" data-fusion-globals>(.*?)</script>#', $html, $globals);
+        preg_match('#<script type="application/json" data-nitro-globals>(.*?)</script>#', $html, $globals);
         $this->assertSame(['user' => ['name' => 'Ada'], 'countries' => ['PK', 'US']], Wire::decode(json_decode($globals[1], true)['shared']));
 
         $page = $this->json($this->visit('/greeting'));
@@ -57,7 +57,7 @@ class SharedDataTest extends TestCase
         $this->boot($framework);
 
         /** Greeting is a page: its chunk. */
-        $chunk = (string) $this->get('/_fusion/app/greeting.js')->getContent();
+        $chunk = (string) $this->get('/_nitro/app/greeting.js')->getContent();
 
         $this->assertStringContainsString('B.shared("user.name", "guest")', $chunk);
     }

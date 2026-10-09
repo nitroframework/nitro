@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/BaseConvert.js (locutus), for Fusion's values: PHP's own (_php_math_basetozval,
+// Viewi's PhpJsFunctions/Math/BaseConvert.js (locutus), for Nitro's values: PHP's own (_php_math_basetozval,
 // _php_math_zvaltobase): digits the base does not have are skipped, so "-15" is 15 and "" 0
 // (FunctionParityTest).
 function base_convert(number, frombase, tobase) {

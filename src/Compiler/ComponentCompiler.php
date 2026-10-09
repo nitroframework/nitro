@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use Closure;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Compiler\Template\TemplateCompiler;
+use Nitro\Support\Wire;
 use ReflectionMethod;
 
 /**
  * Compiles a component (its class and its view) to the definition the browser runtime loads:
  *
- *   // App\Fusion\Students\Form · view fusion.students.form
- *   Fusion.define("students.form", {
+ *   // App\Nitro\Students\Form · view nitro.students.form
+ *   Nitro.define("students.form", {
  *       props: {...}, server: [...], listeners: {...}, mount: true,
  *       methods: { reset: function () {...} },
  *       template: {t: "r", h: [...]},           // the view's markup, as a tree (TemplateCompiler)
@@ -28,7 +28,7 @@ final class ComponentCompiler
 {
     /**
      * @param  Closure(string): bool  $isBladeDirective
-     * @param  bool  $parseTemplates  templates as JSON strings for JSON.parse (fusion:build), not object literals
+     * @param  bool  $parseTemplates  templates as JSON strings for JSON.parse (nitro:build), not object literals
      * @param  (Closure(string): ?string)|null  $componentName  a component class to its name (dispatch()->to(X::class))
      */
     public function __construct(
@@ -37,7 +37,7 @@ final class ComponentCompiler
         private readonly ?Closure $componentName = null,
         /** An obfuscated build's names for methods and components (null: their own) */
         private readonly ?Obfuscator $names = null,
-        /** Clone mode (fusion.rendering = 'clone'): views' static parts marked for the browser to copy */
+        /** Clone mode (nitro.rendering = 'clone'): views' static parts marked for the browser to copy */
         private readonly bool $cloneStatic = false,
         /**
          * A page a visit renders at once (markup first, or client): its definition's extra fields, the
@@ -46,7 +46,7 @@ final class ComponentCompiler
         private readonly ?Closure $atOnce = null,
         /** @var (Closure(string): ComponentMeta)|null a store's metadata by class (the stores a component uses) */
         private readonly ?Closure $meta = null,
-        /** @var list<string> the application's own fusion: attributes (fusion.attributes, checked by Globals::customAttributes()) */
+        /** @var list<string> the application's own nitro: attributes (nitro.attributes, checked by Globals::customAttributes()) */
         private readonly array $attributes = [],
     ) {
         $this->uses = Uses::none();
@@ -94,7 +94,7 @@ final class ComponentCompiler
         $methodList = implode(",\n", array_map(fn ($name, $js) => json_encode($name).': '.$js, array_keys($methods), $methods));
 
         return '// '.$meta->class." · store\n"
-            .'Fusion.store('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n}\n});";
+            .'Nitro.store('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n}\n});";
     }
 
     /** The scope with the stores the component uses: each store's name and members. */
@@ -148,8 +148,8 @@ final class ComponentCompiler
     /**
      * The #[Browser] classes and enums the code reached, as the main bundle defines them:
      *
-     *   Fusion.classes["App\\Support\\Money"] = { format: function ($cents) {...} };
-     *   Fusion.classes["App\\Enums\\Status"] = P.defineEnum("App\\Enums\\Status", [["Draft", "draft"], ...], {static methods}, {methods});
+     *   Nitro.classes["App\\Support\\Money"] = { format: function ($cents) {...} };
+     *   Nitro.classes["App\\Enums\\Status"] = P.defineEnum("App\\Enums\\Status", [["Draft", "draft"], ...], {static methods}, {methods});
      */
     /**
      * The #[Browser] classes and enums the code reached, as the main bundle defines them
@@ -293,7 +293,7 @@ final class ComponentCompiler
         }
 
         return '// '.$meta->class.' · view '.$meta->view.($templates === null ? " ({$meta->engine})" : '')."\n"
-            .'Fusion.define('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n}{$view}\n});";
+            .'Nitro.define('.json_encode($scope->browserComponent($meta->name)).", {\n".implode(",\n", $fields).",\nmethods: {\n{$methodList}\n}{$view}\n});";
     }
 
     /** @param  array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>}  $uses */
@@ -318,7 +318,7 @@ final class ComponentCompiler
                 $props[$name]['default'] = Wire::encode($property->default);
             }
 
-            /** An enum: the state holds its value; the component reads it as the case (Fusion.classes[enum]). */
+            /** An enum: the state holds its value; the component reads it as the case (Nitro.classes[enum]). */
             if ($property->kind === PropertyMeta::ENUM) {
                 $props[$name]['enum'] = $scope->browserClass($property->types[0]);
                 $this->uses['classes'][BrowserClasses::definition($property->types[0])] = true;

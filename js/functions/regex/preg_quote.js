@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Pcre/PregQuote.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Pcre/PregQuote.js, for Nitro's values.
 function preg_quote(str, delimiter = null) {
     str = P.toStr(str);
     const special = '.\\+*?[^]$(){}=!<>|:-#';

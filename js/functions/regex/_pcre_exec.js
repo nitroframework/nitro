@@ -1,4 +1,4 @@
-// Fusion: the next match from index (anchored there with the A modifier or \G); notEmpty: PCRE's
+// Nitro: the next match from index (anchored there with the A modifier or \G); notEmpty: PCRE's
 // PCRE2_NOTEMPTY_ATSTART | PCRE2_ANCHORED, which PHP asks for after an empty match (a match at
 // index that is not empty, JavaScript's regular expression made to end elsewhere).
 function _pcre_exec(compiled, work, index, notEmpty = false) {

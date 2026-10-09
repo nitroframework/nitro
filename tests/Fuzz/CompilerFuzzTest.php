@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Tests\Support\Node;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Tests\Support\Node;
+use Nitro\Tests\TestCase;
 use Throwable;
 
 /**
@@ -32,9 +32,9 @@ class CompilerFuzzTest extends TestCase
         '@isset($a)', '@endisset', '@unless ($a)', '@endunless', '@error(\'a\')', '@enderror', '@csrf', '@method(\'PUT\')', '@json($a)',
         '@class([\'a\' => $b])', '@style([\'c\' => true])', '@checked($a)', '@disabled(true)', '@php', '@endphp', '@include(\'x\')', '@teleport(\'m\')', '@endteleport',
         '{{ $count }}', '{{ ', ' }}', '{!! $html !!}', '{{-- c --}}', '@{{ x }}', '{{ $this->doubled() }}', '{{ Str::upper($a) }}', '{{ route(\'counter\') }}',
-        '<div>', '</div>', '<span class="a">', '</span>', '<input fusion:model="count">', '<br>', '<!-- x -->', '<template>', '</template>', '<svg><path d="M0 0"/></svg>',
-        'fusion:click="increment"', 'fusion:click="$set(\'count\', 1)"', 'fusion:loading', 'fusion:key="1"', 'fusion:transition', 'fusion:poll.1s="x"',
-        '<fusion:counter />', '<fusion:card>', '</fusion:card>', '<fusion:slot name="footer">', '</fusion:slot>', '<fusion:dynamic-component :is="$a" />',
+        '<div>', '</div>', '<span class="a">', '</span>', '<input nitro:model="count">', '<br>', '<!-- x -->', '<template>', '</template>', '<svg><path d="M0 0"/></svg>',
+        'nitro:click="increment"', 'nitro:click="$set(\'count\', 1)"', 'nitro:loading', 'nitro:key="1"', 'nitro:transition', 'nitro:poll.1s="x"',
+        '<nitro:counter />', '<nitro:card>', '</nitro:card>', '<nitro:slot name="footer">', '</nitro:slot>', '<nitro:dynamic-component :is="$a" />',
         '"', "'", '<', '>', '=', '{', '}', '(', ')', '$', '@', '\\', "\n", '$loop->index', '$errors->first(\'a\')', '?->', '??', '::',
     ];
 
@@ -61,7 +61,7 @@ class CompilerFuzzTest extends TestCase
         $this->boot('laravel');
         $fixtures = $this->fixtures();
         $bundle = $this->app->make(Bundle::class);
-        $registry = app(\Nitro\Fusion\Support\Registry::class);
+        $registry = app(\Nitro\Support\Registry::class);
         $failures = [];
         $compiled = [];
         $outcomes = ['compiled' => 0, 'refused' => 0, 'PHP refused the class' => 0];
@@ -70,7 +70,7 @@ class CompilerFuzzTest extends TestCase
             $caseSeed = $seed + $i;
             $mutator = new Mutator($caseSeed);
             $fixture = $mutator->pick($fixtures);
-            $compiler = new ComponentCompiler($bundle->isBladeDirective(...), parseTemplates: true, componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null, meta: fn (string $class) => app(\Nitro\Fusion\Compiler\Components::class)->meta($class));
+            $compiler = new ComponentCompiler($bundle->isBladeDirective(...), parseTemplates: true, componentName: fn (string $class) => array_search(ltrim($class, '\\'), $registry->all(), true) ?: null, meta: fn (string $class) => app(\Nitro\Compiler\Components::class)->meta($class));
             $started = microtime(true);
 
             try {
@@ -86,11 +86,11 @@ class CompilerFuzzTest extends TestCase
                         continue;
                     }
 
-                    $definition = $compiler->compileStore(app(\Nitro\Fusion\Compiler\Components::class)->meta($name));
+                    $definition = $compiler->compileStore(app(\Nitro\Compiler\Components::class)->meta($name));
                 } elseif ($mutator->chance(60)) {
                     $what = 'view';
                     $source = $mutator->text($fixture['view'], self::VIEW_TOKENS, mt_rand(1, 4));
-                    $definition = $compiler->compile(app(\Nitro\Fusion\Compiler\Components::class)->meta($fixture['name']), $source, $fixture['viewFile']);
+                    $definition = $compiler->compile(app(\Nitro\Compiler\Components::class)->meta($fixture['name']), $source, $fixture['viewFile']);
                 } else {
                     $what = 'class';
                     $source = $mutator->text($fixture['class'], self::CLASS_TOKENS, mt_rand(1, 3));
@@ -102,7 +102,7 @@ class CompilerFuzzTest extends TestCase
                         continue;
                     }
 
-                    $definition = $compiler->compile(app(\Nitro\Fusion\Compiler\Components::class)->meta($name), $fixture['view'], $fixture['viewFile']);
+                    $definition = $compiler->compile(app(\Nitro\Compiler\Components::class)->meta($name), $fixture['view'], $fixture['viewFile']);
                 }
 
                 $outcomes['compiled']++;
@@ -138,11 +138,11 @@ class CompilerFuzzTest extends TestCase
     {
         $fixtures = [];
 
-        foreach (app(\Nitro\Fusion\Support\Registry::class)->all() as $name => $class) {
-            $meta = app(\Nitro\Fusion\Compiler\Components::class)->meta($name);
+        foreach (app(\Nitro\Support\Registry::class)->all() as $name => $class) {
+            $meta = app(\Nitro\Compiler\Components::class)->meta($name);
 
             /** A view the app's build compiles (Vue, React, Solid): nothing here to mutate. */
-            if (! $meta->store && ! app(\Nitro\Fusion\View\ViewEngines::class)->of($meta)->compiledByFusion()) {
+            if (! $meta->store && ! app(\Nitro\View\ViewEngines::class)->of($meta)->compiledByNitro()) {
                 continue;
             }
 
@@ -166,9 +166,9 @@ class CompilerFuzzTest extends TestCase
     {
         $class = "Mutant{$seed}";
         $source = preg_replace('/^\s*<\?php\s*/', '', $source);
-        $source = preg_replace('/^namespace [^;]+;/m', 'namespace Nitro\Fusion\Tests\Fuzz\Generated;', (string) $source, 1);
+        $source = preg_replace('/^namespace [^;]+;/m', 'namespace Nitro\Tests\Fuzz\Generated;', (string) $source, 1);
         /** Its view by #[View] (in another namespace its name no longer finds it), unless it names one already or is a store. */
-        $view = $fixture['store'] || str_contains((string) $source, '#[View(') ? '' : "#[\\Nitro\\Fusion\\Attributes\\View('{$fixture['viewName']}')]\n";
+        $view = $fixture['store'] || str_contains((string) $source, '#[View(') ? '' : "#[\\Nitro\\Attributes\\View('{$fixture['viewName']}')]\n";
         $source = preg_replace('/\b(class)\s+'.preg_quote($fixture['shortName'], '/').'\b/', "{$view}$1 {$class}", (string) $source, 1, $renamed);
 
         if ($renamed !== 1) {
@@ -176,7 +176,7 @@ class CompilerFuzzTest extends TestCase
         }
 
         /** Some of what PHP refuses ends the process (a compile or link error), past catching: tried in another one first. */
-        $file = tempnam(sys_get_temp_dir(), 'fusion-mutant');
+        $file = tempnam(sys_get_temp_dir(), 'nitro-mutant');
         file_put_contents($file, "<?php\n".$source);
         $autoload = var_export(dirname(__DIR__, 2).'/vendor/autoload.php', true);
         $process = proc_open([PHP_BINARY, '-d', 'display_errors=0', '-r', "require {$autoload}; require ".var_export($file, true).';'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
@@ -195,14 +195,14 @@ class CompilerFuzzTest extends TestCase
             return null;
         }
 
-        $fqcn = "Nitro\\Fusion\\Tests\\Fuzz\\Generated\\{$class}";
+        $fqcn = "Nitro\\Tests\\Fuzz\\Generated\\{$class}";
 
         if (! class_exists($fqcn, false)) {
             return null;
         }
 
         $name = 'mutant-'.$seed;
-        app(\Nitro\Fusion\Support\Registry::class)->register($name, $fqcn);
+        app(\Nitro\Support\Registry::class)->register($name, $fqcn);
 
         return $name;
     }

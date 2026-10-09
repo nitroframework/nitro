@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
-use Nitro\Fusion\Attributes\Url;
-use Nitro\Fusion\Support\Types;
-use Nitro\Fusion\Support\UrlValues;
-use Nitro\Fusion\Upload;
+use Nitro\Attributes\Url;
+use Nitro\Support\Types;
+use Nitro\Support\UrlValues;
+use Nitro\Upload;
 use ReflectionEnum;
 use ReflectionNamedType;
 use ReflectionProperty;
@@ -21,7 +21,7 @@ use ReflectionUnionType;
  *   value       null, bool, int, float, string, array (checked against its declared type)
  *   model       an Eloquent model: the browser gets its attributes, the server re-reads it
  *   collection  an Eloquent collection of models, likewise
- *   upload      a file the browser uploaded (Nitro\Fusion\Upload): set from the browser with a
+ *   upload      a file the browser uploaded (Nitro\Upload): set from the browser with a
  *               signed reference only (Wire::decode checks it), so it is not locked
  *   enum        a backed enum: the browser holds its value, and may send any of its cases' values
  */
@@ -65,12 +65,12 @@ final class PropertyMeta
             $type === null => [],
             $type instanceof ReflectionNamedType => [$type],
             $type instanceof ReflectionUnionType => $type->getTypes(),
-            default => throw new CompileException("The type of \${$property->getName()} is not supported by Fusion", $file, $property->getDeclaringClass()->getStartLine()),
+            default => throw new CompileException("The type of \${$property->getName()} is not supported by Nitro", $file, $property->getDeclaringClass()->getStartLine()),
         };
 
         foreach ($declared as $named) {
             if (! $named instanceof ReflectionNamedType) {
-                throw new CompileException("The type of \${$property->getName()} is not supported by Fusion", $file, $property->getDeclaringClass()->getStartLine());
+                throw new CompileException("The type of \${$property->getName()} is not supported by Nitro", $file, $property->getDeclaringClass()->getStartLine());
             }
 
             $types[] = $named->getName();
@@ -120,7 +120,7 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
-        /** A default PHP cannot work out (an undefined constant) is the class's error, not Fusion's. */
+        /** A default PHP cannot work out (an undefined constant) is the class's error, not Nitro's. */
         try {
             $default = $property->hasDefaultValue() ? $property->getDefaultValue() : null;
         } catch (\Error $exception) {

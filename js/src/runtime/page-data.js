@@ -1,6 +1,6 @@
 /**
  * A page's data as the server writes it into the page's HTML (Rendering\PageData): the globals
- * @fusionScripts gives, one block with each server-rendered component's signed state, by its id,
+ * @nitroScripts gives, one block with each server-rendered component's signed state, by its id,
  * and what the runtime's own script tells it (Rendering\Scripts). The one place the runtime reads
  * any of them, from the page it starts on or a page a visit fetched. A component takes its state once; an island that starts later finds its own here.
  */
@@ -10,7 +10,7 @@ import { ATTRIBUTES, selector, selectorOf } from './protocol.js';
 /** id => signed state, of the server-rendered components not started yet. */
 const states = new Map();
 
-/** The runtime's own script, as @fusionScripts writes it (Rendering\Scripts): it carries what the runtime is told. */
+/** The runtime's own script, as @nitroScripts writes it (Rendering\Scripts): it carries what the runtime is told. */
 const RUNTIME_SCRIPT = 'script[data-bundle]';
 
 /** The runtime's script in a page (the document, or a page a visit fetched); null when it has none. */
@@ -24,11 +24,11 @@ export function isRuntimeScript(script) {
 }
 
 /**
- * What @fusionScripts tells the runtime on its script: the endpoint, app.js's version (bundle),
+ * What @nitroScripts tells the runtime on its script: the endpoint, app.js's version (bundle),
  * where a chunk is ({id} for its name), the page's CSRF token, the progress bar's options
  * (config/nprogress.php; null when it is off), and with fallbacks on, what a component that fails
  * to render shows (Rendering\Fallbacks; null when they are off), and whether visits change the
- * page in View Transitions (fusion.view_transitions).
+ * page in View Transitions (nitro.view_transitions).
  */
 export function configOf(script) {
     return {
@@ -75,7 +75,7 @@ export function nameOf(el) {
 /** An element's signed state: the envelope (throws when it has none). */
 export function stateOf(el) {
     const envelope = states.get(el.getAttribute(ATTRIBUTES.id));
-    if (!envelope) throw new Error('Fusion: no state for this component');
+    if (!envelope) throw new Error('Nitro: no state for this component');
     return envelope;
 }
 

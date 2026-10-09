@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Browser;
+namespace Nitro\Browser;
 
 /**
- * The browser's APIs, from a component's browser methods: Fusion::browser()->clipboard()->write($text).
+ * The browser's APIs, from a component's browser methods: Nitro::browser()->clipboard()->write($text).
  *
  * The compiler turns each call into the matching JavaScript (js/functions/browser/_browser_*.js); a bundle
  * has only the APIs its components use. These classes describe the API for the compiler, editors
@@ -29,7 +29,7 @@ final class Browser
         throw BrowserOnlyException::make();
     }
 
-    /** The 2D context of the component's <canvas fusion:ref="$ref">, drawn on once the component has rendered. */
+    /** The 2D context of the component's <canvas nitro:ref="$ref">, drawn on once the component has rendered. */
     public function canvas(string $ref): Canvas
     {
         throw BrowserOnlyException::make();

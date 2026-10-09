@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Lifecycle;
+namespace Nitro\Lifecycle;
 
 use Illuminate\Support\Facades\Validator;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Feature;
-use Nitro\Fusion\Compiler\StateProperties;
+use Nitro\Compiler\Components;
+use Nitro\Component;
+use Nitro\Feature;
+use Nitro\Compiler\StateProperties;
 
 /**
  * #[Validate]: on a #[Server] call, the properties the browser changed, against their rules.
@@ -29,7 +29,7 @@ final class Validation extends Feature
         $validator = Validator::make(StateProperties::values($component), $rules, [], $attributes);
 
         if ($validator->fails()) {
-            $component->fusion()->errors = $validator->errors();
+            $component->nitro()->errors = $validator->errors();
 
             return false;
         }

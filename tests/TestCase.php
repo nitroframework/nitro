@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests;
+namespace Nitro\Tests;
 
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
@@ -10,23 +10,23 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Bootstrap\HandleExceptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Facade;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
+use Nitro\Nitro;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The feature tests boot the fixture app on Laravel, as the applications that use Fusion.
+ * The feature tests boot the fixture app on Laravel, as the applications that use Nitro.
  */
 abstract class TestCase extends BaseTestCase
 {
     public const APP = __DIR__.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'app';
 
     /** The fixture app's storage directories (git-ignored: a fresh clone has none). */
-    private const STORAGE = ['app/private', 'framework/cache', 'framework/fusion', 'framework/sessions', 'framework/views', 'logs'];
+    private const STORAGE = ['app/private', 'framework/cache', 'framework/nitro', 'framework/sessions', 'framework/views', 'logs'];
 
     protected ?Application $app = null;
 
@@ -43,7 +43,7 @@ abstract class TestCase extends BaseTestCase
         Store::$log = [];
         $this->cookies = [];
 
-        /** Once a run: views compiled by an earlier version of Fusion call what may have moved since. */
+        /** Once a run: views compiled by an earlier version of Nitro call what may have moved since. */
         if (! self::$viewsCleared) {
             array_map('unlink', glob(self::APP.'/storage/framework/views/*.php') ?: []);
             self::$viewsCleared = true;
@@ -89,7 +89,7 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
-    /** The framework each test boots the fixture app on: Laravel, as the applications that use Fusion. */
+    /** The framework each test boots the fixture app on: Laravel, as the applications that use Nitro. */
     public static function frameworks(): array
     {
         return ['laravel' => ['laravel']];
@@ -127,9 +127,9 @@ abstract class TestCase extends BaseTestCase
         return $this->app->make(ConsoleKernel::class);
     }
 
-    protected function fusion(): Fusion
+    protected function nitro(): Nitro
     {
-        return $this->app->make(Fusion::class);
+        return $this->app->make(Nitro::class);
     }
 
     protected function request(string $method, string $uri, array $server = [], ?string $content = null): Response
@@ -154,7 +154,7 @@ abstract class TestCase extends BaseTestCase
     /** A #[Server] call as the runtime sends it. */
     protected function update(array $payload): Response
     {
-        return $this->request('POST', '/_fusion/update', [
+        return $this->request('POST', '/_nitro/update', [
             'CONTENT_TYPE' => 'application/json',
             'HTTP_ACCEPT' => 'application/json',
             'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
@@ -171,7 +171,7 @@ abstract class TestCase extends BaseTestCase
     {
         return array_values(array_map(
             fn (array $envelope) => ['envelope' => $envelope, 'state' => Wire::fromJson($envelope['state'])],
-            $this->app->make(\Nitro\Fusion\Rendering\PageData::class)->statesIn($html),
+            $this->app->make(\Nitro\Rendering\PageData::class)->statesIn($html),
         ));
     }
 

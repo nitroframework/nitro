@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 /**
  * Viewi's PhpJsFunctions: PHP functions ported to JavaScript (Viewi's are locutus'), one file
- * each in js/functions, for Fusion's values (a PHP array is a JS array when it is a list, a Map
+ * each in js/functions, for Nitro's values (a PHP array is a JS array when it is a list, a Map
  * otherwise). A bundle has those its components call, with the ones they use (Viewi's getUses():
  * the file's "// uses: a, b" line). php.js has the functions the runtime itself needs.
  */

@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Url;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Concerns\WithPagination;
-use Nitro\Fusion\Concerns\WithSorting;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Url;
+use Nitro\Component;
+use Nitro\Concerns\WithPagination;
+use Nitro\Concerns\WithSorting;
 
 /**
  * A table the Livewire way: the concerns do the sorting and paging, updated() resets the page.

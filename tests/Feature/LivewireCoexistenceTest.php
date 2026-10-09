@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class LivewireCoexistenceTest extends TestCase
 {
     #[DataProvider('frameworks')]
-    public function test_livewire_and_fusion_components_share_a_page(string $framework): void
+    public function test_livewire_and_nitro_components_share_a_page(string $framework): void
     {
         $this->boot($framework);
 
@@ -26,19 +26,19 @@ class LivewireCoexistenceTest extends TestCase
         $this->assertStringContainsString('wire:snapshot=', $html);
         $this->assertStringContainsString('wire:click="tick"', $html);
 
-        /** Fusion's component, rendered by Fusion. */
+        /** Nitro's component, rendered by Nitro. */
         $this->assertStringContainsString('<span class="count">0</span>', $html);
         $this->assertNotSame([], $this->snapshots($html));
-        $this->assertStringContainsString('fusion:click="increment"', $html);
+        $this->assertStringContainsString('nitro:click="increment"', $html);
 
         /** Neither tag compiler touched the other's tags; both scripts are on the page. */
         $this->assertStringNotContainsString('<livewire:', $html);
-        $this->assertStringNotContainsString('<fusion:', $html);
+        $this->assertStringNotContainsString('<nitro:', $html);
         $this->assertMatchesRegularExpression('/<script[^>]+livewire/', $html);
-        $this->assertStringContainsString('/_fusion/fusion.js', $html);
+        $this->assertStringContainsString('/_nitro/nitro.js', $html);
 
-        /** Fusion compiles only its own components. */
-        $bundle = (string) $this->get('/_fusion/app.js')->getContent();
+        /** Nitro compiles only its own components. */
+        $bundle = (string) $this->get('/_nitro/app.js')->getContent();
         $this->assertStringNotContainsString('ticker', $bundle);
     }
 }

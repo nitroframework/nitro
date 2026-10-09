@@ -1,7 +1,7 @@
 {
-    "name": "nitro/fusion",
-    "description": "Fusion: Livewire-style components (a PHP class and a Blade view) compiled to JavaScript that runs in the browser. Works on Laravel.",
-    "keywords": ["nitro", "laravel", "fusion", "components", "reactive", "transpiler"],
+    "name": "nitro/nitro",
+    "description": "Nitro: Livewire-style components (a PHP class and a Blade view) compiled to JavaScript that runs in the browser. Works on Laravel.",
+    "keywords": ["nitro", "laravel", "nitro", "components", "reactive", "transpiler"],
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -23,21 +23,21 @@
     },
     "autoload": {
         "psr-4": {
-            "Nitro\\Fusion\\": "src/"
+            "Nitro\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Nitro\\Fusion\\Tests\\": "tests/"
+            "Nitro\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Nitro\\Fusion\\FusionServiceProvider"
+                "Nitro\\NitroServiceProvider"
             ],
             "aliases": {
-                "Fusion": "Nitro\\Fusion\\Facades\\Fusion"
+                "Nitro": "Nitro\\Facades\\Nitro"
             }
         }
     },

@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Parity;
+namespace Nitro\Tests\Parity;
 
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Transpiler;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Parity\Playground;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Transpiler;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Parity\Playground;
+use Nitro\Tests\Support\Node;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\ParserFactory;

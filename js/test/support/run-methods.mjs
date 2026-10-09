@@ -1,5 +1,5 @@
 // Parity runner for compiled methods: stdin {methods: {name: "function ..."}, properties, cases, classes?};
-// classes: the #[Browser] classes the methods call (Fusion.classes[class] = {...}, as the bundle defines them);
+// classes: the #[Browser] classes the methods call (Nitro.classes[class] = {...}, as the bundle defines them);
 // stdout the cases where the compiled method does not do what PHP did.
 import * as P from '../../src/php.js';
 import { readStdin, same } from './common.mjs';
@@ -7,12 +7,12 @@ import { readStdin, same } from './common.mjs';
 const input = await readStdin();
 const source = Object.entries(input.methods).map(([name, code]) => `${JSON.stringify(name)}: ${code}`).join(',\n');
 
-const Fusion = { classes: Object.create(null) };
+const Nitro = { classes: Object.create(null) };
 
 let methods;
 try {
-    new Function('P', 'Fusion', input.classes ?? '')(P, Fusion);
-    methods = new Function('P', 'Fusion', `return {\n${source}\n};`)(P, Fusion);
+    new Function('P', 'Nitro', input.classes ?? '')(P, Nitro);
+    methods = new Function('P', 'Nitro', `return {\n${source}\n};`)(P, Nitro);
 } catch (err) {
     process.stdout.write(JSON.stringify([{ id: -1, method: '(compile)', expected: 'valid JavaScript', actual: `${err.message}\n${source}` }]));
     process.exit(0);

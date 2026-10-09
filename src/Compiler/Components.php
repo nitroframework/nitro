@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use InvalidArgumentException;
-use Nitro\Fusion\Support\Naming;
-use Nitro\Fusion\Support\Registry;
+use Nitro\Support\Naming;
+use Nitro\Support\Registry;
 
 /**
- * What Fusion knows about the application's components and pages, by name or class: each one's
+ * What Nitro knows about the application's components and pages, by name or class: each one's
  * ComponentMeta, read once per class.
  */
 final class Components
@@ -19,13 +19,13 @@ final class Components
     {
     }
 
-    /** What Fusion knows about a component, by name or class. */
+    /** What Nitro knows about a component, by name or class. */
     public function meta(string $component): ComponentMeta
     {
         $class = class_exists($component) ? ltrim($component, '\\') : $this->registry->class($component);
 
         if ($class === null) {
-            throw new InvalidArgumentException("Unknown Fusion component [{$component}].");
+            throw new InvalidArgumentException("Unknown Nitro component [{$component}].");
         }
 
         if (isset($this->metas[$class])) {

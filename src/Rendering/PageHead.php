@@ -1,26 +1,26 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\HtmlString;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\Config;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Component;
+use Nitro\Support\Config;
 
 /**
  * The page's <head>: its title and the tags search engines and link previews read, from what
- * mount() set ($this->head()), #[Title] / #[Description] and fusion.head. @fusionHead prints it;
+ * mount() set ($this->head()), #[Title] / #[Description] and nitro.head. @nitroHead prints it;
  * a visit's answer carries it; a client page's is worked out at build time. And the document title
- * as the layout writes it (layoutTitle()). A part of Fusion.
+ * as the layout writes it (layoutTitle()). A part of Nitro.
  */
 final class PageHead
 {
     /** @var array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}|null the page being answered's <head> */
     private ?array $head = null;
 
-    /** Whether the layout printed @fusionHead (a visit sends the head's tags only then). */
+    /** Whether the layout printed @nitroHead (a visit sends the head's tags only then). */
     private bool $printed = false;
 
     /** Whether the layout is being rendered for its title only (layoutTitle()). */
@@ -34,14 +34,14 @@ final class PageHead
     }
 
     /**
-     * The page's <head>, as @fusionHead prints it, now the one being answered: what mount() set
-     * ($this->head()), else #[Title] and #[Description], else the fusion.head defaults.
+     * The page's <head>, as @nitroHead prints it, now the one being answered: what mount() set
+     * ($this->head()), else #[Title] and #[Description], else the nitro.head defaults.
      *
      * @return array{title: ?string, description: ?string, image: ?string, canonical: ?string, noindex: bool, meta: array<string, string>}
      */
     public function forPage(Component $component, ComponentMeta $meta): array
     {
-        $set = $component->fusion()->head?->values() ?? [];
+        $set = $component->nitro()->head?->values() ?? [];
 
         return $this->head = [
             'title' => $set['title'] ?? $meta->title,
@@ -56,7 +56,7 @@ final class PageHead
     /**
      * A client page's title and head tags (#[Navigate('client')]), worked out at build time from
      * its #[Title], #[Description] and layout, since a visit to it does not ask the server: what a
-     * visit's answer would carry ('head' null when the layout has no @fusionHead).
+     * visit's answer would carry ('head' null when the layout has no @nitroHead).
      *
      * @return array{title: ?string, head: ?string}
      *
@@ -89,8 +89,8 @@ final class PageHead
     }
 
     /**
-     * @fusionHead: the page's <title> (in the fusion.head.title format) and the tags search engines
-     * and link previews read. Outside a Fusion page (a plain Blade view), the defaults.
+     * @nitroHead: the page's <title> (in the nitro.head.title format) and the tags search engines
+     * and link previews read. Outside a Nitro page (a plain Blade view), the defaults.
      */
     public function html(): HtmlString
     {
@@ -102,27 +102,27 @@ final class PageHead
         return new HtmlString('<title>'.e($text)."</title>\n".$this->tags());
     }
 
-    /** Whether the layout printed @fusionHead. */
+    /** Whether the layout printed @nitroHead. */
     public function printed(): bool
     {
         return $this->printed;
     }
 
-    /** The head's tags but the title, each marked data-fusion-head for the browser to replace on a visit. */
+    /** The head's tags but the title, each marked data-nitro-head for the browser to replace on a visit. */
     public function tags(): string
     {
         $head = $this->head ?? ['title' => null, 'description' => $this->config->get('head.description'), 'image' => $this->config->get('head.image'), 'canonical' => null, 'noindex' => false, 'meta' => []];
         $tags = [];
         $meta = fn (string $attribute, string $key, ?string $content) => $content === null || $content === ''
             ? null
-            : '<meta '.$attribute.'="'.e($key).'" content="'.e($content).'" data-fusion-head>';
+            : '<meta '.$attribute.'="'.e($key).'" content="'.e($content).'" data-nitro-head>';
 
         $tags[] = $meta('name', 'description', $head['description']);
         $tags[] = $meta('property', 'og:title', $head['title']);
         $tags[] = $meta('property', 'og:description', $head['description']);
         $tags[] = $meta('property', 'og:image', $head['image']);
         $tags[] = $head['image'] === null || $head['image'] === '' ? null : $meta('name', 'twitter:card', 'summary_large_image');
-        $tags[] = $head['canonical'] === null ? null : '<link rel="canonical" href="'.e($head['canonical']).'" data-fusion-head>';
+        $tags[] = $head['canonical'] === null ? null : '<link rel="canonical" href="'.e($head['canonical']).'" data-nitro-head>';
         $tags[] = $head['noindex'] ? $meta('name', 'robots', 'noindex') : null;
 
         foreach ($head['meta'] as $name => $content) {
@@ -135,7 +135,7 @@ final class PageHead
     /** The document title as the layout writes it (the layout owns its format). */
     public function layoutTitle(string $layout, array $layoutData): ?string
     {
-        /** For its title only: @fusionScripts writes nothing (no shared data resolved, no globals built). */
+        /** For its title only: @nitroScripts writes nothing (no shared data resolved, no globals built). */
         $this->renderingTitle = true;
 
         try {
@@ -149,7 +149,7 @@ final class PageHead
             : null;
     }
 
-    /** Whether the layout is being rendered for its title only: @fusionScripts writes nothing then. */
+    /** Whether the layout is being rendered for its title only: @nitroScripts writes nothing then. */
     public function renderingTitle(): bool
     {
         return $this->renderingTitle;

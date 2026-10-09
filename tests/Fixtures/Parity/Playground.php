@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Parity;
+namespace Nitro\Tests\Fixtures\Parity;
 
 /**
  * Methods exercising the PHP the transpiler accepts. Each runs in PHP and, compiled, in Node;

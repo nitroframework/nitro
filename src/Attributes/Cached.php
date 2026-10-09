@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
 use InvalidArgumentException;
 
 /**
- * A method's result, kept for a time or until one of its tags expires (Fusion::expire()), in the
- * application's cache. Fusion runs the method once and answers from the cache after:
+ * A method's result, kept for a time or until one of its tags expires (Nitro::expire()), in the
+ * application's cache. Nitro runs the method once and answers from the cache after:
  *
  *  - on mount(): the state it left, for the same inputs (props, route parameters, #[Url] values,
  *    mount()'s arguments). The view still renders for each request; only mount()'s work is kept,
@@ -36,7 +36,7 @@ final class Cached
 {
     /**
      * @param  int  $seconds  how long a result is kept
-     * @param  list<string>  $tags  Fusion::expire() with one of them forgets it
+     * @param  list<string>  $tags  Nitro::expire() with one of them forgets it
      * @param  list<string>|null  $by  the properties the result depends on; null: the whole state
      */
     public function __construct(

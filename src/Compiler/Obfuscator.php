@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
-use Nitro\Fusion\Support\Naming;
+use Nitro\Support\Naming;
 
 /**
- * The names the browser sees in an obfuscated build (fusion.build.obfuscate): methods, properties
+ * The names the browser sees in an obfuscated build (nitro.build.obfuscate): methods, properties
  * and components under aliases, keyed by the application key (an HMAC: they cannot be worked back
  * by hashing guesses). The build writes them into the bundle; the server translates them back
  * where the browser hands them over (a #[Server] call's method, a snapshot, an update).
  *
  * A property path aliases its property only: the keys of an array property are its data. The
  * hooks are aliased as any method: the runtime finds them by the component's definition. Components keep
- * theirs when the application has a <fusion:dynamic-component>: the browser picks those by a
+ * theirs when the application has a <nitro:dynamic-component>: the browser picks those by a
  * name computed as it runs. Pages are aliased either way.
  */
 final class Obfuscator
@@ -51,15 +51,15 @@ final class Obfuscator
     }
 
     /**
-     * JavaScript for $this->js(), reading the component as $fusion.<name>: its properties and
-     * methods by their aliases. Names built as it runs ($fusion[name]) cannot be: they keep theirs.
+     * JavaScript for $this->js(), reading the component as $nitro.<name>: its properties and
+     * methods by their aliases. Names built as it runs ($nitro[name]) cannot be: they keep theirs.
      *
      * @param  list<string>  $properties
      * @param  list<string>  $methods
      */
     public function script(string $code, array $properties, array $methods): string
     {
-        return (string) preg_replace_callback('/\$fusion\.([A-Za-z_]\w*)/', fn (array $match) => '$fusion.'.match (true) {
+        return (string) preg_replace_callback('/\$nitro\.([A-Za-z_]\w*)/', fn (array $match) => '$nitro.'.match (true) {
             in_array($match[1], $properties, true) => $this->property($match[1]),
             in_array($match[1], $methods, true) => $this->method($match[1]),
             default => $match[1],

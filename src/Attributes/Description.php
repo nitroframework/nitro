@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
 
 /**
- * A routed page's description, for search results and link previews (@fusionHead prints it).
+ * A routed page's description, for search results and link previews (@nitroHead prints it).
  * $this->head()->description() in mount() sets one from data instead.
  */
 #[Attribute(Attribute::TARGET_CLASS)]

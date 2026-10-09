@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 /** The known breaks (known-breaks.php): by guard, then rule, then file => the TASKS item that fixes it. */
 final class Baseline

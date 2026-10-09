@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Url/Base64Encode.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/Base64Encode.js, for Nitro's values.
 function base64_encode(str) { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.base64-encode.php
   // Over the UTF-8 bytes, as PHP sees the string: base64_encode('é') is 'w6k='.

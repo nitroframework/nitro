@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /** A row of the stress page: props from the page, an event back up to it. */
 class StressRow extends Component

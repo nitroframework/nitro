@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateCompiler;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Clone mode (fusion.rendering = 'clone'): the views' largest static parts are marked (s: 1) for
- * the browser to copy; anything with data, a binding, a fusion: attribute or a form control is
+ * Clone mode (nitro.rendering = 'clone'): the views' largest static parts are marked (s: 1) for
+ * the browser to copy; anything with data, a binding, a nitro: attribute or a form control is
  * not; and in create mode (the default) nothing is marked.
  */
 class StaticPartsTest extends TestCase
@@ -30,8 +30,8 @@ class StaticPartsTest extends TestCase
             .'<span class="{{ $name }}">a</span>'
             .'<span @class(["on" => true])>b</span>'
             .'<span @disabled($name)>c</span>'
-            .'<button fusion:click="save">d</button>'
-            .'<span fusion:transition>e</span>'
+            .'<button nitro:click="save">d</button>'
+            .'<span nitro:transition>e</span>'
             .'<input type="text"><select><option>f</option></select><textarea>g</textarea>'
             .'<script>h</script>'
             .'<section><span>static</span><em>{{ $name }}</em></section>'
@@ -47,7 +47,7 @@ class StaticPartsTest extends TestCase
 
     public function test_parts_inside_blocks_and_slots_are_marked(): void
     {
-        $root = $this->tree('<div>@if ($name)<p>Yes</p>@endif<fusion:card><i>In a slot</i></fusion:card></div>');
+        $root = $this->tree('<div>@if ($name)<p>Yes</p>@endif<nitro:card><i>In a slot</i></nitro:card></div>');
 
         $this->assertSame(1, $root['h'][0]['h'][0]['s'] ?? null, 'inside @if');
         $this->assertSame(1, $root['h'][1]['slots']['default']['h'][0]['s'] ?? null, 'in a child tag\'s slot');

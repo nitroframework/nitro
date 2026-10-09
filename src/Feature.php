@@ -1,22 +1,22 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 /**
- * Something that runs around every component on the server: list the class in fusion.features
+ * Something that runs around every component on the server: list the class in nitro.features
  * and override the hooks it needs. Features are made by the container, once per request (so a
- * constructor can take services), and run after Fusion's own, in the order listed. Each hook runs
+ * constructor can take services), and run after Nitro's own, in the order listed. Each hook runs
  * after the component's own method of that name, when it has one.
  *
  *     class AuditCalls extends Feature
  *     {
  *         public function called(Component $component, string $method, mixed $result): void
  *         {
- *             Log::info('fusion call', ['component' => $component::class, 'method' => $method]);
+ *             Log::info('nitro call', ['component' => $component::class, 'method' => $method]);
  *         }
  *     }
  *
- * Fusion's own #[Url] and #[Validate] are features too (Nitro\Fusion\Lifecycle).
+ * Nitro's own #[Url] and #[Validate] are features too (Nitro\Lifecycle).
  */
 abstract class Feature
 {

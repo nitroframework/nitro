@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
 use Illuminate\Support\Str;
-use Nitro\Fusion\Compiler\BrowserClasses;
-use Nitro\Fusion\Compiler\Functions as JsFunctions;
-use Nitro\Fusion\Compiler\Globals;
+use Nitro\Compiler\BrowserClasses;
+use Nitro\Compiler\Functions as JsFunctions;
+use Nitro\Compiler\Globals;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
@@ -29,14 +29,14 @@ use ReflectionMethod;
  *  - named arguments, by-reference arguments and first-class callables (strlen(...)) fail to
  *    compile; ...$spread goes through P.spread
  *
- * Laravel (Fusion ships what the code names, so the browser has it):
+ * Laravel (Nitro ships what the code names, so the browser has it):
  *
  *  - route(), __() / trans(), config(): the route name, translation key or config key must be a
  *    string literal; it is recorded in $uses, and the page carries those routes, lines and values
  *  - url() and asset(): the page's base URLs
  *  - Str::slug() and the other Str helpers: ported to js/functions (Str_slug)
  *
- * Fusion: Fusion::browser() is the component's browser APIs ($this.$browser); see
+ * Nitro: Nitro::browser() is the component's browser APIs ($this.$browser); see
  * ComponentAccess for the calls on it.
  *
  * @internal
@@ -132,16 +132,16 @@ final class Calls extends Part
     /**
      * Str::slug($title): Laravel's Str helpers, ported to js/functions (Str_slug). Str is the
      * Illuminate\Support\Str class, as a view (Blade's alias) or a use statement names it.
-     * Fusion::browser() is the component's browser APIs. A #[Browser] class's static methods
+     * Nitro::browser() is the component's browser APIs. A #[Browser] class's static methods
      * (browserClassCall()).
      */
     public function staticCall(Expr\StaticCall $expression): string
     {
         $class = $expression->class instanceof Name ? ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\') : null;
 
-        if (in_array($class, Catalog::FUSION, true)) {
+        if (in_array($class, Catalog::NITRO, true)) {
             if (! $expression->name instanceof Identifier || $expression->name->toString() !== 'browser' || $expression->args !== []) {
-                throw $this->context->error('Fusion:: runs on the server; in the browser, Fusion::browser() has the browser\'s APIs', $expression);
+                throw $this->context->error('Nitro:: runs on the server; in the browser, Nitro::browser() has the browser\'s APIs', $expression);
             }
 
             return '$this.$browser';
@@ -175,7 +175,7 @@ final class Calls extends Part
 
     /**
      * Money::format($cents): a static method of a #[Browser] class or enum, compiled with the
-     * bundle (ComponentCompiler::compileClasses()) and called as Fusion.classes[class][method]. A
+     * bundle (ComponentCompiler::compileClasses()) and called as Nitro.classes[class][method]. A
      * private or protected one only from its own class. An enum's cases(), from() and tryFrom()
      * are the runtime's (P.defineEnum()).
      *
@@ -189,7 +189,7 @@ final class Calls extends Part
 
         $name = $expression->name->toString();
         $scope = $this->context->scope;
-        $target = 'Fusion.classes['.json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).']';
+        $target = 'Nitro.classes['.json_encode($scope->browserClass($class), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).']';
 
         if (BrowserClasses::isEnum($class)) {
             $this->context->uses['classes'][BrowserClasses::definition($class)] = true;

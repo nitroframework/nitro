@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayMergeRecursive.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayMergeRecursive.js, for Nitro's values.
 // uses: _php_array_entries, _php_array
 function array_merge_recursive() { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.array-merge-recursive.php

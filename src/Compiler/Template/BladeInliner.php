@@ -1,26 +1,26 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 use Illuminate\View\Factory;
 use InvalidArgumentException;
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
 
 /**
- * Blade's @include and anonymous components (<x-name>) in a Fusion view, for the browser: before
+ * Blade's @include and anonymous components (<x-name>) in a Nitro view, for the browser: before
  * the template compiler reads the view, each is replaced by the view it names (inlined), so the
  * compiled render function renders what Blade renders. The server still renders the original
  * view with Blade; tests/Parity checks the two agree.
  *
  * An inlined view reads its variables from the place that includes it: the inliner marks the
- * region with @fusionScope({vars}) ... @endfusionScope, and the template compiler replaces those
+ * region with @nitroScope({vars}) ... @endnitroScope, and the template compiler replaces those
  * variables in the region's expressions by the PHP expressions they were given:
  *
  *   include: @include('row', ['cake' => $item])    $cake in row.blade.php reads $item
  *   <x-badge :tone="$t">New</x-badge>     $tone reads $t; {{ $slot }} is "New", compiled where
- *                                         the tag is (@fusionSlot: the parent's variables)
+ *                                         the tag is (@nitroSlot: the parent's variables)
  *
  * As Blade's: an included view sees the variables around it, a component only its own (its
  * @props, its attributes, $slot and the named slots, $errors). A component's $attributes is
@@ -28,7 +28,7 @@ use PhpParser\Node\Scalar;
  * newline after @include and after a component tag is dropped (PHP's "?>"), a slot is trimmed.
  *
  * Not inlined: class-based components (their class renders on the server only), dynamic view
- * names, <fusion:...> children inside an inlined view. Each is a CompileException.
+ * names, <nitro:...> children inside an inlined view. Each is a CompileException.
  */
 final class BladeInliner
 {
@@ -256,15 +256,15 @@ final class BladeInliner
 
         if ($path === null) {
             /** @includeIf of a view that is not there: nothing, and the newline after it goes (as Blade's statement). */
-            $this->out .= '@fusionScope('.$this->frame([], false, $view->value).')@endfusionScope';
+            $this->out .= '@nitroScope('.$this->frame([], false, $view->value).')@endnitroScope';
 
             return [$after, $next];
         }
 
         $this->files[$path] = true;
-        $this->out .= ($condition !== null ? '@if('.PhpSource::print($condition).')' : '').'@fusionScope('.$this->frame($vars, false, $view->value).')';
+        $this->out .= ($condition !== null ? '@if('.PhpSource::print($condition).')' : '').'@nitroScope('.$this->frame($vars, false, $view->value).')';
         $this->inline((string) file_get_contents($path), $path, 1, $depth + 1);
-        $this->out .= '@endfusionScope'.($condition !== null ? '@endif' : '');
+        $this->out .= '@endnitroScope'.($condition !== null ? '@endif' : '');
 
         return [$after, $next];
     }
@@ -342,7 +342,7 @@ final class BladeInliner
     private function expandComponent(string $name, string $attributeString, string $content, ?string $file, int $line, int $depth): void
     {
         if ($name === 'dynamic-component') {
-            throw new CompileException('<x-dynamic-component> names its component at run time: use <fusion:dynamic-component :is> for Fusion components', $file, $line);
+            throw new CompileException('<x-dynamic-component> names its component at run time: use <nitro:dynamic-component :is> for Nitro components', $file, $line);
         }
 
         try {
@@ -365,12 +365,12 @@ final class BladeInliner
             throw new CompileException("<x-{$name} {{ \$attributes }}>: passing a component's attributes on to another is not supported in the browser yet", $file, $line);
         }
 
-        /** fusion:click="..." and the other fusion: attributes, as written: the template compiler reads them where they land. */
-        preg_match_all('/(?<=\s|^)(fusion:[\w\-.]+)(?:\s*=\s*("[^"]*"|\'[^\']*\'))?/', $attributeString, $fusionMatches, PREG_SET_ORDER);
-        $fusion = [];
+        /** nitro:click="..." and the other nitro: attributes, as written: the template compiler reads them where they land. */
+        preg_match_all('/(?<=\s|^)(nitro:[\w\-.]+)(?:\s*=\s*("[^"]*"|\'[^\']*\'))?/', $attributeString, $nitroMatches, PREG_SET_ORDER);
+        $nitro = [];
 
-        foreach ($fusionMatches as $match) {
-            $fusion[$match[1]] = $match[0];
+        foreach ($nitroMatches as $match) {
+            $nitro[$match[1]] = $match[0];
         }
 
         [$slots, $defaultSlot] = $this->parts->namedSlots($content, $name, $file, $line);
@@ -400,7 +400,7 @@ final class BladeInliner
         $bagCodes = [];
 
         foreach (array_keys($bag) as $i => $attribute) {
-            if (isset($fusion[$attribute])) {
+            if (isset($nitro[$attribute])) {
                 continue;
             }
 
@@ -409,15 +409,15 @@ final class BladeInliner
         }
 
         $view = $this->slotsIn($view, $slots, $id, $path, $file);
-        $view = AttributeBag::render($view, $bagCodes, $fusion, $bag, $id, $path);
+        $view = AttributeBag::render($view, $bagCodes, $nitro, $bag, $id, $path);
 
         if (preg_match('/\$attributes\b/', $view, $left, PREG_OFFSET_CAPTURE)) {
             throw new CompileException('$attributes is used in a way the browser cannot render: use {{ $attributes }}, ->merge([...]), ->class([...]), ->only([...]), ->except([...]) in a tag, or ->get() and ->has()', $path, 1 + substr_count($view, "\n", 0, $left[0][1]));
         }
 
-        $this->out .= '@fusionScope('.$this->frame([...$vars, ...$bagVars], true, "<x-{$name}>", $id).')';
+        $this->out .= '@nitroScope('.$this->frame([...$vars, ...$bagVars], true, "<x-{$name}>", $id).')';
         $this->inline(ComponentParts::putBack($view, $kept), $path, 1, $depth + 1);
-        $this->out .= '@endfusionScope';
+        $this->out .= '@endnitroScope';
     }
 
     /**
@@ -448,20 +448,20 @@ final class BladeInliner
 
     /**
      * A slot's placeholder: its content, compiled with the variables of where the component tag
-     * is (@fusionSlot: those outside the component's frame).
+     * is (@nitroSlot: those outside the component's frame).
      */
     private function slot(int $index, ?string $file, int $line, int $depth): void
     {
         [$content, $slotFile, $slotLine, $frame] = $this->slots[$index];
-        $this->out .= "@fusionSlot({$frame})";
+        $this->out .= "@nitroSlot({$frame})";
         $this->inline($content, $slotFile, $slotLine, $depth + 1);
-        $this->out .= '@endfusionSlot';
+        $this->out .= '@endnitroSlot';
     }
 
     // ------------------------------------------------------------ frames
 
     /**
-     * A frame's description for @fusionScope: its variables (name => PHP, read where the region
+     * A frame's description for @nitroScope: its variables (name => PHP, read where the region
      * is), whether it sees the variables around it (an include) or not (a component), a label.
      *
      * @param  array<string, string>  $vars

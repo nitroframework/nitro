@@ -1,71 +1,71 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Nitro\Fusion\Facades\Fusion;
-use Nitro\Fusion\Tests\Fixtures\Pages\Article;
-use Nitro\Fusion\Tests\Fixtures\Pages\Board;
-use Nitro\Fusion\Tests\Fixtures\Pages\Counter;
-use Nitro\Fusion\Tests\Fixtures\Pages\Devices;
-use Nitro\Fusion\Tests\Fixtures\Pages\Feed;
-use Nitro\Fusion\Tests\Fixtures\Pages\Gallery;
-use Nitro\Fusion\Tests\Fixtures\Pages\Greeting;
-use Nitro\Fusion\Tests\Fixtures\Pages\Inbox;
-use Nitro\Fusion\Tests\Fixtures\Pages\Journal;
-use Nitro\Fusion\Tests\Fixtures\Pages\Lifecycle;
-use Nitro\Fusion\Tests\Fixtures\Pages\Links;
-use Nitro\Fusion\Tests\Fixtures\Pages\Live;
-use Nitro\Fusion\Tests\Fixtures\Pages\MountedTimeline;
-use Nitro\Fusion\Tests\Fixtures\Pages\Notice;
-use Nitro\Fusion\Tests\Fixtures\Pages\Orders;
-use Nitro\Fusion\Tests\Fixtures\Pages\Pair;
-use Nitro\Fusion\Tests\Fixtures\Pages\Panels;
-use Nitro\Fusion\Tests\Fixtures\Pages\Report;
-use Nitro\Fusion\Tests\Fixtures\Pages\Shelf;
-use Nitro\Fusion\Tests\Fixtures\Pages\Showcase;
-use Nitro\Fusion\Tests\Fixtures\Pages\StudentPage;
-use Nitro\Fusion\Tests\Fixtures\Pages\Terms;
-use Nitro\Fusion\Tests\Fixtures\Pages\Transitions;
+use Nitro\Facades\Nitro;
+use Nitro\Tests\Fixtures\Pages\Article;
+use Nitro\Tests\Fixtures\Pages\Board;
+use Nitro\Tests\Fixtures\Pages\Counter;
+use Nitro\Tests\Fixtures\Pages\Devices;
+use Nitro\Tests\Fixtures\Pages\Feed;
+use Nitro\Tests\Fixtures\Pages\Gallery;
+use Nitro\Tests\Fixtures\Pages\Greeting;
+use Nitro\Tests\Fixtures\Pages\Inbox;
+use Nitro\Tests\Fixtures\Pages\Journal;
+use Nitro\Tests\Fixtures\Pages\Lifecycle;
+use Nitro\Tests\Fixtures\Pages\Links;
+use Nitro\Tests\Fixtures\Pages\Live;
+use Nitro\Tests\Fixtures\Pages\MountedTimeline;
+use Nitro\Tests\Fixtures\Pages\Notice;
+use Nitro\Tests\Fixtures\Pages\Orders;
+use Nitro\Tests\Fixtures\Pages\Pair;
+use Nitro\Tests\Fixtures\Pages\Panels;
+use Nitro\Tests\Fixtures\Pages\Report;
+use Nitro\Tests\Fixtures\Pages\Shelf;
+use Nitro\Tests\Fixtures\Pages\Showcase;
+use Nitro\Tests\Fixtures\Pages\StudentPage;
+use Nitro\Tests\Fixtures\Pages\Terms;
+use Nitro\Tests\Fixtures\Pages\Transitions;
 
-Route::fusion('/students/{student}', StudentPage::class)->name('students.show');
-Route::fusion('/counter', Counter::class)->name('counter');
-Route::fusion('/board', Board::class)->name('board');
-Route::fusion('/links', Links::class)->name('links');
-Route::fusion('/journal', Journal::class)->name('journal');
-Route::fusion('/lifecycle', Lifecycle::class)->name('lifecycle');
-Route::fusion('/shelf', Shelf::class)->name('shelf');
-Route::fusion('/panels', Panels::class)->name('panels');
-Route::fusion('/private', Counter::class)->middleware('auth');
-Route::fusion('/gallery', Gallery::class)->name('gallery');
-Route::fusion('/private-gallery', Gallery::class)->middleware('auth');
-Route::fusion('/showcase', Showcase::class)->name('showcase');
-Route::fusion('/stress', \Nitro\Fusion\Tests\Fixtures\Pages\Stress::class)->name('stress');
-Route::fusion('/catalog', \Nitro\Fusion\Tests\Fixtures\Pages\Catalog::class)->name('catalog');
-Route::fusion('/nested', \Nitro\Fusion\Tests\Fixtures\Pages\Nested::class)->name('nested');
-Route::fusion('/outage', \Nitro\Fusion\Tests\Fixtures\Pages\Outage::class)->name('outage');
-Route::fusion('/engines', \Nitro\Fusion\Tests\Fixtures\Pages\Engines::class)->name('engines');
-Route::fusion('/parity', \Nitro\Fusion\Tests\Fixtures\Pages\Parity::class)->name('parity');
-Route::fusion('/talk', \Nitro\Fusion\Tests\Fixtures\Pages\Talk::class)->name('talk');
-Route::fusion('/greeting', Greeting::class)->name('greeting');
-Route::fusion('/report', Report::class)->name('report');
-Route::fusion('/feed', Feed::class)->name('feed');
-Route::fusion('/transitions', Transitions::class)->name('transitions');
-Route::fusion('/live', Live::class)->name('live');
-Route::fusion('/devices', Devices::class)->name('devices');
-Route::fusion('/timeline', MountedTimeline::class)->name('timeline');
+Route::nitro('/students/{student}', StudentPage::class)->name('students.show');
+Route::nitro('/counter', Counter::class)->name('counter');
+Route::nitro('/board', Board::class)->name('board');
+Route::nitro('/links', Links::class)->name('links');
+Route::nitro('/journal', Journal::class)->name('journal');
+Route::nitro('/lifecycle', Lifecycle::class)->name('lifecycle');
+Route::nitro('/shelf', Shelf::class)->name('shelf');
+Route::nitro('/panels', Panels::class)->name('panels');
+Route::nitro('/private', Counter::class)->middleware('auth');
+Route::nitro('/gallery', Gallery::class)->name('gallery');
+Route::nitro('/private-gallery', Gallery::class)->middleware('auth');
+Route::nitro('/showcase', Showcase::class)->name('showcase');
+Route::nitro('/stress', \Nitro\Tests\Fixtures\Pages\Stress::class)->name('stress');
+Route::nitro('/catalog', \Nitro\Tests\Fixtures\Pages\Catalog::class)->name('catalog');
+Route::nitro('/nested', \Nitro\Tests\Fixtures\Pages\Nested::class)->name('nested');
+Route::nitro('/outage', \Nitro\Tests\Fixtures\Pages\Outage::class)->name('outage');
+Route::nitro('/engines', \Nitro\Tests\Fixtures\Pages\Engines::class)->name('engines');
+Route::nitro('/parity', \Nitro\Tests\Fixtures\Pages\Parity::class)->name('parity');
+Route::nitro('/talk', \Nitro\Tests\Fixtures\Pages\Talk::class)->name('talk');
+Route::nitro('/greeting', Greeting::class)->name('greeting');
+Route::nitro('/report', Report::class)->name('report');
+Route::nitro('/feed', Feed::class)->name('feed');
+Route::nitro('/transitions', Transitions::class)->name('transitions');
+Route::nitro('/live', Live::class)->name('live');
+Route::nitro('/devices', Devices::class)->name('devices');
+Route::nitro('/timeline', MountedTimeline::class)->name('timeline');
 
-Route::fusion('/orders', Orders::class)->name('orders');
-Route::fusion('/inbox', Inbox::class)->name('inbox');
-Route::fusion('/article', Article::class)->name('article');
-Route::fusion('/notice', Notice::class)->name('notice');
-Route::fusion('/terms', Terms::class)->name('terms');
-Route::fusion('/chapters/{number}/{part?}', \Nitro\Fusion\Tests\Fixtures\Pages\Chapter::class)->where('number', '[0-9]+')->name('chapters.show');
-Route::fusion('/pair/{student}', Pair::class)->name('pair');
-Route::fusion('/shop', \Nitro\Fusion\Tests\Fixtures\Pages\Shop::class)->name('shop');
-Route::fusion('/shop/cart', \Nitro\Fusion\Tests\Fixtures\Pages\ShopCart::class)->name('shop.cart');
+Route::nitro('/orders', Orders::class)->name('orders');
+Route::nitro('/inbox', Inbox::class)->name('inbox');
+Route::nitro('/article', Article::class)->name('article');
+Route::nitro('/notice', Notice::class)->name('notice');
+Route::nitro('/terms', Terms::class)->name('terms');
+Route::nitro('/chapters/{number}/{part?}', \Nitro\Tests\Fixtures\Pages\Chapter::class)->where('number', '[0-9]+')->name('chapters.show');
+Route::nitro('/pair/{student}', Pair::class)->name('pair');
+Route::nitro('/shop', \Nitro\Tests\Fixtures\Pages\Shop::class)->name('shop');
+Route::nitro('/shop/cart', \Nitro\Tests\Fixtures\Pages\ShopCart::class)->name('shop.cart');
 
-/** Fusion::flash() and a redirect: the page it goes to delivers it. */
+/** Nitro::flash() and a redirect: the page it goes to delivers it. */
 Route::get('/flash-and-redirect', function () {
-    Fusion::flash('toast', 'Saved');
+    Nitro::flash('toast', 'Saved');
 
     return redirect('/greeting');
 });
@@ -87,10 +87,10 @@ Route::get('/scripts-first', fn () => view('scripts-first'));
 
 /** For the browser tests: the names the browser has for components and chunks (an obfuscated build's aliases). */
 Route::get('/_test/names', function () {
-    $registry = app(\Nitro\Fusion\Support\Registry::class);
-    $components = app(\Nitro\Fusion\Compiler\Components::class);
-    $names = app(\Nitro\Fusion\Build\BrowserNames::class);
-    $bundle = app(\Nitro\Fusion\Build\Bundle::class);
+    $registry = app(\Nitro\Support\Registry::class);
+    $components = app(\Nitro\Compiler\Components::class);
+    $names = app(\Nitro\Build\BrowserNames::class);
+    $bundle = app(\Nitro\Build\Bundle::class);
 
     return [
         'components' => collect($registry->all())->keys()->mapWithKeys(fn (string $name) => [$name => $names->component($name)]),

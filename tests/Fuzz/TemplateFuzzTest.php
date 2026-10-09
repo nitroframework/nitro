@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 use Illuminate\Support\MessageBag;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Tests\Support\Node;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Support\Wire;
+use Nitro\Compiler\StateProperties;
+use Nitro\Tests\Support\Node;
+use Nitro\Tests\TestCase;
 use Throwable;
 
 /**
@@ -40,12 +40,12 @@ class TemplateFuzzTest extends TestCase
         $request->setLaravelSession($session);
         $this->app->instance('request', $request);
 
-        $views = sys_get_temp_dir().DIRECTORY_SEPARATOR.'fusion-template-fuzz';
+        $views = sys_get_temp_dir().DIRECTORY_SEPARATOR.'nitro-template-fuzz';
         @mkdir($views);
         $this->app['view']->addLocation($views);
 
         /** Before the fuzz components are registered: globals() compiles every component there is. */
-        $globals = app(\Nitro\Fusion\Rendering\Scripts::class)->globals();
+        $globals = app(\Nitro\Rendering\Scripts::class)->globals();
         $compiler = new ComponentCompiler(fn () => false, cloneStatic: true);
         $cases = [];
         $definitions = [];
@@ -62,9 +62,9 @@ class TemplateFuzzTest extends TestCase
             file_put_contents("{$views}/{$view}.blade.php", $program['view']);
 
             $properties = implode("\n", array_map(fn ($p, $v) => "    public \${$p} = {$v};", array_keys($program['state']), $program['state']));
-            eval("namespace Nitro\\Fusion\\Tests\\Fuzz\\Generated;\n\n#[\\Nitro\\Fusion\\Attributes\\View('{$view}')]\nclass {$class} extends \\Nitro\\Fusion\\Component\n{\n{$properties}\n}");
-            app(\Nitro\Fusion\Support\Registry::class)->register($name, "Nitro\\Fusion\\Tests\\Fuzz\\Generated\\{$class}");
-            $meta = app(\Nitro\Fusion\Compiler\Components::class)->meta($name);
+            eval("namespace Nitro\\Tests\\Fuzz\\Generated;\n\n#[\\Nitro\\Attributes\\View('{$view}')]\nclass {$class} extends \\Nitro\\Component\n{\n{$properties}\n}");
+            app(\Nitro\Support\Registry::class)->register($name, "Nitro\\Tests\\Fuzz\\Generated\\{$class}");
+            $meta = app(\Nitro\Compiler\Components::class)->meta($name);
 
             try {
                 $definition = $compiler->compile($meta, $program['view'], "{$views}/{$view}.blade.php");
@@ -79,12 +79,12 @@ class TemplateFuzzTest extends TestCase
             }
 
             $component = $this->app->make($meta->class);
-            $component->fusion()->id = 'p';
-            $component->fusion()->name = $name;
-            $component->fusion()->errors = new MessageBag;
+            $component->nitro()->id = 'p';
+            $component->nitro()->name = $name;
+            $component->nitro()->errors = new MessageBag;
 
             try {
-                $ssr = app(\Nitro\Fusion\Rendering\ComponentRenderer::class)->render($component, $meta);
+                $ssr = app(\Nitro\Rendering\ComponentRenderer::class)->render($component, $meta);
             } catch (Throwable $e) {
                 $reason = 'Blade: '.(new \ReflectionClass($e->getPrevious() ?? $e))->getShortName();
                 $skipped[$reason] = ($skipped[$reason] ?? 0) + 1;
@@ -107,7 +107,7 @@ class TemplateFuzzTest extends TestCase
         }
 
         $failures = $cases === [] ? [] : Node::run('js/test/support/run-templates.mjs', [
-            'bundle' => "(function (Fusion, P, B) {\n\"use strict\";\n".implode("\n\n", $definitions)."\n})(window.Fusion, window.Fusion.P, window.Fusion.B);\n",
+            'bundle' => "(function (Nitro, P, B) {\n\"use strict\";\n".implode("\n\n", $definitions)."\n})(window.Nitro, window.Nitro.P, window.Nitro.B);\n",
             'csrf' => csrf_token(),
             'globals' => $globals,
             'cases' => $cases,

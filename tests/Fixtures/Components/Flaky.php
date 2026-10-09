@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 use RuntimeException;
 use Throwable;
 

@@ -1,16 +1,16 @@
 /**
- * Islands: components placed in a Blade view with fusion:hydrate start later than the page,
- * marked on their element as fusion:hydrate="idle" (the browser is idle), "visible" or
+ * Islands: components placed in a Blade view with nitro:hydrate start later than the page,
+ * marked on their element as nitro:hydrate="idle" (the browser is idle), "visible" or
  * "visible:200px" (in view, or that close), "interaction" (the first click, focus, key or input
  * in it) or "media:(query)" (the media query matches). Until then it is the server's HTML.
  *
  * The click that starts an interaction island is held, and given again once the island is live,
  * so its handler runs. What is typed in an island before it is live (its chunk loading) is kept:
- * starting puts its fields as the state says, so they get it back, and fusion:model hears it.
+ * starting puts its fields as the state says, so they get it back, and nitro:model hears it.
  */
 import { ATTRIBUTES, selector } from '../protocol.js';
 
-/** The islands under root that start later: elements with fusion:hydrate. */
+/** The islands under root that start later: elements with nitro:hydrate. */
 export function islandsIn(root) {
     return [...(root.matches?.(selector('hydrate')) ? [root] : []), ...root.querySelectorAll(selector('hydrate'))];
 }

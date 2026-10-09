@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Tests\Fixtures\Attributes\Note;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Invalid\AuditedBrowserMethod;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Lifecycle\Features;
+use Nitro\Tests\Fixtures\Attributes\Note;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Invalid\AuditedBrowserMethod;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -78,7 +78,7 @@ class FeatureAttributeTest extends TestCase
         $long = new Note;
         $long->title = 'abcdefgh';
         $this->assertFalse($features->updated($long, ['title']));
-        $this->assertSame(['The title field must not be greater than 5 characters.'], $long->fusion()->errors->get('title'));
+        $this->assertSame(['The title field must not be greater than 5 characters.'], $long->nitro()->errors->get('title'));
     }
 
     /**
@@ -90,7 +90,7 @@ class FeatureAttributeTest extends TestCase
     {
         $this->boot($framework);
         $this->app->instance('request', \Illuminate\Http\Request::create('/roster?q=ada'));
-        $roster = new \Nitro\Fusion\Tests\Fixtures\Components\Roster;
+        $roster = new \Nitro\Tests\Fixtures\Components\Roster;
         $order = [];
 
         $this->features()->start(
@@ -108,7 +108,7 @@ class FeatureAttributeTest extends TestCase
 
         $this->assertSame(['inputs', 'mount saw ada'], $order);
         $this->assertSame('ada', $roster->search, '#[Url] over the input');
-        $this->assertSame(['roster-1', 'roster'], [$roster->fusion()->id, $roster->fusion()->name]);
+        $this->assertSame(['roster-1', 'roster'], [$roster->nitro()->id, $roster->nitro()->name]);
     }
 
     /** Each component gets its own instances. */
@@ -131,7 +131,7 @@ class FeatureAttributeTest extends TestCase
     public function test_around_a_real_server_call(string $framework): void
     {
         $this->boot($framework);
-        $user = \Nitro\Fusion\Tests\Fixtures\Models\User::create(['name' => 'Ann', 'email' => 'ann@example.com', 'password' => 'x']);
+        $user = \Nitro\Tests\Fixtures\Models\User::create(['name' => 'Ann', 'email' => 'ann@example.com', 'password' => 'x']);
         $this->app->instance('request', \Illuminate\Http\Request::create('/'));
         $this->app->make('auth')->guard('web')->setUser($user);
         $snapshot = $this->snapshots((string) $this->get('/secure')->getContent())[0]['envelope'];
@@ -156,7 +156,7 @@ class FeatureAttributeTest extends TestCase
         $this->boot($framework);
 
         try {
-            ComponentReader::read(AuditedBrowserMethod::class, 'audited-browser-method', 'fusion.components.audited-browser-method');
+            ComponentReader::read(AuditedBrowserMethod::class, 'audited-browser-method', 'nitro.components.audited-browser-method');
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
             $this->assertStringContainsString("#[Audited] on save(): it runs around a #[Server] method's call, and save() runs in the browser; mark it #[Server]", $e->getMessage());

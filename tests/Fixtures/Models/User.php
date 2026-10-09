@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Models;
+namespace Nitro\Tests\Fixtures\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 

@@ -1,13 +1,13 @@
 /**
  * The $this of a component's compiled code: its properties (an enum property read as its case),
- * its methods, its stores, and Fusion's actions ($dispatch, $reload, $refresh, ...).
+ * its methods, its stores, and Nitro's actions ($dispatch, $reload, $refresh, ...).
  */
 import * as P from '../../php.js';
 import { slotHasContent } from '../view/render.js';
 
 /**
  * An enum property (public Status $status): the state holds its value, as the server sends it and
- * fusion:model writes it; compiled code reads the case (null for a value that names none).
+ * nitro:model writes it; compiled code reads the case (null for a value that names none).
  */
 export function enumCase(runtime, prop, value) {
     return value === null || value === undefined ? null : runtime.classes[prop.enum].tryFrom(value);
@@ -31,7 +31,7 @@ export function defineProperties(ctx, holder) {
     }
 }
 
-/** The $this of compiled code: properties, methods, and Fusion's actions. */
+/** The $this of compiled code: properties, methods, and Nitro's actions. */
 export function contextOf(component) {
     const self = component;
     const ctx = Object.create(null);
@@ -67,7 +67,7 @@ export function contextOf(component) {
         $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
     });
     Object.defineProperty(ctx, '$errors', { get: () => self.errors });
-    /** Fusion::browser(): what its APIs (js/functions/browser/_browser_*.js) need of the component. */
+    /** Nitro::browser(): what its APIs (js/functions/browser/_browser_*.js) need of the component. */
     Object.defineProperty(ctx, '$browser', { get: () => self.browser() });
     /** $slots->has('footer') and $slot->isEmpty() in its view. */
     ctx.$slots = { has: (name) => slotHasContent(self.slots[P.toStr(name)]) };

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
 use Illuminate\Database\Eloquent\Model;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Models\Student;
 
 /**
  * #[Server] parameters the browser can never fill, one class each (outside the discovered

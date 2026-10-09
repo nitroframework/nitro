@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Facades\Fusion;
+use Nitro\Component;
+use Nitro\Facades\Nitro;
 
-/** Fusion::browser(): the clipboard, storage, a canvas and a WebSocket, from browser methods. */
+/** Nitro::browser(): the clipboard, storage, a canvas and a WebSocket, from browser methods. */
 class Devices extends Component
 {
     public string $code = 'INV-0042';
@@ -30,32 +30,32 @@ class Devices extends Component
 
     public function copy(): void
     {
-        Fusion::browser()->clipboard()->write($this->code, fn () => $this->copied = true);
+        Nitro::browser()->clipboard()->write($this->code, fn () => $this->copied = true);
     }
 
     public function paste(): void
     {
-        Fusion::browser()->clipboard()->read(function (string $text) {
+        Nitro::browser()->clipboard()->read(function (string $text) {
             $this->pasted = $text;
         });
     }
 
     public function save(): void
     {
-        $storage = Fusion::browser()->storage();
+        $storage = Nitro::browser()->storage();
         $storage->set('draft', ['title' => $this->title, 'at' => 1]);
         $this->stored = $storage->has('draft');
     }
 
     public function load(): void
     {
-        $this->loaded = Fusion::browser()->storage()->get('draft', ['title' => 'none'])['title'];
-        Fusion::browser()->session()->set('loads', Fusion::browser()->session()->get('loads', 0) + 1);
+        $this->loaded = Nitro::browser()->storage()->get('draft', ['title' => 'none'])['title'];
+        Nitro::browser()->session()->set('loads', Nitro::browser()->session()->get('loads', 0) + 1);
     }
 
     public function draw(): void
     {
-        $canvas = Fusion::browser()->canvas('chart')->size(120, 100)->clear()->fillStyle('#4f46e5');
+        $canvas = Nitro::browser()->canvas('chart')->size(120, 100)->clear()->fillStyle('#4f46e5');
 
         foreach ($this->bars as $i => $bar) {
             $canvas->fillRect($i * 40, 100 - $bar, 30, $bar);
@@ -72,7 +72,7 @@ class Devices extends Component
 
     public function connect(): void
     {
-        Fusion::browser()->socket('/echo')
+        Nitro::browser()->socket('/echo')
             ->onOpen(fn () => $this->open = true)
             ->onClose(fn () => $this->open = false)
             ->onMessage(function (array $data) {
@@ -83,11 +83,11 @@ class Devices extends Component
 
     public function say(): void
     {
-        Fusion::browser()->socket('/echo')->send(['text' => 'again']);
+        Nitro::browser()->socket('/echo')->send(['text' => 'again']);
     }
 
     public function disconnect(): void
     {
-        Fusion::browser()->socket('/echo')->close();
+        Nitro::browser()->socket('/echo')->close();
     }
 }

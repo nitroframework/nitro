@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\FeatureAttribute;
-use Nitro\Fusion\Support\CurrentRequest;
+use Nitro\Compiler\Components;
+use Nitro\Component;
+use Nitro\FeatureAttribute;
+use Nitro\Support\CurrentRequest;
 
 /**
  * A property kept in the query string, as Livewire's #[Url]: the page reads it from the URL when

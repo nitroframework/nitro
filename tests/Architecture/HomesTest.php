@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Each concept has one home, and the rest of Fusion asks it. A rule names what may only be
+ * Each concept has one home, and the rest of Nitro asks it. A rule names what may only be
  * written in its home (a pattern, in code, comments out), and the home. Today's known breaks are
  * in known-breaks.php, each with the TASKS item that fixes it: a new break fails, and a fixed one
  * still listed fails too, so the baseline only shrinks.
@@ -36,7 +36,7 @@ final class HomesTest extends TestCase
             'navigation modes' => [
                 'patterns' => ['/(===|!==|in_array\(.*)\s*\'(markup|client)\'|\[\s*\'(data|markup|client)\'\s*,/'],
                 'homes' => ['src/NavigationMode.php' => 'the modes and what each means'],
-                'why' => 'fusion.navigation and #[Navigate] were checked against two different lists',
+                'why' => 'nitro.navigation and #[Navigate] were checked against two different lists',
             ],
             'view engine names' => [
                 'patterns' => ["/'(vue|react|solid|svelte)'/"],
@@ -55,7 +55,7 @@ final class HomesTest extends TestCase
                     'js/adapters/server/svelte.js' => 'its engine, rendered on the server',
                     'js/vite.js' => 'the module names the app imports, and one copy of each framework',
                 ],
-                'why' => 'Engines are fusion.views\' entries; a list of them goes stale when one is added',
+                'why' => 'Engines are nitro.views\' entries; a list of them goes stale when one is added',
             ],
             'signing' => [
                 'patterns' => ['/hash_hmac\(|hash_equals\(/'],
@@ -66,13 +66,13 @@ final class HomesTest extends TestCase
                 'why' => 'Two signers disagreed on key rotation (TASKS 17.11)',
             ],
             'protocol: HTTP headers' => [
-                'patterns' => ['/X-Fusion\b/i'],
+                'patterns' => ['/X-Nitro\b/i'],
                 'homes' => ['src/Support/Protocol.php' => 'reads js/protocol.json, which the runtime imports'],
                 'why' => 'Both sides spell each header; one was a literal on one side only (TASKS 17.3)',
             ],
-            'protocol: attributes Fusion puts on elements' => [
+            'protocol: attributes Nitro puts on elements' => [
                 /** As a value (a whole string, a selector, a template): an error message may name them in its prose. */
-                'patterns' => ['/[\'"`]fusion:(id|name|snapshot|page|placeholder|rendered|static|hydrate)[.\'"`]|[\'"`]fusion:h-|\[fusion\\\\{1,2}:(id|name|snapshot|page|placeholder|rendered|static|hydrate|h-)|fusion:h-\$\{|<\w+ fusion:rendered/'],
+                'patterns' => ['/[\'"`]nitro:(id|name|snapshot|page|placeholder|rendered|static|hydrate)[.\'"`]|[\'"`]nitro:h-|\[nitro\\\\{1,2}:(id|name|snapshot|page|placeholder|rendered|static|hydrate|h-)|nitro:h-\$\{|<\w+ nitro:rendered/'],
                 'homes' => ['src/Support/Protocol.php' => 'reads js/protocol.json, which the runtime imports'],
                 'why' => 'Written in PHP, read in the runtime, each spelling them (TASKS 17.2)',
             ],
@@ -108,7 +108,7 @@ final class HomesTest extends TestCase
                 'why' => 'Parsed in three runtime files, checked by three patterns (TASKS 17.16)',
             ],
             'the registry cache file' => [
-                'patterns' => ['#cache/fusion\.php#'],
+                'patterns' => ['#cache/nitro\.php#'],
                 'homes' => ['src/Support/Registry.php' => 'its cache'],
                 'why' => 'Its path in three files (TASKS 17.17)',
             ],
@@ -124,7 +124,7 @@ final class HomesTest extends TestCase
             ],
             'a page\'s data in its HTML' => [
                 /** How a component's state and the globals travel in a page: written and read in one place each. */
-                'patterns' => ["/attribute\('(snapshot|globals)'\)|ATTRIBUTES\.(snapshot|globals)|selector\('snapshot'\)|data-fusion-globals/"],
+                'patterns' => ["/attribute\('(snapshot|globals)'\)|ATTRIBUTES\.(snapshot|globals)|selector\('snapshot'\)|data-nitro-globals/"],
                 'homes' => [
                     'src/Rendering/PageData.php' => 'writes them into a page, reads them back from one',
                     'js/src/runtime/page-data.js' => 'the runtime reads them',
@@ -139,7 +139,7 @@ final class HomesTest extends TestCase
             ],
             'whether the application is in development' => [
                 'patterns' => ["/['\"]app\.debug['\"]/"],
-                'homes' => ['src/FusionServiceProvider.php' => 'gives it to Support\\Config::debug(), which everything asks'],
+                'homes' => ['src/NitroServiceProvider.php' => 'gives it to Support\\Config::debug(), which everything asks'],
                 'why' => 'Fallbacks, the dev overlay and compile errors each read APP_DEBUG themselves',
             ],
             'fallbacks' => [
@@ -156,7 +156,7 @@ final class HomesTest extends TestCase
                 'patterns' => ["/(?<![\w\\\\])Cache::|\bcache\(\)|make\('cache'\)|Cache\\\\Repository|->forever\(|->remember\(/"],
                 'homes' => [
                     'src/State/MethodCache.php' => 'keeps and finds #[Cached] results, expires tags',
-                    'src/FusionServiceProvider.php' => 'gives it the store (fusion.cache.store)',
+                    'src/NitroServiceProvider.php' => 'gives it the store (nitro.cache.store)',
                 ],
                 'why' => 'Keys and tags written where a result is used would differ: a page kept under one key, expired under another',
             ],
@@ -171,7 +171,7 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Support/CurrentRequest.php' => 'the request being answered, and its session'],
                 'why' => 'Seven places found the request themselves, three its session, each guarding it a little differently',
             ],
-            'what @fusionScripts tells the runtime' => [
+            'what @nitroScripts tells the runtime' => [
                 'patterns' => ['/data-(bundle|csrf|endpoint|chunks|progress|fallback|view-transitions)\b|dataset\.(bundle|csrf|endpoint|chunks|progress|fallback|viewTransitions)\b|config\.csrf/'],
                 'homes' => [
                     'src/Rendering/Scripts.php' => 'writes the runtime\'s script',
@@ -181,7 +181,7 @@ final class HomesTest extends TestCase
             ],
             'names to and from the browser' => [
                 'patterns' => ['/obfuscator\(\)\??->/'],
-                'homes' => ['src/Build/BrowserNames.php' => 'the browser\'s names for what Fusion sends, and what a name it sent stands for'],
+                'homes' => ['src/Build/BrowserNames.php' => 'the browser\'s names for what Nitro sends, and what a name it sent stands for'],
                 'why' => 'Each controller read and wrote an obfuscated build\'s names itself, nine times',
             ],
             'a component\'s and a store\'s state in the browser' => [
@@ -200,7 +200,7 @@ final class HomesTest extends TestCase
             ],
             'starting an instance' => [
                 /** Its id and name, boot, its inputs, the features' mounting, mount(): in one order for every kind. */
-                'patterns' => ['/->mounting\(|fusion\(\)->(id|name) =/'],
+                'patterns' => ['/->mounting\(|nitro\(\)->(id|name) =/'],
                 'homes' => [
                     'src/Lifecycle/Features.php' => 'start(): a component, a page, a store',
                     'src/Lifecycle/AttributeHandlers.php' => 'hands mounting to each attribute',
@@ -208,7 +208,7 @@ final class HomesTest extends TestCase
                 'why' => 'A page, a component and a store each started themselves: a page set its route parameters after #[Url], over it',
             ],
             'requests to the server' => [
-                /** The browser sends in one place: Fusion's headers, the plugins', what every answer is checked for. */
+                /** The browser sends in one place: Nitro's headers, the plugins', what every answer is checked for. */
                 'patterns' => ['/\bwindow\.fetch\(|(?<![.\w$])fetch\(|XMLHttpRequest\(/'],
                 'homes' => ['js/src/runtime/server/request.js' => 'every request the runtime sends'],
                 'why' => 'Visits, reloads, calls and uploads each sent their own: an upload went without the plugins\' headers',
@@ -222,7 +222,7 @@ final class HomesTest extends TestCase
             'view file extensions in the adapters' => [
                 'patterns' => ["/\['jsx',\s*'tsx'/"],
                 'homes' => [],
-                'why' => 'fusion.views has them: the bundle gives them to the runtime (TASKS 17.10)',
+                'why' => 'nitro.views has them: the bundle gives them to the runtime (TASKS 17.10)',
             ],
         ];
     }

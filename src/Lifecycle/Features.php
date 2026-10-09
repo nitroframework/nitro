@@ -1,31 +1,31 @@
 <?php
 
-namespace Nitro\Fusion\Lifecycle;
+namespace Nitro\Lifecycle;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Feature;
-use Nitro\Fusion\Support\ComponentHooks;
+use Nitro\Component;
+use Nitro\Feature;
+use Nitro\Support\ComponentHooks;
 
 /**
  * The server lifecycle of components: each hook runs the component's own method of that name
- * (boot(), hydrate(), dehydrate(), when it has one), then every feature's: Fusion's own (OWN),
- * then the application's (fusion.features), in order. Bound once per request.
+ * (boot(), hydrate(), dehydrate(), when it has one), then every feature's: Nitro's own (OWN),
+ * then the application's (nitro.features), in order. Bound once per request.
  *
  * @internal
  */
 final class Features
 {
-    /** Fusion's own, first: the attributes that work as features (#[Url] among them), then #[Validate]. */
+    /** Nitro's own, first: the attributes that work as features (#[Url] among them), then #[Validate]. */
     public const OWN = [AttributeHandlers::class, Validation::class];
 
     /** @var list<Feature>|null made on first use */
     private ?array $features = null;
 
     /**
-     * @param  array<mixed>  $classes  the application's (fusion.features)
+     * @param  array<mixed>  $classes  the application's (nitro.features)
      */
     public function __construct(
         private readonly Container $app,
@@ -49,8 +49,8 @@ final class Features
      */
     public function start(Component $component, string $id, string $name, ?Closure $inputs = null, ?Closure $mount = null): void
     {
-        $component->fusion()->id = $id;
-        $component->fusion()->name = $name;
+        $component->nitro()->id = $id;
+        $component->nitro()->name = $name;
         $this->boot($component);
 
         if ($inputs !== null) {
@@ -118,7 +118,7 @@ final class Features
     /** Once per request (a visit may take a component's snapshot twice). */
     public function dehydrate(Component $component): void
     {
-        $context = $component->fusion();
+        $context = $component->nitro();
 
         if ($context->dehydrated) {
             return;
@@ -137,7 +137,7 @@ final class Features
     {
         return $this->features ??= array_map(function (mixed $class): Feature {
             if (! is_string($class) || ! is_subclass_of($class, Feature::class)) {
-                throw new InvalidArgumentException('fusion.features: '.(is_string($class) ? $class : get_debug_type($class)).' is not a feature (a class extending '.Feature::class.').');
+                throw new InvalidArgumentException('nitro.features: '.(is_string($class) ? $class : get_debug_type($class)).' is not a feature (a class extending '.Feature::class.').');
             }
 
             /** @var Feature */

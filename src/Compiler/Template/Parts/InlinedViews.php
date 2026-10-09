@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\VariableSubstitution;
+use Nitro\Compiler\Template\VariableSubstitution;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
 
 /**
- * Views inlined into the component's view: Blade's @include and <x-component>, as Fusion compiles
+ * Views inlined into the component's view: Blade's @include and <x-component>, as Nitro compiles
  * them. BladeInliner expands them before the view is read, and marks where each one begins and
- * ends with directives of its own (@fusionScope, @fusionSlot, @fusionFrame, @fusionAttr); this
+ * ends with directives of its own (@nitroScope, @nitroSlot, @nitroFrame, @nitroAttr); this
  * part reads those markers.
  *
  *  - frames: each inlined view is a frame with the variables it was given (parsed as PHP, read
@@ -21,9 +21,9 @@ use PhpParser\PhpVersion;
  *    what the view was given, kept if it is the view's own, or refused in a component
  *  - a component's slot is compiled where its tag is, with the frames around the tag, and its
  *    trailing whitespace trimmed, as Blade trims a slot's output
- *  - @fusionAttr: a component's attribute, written as Laravel's ComponentAttributeBag prints it
+ *  - @nitroAttr: a component's attribute, written as Laravel's ComponentAttributeBag prints it
  *
- * Blade's semantics, implemented by Fusion; the markers are Fusion's own and never written in a
+ * Blade's semantics, implemented by Nitro; the markers are Nitro's own and never written in a
  * view.
  *
  * @internal
@@ -31,8 +31,8 @@ use PhpParser\PhpVersion;
 final class InlinedViews extends Part
 {
     /**
-     * The markers @fusionScope({...}) ... @endfusionScope: an inlined view begins and ends;
-     * the markers @fusionSlot(id) ... @endfusionSlot (and @fusionFrame in a tag): what is read there belongs where the
+     * The markers @nitroScope({...}) ... @endnitroScope: an inlined view begins and ends;
+     * the markers @nitroSlot(id) ... @endnitroSlot (and @nitroFrame in a tag): what is read there belongs where the
      * component's tag is, so its frames are those around the component.
      */
     public function inlined(string $name, ?string $args): void
@@ -40,7 +40,7 @@ final class InlinedViews extends Part
         $context = $this->context;
 
         switch ($name) {
-            case 'fusionScope':
+            case 'nitroScope':
                 $frame = json_decode((string) base64_decode((string) $args), true, 16, JSON_THROW_ON_ERROR);
                 $vars = [];
 
@@ -53,26 +53,26 @@ final class InlinedViews extends Part
                 $context->frames[] = ['id' => $frame['id'], 'vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($context->locals)];
 
                 break;
-            case 'endfusionScope':
+            case 'endnitroScope':
                 array_pop($context->frames);
 
                 break;
-            case 'fusionSlot':
-            case 'fusionFrame':
+            case 'nitroSlot':
+            case 'nitroFrame':
                 $context->setAside[] = $context->frames;
                 $context->frames = $context->frameParents[(int) $args] ?? [];
 
-                if ($name === 'fusionSlot') {
+                if ($name === 'nitroSlot') {
                     $context->slotText[] = strlen($context->text);
                 }
 
                 break;
-            case 'endfusionSlot':
-            case 'endfusionFrame':
+            case 'endnitroSlot':
+            case 'endnitroFrame':
                 $context->frames = array_pop($context->setAside) ?? [];
 
                 /** Blade trims what a slot renders: its trailing whitespace (a component's last newline) goes. */
-                if ($name === 'endfusionSlot') {
+                if ($name === 'endnitroSlot') {
                     $start = array_pop($context->slotText) ?? 0;
                     $context->text = substr($context->text, 0, $start).rtrim(substr($context->text, $start));
                 }
@@ -115,7 +115,7 @@ final class InlinedViews extends Part
     }
 
     /**
-     * The marker @fusionAttr('name', $value): a component's attribute, as ComponentAttributeBag prints it:
+     * The marker @nitroAttr('name', $value): a component's attribute, as ComponentAttributeBag prints it:
      * left out when its value is null or false, its name for true, else its trimmed value (the
      * bag's values are as the server writes them in the HTML: the parser's decoding is done here).
      */

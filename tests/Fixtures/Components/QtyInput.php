@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Modelable;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Modelable;
+use Nitro\Component;
 
-/** A quantity bound with fusion:model on its tag (#[Modelable]): the stress page binds it to a nested path. */
+/** A quantity bound with nitro:model on its tag (#[Modelable]): the stress page binds it to a nested path. */
 class QtyInput extends Component
 {
     #[Modelable]

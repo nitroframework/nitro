@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Url/Rawurlencode.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/Rawurlencode.js, for Nitro's values.
 function rawurlencode (str) {
   //       discuss at: https://locutus.io/php/rawurlencode/
   //      original by: Brett Zamir (https://brett-zamir.me)

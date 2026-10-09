@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 
 /**
- * The hooks Fusion calls on a component, when it has them: the one list of their names, where
+ * The hooks Nitro calls on a component, when it has them: the one list of their names, where
  * each runs, and which may be #[Server]. The compiler, the component's metadata and the browser
  * runtime all take them from here.
  *
- * On the server, called by Fusion itself (never compiled, never callable from the browser):
+ * On the server, called by Nitro itself (never compiled, never callable from the browser):
  *
  *   boot()                 every request: on creation and on each #[Server] call, before anything else
  *   mount(...)             once, on creation: the tag's or the route's values, and the container's
@@ -46,7 +46,7 @@ final class ComponentHooks
 
     public const DESTROYED = 'destroyed';
 
-    /** Called on the server by Fusion. */
+    /** Called on the server by Nitro. */
     public const SERVER = [self::BOOT, self::MOUNT, self::HYDRATE, self::DEHYDRATE, self::EXCEPTION, self::FALLBACK];
 
     /** Called in the browser by the runtime. */
@@ -55,7 +55,7 @@ final class ComponentHooks
     /** Browser hooks that may be #[Server]. */
     private const MAY_RUN_ON_SERVER = [self::MOUNTED, self::DESTROYED];
 
-    /** Not a hook, but kept from the browser as they are: render(), which Fusion never calls (a component's view is its own). */
+    /** Not a hook, but kept from the browser as they are: render(), which Nitro never calls (a component's view is its own). */
     private const RESERVED = ['render'];
 
     public static function isServerHook(string $method): bool
@@ -68,7 +68,7 @@ final class ComponentHooks
         return in_array($method, self::BROWSER, true);
     }
 
-    /** A name Fusion keeps for itself: never compiled for the browser, never callable from it, never #[Server] or #[Computed]. */
+    /** A name Nitro keeps for itself: never compiled for the browser, never callable from it, never #[Server] or #[Computed]. */
     public static function isReserved(string $method): bool
     {
         return self::isServerHook($method) || in_array($method, self::RESERVED, true);

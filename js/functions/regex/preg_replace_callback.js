@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_replace_callback(): the callback gets the match as preg_match() gives it.
+// Nitro: PHP's preg_replace_callback(): the callback gets the match as preg_match() gives it.
 // uses: _pcre_replace, _pcre_each_subject, _pcre_groups
 function preg_replace_callback(pattern, callback, subject, limit = -1) {
     limit = P.toInt(limit);

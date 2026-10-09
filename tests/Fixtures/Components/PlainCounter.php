@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
 /**
  * A component whose view is JavaScript (the "plain" engine, which the layout registers): its

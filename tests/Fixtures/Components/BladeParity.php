@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /** The parity component (Parity) with its Blade view, found by its name: blade-parity.blade.php. */
 class BladeParity extends Component

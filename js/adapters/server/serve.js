@@ -1,12 +1,12 @@
 /**
  * The render service: the app's views rendered on the server, for the page's first HTML. The
  * app's SSR entry names a renderer per engine and serves them; `vite build --ssr` bundles it, and
- * php artisan fusion:ssr runs the bundle.
+ * php artisan nitro:ssr runs the bundle.
  *
  *     // resources/js/ssr.js
- *     import { serve } from 'nitro-fusion/ssr';
- *     import { renderVue } from 'nitro-fusion/vue/server';
- *     import { renderReact } from 'nitro-fusion/react/server';
+ *     import { serve } from 'nitro/ssr';
+ *     import { renderVue } from 'nitro/vue/server';
+ *     import { renderReact } from 'nitro/react/server';
  *
  *     serve({
  *         vue: renderVue(import.meta.glob('../views/vue/**\/*.vue', { eager: true })),
@@ -33,11 +33,11 @@ export async function render(renderers, state) {
 
 /**
  * @param {object} renderers   engine => renderer ({ render(view, handle) }): renderVue(), ...
- * @param {object} options     port (FUSION_SSR_PORT: php artisan fusion:ssr gives fusion.ssr.url's) and host (127.0.0.1: Laravel only)
+ * @param {object} options     port (NITRO_SSR_PORT: php artisan nitro:ssr gives nitro.ssr.url's) and host (127.0.0.1: Laravel only)
  */
-export function serve(renderers, { port = Number(process.env.FUSION_SSR_PORT), host = '127.0.0.1' } = {}) {
+export function serve(renderers, { port = Number(process.env.NITRO_SSR_PORT), host = '127.0.0.1' } = {}) {
     if (!Number.isInteger(port) || port <= 0) {
-        throw new Error('Fusion: no port for the render service. Start it with php artisan fusion:ssr, which listens on fusion.ssr.url\'s, or pass serve(renderers, { port })');
+        throw new Error('Nitro: no port for the render service. Start it with php artisan nitro:ssr, which listens on nitro.ssr.url\'s, or pass serve(renderers, { port })');
     }
     const answer = (response, status, body) => {
         response.writeHead(status, { 'Content-Type': 'application/json' });
@@ -61,7 +61,7 @@ export function serve(renderers, { port = Number(process.env.FUSION_SSR_PORT), h
         });
     });
 
-    server.listen(port, host, () => console.log(`Fusion render service: http://${host}:${port} (${Object.keys(renderers).join(', ')})`));
+    server.listen(port, host, () => console.log(`Nitro render service: http://${host}:${port} (${Object.keys(renderers).join(', ')})`));
 
     return server;
 }

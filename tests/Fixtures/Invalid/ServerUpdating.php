@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /** #[Server] on an updating hook: it runs before the change, which cannot wait for a request. */
 class ServerUpdating extends Component

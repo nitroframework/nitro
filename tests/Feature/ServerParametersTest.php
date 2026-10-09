@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Invalid\AbstractModelParameter;
-use Nitro\Fusion\Tests\Fixtures\Invalid\CallableParameter;
-use Nitro\Fusion\Tests\Fixtures\Invalid\ObjectParameter;
-use Nitro\Fusion\Tests\Fixtures\Invalid\PureEnumParameter;
-use Nitro\Fusion\Tests\Fixtures\Invalid\VariadicModels;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Invalid\AbstractModelParameter;
+use Nitro\Tests\Fixtures\Invalid\CallableParameter;
+use Nitro\Tests\Fixtures\Invalid\ObjectParameter;
+use Nitro\Tests\Fixtures\Invalid\PureEnumParameter;
+use Nitro\Tests\Fixtures\Invalid\VariadicModels;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 

@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Strnatcasecmp.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Strnatcasecmp.js, for Nitro's values.
 // uses: strnatcmp
 function strnatcasecmp (a, b) {
   //       discuss at: https://locutus.io/php/strnatcasecmp/

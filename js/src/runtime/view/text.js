@@ -1,5 +1,5 @@
 /**
- * Viewi's renderText (core/render/renderText). Fusion: text next to text is one text node, as the
+ * Viewi's renderText (core/render/renderText). Nitro: text next to text is one text node, as the
  * HTML parser makes it (Viewi joins them when it compiles), so a text binding renders a group.
  */
 import { callArguments } from './call.js';

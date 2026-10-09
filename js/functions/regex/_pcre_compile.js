@@ -1,4 +1,4 @@
-// Fusion: a PHP (PCRE2) pattern as a JavaScript RegExp that matches what PCRE matches. Viewi's
+// Nitro: a PHP (PCRE2) pattern as a JavaScript RegExp that matches what PCRE matches. Viewi's
 // _php_regex hands the pattern to RegExp as it is, which differs from PCRE in $, ., \s, \w, \b,
 // \A, \z, \Z, \h, \v, \R, \x{...}, \Q...\E, POSIX classes, possessive quantifiers, atomic groups,
 // named groups, the x and U modifiers and, without /u, in matching bytes (FunctionParityTest).

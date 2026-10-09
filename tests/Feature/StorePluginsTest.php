@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Tests\Fixtures\Invalid\PersistedComponent;
-use Nitro\Fusion\Tests\Fixtures\Invalid\SyncedLocked;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Tests\Fixtures\Invalid\PersistedComponent;
+use Nitro\Tests\Fixtures\Invalid\SyncedLocked;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -20,13 +20,13 @@ class StorePluginsTest extends TestCase
     public function test_the_cart_keeps_and_shares_what_the_browser_can_change(string $framework): void
     {
         $this->boot($framework);
-        $meta = $this->app->make(\Nitro\Fusion\Compiler\Components::class)->meta('stores::cart');
+        $meta = $this->app->make(\Nitro\Compiler\Components::class)->meta('stores::cart');
 
         $this->assertSame(['items'], $meta->persist, '#[Persist] on the store: every property the browser can change, not madeBy (#[Locked])');
         $this->assertSame(['items'], $meta->sync, '#[Sync] on the property');
 
         $bundle = $this->app->make(Bundle::class)->compile();
-        $this->assertStringContainsString("Fusion.store(\"stores::cart\", {\nprops: {\"items\":{\"locked\":false,\"default\":[]},\"madeBy\":{\"locked\":true,\"default\":\"\"}},\nserver: [\"save\"],\npersist: [\"items\"],\nsync: [\"items\"],", $bundle, 'the store\'s definition tells the plugins');
+        $this->assertStringContainsString("Nitro.store(\"stores::cart\", {\nprops: {\"items\":{\"locked\":false,\"default\":[]},\"madeBy\":{\"locked\":true,\"default\":\"\"}},\nserver: [\"save\"],\npersist: [\"items\"],\nsync: [\"items\"],", $bundle, 'the store\'s definition tells the plugins');
     }
 
     #[DataProvider('frameworks')]
@@ -35,8 +35,8 @@ class StorePluginsTest extends TestCase
         $this->boot($framework);
 
         $this->expectException(CompileException::class);
-        $this->expectExceptionMessage('#[Persist] is for stores: Nitro\Fusion\Tests\Fixtures\Invalid\PersistedComponent is a component, whose state is its own');
-        ComponentReader::read(PersistedComponent::class, 'persisted-component', 'fusion.components.persisted-component');
+        $this->expectExceptionMessage('#[Persist] is for stores: Nitro\Tests\Fixtures\Invalid\PersistedComponent is a component, whose state is its own');
+        ComponentReader::read(PersistedComponent::class, 'persisted-component', 'nitro.components.persisted-component');
     }
 
     #[DataProvider('frameworks')]
@@ -45,7 +45,7 @@ class StorePluginsTest extends TestCase
         $this->boot($framework);
 
         $this->expectException(CompileException::class);
-        $this->expectExceptionMessage('#[Sync] on $owner of Nitro\Fusion\Tests\Fixtures\Invalid\SyncedLocked: it is #[Locked], so only the server sets it');
+        $this->expectExceptionMessage('#[Sync] on $owner of Nitro\Tests\Fixtures\Invalid\SyncedLocked: it is #[Locked], so only the server sets it');
         ComponentReader::read(SyncedLocked::class, 'stores::synced-locked', '');
     }
 }

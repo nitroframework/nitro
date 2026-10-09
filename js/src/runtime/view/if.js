@@ -1,7 +1,7 @@
 /**
  * Viewi's renderIf (core/render/renderIf): a branch of an @if chain renders again only when
  * whether it is the one that shows changes; while it stays, its own bindings keep it current.
- * Fusion's @error is a branch too: its $message follows the messages.
+ * Nitro's @error is a branch too: its $message follows the messages.
  */
 import { removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
@@ -61,7 +61,7 @@ export function renderIf(instance, node, scopeContainer, ifConditions, index) {
             removeBefore(instance, anchorNode);
         }
     } else if (nextValue && args !== scopeContainer.scope.arguments) {
-        /** Fusion: the branch stays; the variables it made of its own (@error's $message) follow. */
+        /** Nitro: the branch stays; the variables it made of its own (@error's $message) follow. */
         Object.assign(scopeContainer.scope.arguments, args);
     }
 }

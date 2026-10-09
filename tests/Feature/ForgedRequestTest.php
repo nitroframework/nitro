@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\User;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\User;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -47,7 +47,7 @@ class ForgedRequestTest extends TestCase
     {
         $this->app->forgetScopedInstances();
 
-        return $this->request('POST', '/_fusion/update', [
+        return $this->request('POST', '/_nitro/update', [
             'CONTENT_TYPE' => 'application/json',
             'HTTP_ACCEPT' => 'application/json',
             'HTTP_SEC_FETCH_SITE' => 'same-origin',
@@ -67,7 +67,7 @@ class ForgedRequestTest extends TestCase
 
         $names = [
             'WITHDRAW', 'Withdraw', ' withdraw', 'withdraw ', "withdraw\0", 'withdraw()', 'withdraw;drain',
-            'Nitro\Fusion\Tests\Fixtures\Components\Wallet::withdraw', 'parent::withdraw', 'self::withdraw', 'static::withdraw',
+            'Nitro\Tests\Fixtures\Components\Wallet::withdraw', 'parent::withdraw', 'self::withdraw', 'static::withdraw',
             'boot', 'hydrate', 'dehydrate', 'updated', 'updatedAmount', 'mounted', 'destroyed',
             'head', 'js', 'skipRender', 'getName', 'authorize', '__call', '__get', '__set', '__invoke', '__toString', '__clone',
             'toArray', 'jsonSerialize', 'restore', 'fill', 'clientOnly', 'CLIENTONLY', 'drain', 'preview',
@@ -127,7 +127,7 @@ class ForgedRequestTest extends TestCase
 
         $names = [
             'Balance', 'BALANCE', 'balance ', ' balance', "balance\0", 'balance.0', 'balance[]', '$balance',
-            '$errors', 'errors', 'fusion', 'id', 'name', '__proto__', 'constructor', '0', '',
+            '$errors', 'errors', 'nitro', 'id', 'name', '__proto__', 'constructor', '0', '',
             'preview', 'withdraw', 'Amount',
         ];
 
@@ -284,19 +284,19 @@ class ForgedRequestTest extends TestCase
     {
         $this->boot($framework);
 
-        $visit = fn (string $uri, array $headers) => $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1', ...$headers]);
+        $visit = fn (string $uri, array $headers) => $this->request('GET', $uri, ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1', ...$headers]);
 
         /** An id that is not one: the page gets its own. */
         foreach (['../../etc', 'f'.str_repeat('a', 30), "fabc\ndefghi", 'FABCDEFGHIJ', ''] as $id) {
             $this->app->forgetScopedInstances();
-            $response = $visit('/counter', ['HTTP_X_FUSION_ID' => $id]);
+            $response = $visit('/counter', ['HTTP_X_NITRO_ID' => $id]);
             $this->assertSame(200, $response->getStatusCode(), $id);
             $this->assertMatchesRegularExpression('/^f[a-z0-9]{10}$/', Wire::fromJson($this->json($response)['snapshot']['state'])['id'], json_encode($id));
         }
 
         /** A partial reload naming what is not a public property: never sent; hidden attributes stay hidden. */
         $this->app->forgetScopedInstances();
-        $response = $visit('/students/1', ['HTTP_X_FUSION_PARTIAL' => 'fabcdefghij', 'HTTP_X_FUSION_ONLY' => 'student,secret,password,__construct,fusion,errors']);
+        $response = $visit('/students/1', ['HTTP_X_NITRO_PARTIAL' => 'fabcdefghij', 'HTTP_X_NITRO_ONLY' => 'student,secret,password,__construct,nitro,errors']);
         $this->assertContains($response->getStatusCode(), [200, 403], (string) $response->getContent());
 
         if ($response->getStatusCode() === 200) {
@@ -308,7 +308,7 @@ class ForgedRequestTest extends TestCase
 
         /** Another build's version: a full load, never this build's data. */
         $this->app->forgetScopedInstances();
-        $this->assertSame(409, $visit('/counter', ['HTTP_X_FUSION_VERSION' => 'not-this-one'])->getStatusCode());
+        $this->assertSame(409, $visit('/counter', ['HTTP_X_NITRO_VERSION' => 'not-this-one'])->getStatusCode());
     }
 
     /** An enum property (Showcase's OrderStatus $status): only the value of one of its cases, as its backing type. */
@@ -334,7 +334,7 @@ class ForgedRequestTest extends TestCase
 
         foreach (['GET', 'PUT', 'DELETE', 'PATCH'] as $method) {
             $this->app->forgetScopedInstances();
-            $this->assertContains($this->request($method, '/_fusion/update', ['HTTP_ACCEPT' => 'application/json'])->getStatusCode(), [404, 405], $method);
+            $this->assertContains($this->request($method, '/_nitro/update', ['HTTP_ACCEPT' => 'application/json'])->getStatusCode(), [404, 405], $method);
         }
     }
 }

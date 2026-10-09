@@ -1,14 +1,14 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Tests\Fixtures\Invalid\BroadcastWithoutProperty;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Tests\Fixtures\Invalid\BroadcastWithoutProperty;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -40,7 +40,7 @@ class BroadcastsTest extends TestCase
     {
         $names = new Obfuscator('key', [], aliasComponents: true);
         $compiler = new ComponentCompiler(fn () => false, names: $names);
-        $meta = ComponentReader::read(\Nitro\Fusion\Tests\Fixtures\Pages\Live::class, 'pages::live', 'fusion.pages.live', page: true);
+        $meta = ComponentReader::read(\Nitro\Tests\Fixtures\Pages\Live::class, 'pages::live', 'nitro.pages.live', page: true);
 
         $code = $compiler->compile($meta, '<div>{{ count($placed) }}</div>', 'live.blade.php');
 
@@ -53,7 +53,7 @@ class BroadcastsTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage("{missing} names no public property");
 
-        $meta = ComponentReader::read(BroadcastWithoutProperty::class, 'broadcast-without-property', 'fusion.components.x');
+        $meta = ComponentReader::read(BroadcastWithoutProperty::class, 'broadcast-without-property', 'nitro.components.x');
         (new ComponentCompiler(fn () => false))->compile($meta, '<div>{{ $count }}</div>', 'x.blade.php');
     }
 }

@@ -1,7 +1,7 @@
 * text=auto eol=lf
 
 # Not installed with the package. js/functions (the PHP function ports compiled into the
-# bundle), dist/fusion.js and resources/minify.cjs are used at runtime and stay.
+# bundle), dist/nitro.js and resources/minify.cjs are used at runtime and stay.
 /.gitattributes export-ignore
 /.github export-ignore
 /.gitignore export-ignore

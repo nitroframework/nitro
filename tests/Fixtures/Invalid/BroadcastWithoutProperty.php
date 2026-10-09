@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\On;
+use Nitro\Component;
 
 /** A broadcast channel that reads {missing}: no such property. */
 class BroadcastWithoutProperty extends Component

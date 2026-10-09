@@ -1,22 +1,22 @@
 <?php
 
 /**
- * Literals spelled across several parts of Fusion that are not concepts without a home, each
+ * Literals spelled across several parts of Nitro that are not concepts without a home, each
  * with why. A literal goes here only with a reason that holds; when unsure, it goes in
  * known-breaks.php to be reviewed, not here.
  */
 $language = 'a word of PHP or JavaScript themselves';
-$web = 'a word of HTTP, HTML or the DOM, not Fusion\'s choosing';
+$web = 'a word of HTTP, HTML or the DOM, not Nitro\'s choosing';
 $generic = 'a common word that means different things where it is used (checked)';
 $modifier = 'a modifier: Compiler/Globals.php is the list the compiler checks; the runtime acts on it';
 $engine = 'each adapter names its own engine; vite.js names the modules';
-$directive = 'a Fusion Blade directive: Compiler/Globals::DIRECTIVES lists them; CompiledFormatTest holds the provider (server) and the compiler (browser) to it';
+$directive = 'a Nitro Blade directive: Compiler/Globals::DIRECTIVES lists them; CompiledFormatTest holds the provider (server) and the compiler (browser) to it';
 $uses = 'a kind of what compiled code uses: Compiler/Uses::KINDS declares them, and the shape every part indexes';
 $global = $uses.'; and a browser global (js/protocol.json globals: CompiledFormatTest holds Scripts and the runtime to it)';
 $compiled = 'the compiled format\'s code: js/protocol.json lists it, CompiledFormatTest holds both sides to it';
 $snapshot = 'a snapshot\'s field (js/protocol.json snapshot: CompiledFormatTest holds Snapshot and the runtime to it)';
 $answer = 'an answer\'s field (js/protocol.json answer: CompiledFormatTest holds UpdateController, PageResponses and the runtime to it)';
-$method = 'a component method Fusion provides (Compiler/Globals::COMPONENT_METHODS)';
+$method = 'a component method Nitro provides (Compiler/Globals::COMPONENT_METHODS)';
 
 return [
     'array' => $language, 'bool' => $language, 'boolean' => $language, 'float' => $language, 'int' => $language,
@@ -37,20 +37,20 @@ return [
     'request' => $generic, 'component' => $generic, 'store' => $generic, 'attributes' => $generic, 'files' => $generic,
     'message' => $generic, 'line' => $generic, 'node' => $generic, 'kind' => $generic, 'method' => $generic,
     'property' => $generic, 'to' => $generic, 'when' => $generic, 'root' => $generic, 'except' => $generic,
-    'hydrate' => $generic.': a hook, fusion:hydrate (an island\'s), and a tag\'s option',
+    'hydrate' => $generic.': a hook, nitro:hydrate (an island\'s), and a tag\'s option',
     'mouseover' => $web, 'mouseleave' => $web,
     'render' => $generic.': a plugin event (runtime/plugins.js EVENTS, the public plugin API the dev overlay uses), and render(), a name ComponentHooks reserves',
-    'layout' => $generic.': fusion.layout (Support/Config), a page answer\'s field (js/protocol.json answer.page), and fusion:layout (js/protocol.json attributes: where a layout\'s pages go)',
-    'transition' => $generic.': fusion:transition (an element\'s, Compiler/Template/Parts/FusionAttributes) and fusion:navigate.transition (a modifier: Compiler/Globals::ATTRIBUTE_MODIFIERS lists it, navigate.js acts on it)',
-    'fallback' => $generic.': a hook (ComponentHooks::FALLBACK), fusion:fallback (js/protocol.json attributes, mirrored in Compiler/Globals::RUNTIME as id and static are), and a failed call\'s answer field (js/protocol.json answer.failed)',
-    'fusion' => $generic.': the config key, the adapters\' context symbol, a JSON key',
+    'layout' => $generic.': nitro.layout (Support/Config), a page answer\'s field (js/protocol.json answer.page), and nitro:layout (js/protocol.json attributes: where a layout\'s pages go)',
+    'transition' => $generic.': nitro:transition (an element\'s, Compiler/Template/Parts/NitroAttributes) and nitro:navigate.transition (a modifier: Compiler/Globals::ATTRIBUTE_MODIFIERS lists it, navigate.js acts on it)',
+    'fallback' => $generic.': a hook (ComponentHooks::FALLBACK), nitro:fallback (js/protocol.json attributes, mirrored in Compiler/Globals::RUNTIME as id and static are), and a failed call\'s answer field (js/protocol.json answer.failed)',
+    'nitro' => $generic.': the config key, the adapters\' context symbol, a JSON key',
     'only' => $generic.': a header\'s role (Protocol::header()), the attribute bag\'s ->only()',
     'version' => $generic.': a header\'s role (Protocol::header()), the bundle\'s version',
-    'runtime' => $generic.': a path\'s role (Protocol::path()), the build summary\'s runtime (Bundle::summary()\'s shape, read by fusion:build)',
-    'bundle' => $generic.': a path\'s role (Protocol::path()), the render service\'s bundle (fusion.ssr.bundle)',
+    'runtime' => $generic.': a path\'s role (Protocol::path()), the build summary\'s runtime (Bundle::summary()\'s shape, read by nitro:build)',
+    'bundle' => $generic.': a path\'s role (Protocol::path()), the render service\'s bundle (nitro.ssr.bundle)',
     'upload' => $generic.': a path\'s role (Protocol::path()), a property\'s upload',
     'directive' => $generic.': an attribute\'s role (Protocol::attribute()), a Blade directive token',
-    'compiled' => $generic.': the protocol\'s compiled format, the compiled files\' folder (fusion.compiled)',
+    'compiled' => $generic.': the protocol\'s compiled format, the compiled files\' folder (nitro.compiled)',
     'destroyed' => 'a hook\'s name: the runtime names the hook it calls (HomesTest\'s hook rule watches where)',
 
     'debounce' => $modifier, 'once' => $modifier.'; also the once data, reviewed with 17.13', 'prefetch' => $modifier,
@@ -59,11 +59,11 @@ return [
     'navigate' => $modifier, 'init' => $modifier.' (a trigger: Globals::TRIGGERS)',
     '$reload' => 'a handler action ($reload: Globals::ACTIONS): what plugins hear a reload of the page\'s properties as',
     '$refresh' => 'a handler action ($refresh: Globals::ACTIONS): what a call with no method is named',
-    'fusion:model' => 'an attribute the developer writes: Globals.php checks it, the runtime acts on it',
-    'fusion:model.' => 'an attribute the developer writes (with modifiers): Globals.php checks it, the runtime acts on it',
-    'fusion:target' => 'an attribute the developer writes: Globals.php checks it, the runtime acts on it',
+    'nitro:model' => 'an attribute the developer writes: Globals.php checks it, the runtime acts on it',
+    'nitro:model.' => 'an attribute the developer writes (with modifiers): Globals.php checks it, the runtime acts on it',
+    'nitro:target' => 'an attribute the developer writes: Globals.php checks it, the runtime acts on it',
 
-    'teleport' => $directive, 'endteleport' => $directive, 'enddeferred' => $directive, 'placeholder' => $directive.'; also fusion:placeholder (Protocol::attribute())',
+    'teleport' => $directive, 'endteleport' => $directive, 'enddeferred' => $directive, 'placeholder' => $directive.'; also nitro:placeholder (Protocol::attribute())',
 
     'routes' => $global, 'lang' => $global, 'config' => $global.'; also Laravel\'s config service', 'functions' => $uses.'; also names.json\'s key', 'classes' => $uses,
 
@@ -72,7 +72,7 @@ return [
     'merge' => $snapshot.'; also Blade\'s $attributes->merge()',
     'slot' => $snapshot.' (slots); also Blade\'s $slot, which a view reads', 'slots' => $snapshot.'; also Blade\'s $slots, which a view reads',
     'errors' => $snapshot.'; also a signal (js/protocol.json), the template\'s $errors (Globals::TEMPLATE_VARIABLES), Laravel\'s validation errors',
-    'deferred' => $snapshot.'; also a signal (js/protocol.json) and a Fusion directive (Globals::DIRECTIVES)',
+    'deferred' => $snapshot.'; also a signal (js/protocol.json) and a Nitro directive (Globals::DIRECTIVES)',
     'scroll' => $snapshot.'; also a signal (js/protocol.json) and the DOM event',
     'js' => $answer.' (an effect); also '.$method, 'redirect' => $answer.' (an effect); also '.$method, 'reload' => $answer.' (an effect); also '.$method.' and a handler action',
     'event' => $answer.' (a dispatch); also the handler\'s $event (Globals::HANDLER_VARIABLES)',
@@ -91,5 +91,5 @@ return [
     'engine' => $compiled.' (a definition field, a JavaScript view\'s state)',
     'props' => $compiled.' (a definition field; a child tag\'s values)',
     'enum' => $compiled.' (a prop\'s field); also a property\'s kind (PropertyMeta)',
-    'model' => $generic.': fusion:model (Globals), a property\'s kind (PropertyMeta)',
+    'model' => $generic.': nitro:model (Globals), a property\'s kind (PropertyMeta)',
 ];

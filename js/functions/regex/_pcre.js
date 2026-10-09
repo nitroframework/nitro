@@ -1,4 +1,4 @@
-// Fusion: what Laravel's PCRE patterns mean, for JavaScript's regular expressions ("u" flag):
+// Nitro: what Laravel's PCRE patterns mean, for JavaScript's regular expressions ("u" flag):
 // ws, PCRE's \s with /u (Unicode white space, as \p{Z}, \h and \v), for use in a character
 // class; quote(s), a string matched as it is; classQuote(s), the same in a character class.
 function _pcre() {

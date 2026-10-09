@@ -1,4 +1,4 @@
-// Fusion: a pattern compiled, the subject for it, and where matching starts (PHP's offset in
+// Nitro: a pattern compiled, the subject for it, and where matching starts (PHP's offset in
 // bytes, negative from the end); null where PHP fails (a pattern it does not compile, an offset
 // in the middle of a character).
 // uses: _pcre_compile, _pcre_subject

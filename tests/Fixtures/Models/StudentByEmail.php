@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Models;
+namespace Nitro\Tests\Fixtures\Models;
 
 /**
  * A student bound by email instead of id (getRouteKeyName()), as a route or a #[Server]

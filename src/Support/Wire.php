@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use BackedEnum;
 use Illuminate\Contracts\Support\Arrayable;
@@ -9,7 +9,7 @@ use Illuminate\Support\Enumerable;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use JsonException;
-use Nitro\Fusion\Upload;
+use Nitro\Upload;
 
 /**
  * Values between PHP and the browser. JSON, where every PHP array that is not a list becomes

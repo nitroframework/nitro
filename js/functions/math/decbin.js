@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Decbin.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Decbin.js, for Nitro's values.
 function decbin(number) {
   //  discuss at: https://www.php.net/manual/en/function.decbin.php
   // The 64-bit unsigned value, as PHP: decbin(-1) is all ones.

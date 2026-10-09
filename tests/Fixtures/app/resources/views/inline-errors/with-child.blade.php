@@ -1,3 +1,3 @@
 <div>
-<fusion:counter />
+<nitro:counter />
 </div>

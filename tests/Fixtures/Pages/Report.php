@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Components\Store;
 
 /**
  * Deferred properties ($this->defer()): shown after the page, with @deferred / @placeholder.

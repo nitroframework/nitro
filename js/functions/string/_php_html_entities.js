@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Helpers/PhpHtmlEntities.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Helpers/PhpHtmlEntities.js, for Nitro's values.
 /**
  * PHP 8 get_html_translation_table(HTML_ENTITIES, ENT_QUOTES | ENT_HTML401) in PHP's own order:
  * character => entity. Generated from PHP 8.4.7, so htmlentities/html_entity_decode match it

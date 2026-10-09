@@ -214,7 +214,7 @@ async function open(path, options = {}) {
                 for (const listener of [...list.listeners]) listener({ matches, media: query });
             };
 
-            /** Fusion::browser(): a clipboard, a canvas context that records its calls, and an echoing WebSocket. */
+            /** Nitro::browser(): a clipboard, a canvas context that records its calls, and an echoing WebSocket. */
             let clipboardText = '';
             Object.defineProperty(window.navigator, 'clipboard', {
                 value: { writeText: async (text) => void (clipboardText = text), readText: async () => clipboardText },
@@ -257,7 +257,7 @@ async function open(path, options = {}) {
         },
     }));
     const { window } = dom;
-    await until(`${path} loaded`, () => window.Fusion && window.document.readyState === 'complete' && window.Fusion.components().length > 0, 5000);
+    await until(`${path} loaded`, () => window.Nitro && window.document.readyState === 'complete' && window.Nitro.components().length > 0, 5000);
     await wait(30);
     return window;
 }
@@ -282,7 +282,7 @@ const P_ = (property) => names.properties[property] ?? property;
 const N = (name) => names.components[name] ?? name;
 const M = (method) => names.methods[method] ?? method;
 const chunkId = (group) => names.chunks[group] ?? group;
-const byName = (root, name) => root.querySelector(`[fusion\:name="${N(name)}"]`);
+const byName = (root, name) => root.querySelector(`[nitro\:name="${N(name)}"]`);
 
 async function scenario(name, run) {
     try {
@@ -303,12 +303,12 @@ await scenario('embed', async () => {
     const counter = byName(document, 'counter');
     const $ = (selector, root = counter) => root.querySelector(selector);
 
-    check('hydrated: handlers attached', $('button').hasAttribute('fusion:h-click'));
-    check('hydrated: no state in the DOM, the page\'s data is one block', !counter.hasAttribute('fusion:snapshot') && document.querySelectorAll('script[data-fusion-state]').length === 1);
+    check('hydrated: handlers attached', $('button').hasAttribute('nitro:h-click'));
+    check('hydrated: no state in the DOM, the page\'s data is one block', !counter.hasAttribute('nitro:snapshot') && document.querySelectorAll('script[data-nitro-state]').length === 1);
     check('hydrated: model shows the state', $('input[type=number]').value === '2', $('input[type=number]').value);
 
     /** From here on a change renders only what reads it: never all of it. */
-    const component = window.Fusion.find(counter.getAttribute('fusion:id'));
+    const component = window.Nitro.find(counter.getAttribute('nitro:id'));
     let full = 0;
     for (const [target, method] of [[component.view, 'hydrate'], [component.view, 'create'], [component, 'rebuild']]) {
         const original = target[method].bind(target);
@@ -350,7 +350,7 @@ await scenario('embed', async () => {
     type(window, $('input[type=number]'), '5');
     await wait(20);
     click(window, minus);
-    await until('fusion:model.number set the step', () => text($('.count')) === '3');
+    await until('nitro:model.number set the step', () => text($('.count')) === '3');
 
     /** Viewi's @foreach: the iterations still there keep their nodes; what reads $loop follows. */
     const rows = [...counter.querySelectorAll('li')];
@@ -375,7 +375,7 @@ await scenario('embed', async () => {
     check('the event carried the server value', JSON.stringify(saved) === '[3]', JSON.stringify(saved));
     check('state kept after the round trip', text($('.count')) === '3');
     check('a snapshot with nothing new renders nothing again', full === 0, `${full} full renders`);
-    check('fusion:loading.attr removed after the call', !save.hasAttribute('disabled'));
+    check('nitro:loading.attr removed after the call', !save.hasAttribute('disabled'));
 
     /** Each @for button calls with its own $n, not the one the loop ended with. */
     const sets = counter.querySelectorAll('button.set');
@@ -384,13 +384,13 @@ await scenario('embed', async () => {
     click(window, sets[0]);
     await until('the first @for button sets 10', () => text($('.count')) === '10');
 
-    /** An answer that is not Fusion's (PHP printing a warning, say): fusion:error, not a crash. */
+    /** An answer that is not Nitro's (PHP printing a warning, say): nitro:error, not a crash. */
     const serverFetch = window.fetch;
     window.fetch = async () => new Response('<br /><b>Warning</b>: POST data can\'t be buffered', { status: 200 });
     let error = null;
-    window.addEventListener('fusion:error', (e) => (error = e.detail), { once: true });
+    window.addEventListener('nitro:error', (e) => (error = e.detail), { once: true });
     click(window, save);
-    await until('fusion:error for an answer that is not JSON', () => error !== null);
+    await until('nitro:error for an answer that is not JSON', () => error !== null);
     window.fetch = serverFetch;
     check('the error says why', /answer is not JSON/.test(error?.message) && error?.status === 200 && /Warning/.test(error?.body), JSON.stringify(error));
     check('the button is usable again', !save.hasAttribute('disabled'));
@@ -411,7 +411,7 @@ await scenario('embed', async () => {
     await until('a child created in the browser', () => list.querySelectorAll('li.todo').length === 3);
     const added = [...list.querySelectorAll('li.todo')].at(-1);
     check('the new child renders its props', text(added.querySelector('span')) === 'Buy milk', text(added));
-    check('the new child is a component', added.hasAttribute('fusion:id') && window.Fusion.find(added.getAttribute('fusion:id')) !== null);
+    check('the new child is a component', added.hasAttribute('nitro:id') && window.Nitro.find(added.getAttribute('nitro:id')) !== null);
     check('input cleared through the model', q('input[type=text]').value === '', q('input[type=text]').value);
     check('remaining updated', text(q('.remaining')) === '2 items left', text(q('.remaining')));
 
@@ -430,7 +430,7 @@ await scenario('embed', async () => {
     const removeButton = [...list.querySelectorAll('li.todo')].at(-1).querySelector('.remove');
     click(window, removeButton);
     await until('child removed itself through the parent', () => list.querySelectorAll('li.todo').length === 2);
-    check('removed child component forgotten', window.Fusion.components().filter((c) => c.name === N('todo-item')).length === 2);
+    check('removed child component forgotten', window.Nitro.components().filter((c) => c.name === N('todo-item')).length === 2);
 
     type(window, q('input[type=text]'), 'This title is much too long to keep');
     q('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
@@ -447,13 +447,13 @@ await scenario('embed', async () => {
 await scenario('navigation', async () => {
     const window = await open('/students/1');
     const { document } = window;
-    const page = document.querySelector('[fusion\\:page]');
-    /** A chunk's script: by the route (/_fusion/app/<id>.js) or the build's static file (<id>-<version>.js). */
+    const page = document.querySelector('[nitro\\:page]');
+    /** A chunk's script: by the route (/_nitro/app/<id>.js) or the build's static file (<id>-<version>.js). */
     const chunk = (group) => document.querySelector(`script[src*="/app/${chunkId(group)}.js"], script[src*="/${chunkId(group)}-"]`);
 
     /** #[LazyLoad]: the page's chunk came with the page; the others wait until a page needs them. */
-    check('the page\'s chunk is listed by @fusionScripts', chunk('pages') !== null && window.Fusion.definitions.has(N('pages::student-page')));
-    check('other chunks are not loaded', chunk('board') === null && !window.Fusion.definitions.has(N('pages::board')) && !window.Fusion.definitions.has(N('todo-item')));
+    check('the page\'s chunk is listed by @nitroScripts', chunk('pages') !== null && window.Nitro.definitions.has(N('pages::student-page')));
+    check('other chunks are not loaded', chunk('board') === null && !window.Nitro.definitions.has(N('pages::board')) && !window.Nitro.definitions.has(N('todo-item')));
 
     type(window, page.querySelector('input'), 'hello');
     await until('model re-renders the page', () => text(page.querySelector('.note')) === 'Note: hello');
@@ -463,13 +463,13 @@ await scenario('navigation', async () => {
     check('a method on model data in the browser', text(page.querySelector('.shout')) === 'RENAMED!', text(page.querySelector('.shout')));
     check('browser state kept through the call', text(page.querySelector('.note')) === 'Note: hello');
 
-    const link = document.querySelector('a[fusion\\:navigate]');
-    check('fusion:current off elsewhere', !link.classList.contains('active'));
+    const link = document.querySelector('a[nitro\\:navigate]');
+    check('nitro:current off elsewhere', !link.classList.contains('active'));
     click(window, link);
     await until('navigated without reloading', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
-    check('title followed', document.title === 'Fusion', document.title);
-    check('fusion:current on', link.classList.contains('active'));
-    check('the old page\'s component is gone', !window.Fusion.components().some((c) => c.name === N('pages::student-page')));
+    check('title followed', document.title === 'Nitro', document.title);
+    check('nitro:current on', link.classList.contains('active'));
+    check('the old page\'s component is gone', !window.Nitro.components().some((c) => c.name === N('pages::student-page')));
 
     const counter = byName(document, 'pages::counter');
     click(window, counter.querySelectorAll('button')[1]);
@@ -490,20 +490,20 @@ await scenario('navigation', async () => {
     check('the board\'s chunk loads while the visit fetches its data', chunk('board') !== null && answers.length === 0);
     check('the progress bar shows while the visit loads', document.querySelector('#nprogress .bar') !== null);
     check('with its configured spinner', document.querySelector('#nprogress .spinner') !== null);
-    await until('navigated to the board', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="todo-list"] li.todo') !== null);
+    await until('navigated to the board', () => window.location.pathname === '/board' && document.querySelector('[nitro\\:name="todo-list"] li.todo') !== null);
     await until('the progress bar completes and goes', () => document.querySelector('#nprogress') === null);
     check('the bar has the configured colour and height', [...document.querySelectorAll('style')].some((s) => /#nprogress \{[^}]*height: 4px;/.test(s.textContent) && /#nprogress \.bar \{ background: #e11d48;/.test(s.textContent)));    window.fetch = pageFetch;
     check('the visit got JSON', answers.length === 1 && /application\/json/.test(answers[0]), answers.join(', '));
     check('board title followed', document.title === 'Board', document.title);
 
-    const board = document.querySelector('[fusion\\:page]');
-    check('the page element is the board', board.getAttribute('fusion:name') === N('pages::board') && text(board.querySelector('h2')) === 'Board');
-    check('the page element names its layout', board.getAttribute('fusion:page') === 'components.layouts.app');
+    const board = document.querySelector('[nitro\\:page]');
+    check('the page element is the board', board.getAttribute('nitro:name') === N('pages::board') && text(board.querySelector('h2')) === 'Board');
+    check('the page element names its layout', board.getAttribute('nitro:page') === 'components.layouts.app');
     const list = byName(board, 'todo-list');
-    check('the child with mount() came from the server', list !== null && window.Fusion.find(list.getAttribute('fusion:id'))?.snapshot !== null);
+    check('the child with mount() came from the server', list !== null && window.Nitro.find(list.getAttribute('nitro:id'))?.snapshot !== null);
     check('its own children were made in the browser', list.querySelectorAll('li.todo').length === 2, String(list.querySelectorAll('li.todo').length));
-    check('no placeholders left', board.querySelector('[fusion\\:placeholder]') === null);
-    check('the children made in the browser loaded their chunk', chunk('todos') !== null && window.Fusion.definitions.has(N('todo-item')));
+    check('no placeholders left', board.querySelector('[nitro\\:placeholder]') === null);
+    check('the children made in the browser loaded their chunk', chunk('todos') !== null && window.Nitro.definitions.has(N('todo-item')));
 
     click(window, [...list.querySelectorAll('nav button')].find((b) => text(b) === 'Done'));
     await until('the server-made child is live in the browser', () => list.querySelectorAll('li.todo').length === 1);
@@ -522,16 +522,16 @@ await scenario('navigation', async () => {
     await until('back from the board', () => window.location.pathname === '/students/1' && byName(document, 'pages::student-page') !== null);
     window.history.forward();
     await until('forward to the board', () => window.location.pathname === '/board' && byName(document, 'todo-list') !== null);
-    check('only the board\'s components are alive', window.Fusion.components().every((c) => ['pages::board', 'todo-list', 'todo-item'].map(N).includes(c.name)), window.Fusion.components().map((c) => c.name).join(','));
+    check('only the board\'s components are alive', window.Nitro.components().every((c) => ['pages::board', 'todo-list', 'todo-item'].map(N).includes(c.name)), window.Nitro.components().map((c) => c.name).join(','));
 
-    /** fusion:navigate.keypress: the visit starts as the button goes down; its click is the same visit. */
+    /** nitro:navigate.keypress: the visit starts as the button goes down; its click is the same visit. */
     const pointer = (type, el, pointerType) => {
         const event = new window.MouseEvent(type, { bubbles: true, cancelable: true, button: 0 });
         Object.defineProperty(event, 'pointerType', { value: pointerType }); // jsdom has no PointerEvent
         el.dispatchEvent(event);
     };
     let visits = 0;
-    window.addEventListener('fusion:navigating', () => visits++);
+    window.addEventListener('nitro:navigating', () => visits++);
     const historyBefore = window.history.length;
     const pressLink = document.querySelector('a.press-link');
 
@@ -577,7 +577,7 @@ await scenario('navigation', async () => {
     window.close();
 });
 
-// ------------------------------------------------------------------ fusion:poll, fusion:init, fusion:confirm, #[Computed]
+// ------------------------------------------------------------------ nitro:poll, nitro:init, nitro:confirm, #[Computed]
 await scenario('clock', async () => {
     const window = await open('/clock');
     const { document } = window;
@@ -585,10 +585,10 @@ await scenario('clock', async () => {
     const $ = (selector) => clock.querySelector(selector);
     const ticks = () => parseInt(text($('.label')), 10);
 
-    await until('fusion:init ran once the element appeared', () => $('.ready') !== null);
-    await until('fusion:poll calls a browser method', () => ticks() >= 3);
+    await until('nitro:init ran once the element appeared', () => $('.ready') !== null);
+    await until('nitro:poll calls a browser method', () => ticks() >= 3);
     check('#[Computed] read twice in a render gives the same value', text($('.label')) === text($('.again')), `${text($('.label'))} / ${text($('.again'))}`);
-    await until('fusion:poll calls a #[Server] method too', () => Number(text($('.synced'))) >= 2);
+    await until('nitro:poll calls a #[Server] method too', () => Number(text($('.synced'))) >= 2);
 
     click(window, $('.stop'));
     await wait(150);
@@ -597,7 +597,7 @@ await scenario('clock', async () => {
     check('a poll stops when its element leaves', ticks() === stopped, `${stopped} then ${ticks()}`);
 
     /** #[Computed]: worked out once until the state changes. */
-    const component = window.Fusion.find(clock.getAttribute('fusion:id'));
+    const component = window.Nitro.find(clock.getAttribute('nitro:id'));
     const label = component.ctx[M('label')];
     let calls = 0;
     component.ctx[M('label')] = function () {
@@ -609,7 +609,7 @@ await scenario('clock', async () => {
     /** The method reused the last render's value (nothing had changed); the render after its change worked it out once for both reads. */
     check('computed once per change, not per read', calls === 1, String(calls));
 
-    /** fusion:confirm asks first; a no leaves the state alone. */
+    /** nitro:confirm asks first; a no leaves the state alone. */
     const asked = [];
     window.confirm = (message) => (asked.push(message), false);
     window.prompt = (message) => (asked.push(message), 'nope');
@@ -667,7 +667,7 @@ await scenario('helpers', async () => {
     const links = byName(document, 'pages::links');
     const href = (cls) => links.querySelector(`a.${cls}`).getAttribute('href');
 
-    check('the page ships what the helpers name', window.Fusion.B.globals.routes['students.show']?.uri === 'students/{student}' && window.Fusion.B.globals.config['app.name'] !== undefined);
+    check('the page ships what the helpers name', window.Nitro.B.globals.routes['students.show']?.uri === 'students/{student}' && window.Nitro.B.globals.config['app.name'] !== undefined);
     const root = window.location.origin;
     check('hydrated as the server rendered it', href('next') === root + '/students/2?from=ada%20lovelace', href('next'));
 
@@ -675,12 +675,12 @@ await scenario('helpers', async () => {
     await until('route() in a browser method follows the state', () => href('next') === root + '/students/3?from=grace%20hopper');
     check('route() in the template too', href('named') === root + '/students/2?tab=notes', href('named'));
     check('__() with its replacements', text(links.querySelector('a.named')) === "Open Grace hopper's record" && text(links.querySelector('.welcome')) === 'Welcome, GRACE HOPPER! (grace hopper, Grace hopper)', text(links.querySelector('.welcome')));
-    check('the other helpers', links.querySelector('img').getAttribute('src') === root + '/img/logo.png' && links.querySelector('img').getAttribute('alt') === 'Fusion Tests' && href('relative') === '/counter?page=2');
+    check('the other helpers', links.querySelector('img').getAttribute('src') === root + '/img/logo.png' && links.querySelector('img').getAttribute('alt') === 'Nitro Tests' && href('relative') === '/counter?page=2');
 
     window.close();
 });
 
-// ------------------------------------------------------------------ lifecycle hooks, $this->js(), fusion:ref
+// ------------------------------------------------------------------ lifecycle hooks, $this->js(), nitro:ref
 await scenario('lifecycle', async () => {
     const window = await open('/journal');
     const { document } = window;
@@ -689,7 +689,7 @@ await scenario('lifecycle', async () => {
 
     /** @teleport: the server rendered the content at its @portal (Viewi's portals); the browser hydrated it there. */
     const docks = () => [...document.querySelectorAll('.journal-dock')];
-    check('@teleport content is at its @portal, once', docks().length === 1 && docks()[0].parentElement.id === 'dock' && docks()[0].fusionOwner !== undefined && text(docks()[0].querySelector('.dock-note')) === 'first entry', document.body.innerHTML);
+    check('@teleport content is at its @portal, once', docks().length === 1 && docks()[0].parentElement.id === 'dock' && docks()[0].nitroOwner !== undefined && text(docks()[0].querySelector('.dock-note')) === 'first entry', document.body.innerHTML);
     check('nothing of it in place', journal.querySelector('aside, template') === null, journal.innerHTML);
     check('the portal marks and the page around them kept', document.getElementById('portal_dock_end') !== null && document.getElementById('portal_toasts_end') !== null && document.querySelector('nav') !== null, document.body.innerHTML);
 
@@ -699,17 +699,17 @@ await scenario('lifecycle', async () => {
 
     const toastNote = document.querySelector('#toasts .toast-note');
     type(window, toastNote, 'from the toast');
-    await until('fusion:model in teleported content sets the component\'s state', () => note.value === 'from the toast' && text(docks()[0].querySelector('.dock-note')) === 'from the toast');
+    await until('nitro:model in teleported content sets the component\'s state', () => note.value === 'from the toast' && text(docks()[0].querySelector('.dock-note')) === 'from the toast');
 
     type(window, note, 'hello');
     await until('and shows it', () => toastNote.value === 'hello');
     click(window, journal.querySelector('button'));
     await until('$this->js() from a #[Server] method ran after the render', () => window.savedJournal !== undefined);
-    check('with $fusion, $refs and $el', window.savedJournal === 'hello / ready, 1 saved / SECTION', window.savedJournal);
+    check('with $nitro, $refs and $el', window.savedJournal === 'hello / ready, 1 saved / SECTION', window.savedJournal);
     await until('teleported content renders its @foreach', () => text(docks()[0].querySelector('em')) === 'hello');
 
     click(window, document.querySelector('#toasts .dismiss'));
-    await until('fusion:click in teleported content runs on its component; the @if took the content away', () => text(journal.querySelector('.status')) === 'waiting, 1 saved' && document.querySelector('#toasts .journal-toast') === null);
+    await until('nitro:click in teleported content runs on its component; the @if took the content away', () => text(journal.querySelector('.status')) === 'waiting, 1 saved' && document.querySelector('#toasts .journal-toast') === null);
 
     let gone = null;
     window.addEventListener('journal-gone', (e) => (gone = e.detail.params));
@@ -767,13 +767,13 @@ await scenario('hooks', async () => {
 await scenario('slots', async () => {
     const window = await open('/shelf');
     const { document } = window;
-    const [stock, empty] = document.querySelectorAll('[fusion\\:name="card"]');
+    const [stock, empty] = document.querySelectorAll('[nitro\\:name="card"]');
     const count = () => text(stock.querySelector('.count'));
     const items = () => [...stock.querySelectorAll('.body > ul > li')].map(text).join(',');
 
     check('hydrated: the parent\'s content in the card', count() === 'Books: 1' && items() === 'Atlas,Bible', `${count()} ${items()}`);
     check('the empty card: its fallback, no footer', !empty.querySelector('footer') && text(empty.querySelector('.blank')) === 'Nothing here yet.' && !stock.querySelector('.blank'));
-    check('the child in the slot is live', window.Fusion.find(stock.querySelector('li.todo')?.getAttribute('fusion:id') ?? '') !== null);
+    check('the child in the slot is live', window.Nitro.find(stock.querySelector('li.todo')?.getAttribute('nitro:id') ?? '') !== null);
 
     click(window, stock.querySelector('footer .add'));
     await until('the parent\'s handler in a named slot, and its content in the card followed', () => count() === 'Books: 2' && items() === 'Atlas,Bible,Item 2');
@@ -781,7 +781,7 @@ await scenario('slots', async () => {
     type(window, stock.querySelector('input.label'), 'Maps');
     await until('the parent\'s field in the card', () => count() === 'Maps: 2');
     await until('the slot\'s own child took the parent\'s value', () => text(stock.querySelector('li.todo span')) === 'Maps');
-    check('the parent\'s state, not the card\'s', window.Fusion.components().find((c) => c.name === N('pages::shelf')).data.get(P_('label')) === 'Maps');
+    check('the parent\'s state, not the card\'s', window.Nitro.components().find((c) => c.name === N('pages::shelf')).data.get(P_('label')) === 'Maps');
 
     click(window, stock.querySelector('.toggle'));
     await until('the card hid its body (its own state)', () => stock.querySelector('.body') === null);
@@ -794,7 +794,7 @@ await scenario('slots', async () => {
     window.close();
 });
 
-// ------------------------------------------------------------------ events and fusion:model on a child (Livewire's ways)
+// ------------------------------------------------------------------ events and nitro:model on a child (Livewire's ways)
 await scenario('events', async () => {
     const window = await open('/shelf');
     const { document } = window;
@@ -810,7 +810,7 @@ await scenario('events', async () => {
     type(window, input, 'atlas');
     await until('the child\'s field writes the parent\'s property', () => text(shelf.querySelector('.query')) === 'atlas');
     click(window, shelf.querySelector('.reset-query'));
-    await until('the parent\'s change reaches the child', () => input.value === 'reset' && window.Fusion.find(box.getAttribute('fusion:id')).data.get(P_('value')) === 'reset');
+    await until('the parent\'s change reaches the child', () => input.value === 'reset' && window.Nitro.find(box.getAttribute('nitro:id')).data.get(P_('value')) === 'reset');
     click(window, box.querySelector('.clear'));
     await until('a child method changing it: the parent follows', () => text(shelf.querySelector('.query')) === '');
 
@@ -840,27 +840,27 @@ await scenario('dynamic components', async () => {
     const window = await open('/panels');
     const { document } = window;
     const panels = byName(document, 'pages::panels');
-    const current = () => panels.querySelector('.current [fusion\:name]');
-    const ids = () => window.Fusion.components().map((c) => c.id);
+    const current = () => panels.querySelector('.current [nitro\:name]');
+    const ids = () => window.Nitro.components().map((c) => c.id);
 
-    check('<fusion:dynamic-component> renders the component :is names', current()?.getAttribute('fusion:name') === N('card'), panels.innerHTML);
-    check('in a loop, each its own', [...panels.querySelectorAll('li > [fusion\:name]')].map((el) => el.getAttribute('fusion:name')).join(',') === ['card', 'search-box'].map(N).join(','), panels.innerHTML);
+    check('<nitro:dynamic-component> renders the component :is names', current()?.getAttribute('nitro:name') === N('card'), panels.innerHTML);
+    check('in a loop, each its own', [...panels.querySelectorAll('li > [nitro\:name]')].map((el) => el.getAttribute('nitro:name')).join(',') === ['card', 'search-box'].map(N).join(','), panels.innerHTML);
     const card = current();
-    const cardId = card.getAttribute('fusion:id');
+    const cardId = card.getAttribute('nitro:id');
     check('keyed with its name', cardId.endsWith('.c0:card'), cardId);
 
     click(window, card.querySelector('.toggle'));
     await until('the card has state', () => text(current().querySelector('.toggle')) === 'Show');
 
     click(window, panels.querySelector('.to-search'));
-    await until('another name renders that component instead', () => current()?.getAttribute('fusion:name') === N('search-box'));
+    await until('another name renders that component instead', () => current()?.getAttribute('nitro:name') === N('search-box'));
     check('the one before left the page, and the runtime', !card.isConnected && !ids().includes(cardId), ids().join(' '));
 
     click(window, panels.querySelector('.to-none'));
     await until('"" renders none', () => current() === null && panels.querySelector('.current').children.length === 0);
 
     click(window, panels.querySelector('.to-card'));
-    await until('back to the card: a new one', () => current()?.getAttribute('fusion:name') === N('card'));
+    await until('back to the card: a new one', () => current()?.getAttribute('nitro:name') === N('card'));
     check('with its own state (not the old one\'s)', text(current().querySelector('.toggle')) === 'Hide', current().outerHTML);
 
     window.close();
@@ -880,12 +880,12 @@ await scenario('stores', async () => {
 
     click(window, $('.buy-direct'));
     await until('a store method called from a view', () => badge() === '3 · 17 · server');
-    check('in the browser: no request', !window.Fusion.stores.get(N('stores::cart'))?.snapshot?.state?.includes('Gift'));
+    check('in the browser: no request', !window.Nitro.stores.get(N('stores::cart'))?.snapshot?.state?.includes('Gift'));
 
-    const store = window.Fusion.stores.get(N('stores::cart'));
+    const store = window.Nitro.stores.get(N('stores::cart'));
     click(window, $('.to-cart'));
     await until('a visit to another page', () => window.location.pathname === '/shop/cart' && $('.cart-list') !== null);
-    check('the same store, kept across the visit', window.Fusion.stores.get(N('stores::cart')) === store);
+    check('the same store, kept across the visit', window.Nitro.stores.get(N('stores::cart')) === store);
     await until('a component made after the changes reads them', () => [...document.querySelectorAll('.cart-list .item')].map((li) => text(li).replace(/\s*x$/, '')).join(',') === 'Pen,Book,Gift');
     check('and the new page\'s badge', badge() === '3 · 17 · server', badge());
 
@@ -907,15 +907,15 @@ await scenario('stores', async () => {
     again.close();
 });
 
-/** Fusion's own plugins, on the cart store: #[Persist] (localStorage, shared by the tabs) and #[Sync] (BroadcastChannel). */
+/** Nitro's own plugins, on the cart store: #[Persist] (localStorage, shared by the tabs) and #[Sync] (BroadcastChannel). */
 await scenario('store plugins: #[Persist] and #[Sync]', async () => {
     const storage = new SharedStorage();
-    const key = `fusion:persist:${N('stores::cart')}`;
+    const key = `nitro:persist:${N('stores::cart')}`;
     const badgeOf = (w) => text(w.document.querySelector('.cart-badge'));
     const countOf = (w) => Number(badgeOf(w).split(' · ')[0]);
 
     const first = await open('/shop', { localStorage: storage, tabs: true });
-    const definition = first.Fusion.stores.get(N('stores::cart')).definition;
+    const definition = first.Nitro.stores.get(N('stores::cart')).definition;
     check('kept and shared: items only (madeBy is #[Locked], the server\'s)', definition.persist.length === 1 && JSON.stringify(definition.sync) === JSON.stringify(definition.persist), JSON.stringify([definition.persist, definition.sync]));
     const items = definition.persist[0];
     const start = countOf(first);
@@ -937,7 +937,7 @@ await scenario('store plugins: #[Persist] and #[Sync]', async () => {
 
     /** The plugin API's store, used after the page started: the stores already made, and set() refused on a #[Locked] property. */
     let seen = null;
-    first.Fusion.use(({ on }) => on('store', (store) => {
+    first.Nitro.use(({ on }) => on('store', (store) => {
         seen = store;
     }));
     check('a store listener registered late hears the stores already made', seen?.name === N('stores::cart'), seen?.name);
@@ -957,12 +957,12 @@ await scenario('store plugins: #[Persist] and #[Sync]', async () => {
     const third = await open('/shop', { localStorage: storage });
     await until('a kept value is set as the browser\'s own change', () => badgeOf(third) === '1 · -100 · server');
     click(third, third.document.querySelector('.checkout'));
-    await until('the server checks it (items.*.price min:0): checkout() does not run', () => third.Fusion.stores.get(N('stores::cart')).errors.has(`${P_('items')}.0.price`));
+    await until('the server checks it (items.*.price min:0): checkout() does not run', () => third.Nitro.stores.get(N('stores::cart')).errors.has(`${P_('items')}.0.price`));
     check('the cart is as it was', badgeOf(third) === '1 · -100 · server', badgeOf(third));
     third.close();
 });
 
-/** Fusion.use(): a plugin's hooks, registered after the page started. */
+/** Nitro.use(): a plugin's hooks, registered after the page started. */
 await scenario('plugins', async () => {
     const window = await open('/counter');
     const { document } = window;
@@ -975,7 +975,7 @@ await scenario('plugins', async () => {
         return fetched(input, init);
     };
     const errors = [];
-    window.addEventListener('fusion:error', (event) => errors.push(event.detail.message));
+    window.addEventListener('nitro:error', (event) => errors.push(event.detail.message));
     /** The listener below fails on purpose: reported, as a plugin's error is. */
     expectedErrors.push(/a listener that fails/);
 
@@ -992,9 +992,9 @@ await scenario('plugins', async () => {
         });
         on('response', ({ method, status }) => heard.push(`response ${method} ${status}`));
     };
-    window.Fusion.use(plugin);
-    window.Fusion.use(plugin);
-    check('registered late: it hears the components already started, once though used twice', heard.filter((h) => h.startsWith('component ')).length === window.Fusion.components().length && heard.length === window.Fusion.components().length, heard.join(', '));
+    window.Nitro.use(plugin);
+    window.Nitro.use(plugin);
+    check('registered late: it hears the components already started, once though used twice', heard.filter((h) => h.startsWith('component ')).length === window.Nitro.components().length && heard.length === window.Nitro.components().length, heard.join(', '));
 
     heard.length = 0;
     click(window, counter.querySelector('button:nth-of-type(2)'));
@@ -1006,7 +1006,7 @@ await scenario('plugins', async () => {
     await until('request and response around a #[Server] call', () => heard.includes(`request ${M('save')}`) && heard.includes(`response ${M('save')} 200`));
     const headers = sent.at(-1) ?? {};
     check('a plugin adds a header', headers['X-Plugin'] === 'yes', JSON.stringify(headers));
-    check('but cannot change Fusion\'s own', headers['X-CSRF-TOKEN'] !== 'forged' && headers['X-CSRF-TOKEN'] === window.document.querySelector('script[data-csrf]').dataset.csrf, headers['X-CSRF-TOKEN']);
+    check('but cannot change Nitro\'s own', headers['X-CSRF-TOKEN'] !== 'forged' && headers['X-CSRF-TOKEN'] === window.document.querySelector('script[data-csrf]').dataset.csrf, headers['X-CSRF-TOKEN']);
     check('a listener that throws is reported, the others still run', errors.includes('a listener that fails') && heard.includes(`response ${M('save')} 200`), errors.join(', '));
 
     const refused = (fn) => {
@@ -1017,8 +1017,8 @@ await scenario('plugins', async () => {
             return error.message;
         }
     };
-    check('a plugin is a function', refused(() => window.Fusion.use({})) === 'Fusion.use(): a plugin is a function, called with the plugin API');
-    check('only its events', refused(() => window.Fusion.use(({ on }) => on('mount', () => {}))).startsWith('Fusion.use(): there is no event "mount"'));
+    check('a plugin is a function', refused(() => window.Nitro.use({})) === 'Nitro.use(): a plugin is a function, called with the plugin API');
+    check('only its events', refused(() => window.Nitro.use(({ on }) => on('mount', () => {}))).startsWith('Nitro.use(): there is no event "mount"'));
     window.close();
 });
 
@@ -1027,7 +1027,7 @@ await scenario('server calls from children', async () => {
     const { document } = window;
     const link = document.createElement('a');
     link.href = '/panels';
-    link.setAttribute('fusion:navigate', '');
+    link.setAttribute('nitro:navigate', '');
     document.body.appendChild(link);
     click(window, link);
     await until('a data visit to the page', () => window.location.pathname === '/panels' && byName(document, 'pages::panels') !== null);
@@ -1047,18 +1047,18 @@ await scenario('server calls from children', async () => {
     await until('a #[Server] call whose state places a child with mount(): the server creates it with the answer', () => text(document.querySelector('.badges .badge')) === 'BADGE 1', 3000);
     click(window, document.querySelector('.add-badge'));
     await until('and the next', () => [...document.querySelectorAll('.badges .badge')].map(text).join(',') === 'BADGE 1,BADGE 2', 3000);
-    check('live components, not HTML', window.Fusion.components().filter((c) => c.name === N('badge')).length === 2);
+    check('live components, not HTML', window.Nitro.components().filter((c) => c.name === N('badge')).length === 2);
 
     const keys = document.querySelector('.keys');
     keys.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await until('the first of two fusion:keydown handlers on one element', () => text(document.querySelector('.key')) === 'enter');
+    await until('the first of two nitro:keydown handlers on one element', () => text(document.querySelector('.key')) === 'enter');
     keys.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await until('and the second', () => text(document.querySelector('.key')) === 'escape');
 
     window.close();
 });
 
-// ------------------------------------------------------------------ Livewire and Fusion on one page
+// ------------------------------------------------------------------ Livewire and Nitro on one page
 await scenario('livewire', async () => {
     const window = await open('/both');
     const { document } = window;
@@ -1066,13 +1066,13 @@ await scenario('livewire', async () => {
 
     const counter = byName(document, 'counter');
     click(window, counter.querySelectorAll('button')[1]);
-    await until('the Fusion component works next to Livewire', () => text(counter.querySelector('.count')) === '1');
+    await until('the Nitro component works next to Livewire', () => text(counter.querySelector('.count')) === '1');
 
     click(window, document.querySelector('.ticker button'));
-    await until('the Livewire component works next to Fusion', () => text(document.querySelector('.ticks')) === '1', 5000);
+    await until('the Livewire component works next to Nitro', () => text(document.querySelector('.ticks')) === '1', 5000);
 
-    check('Fusion kept its state through Livewire\'s update', text(counter.querySelector('.count')) === '1');
-    check('Livewire did not pick up Fusion\'s component', !counter.hasAttribute('wire:id'));
+    check('Nitro kept its state through Livewire\'s update', text(counter.querySelector('.count')) === '1');
+    check('Livewire did not pick up Nitro\'s component', !counter.hasAttribute('wire:id'));
     window.close();
 });
 
@@ -1091,16 +1091,16 @@ await scenario('uploads', async () => {
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
 
     const events = [];
-    for (const name of ['fusion-upload-start', 'fusion-upload-progress', 'fusion-upload-finish', 'fusion-upload-error']) {
+    for (const name of ['nitro-upload-start', 'nitro-upload-progress', 'nitro-upload-finish', 'nitro-upload-error']) {
         input.addEventListener(name, (e) => events.push(name + (e.detail?.status ? `:${e.detail.status}` : '')));
     }
 
     choose(input, [new window.File([png], 'Birthday Cake.png', { type: 'image/png' })]);
-    check('the loading state shows while it uploads', gallery.querySelector('.uploading').hasAttribute('data-fusion-loading'));
-    await until('the preview shows', () => /\/_fusion\/upload\/preview\?t=/.test(gallery.querySelector('.preview img')?.getAttribute('src') ?? ''));
+    check('the loading state shows while it uploads', gallery.querySelector('.uploading').hasAttribute('data-nitro-loading'));
+    await until('the preview shows', () => /\/_nitro\/upload\/preview\?t=/.test(gallery.querySelector('.preview img')?.getAttribute('src') ?? ''));
     check('what the view shows of it', text(gallery.querySelector('figcaption')) === 'Birthday Cake.png (png, image/png, 68 bytes)', text(gallery.querySelector('figcaption')));
-    check('start and finish on the input', events.includes('fusion-upload-start') && events.includes('fusion-upload-finish'), events.join(', '));
-    check('the loading state is gone', !gallery.querySelector('.uploading').hasAttribute('data-fusion-loading'));
+    check('start and finish on the input', events.includes('nitro-upload-start') && events.includes('nitro-upload-finish'), events.join(', '));
+    check('the loading state is gone', !gallery.querySelector('.uploading').hasAttribute('data-nitro-loading'));
 
     /** As the <img> loads it: with the page's cookies (the preview's reference is good in its session only). */
     const preview = await browserFetch(window)(new URL(gallery.querySelector('.preview img').getAttribute('src'), url));
@@ -1116,10 +1116,10 @@ await scenario('uploads', async () => {
     check('the property is empty again', gallery.querySelector('.preview') === null && text(gallery.querySelector('.count')) === '0 photos');
     check('so is the input', input.value === '');
 
-    /** Too big for fusion.uploads.rules (max 1024 KB): the message, as validate() gives it. */
+    /** Too big for nitro.uploads.rules (max 1024 KB): the message, as validate() gives it. */
     choose(input, [new window.File([new Uint8Array(1100 * 1024)], 'huge.png', { type: 'image/png' })]);
     await until('the error shows', () => /must not be greater than 1024 kilobytes/.test(text(gallery.querySelector('.error')) ?? ''));
-    check('an error event', events.includes('fusion-upload-error:422'), events.join(', '));
+    check('an error event', events.includes('nitro-upload-error:422'), events.join(', '));
     check('no photo', gallery.querySelector('.preview') === null);
 
     choose(input, [new window.File([png], 'again.png', { type: 'image/png' })]);
@@ -1133,7 +1133,7 @@ await scenario('uploads', async () => {
         setHeaders.push(`${name}: ${value}`);
         return setRequestHeader.call(this, name, value);
     };
-    window.Fusion.use(({ on }) => {
+    window.Nitro.use(({ on }) => {
         on('request', ({ method, headers }) => {
             if (method === '$upload') headers['X-Plugin'] = 'upload';
             heard.push(`request ${method}`);
@@ -1145,14 +1145,14 @@ await scenario('uploads', async () => {
     check('a plugin\'s header goes with an upload', setHeaders.includes('X-Plugin: upload'), setHeaders.join(', '));
     check('and it hears the upload sent', heard.includes('request $upload'), heard.join(', '));
 
-    /** Expired state (another session, a new key): fusion:expired, as for a call; a listener can keep the page. */
+    /** Expired state (another session, a new key): nitro:expired, as for a call; a listener can keep the page. */
     const expired = [];
-    window.addEventListener('fusion:expired', (event) => {
+    window.addEventListener('nitro:expired', (event) => {
         expired.push(event.detail.status);
         event.preventDefault();
     });
     expectedErrors.push(/uploading /);
-    const owner = window.Fusion.owner(input);
+    const owner = window.Nitro.owner(input);
     owner.snapshot = { ...owner.snapshot, checksum: 'forged' };
     choose(input, [new window.File([png], 'late.png', { type: 'image/png' })]);
     await until('an upload with state that no longer holds is told so', () => expired.includes(419));
@@ -1166,7 +1166,7 @@ await scenario('inlined views', async () => {
     const showcase = document.querySelector('.showcase');
     const [clickButton, featureButton] = showcase.querySelectorAll('button');
 
-    /** fusion:click given to <x-button>: the Fusion component's method. */
+    /** nitro:click given to <x-button>: the Nitro component's method. */
     click(window, clickButton);
     await until('the count follows', () => text(showcase.querySelector('.clicks')) === '1');
     check('the card\'s named slot follows', text(showcase.querySelector('.foot')) === '1 clicks', text(showcase.querySelector('.foot')));
@@ -1192,7 +1192,7 @@ await scenario('inlined views', async () => {
     click(window, featureButton);
     await until('and back', () => !text(showcase).includes('Featured') && showcase.querySelector('#main-badge').className === 'badge badge-gold extra');
     check('the shadow is gone', !showcase.querySelector('.card').classList.contains('shadow'));
-    /** fusion:tooltip's runs so far: the renders below change other things only. */
+    /** nitro:tooltip's runs so far: the renders below change other things only. */
     const directiveRuns = window.directiveLog.length;
 
     /** #[Browser] enums: an enum property read as its case, a <select> of cases(), a case's methods, and the server given the case. */
@@ -1211,11 +1211,11 @@ await scenario('inlined views', async () => {
 
     select.value = 'cancelled';
     change(window, select);
-    await until('fusion:model writes the value; the view reads the case', () => badge() === 'Cancelled ✓ (cancelled, Cancelled)');
+    await until('nitro:model writes the value; the view reads the case', () => badge() === 'Cancelled ✓ (cancelled, Cancelled)');
     click(window, showcase.querySelector('.confirm'));
     await until('the server gets the case the select chose', () => text(showcase.querySelector('.seen')) === 'server saw Cancelled');
 
-    /** The application's own fusion: attributes: fusion:tooltip, registered on fusion:starting by a script before the runtime (the layout). */
+    /** The application's own nitro: attributes: nitro:tooltip, registered on nitro:starting by a script before the runtime (the layout). */
     const log = window.directiveLog;
     const tip = () => showcase.querySelector('.tip');
     check('a directive runs with the value and modifiers', tip()?.dataset.tip === '3 clicks @top', tip()?.dataset.tip);
@@ -1229,17 +1229,17 @@ await scenario('inlined views', async () => {
     await until('it comes back: the directive runs on the new element', () => tip()?.dataset.tip === '3 clicks @top' && log.at(-1) === 'run 3 clicks');
 
     /** Registered after the page started: it runs on the elements already there; component.dispatch() reaches #[On]. */
-    check('nothing ran fusion:tell yet', text(showcase.querySelector('.told')) === '');
-    window.Fusion.directive('tell', ({ value, component }) => component.dispatch('told', value, { by: 'directive' }));
+    check('nothing ran nitro:tell yet', text(showcase.querySelector('.told')) === '');
+    window.Nitro.directive('tell', ({ value, component }) => component.dispatch('told', value, { by: 'directive' }));
     await until('a directive registered late runs, and its event reaches the component', () => text(showcase.querySelector('.told')) === 'hello from directive');
 
     let refused = '';
     try {
-        window.Fusion.directive('tooltip', () => {});
+        window.Nitro.directive('tooltip', () => {});
     } catch (error) {
         refused = error.message;
     }
-    check('a name registers once', refused === "Fusion.directive('tooltip') is registered already", refused);
+    check('a name registers once', refused === "Nitro.directive('tooltip') is registered already", refused);
     window.close();
 });
 
@@ -1248,7 +1248,7 @@ await scenario('render and shared', async () => {
     const { document } = window;
     const greeting = () => document.querySelector('.greeting');
 
-    /** Fusion::share()'s data, rendered in the browser as on the server. */
+    /** Nitro::share()'s data, rendered in the browser as on the server. */
     check('the shared name after hydration', text(greeting().querySelector('.hello')) === 'Hello Ada', text(greeting().querySelector('.hello')));
     check('a missing key gives the default', text(greeting().querySelector('.missing')) === 'fallback');
 
@@ -1260,12 +1260,12 @@ await scenario('render and shared', async () => {
     click(window, greeting().querySelector('.rename'));
     await until('the shared name follows the call', () => text(greeting().querySelector('.hello')) === 'Hello Grace');
 
-    /** $visit(url) from a handler: a fusion:navigate visit to another page. */
-    const runtime = window.Fusion;
+    /** $visit(url) from a handler: a nitro:navigate visit to another page. */
+    const runtime = window.Nitro;
     click(window, greeting().querySelector('.go'));
     await until('$visit: the page is shown in place', () => window.location.pathname === '/counter' && text(document.querySelector('.count')) === '0');
     check('the greeting is gone', greeting() === null);
-    check('the page was not reloaded', window.Fusion === runtime);
+    check('the page was not reloaded', window.Nitro === runtime);
     window.close();
 });
 
@@ -1281,7 +1281,7 @@ await scenario('scroll and builds', async () => {
     };
 
     scrollTo(420);
-    await until('the scroll position is kept in the history entry', () => window.history.state?.fusionScroll?.y === 420);
+    await until('the scroll position is kept in the history entry', () => window.history.state?.nitroScroll?.y === 420);
 
     click(window, document.querySelector('.to-counter'));
     await until('a visit goes to the top', () => window.location.pathname === '/counter' && scrolls.at(-1) === '0,0');
@@ -1292,7 +1292,7 @@ await scenario('scroll and builds', async () => {
     const before = scrolls.length;
     click(window, document.querySelector('.to-counter-kept'));
     await until('a preserve-scroll visit lands', () => window.location.pathname === '/counter');
-    check('fusion:navigate.preserve-scroll keeps the position', scrolls.length === before, scrolls.join(' '));
+    check('nitro:navigate.preserve-scroll keeps the position', scrolls.length === before, scrolls.join(' '));
     window.close();
 
     /** A browser running another build's components: the server answers 409, the page is not rendered in place. */
@@ -1304,7 +1304,7 @@ await scenario('scroll and builds', async () => {
         statuses.push(response.status);
         return response;
     };
-    stale.Fusion.config.bundle = 'an-earlier-build';
+    stale.Nitro.config.bundle = 'an-earlier-build';
     click(stale, stale.document.querySelector('.to-counter'));
     await until('the visit is answered 409', () => statuses.includes(409));
     await wait(100);
@@ -1329,7 +1329,7 @@ await scenario('deferred', async () => {
     let release;
     const held = new Promise((resolve) => (release = resolve));
     visiting.fetch = async (input, init = {}) => {
-        if (new Headers(init.headers ?? {}).has('X-Fusion-Partial')) await held;
+        if (new Headers(init.headers ?? {}).has('X-Nitro-Partial')) await held;
         return fetch(input, init);
     };
     click(visiting, visiting.document.querySelector('.to-report'));
@@ -1407,7 +1407,7 @@ await scenario('visible', async () => {
     const items = () => document.querySelectorAll('.items li').length;
     const watched = (el) => window.observers.some((o) => o.elements.has(el));
 
-    check('fusion:visible.200px observes with its margin', window.observers.some((o) => o.options.rootMargin === '200px' && o.elements.has(document.querySelector('.more'))));
+    check('nitro:visible.200px observes with its margin', window.observers.some((o) => o.options.rootMargin === '200px' && o.elements.has(document.querySelector('.more'))));
     window.observe(document.querySelector('.more'), true);
     await until('in view, it loads until the list is full', () => items() === 20 && document.querySelector('.more') === null);
 
@@ -1435,16 +1435,16 @@ await scenario('once, flash and merge', async () => {
     const sentOnce = [];
     const fetch = window.fetch;
     window.fetch = (input, init = {}) => {
-        sentOnce.push(new Headers(init.headers ?? {}).get('X-Fusion-Once'));
+        sentOnce.push(new Headers(init.headers ?? {}).get('X-Nitro-Once'));
         return fetch(input, init);
     };
     const flashes = [];
-    window.addEventListener('fusion:flash', (e) => flashes.push(e.detail.flash));
+    window.addEventListener('nitro:flash', (e) => flashes.push(e.detail.flash));
 
     check('once data on the page', text(document.querySelector('.countries')) === '2 countries', text(document.querySelector('.countries')));
     click(window, document.querySelector('.celebrate'));
     await until('flash data from a #[Server] call', () => text(document.querySelector('.toast')) === 'Well done');
-    check('fusion:flash announces it', flashes.some((flash) => flash.toast === 'Well done'), JSON.stringify(flashes));
+    check('nitro:flash announces it', flashes.some((flash) => flash.toast === 'Well done'), JSON.stringify(flashes));
     check('a #[Server] call says the browser has the once data', sentOnce.at(-1) === 'countries', String(sentOnce));
 
     click(window, document.querySelector('.to-counter'));
@@ -1457,7 +1457,7 @@ await scenario('once, flash and merge', async () => {
     check('flash data belongs to the page it came with', text(document.querySelector('.toast')) === 'no toast', text(document.querySelector('.toast')));
 
     click(window, document.querySelector('.celebrate-elsewhere'));
-    await until('a call that redirects: its flash data comes with the page it goes to', () => window.location.pathname === '/counter' && window.Fusion.B.flashed('toast') === 'Over here');
+    await until('a call that redirects: its flash data comes with the page it goes to', () => window.location.pathname === '/counter' && window.Nitro.B.flashed('toast') === 'Over here');
     window.close();
 
     const timeline = await open('/timeline');
@@ -1585,14 +1585,14 @@ await scenario('islands', async () => {
     const window = await open('/islands');
     const { document } = window;
     const $ = (selector) => document.querySelector(selector);
-    const live = (section) => window.Fusion.components().filter((c) => $(`.${section}`).contains(c.el)).length;
+    const live = (section) => window.Nitro.components().filter((c) => $(`.${section}`).contains(c.el)).length;
     const chunk = () => [...document.querySelectorAll('script[src]')].some((s) => s.src.includes(chunkId('islands')));
 
-    check('a component without fusion:hydrate starts with the page', live('now') === 1);
+    check('a component without nitro:hydrate starts with the page', live('now') === 1);
     check('islands wait, as the server rendered them', live('media') + live('visible') + live('interaction') + live('typing') === 0 && text($('.media .count')) === '0');
-    check('marked for the browser', $('.visible .beacon')?.getAttribute('fusion:hydrate') === 'visible:100px' && $('.media .counter')?.getAttribute('fusion:hydrate') === 'media:(min-width: 1200px)');
+    check('marked for the browser', $('.visible .beacon')?.getAttribute('nitro:hydrate') === 'visible:100px' && $('.media .counter')?.getAttribute('nitro:hydrate') === 'media:(min-width: 1200px)');
     check('the chunk of an island that waits is not loaded with the page', !chunk());
-    check('a static island is its HTML, without state', $('.static .counter') !== null && $('.static [fusion\\:snapshot]') === null && !$('.static .counter').hasAttribute('fusion:id') && live('static') === 0);
+    check('a static island is its HTML, without state', $('.static .counter') !== null && $('.static [nitro\\:snapshot]') === null && !$('.static .counter').hasAttribute('nitro:id') && live('static') === 0);
 
     /** idle: once the browser has nothing else to do. */
     await until('idle: it starts', () => live('idle') === 1, 2000);
@@ -1614,7 +1614,7 @@ await scenario('islands', async () => {
     window.setMedia('(min-width: 1200px)', true);
     await until('media: when it matches', () => live('media') === 1);
 
-    /** interaction: focus starts it, its chunk loads then, and what is typed meanwhile reaches fusion:model. */
+    /** interaction: focus starts it, its chunk loads then, and what is typed meanwhile reaches nitro:model. */
     type(window, $('.typing .text'), 'hello');
     check('its chunk is loading', live('typing') === 0);
     await until('focus starts it', () => live('typing') === 1);
@@ -1636,7 +1636,7 @@ await scenario('islands', async () => {
     window.close();
 });
 
-/** fusion:navigate to a page that is not Fusion's (a Blade view), and from it: its HTML, still without reloading. */
+/** nitro:navigate to a page that is not Nitro's (a Blade view), and from it: its HTML, still without reloading. */
 /**
  * A markup-first page (#[Navigate('markup')]): the visit renders it at once, its placeholders
  * showing, before its (slow) data; what is typed meanwhile is kept; the data fills it in, then its
@@ -1646,7 +1646,7 @@ await scenario('markup-first navigation', async () => {
     const window = await open('/greeting');
     const { document } = window;
     const $ = (selector) => document.querySelector(selector);
-    const runtime = window.Fusion;
+    const runtime = window.Nitro;
 
     click(window, $('.to-inbox'));
     await until('rendered at once, before its data', () => window.location.pathname === '/inbox' && $('.heading') !== null, 300);
@@ -1660,23 +1660,23 @@ await scenario('markup-first navigation', async () => {
 
     click(window, $('.send'));
     await until('a #[Server] call works on the state that came', () => text($('.send')) === '1');
-    check('no reload', window.Fusion === runtime);
+    check('no reload', window.Nitro === runtime);
 
     click(window, $('.to-greeting'));
     await until('a data-first page after it', () => window.location.pathname === '/greeting' && $('.greeting') !== null);
-    check('still no reload', window.Fusion === runtime);
+    check('still no reload', window.Nitro === runtime);
     window.close();
 });
 
-/** @fusionHead: a visit puts the new page's title and tags in place of the last page's. */
+/** @nitroHead: a visit puts the new page's title and tags in place of the last page's. */
 await scenario('head', async () => {
     const window = await open('/article');
     const { document } = window;
     const $ = (selector) => document.querySelector(selector);
     const meta = (name) => document.head.querySelectorAll(`meta[name="${name}"]`);
-    const runtime = window.Fusion;
+    const runtime = window.Nitro;
 
-    check('the server\'s head', document.title === 'Fusion & Blade · Fixture' && meta('author').length === 1, document.title);
+    check('the server\'s head', document.title === 'Nitro & Blade · Fixture' && meta('author').length === 1, document.title);
 
     click(window, $('.to-notice'));
     await until('the visit\'s title', () => document.title === 'Notice · Fixture');
@@ -1685,9 +1685,9 @@ await scenario('head', async () => {
     check('the last page\'s tags are gone', meta('author').length === 0 && document.head.querySelector('link[rel="canonical"]') === null);
 
     click(window, $('.to-article'));
-    await until('back on the article', () => document.title === 'Fusion & Blade · Fixture');
+    await until('back on the article', () => document.title === 'Nitro & Blade · Fixture');
     check('its tags again, no noindex', meta('robots').length === 0 && meta('author').length === 1 && document.head.querySelector('link[rel="canonical"]') !== null);
-    check('no reload', window.Fusion === runtime);
+    check('no reload', window.Nitro === runtime);
     window.close();
 });
 
@@ -1699,7 +1699,7 @@ await scenario('client navigation', async () => {
     const window = await open('/article');
     const { document } = window;
     const $ = (selector) => document.querySelector(selector);
-    const runtime = window.Fusion;
+    const runtime = window.Nitro;
     const asked = [];
     const fetch = window.fetch;
     window.fetch = (input, init) => {
@@ -1710,7 +1710,7 @@ await scenario('client navigation', async () => {
     click(window, $('.to-terms'));
     await until('the client page renders', () => window.location.pathname === '/terms' && $('.terms') !== null);
     check('its title, from the build', document.title === 'Terms · Fixture', document.title);
-    check('its head tags', document.head.querySelector('meta[name="description"]')?.getAttribute('content') === 'The terms of the Fusion test app');
+    check('its head tags', document.head.querySelector('meta[name="description"]')?.getAttribute('content') === 'The terms of the Nitro test app');
     check('no request to the server for it', !asked.includes('/terms'), asked.join(' '));
 
     click(window, $('.agree'));
@@ -1723,7 +1723,7 @@ await scenario('client navigation', async () => {
     window.history.back();
     await until('back to the client page', () => window.location.pathname === '/terms' && $('.terms') !== null);
     check('back, still without a request', asked.filter((path) => path === '/terms').length === 0);
-    check('no reload', window.Fusion === runtime);
+    check('no reload', window.Nitro === runtime);
 
     /** A client page with route parameters: taken from the URL in the browser, into the properties of the same name. */
     click(window, $('.to-chapter'));
@@ -1736,11 +1736,11 @@ await scenario('client navigation', async () => {
     click(window, $('.next'));
     await until('the next chapter, its optional part left out', () => window.location.pathname === '/chapters/4' && text($('.number')) === 'Chapter 4' && text($('.part')) === 'whole');
     check('still without a request', !asked.some((path) => path.startsWith('/chapters')), asked.join(' '));
-    check('no reload', window.Fusion === runtime);
+    check('no reload', window.Nitro === runtime);
 
     /** /chapters/05 matches the route's digits, but is no int as the server reads one: the server answers it. */
     const before = asked.length;
-    window.Fusion.visit('/chapters/05');
+    window.Nitro.visit('/chapters/05');
     await until('a parameter that is not its type goes to the server', () => asked.slice(before).includes('/chapters/05'));
     /** Its answer (a 404) loads in full, as an error page does: let the visit finish before the window goes. */
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -1749,18 +1749,18 @@ await scenario('client navigation', async () => {
 
 /**
  * Nested layouts: a visit from a page in the app's layout to one in a layout nested in it changes
- * only the app's main area (fusion:layout="app"); the nav around it stays, its components too.
+ * only the app's main area (nitro:layout="app"); the nav around it stays, its components too.
  */
 await scenario('nested layouts', async () => {
     const window = await open('/counter');
     const { document } = window;
     const nav = document.querySelector('nav');
     nav.dataset.kept = 'yes';
-    const main = document.querySelector('[fusion\:layout="app"]');
+    const main = document.querySelector('[nitro\:layout="app"]');
     click(window, document.querySelector('.nested-link'));
     await until('the nested page is there', () => window.location.pathname === '/nested' && byName(document, 'pages::nested') !== null);
     check('the nav around the main area stayed: not loaded again', document.querySelector('nav') === nav && nav.dataset.kept === 'yes');
-    check('the main area is the same element, its content the nested layout\'s', document.querySelector('[fusion\:layout="app"]') === main && main.querySelector('.nested-side') !== null);
+    check('the main area is the same element, its content the nested layout\'s', document.querySelector('[nitro\:layout="app"]') === main && main.querySelector('.nested-side') !== null);
     check('the old page\'s components left', byName(document, 'pages::counter') === null);
     const tap = document.querySelector('.tap');
     click(window, tap);
@@ -1771,7 +1771,7 @@ await scenario('nested layouts', async () => {
     window.close();
 });
 
-/** fusion:navigate.prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
+/** nitro:navigate.prefetch.visible: the page is asked for once its link comes into view, and the click takes it. */
 await scenario('prefetch in view', async () => {
     const window = await open('/counter');
     const { document } = window;
@@ -1779,7 +1779,7 @@ await scenario('prefetch in view', async () => {
     const fetch = window.fetch;
     window.fetch = (input, init) => {
         const url = new URL(input, window.location.href);
-        if (url.pathname === '/journal' && new Headers(init?.headers ?? {}).has('X-Fusion-Navigate')) asked++;
+        if (url.pathname === '/journal' && new Headers(init?.headers ?? {}).has('X-Nitro-Navigate')) asked++;
         return fetch(input, init);
     };
     const link = document.querySelector('.visible-link');
@@ -1797,7 +1797,7 @@ await scenario('prefetch in view', async () => {
 });
 
 /**
- * fusion:navigate.prefetch and back/forward: pages asked for once. Hovering asks for the page; the
+ * nitro:navigate.prefetch and back/forward: pages asked for once. Hovering asks for the page; the
  * click takes it; back and forward show visited pages; a #[Server] call forgets them all.
  */
 await scenario('prefetch and back/forward', async () => {
@@ -1807,13 +1807,13 @@ await scenario('prefetch and back/forward', async () => {
     const fetch = window.fetch;
     window.fetch = (input, init) => {
         const url = new URL(input, window.location.href);
-        if (url.pathname in asked && new Headers(init?.headers ?? {}).has('X-Fusion-Navigate')) asked[url.pathname]++;
+        if (url.pathname in asked && new Headers(init?.headers ?? {}).has('X-Nitro-Navigate')) asked[url.pathname]++;
         return fetch(input, init);
     };
-    const at = (path) => window.location.pathname === path && document.querySelector('[fusion\\:page]') !== null;
+    const at = (path) => window.location.pathname === path && document.querySelector('[nitro\\:page]') !== null;
     const link = document.querySelector('.prefetch-link');
     const requests = [];
-    window.addEventListener('fusion:request', (event) => requests.push(`${event.detail.component}.${event.detail.method}`));
+    window.addEventListener('nitro:request', (event) => requests.push(`${event.detail.component}.${event.detail.method}`));
 
     link.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
     await until('resting on a prefetch link asks for its page', () => asked['/board'] === 1);
@@ -1833,7 +1833,7 @@ await scenario('prefetch and back/forward', async () => {
     /** A #[Server] call may change what the kept pages show: they are forgotten. */
     const save = [...document.querySelectorAll('button')].find((button) => text(button) === 'Save');
     click(window, save);
-    await until('the #[Server] call answered', () => !save.disabled && window.Fusion.components().every((c) => !c.loading?.size));
+    await until('the #[Server] call answered', () => !save.disabled && window.Nitro.components().every((c) => !c.loading?.size));
     await new Promise((resolve) => setTimeout(resolve, 100));
     window.history.forward();
     await until('after it, forward asks the server again', () => at('/board') && byName(document, 'pages::board') !== null && asked['/board'] === 2, 3000);
@@ -1844,11 +1844,11 @@ await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;
     const $ = (selector) => document.querySelector(selector);
-    const live = (section) => window.Fusion.components().filter((c) => $(`.${section}`)?.contains(c.el)).length;
+    const live = (section) => window.Nitro.components().filter((c) => $(`.${section}`)?.contains(c.el)).length;
     const link = (href) => {
         const a = document.createElement('a');
         a.href = href;
-        a.setAttribute('fusion:navigate', '');
+        a.setAttribute('nitro:navigate', '');
         a.textContent = href;
         document.body.appendChild(a);
         return a;
@@ -1860,7 +1860,7 @@ await scenario('navigate to and from a Blade view', async () => {
         fetched.push(`${new URL(response.url).pathname} ${response.headers.get('Content-Type')?.split(';')[0]}`);
         return response;
     };
-    const runtime = window.Fusion;
+    const runtime = window.Nitro;
     /** Something a script added to the body (the application's own progress bar, a widget): not the page's. */
     const widget = document.createElement('div');
     widget.className = 'widget';
@@ -1874,10 +1874,10 @@ await scenario('navigate to and from a Blade view', async () => {
     check('the same bar, never moved (moved, its running transition would stop)', document.getElementById('nprogress') === bar && bar.parentNode === document.body);
     check('what a script added to the body stays, as it was', widget.isConnected && widget.parentNode === document.body && document.querySelectorAll('.widget').length === 1);
     check('one request, its HTML', fetched.length === 1 && fetched[0] === '/islands text/html', fetched.join(', '));
-    check('the same runtime', window.Fusion === runtime);
+    check('the same runtime', window.Nitro === runtime);
     check('its title', document.title === 'Islands', document.title);
-    check('the old page\'s components are gone', !window.Fusion.components().some((c) => c.name === N('pages::counter')));
-    check('fusion:static stays its HTML', $('.static .counter') !== null && live('static') === 0);
+    check('the old page\'s components are gone', !window.Nitro.components().some((c) => c.name === N('pages::counter')));
+    check('nitro:static stays its HTML', $('.static .counter') !== null && live('static') === 0);
     await until('its islands start', () => live('idle') === 1, 2000);
     click(window, $('.now .counter').querySelectorAll('button')[1]);
     await until('and work', () => text($('.now .count')) === '1');
@@ -1885,31 +1885,31 @@ await scenario('navigate to and from a Blade view', async () => {
 
     fetched.length = 0;
     click(window, link('/counter'));
-    await until('back to a Fusion page, without reloading', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
+    await until('back to a Nitro page, without reloading', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
     check('its HTML, as the Blade view has no page to render into', fetched.length === 1 && fetched[0] === '/counter text/html', fetched.join(', '));
-    check('the islands are gone', $('.now') === null && !window.Fusion.components().some((c) => c.name === N('counter')));
+    check('the islands are gone', $('.now') === null && !window.Nitro.components().some((c) => c.name === N('counter')));
     const counter = byName(document, 'pages::counter');
     click(window, counter.querySelectorAll('button')[1]);
     await until('the page is live', () => text(counter.querySelector('.count')) === '1');
 
     fetched.length = 0;
     click(window, document.querySelector('a.board-link'));
-    await until('then a Fusion page renders its data as before', () => window.location.pathname === '/board' && document.querySelector('[fusion\\:name="todo-list"] li.todo') !== null);
+    await until('then a Nitro page renders its data as before', () => window.location.pathname === '/board' && document.querySelector('[nitro\\:name="todo-list"] li.todo') !== null);
     check('as JSON', fetched.length === 1 && /application\/json/.test(fetched[0]), fetched.join(', '));
 
     window.history.back();
     await until('back', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
     window.history.back();
     await until('back to the Blade view', () => window.location.pathname === '/islands' && live('now') === 1);
-    check('the same runtime still', window.Fusion === runtime);
+    check('the same runtime still', window.Nitro === runtime);
     window.fetch = pageFetch;
     window.close();
 });
 
 await scenario('a page and its code from different builds', async () => {
     const window = await open('/counter');
-    window.sessionStorage.setItem('fusion:stale', window.location.href);
-    check('loaded again once only: the second time in a row, it is reported instead', window.Fusion.stale() === false && window.Fusion.reloading === false);
+    window.sessionStorage.setItem('nitro:stale', window.location.href);
+    check('loaded again once only: the second time in a row, it is reported instead', window.Nitro.stale() === false && window.Nitro.reloading === false);
     window.close();
 });
 
@@ -1922,9 +1922,9 @@ await scenario('stress', async () => {
     const logText = () => text($('.log'));
 
     check('the rows render, by id', customers() === 'Ada <b>,Grace,Linus', customers());
-    const unsaved = () => $('.unsaved').hasAttribute('data-fusion-dirty');
+    const unsaved = () => $('.unsaved').hasAttribute('data-nitro-dirty');
     const anyChange = () => $('.any-change').classList.contains('changed') && $('.any-change').hasAttribute('data-changed');
-    check('fusion:dirty: nothing changed yet', !unsaved() && !anyChange() && window.getComputedStyle($('.unsaved')).display === 'none');
+    check('nitro:dirty: nothing changed yet', !unsaved() && !anyChange() && window.getComputedStyle($('.unsaved')).display === 'none');
     check('the grand total: #[Computed] calling a #[Browser] class', text($('.grand')) === '£140.79', text($('.grand')));
     check('@forelse with @break and $loop', text(rows()[2].querySelector('.bulk')) === '1/1 bulk: Jalebi' && rows()[2].querySelectorAll('.lines li').length === 1, rows()[2].innerHTML);
     check('@empty', text(rows()[1].querySelector('.none')) === 'No lines');
@@ -1978,33 +1978,33 @@ await scenario('stress', async () => {
     await until('a line added, with its own child', () => children().length === 2 && children().every(Boolean));
     click(window, children()[1].querySelector('.more'));
     click(window, children()[1].querySelector('.more'));
-    await until('fusion:model="draft.lines.{{ $i }}.qty": the second child writes its own line', () => qtys() === '1,3');
+    await until('nitro:model="draft.lines.{{ $i }}.qty": the second child writes its own line', () => qtys() === '1,3');
     check('and shows it', text(children()[1].querySelector('b')) === '3' && text(children()[0].querySelector('b')) === '1');
     click(window, document.querySelectorAll('.draft-line .drop')[1]);
     await until('and removed (array_splice)', () => document.querySelectorAll('.draft-line').length === 1);
     click(window, children()[0].querySelector('.more'));
     await until('the first child writes the first line', () => qtys() === '2');
 
-    const hidden = (selector) => $(selector).hasAttribute('data-fusion-loading-hidden');
-    check('fusion:loading.delay: hidden before any call', hidden('.saving') && hidden('.still-saving'));
+    const hidden = (selector) => $(selector).hasAttribute('data-nitro-loading-hidden');
+    check('nitro:loading.delay: hidden before any call', hidden('.saving') && hidden('.still-saving'));
     const posted = $('.draft').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    check('fusion:submit without .prevent: the browser does not post the form', posted === false);
-    check('fusion:dirty with no target: any change the server has not seen', anyChange() && !unsaved());
+    check('nitro:submit without .prevent: the browser does not post the form', posted === false);
+    check('nitro:dirty with no target: any change the server has not seen', anyChange() && !unsaved());
     await until('#[Validate] with nested rules: the error shows', () => text($('.draft .error')) === 'The draft.customer field is required.');
     check('nothing saved', rows().length === 3);
     await until('a call refused by #[Validate] is quick: the delayed ones never showed', () => hidden('.saving') && !$('.save').classList.contains('busy'));
     type(window, $('.customer'), 'Zed');
     change(window, $('.customer'));
-    await until('fusion:dirty fusion:target="draft.customer": shown once the name changes', () => unsaved() && window.getComputedStyle($('.unsaved')).display !== 'none');
+    await until('nitro:dirty nitro:target="draft.customer": shown once the name changes', () => unsaved() && window.getComputedStyle($('.unsaved')).display !== 'none');
     type(window, $('.customer'), '');
     await until('typed back to what the server has: not changed', () => !unsaved());
     type(window, $('.customer'), 'Zed');
     await until('changed again', () => unsaved());
     click(window, $('.save'));
     await wait(30);
-    check('fusion:loading.delay: not yet, the call has only just started', hidden('.saving') && !$('.save').classList.contains('busy'));
-    await until('fusion:loading.delay.100ms: shown once the call has taken 100ms', () => !hidden('.saving') && $('.save').classList.contains('busy'));
-    check('fusion:loading.delay.2s: not for a call shorter than that', hidden('.still-saving'));
+    check('nitro:loading.delay: not yet, the call has only just started', hidden('.saving') && !$('.save').classList.contains('busy'));
+    await until('nitro:loading.delay.100ms: shown once the call has taken 100ms', () => !hidden('.saving') && $('.save').classList.contains('busy'));
+    check('nitro:loading.delay.2s: not for a call shorter than that', hidden('.still-saving'));
     await until('saved on the server: the new row', () => customers() === 'Ada <b>,Grace,Linus,Zed');
     await until('saved: nothing the server has not seen', () => !unsaved() && !anyChange());
     await until('the call is over: hidden again, the class gone', () => hidden('.saving') && hidden('.still-saving') && !$('.save').classList.contains('busy'));
@@ -2015,10 +2015,10 @@ await scenario('stress', async () => {
     check('the id is the server\'s', logText().endsWith('saved 4'), logText());
     await until('the summary counts every action', () => text($('#dock .dock-summary')) === 'Picked #1 · 4 actions');
 
-    /** Fusion.visit(): a fusion:navigate visit from a script, without reloading. */
+    /** Nitro.visit(): a nitro:navigate visit from a script, without reloading. */
     window.stayed = true;
-    window.Fusion.visit('/greeting');
-    await until('Fusion.visit() goes there', () => window.location.pathname === '/greeting' && byName(document, 'pages::greeting') !== null);
+    window.Nitro.visit('/greeting');
+    await until('Nitro.visit() goes there', () => window.location.pathname === '/greeting' && byName(document, 'pages::greeting') !== null);
     check('without reloading', window.stayed === true);
     window.close();
 });
@@ -2059,14 +2059,14 @@ await scenario('view engines', async () => {
     click(window, $('.more'));
     await until('gone: unmounted', () => $('.plain-made') === null && window.plainUnmounts === 1);
 
-    /** Vue: <script setup> with useFusion(); the names a template uses bare. */
+    /** Vue: <script setup> with useNitro(); the names a template uses bare. */
     const vue = (selector) => $(`.vue-side ${selector}`);
     await until('the Vue view mounts, from the state', () => text(vue('.count')) === '1' && text(vue('.doubled')) === '2');
     click(window, vue('.inc'));
     await until('a browser method (compiled PHP) from Vue: the view follows', () => text(vue('.count')) === '4' && text(vue('.doubled')) === '8');
     click(window, vue('.local'));
     await until('a ref written in Vue goes to the component', () => text(vue('.count')) === '5' && text(vue('.doubled')) === '10');
-    check('the component has it', window.Fusion.components().find((c) => c.name === N('vue-counter')).unsaved().includes(P_('count')));
+    check('the component has it', window.Nitro.components().find((c) => c.name === N('vue-counter')).unsaved().includes(P_('count')));
 
     /** A #[Server] method: its status while it runs, the errors, its value. */
     click(window, vue('.save'));
@@ -2089,7 +2089,7 @@ await scenario('view engines', async () => {
     click(window, note('.tag'));
     await until('a method changing the array keeps what v-model wrote in it', () => text(note('.tags')) === 'a,b' && note('.email').value === 'a@b.c' && text(note('.email-shown')) === 'a@b.c');
 
-    /** React: the component as the view's props; useFusion() in a component inside it. React tracks an input's value, so typing goes through the native setter, as a keystroke does. */
+    /** React: the component as the view's props; useNitro() in a component inside it. React tracks an input's value, so typing goes through the native setter, as a keystroke does. */
     const reactType = (el, value) => {
         Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(el, value);
         el.dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -2100,7 +2100,7 @@ await scenario('view engines', async () => {
     await until('a browser method (compiled PHP) from React: the view follows', () => text(react('.count')) === '4' && text(react('.doubled')) === '8');
     click(window, react('.local'));
     await until('set() from React goes to the component', () => text(react('.count')) === '5' && text(react('.doubled')) === '10');
-    check('the component has it', window.Fusion.components().find((c) => c.name === N('react-counter')).unsaved().includes(P_('count')));
+    check('the component has it', window.Nitro.components().find((c) => c.name === N('react-counter')).unsaved().includes(P_('count')));
 
     click(window, react('.save'));
     await until('save.processing while it runs', () => react('.busy') !== null && react('.save').disabled);
@@ -2111,7 +2111,7 @@ await scenario('view engines', async () => {
     await until('saved: the value comes back, the error goes', () => text(react('.said')) === 'saved Plan at 5' && text(react('.error')) === '');
 
     const reactNote = (selector) => $(`.react-note-side ${selector}`);
-    await until('the useFusion() view mounts', () => text(reactNote('.shown')) === 'hi' && text(reactNote('.tags')) === 'a');
+    await until('the useNitro() view mounts', () => text(reactNote('.shown')) === 'hi' && text(reactNote('.tags')) === 'a');
     reactType(reactNote('.text'), 'hey');
     await until('set() writes the property', () => text(reactNote('.shown')) === 'hey');
     click(window, reactNote('.shout'));
@@ -2121,7 +2121,7 @@ await scenario('view engines', async () => {
     click(window, reactNote('.tag'));
     await until('a method changing the array keeps what set() wrote in it', () => text(reactNote('.tags')) === 'a,b' && reactNote('.email').value === 'a@b.c');
 
-    /** Solid: the component as reactive props, a store updated where it changed; useFusion() in a component inside. */
+    /** Solid: the component as reactive props, a store updated where it changed; useNitro() in a component inside. */
     const solid = (selector) => $(`.solid-side ${selector}`);
     await until('the Solid view mounts, from the state', () => text(solid('.count')) === '1' && text(solid('.doubled')) === '2');
     const solidCount = solid('.count');
@@ -2130,7 +2130,7 @@ await scenario('view engines', async () => {
     check('fine-grained: the same element, its text changed', solid('.count') === solidCount);
     click(window, solid('.local'));
     await until('set() from Solid goes to the component', () => text(solid('.count')) === '5' && text(solid('.doubled')) === '10');
-    check('the component has it', window.Fusion.components().find((c) => c.name === N('solid-counter')).unsaved().includes(P_('count')));
+    check('the component has it', window.Nitro.components().find((c) => c.name === N('solid-counter')).unsaved().includes(P_('count')));
     click(window, solid('.save'));
     await until('save.processing while it runs', () => solid('.busy') !== null && solid('.save').disabled);
     await until('the errors come back', () => text(solid('.error')) === 'The title field is required.' && solid('.busy') === null && !solid('.save').disabled);
@@ -2139,7 +2139,7 @@ await scenario('view engines', async () => {
     await until('saved: the value comes back, the error goes', () => text(solid('.said')) === 'saved Plan at 5' && text(solid('.error')) === '');
 
     const solidNote = (selector) => $(`.solid-note-side ${selector}`);
-    await until('the useFusion() view mounts', () => text(solidNote('.shown')) === 'hi' && text(solidNote('.tags')) === 'a');
+    await until('the useNitro() view mounts', () => text(solidNote('.shown')) === 'hi' && text(solidNote('.tags')) === 'a');
     type(window, solidNote('.text'), 'hey');
     await until('set() writes the property', () => text(solidNote('.shown')) === 'hey');
     click(window, solidNote('.shout'));
@@ -2180,14 +2180,14 @@ await scenario('view engines', async () => {
     window.close();
 });
 
-/** With server rendering (fusion.ssr): the views in the first HTML, taken over by the browser rather than rendered again. */
+/** With server rendering (nitro.ssr): the views in the first HTML, taken over by the browser rather than rendered again. */
 if (ssr) await scenario('server rendering', async () => {
     const engines = ['vue', 'react', 'solid', 'svelte'];
     const html = await (await fetch(url + '/parity')).text();
 
     for (const engine of engines) {
-        const element = new RegExp(`<div class="${engine}"><div [^>]*fusion:rendered>(.*?)</div></div>\\s*(<div class=|</section>)`, 's').exec(html);
-        check(`${engine}: in the first HTML, from the state`, element !== null && /<span class="count">1<\/span>/.test(element[1]) && /<span class="tags">a<\/span>/.test(element[1]), element?.[1]?.slice(0, 200) ?? 'no fusion:rendered element');
+        const element = new RegExp(`<div class="${engine}"><div [^>]*nitro:rendered>(.*?)</div></div>\\s*(<div class=|</section>)`, 's').exec(html);
+        check(`${engine}: in the first HTML, from the state`, element !== null && /<span class="count">1<\/span>/.test(element[1]) && /<span class="tags">a<\/span>/.test(element[1]), element?.[1]?.slice(0, 200) ?? 'no nitro:rendered element');
     }
 
     /** The elements as the browser parsed them, before any script ran. */
@@ -2256,7 +2256,7 @@ await scenario('parity', async () => {
         click(window, $('.save'));
         await until(is('saved: what the server set, the error gone'), () => text($('.said')) === 'saved Plan at 4 for a@b.c' && text($('.error')) === '', 3000);        await until(is('nothing unsaved once the server has it'), () => !shown($('.unsaved')));
 
-        /** Uploads: fusion:model on a file input in Blade, upload() in the others; the same results. */
+        /** Uploads: nitro:model on a file input in Blade, upload() in the others; the same results. */
         choose($('.photo'), [image(`${engine}.png`)]);
         await until(is('a file uploads into its property'), () => text($('.photo-name')) === `${engine}.png`);
         if (engine !== 'blade') check(is('uploads.photo follows it: done'), text($('.photo-progress')) === '100', text($('.photo-progress')));
@@ -2268,17 +2268,17 @@ await scenario('parity', async () => {
         choose($('.photo'), [image('again.png')]);
         await until(is('a good file clears the error'), () => text($('.photo-error')) === '' && text($('.photo-name')) === 'again.png');
 
-        /** A fusion:navigate link: written in Blade, link() in the others (their syntax can't always write the attribute). */
-        check(is('a fusion:navigate link, its modifier on it'), $('.away')?.getAttribute('href') === '/counter' && $('.away').hasAttribute('fusion:navigate.prefetch'), $('.away')?.outerHTML);
+        /** A nitro:navigate link: written in Blade, link() in the others (their syntax can't always write the attribute). */
+        check(is('a nitro:navigate link, its modifier on it'), $('.away')?.getAttribute('href') === '/counter' && $('.away').hasAttribute('nitro:navigate.prefetch'), $('.away')?.outerHTML);
     }
 
     check('the five are their own: each changed only itself', [...document.querySelectorAll('.parities .count')].map(text).join() === '4,4,4,4,4');
 
     /** link() from a React view: a visit, without a reload. */
-    const runtime = window.Fusion;
+    const runtime = window.Nitro;
     click(window, document.querySelector('.react .away'));
     await until('a link() link visits its page', () => window.location.pathname === '/counter' && byName(document, 'pages::counter') !== null);
-    check('without a reload', window.Fusion === runtime);
+    check('without a reload', window.Nitro === runtime);
 
     /**
      * A visit to a page of JavaScript views: the page shows with them rendered. The browser paints
@@ -2286,16 +2286,16 @@ await scenario('parity', async () => {
      */
     const firstPaint = new Promise((resolve) => {
         const observer = new window.MutationObserver((mutations) => {
-            if (!mutations.some((m) => [...m.addedNodes].some((n) => n.nodeType === 1 && n.hasAttribute('fusion:page')))) return;
+            if (!mutations.some((m) => [...m.addedNodes].some((n) => n.nodeType === 1 && n.hasAttribute('nitro:page')))) return;
             observer.disconnect();
-            const empty = () => ['.vue-side', '.react-side', '.solid-side', '.vue-note-side', '.react-note-side', '.solid-note-side'].filter((side) => document.querySelector(`${side} [fusion\\:name]`)?.childElementCount === 0);
+            const empty = () => ['.vue-side', '.react-side', '.solid-side', '.vue-note-side', '.react-note-side', '.solid-note-side'].filter((side) => document.querySelector(`${side} [nitro\\:name]`)?.childElementCount === 0);
             const atInsert = empty();
             /** The next task: the first point the browser could paint. */
             window.setTimeout(() => resolve({ atInsert, atPaint: empty() }), 0);
         });
         observer.observe(document.body, { childList: true, subtree: true });
     });
-    window.Fusion.visit('/engines');
+    window.Nitro.visit('/engines');
     const visit = await Promise.race([firstPaint, new Promise((resolve) => setTimeout(() => resolve(null), 5000))]);
     check('a visit: the page goes in with its views still to render', visit !== null && visit.atInsert.length > 0, JSON.stringify(visit));
     check('and they are rendered before the browser can paint: no empty frame, no shift', visit !== null && visit.atPaint.length === 0, JSON.stringify(visit));
@@ -2367,7 +2367,7 @@ await scenario('browser APIs', async () => {
 
     /** The canvas: drawn after the render, the calls in order, sized for the screen. */
     const canvas = $('canvas');
-    await until('drawn on fusion:init', () => canvas.drawn?.length > 0);
+    await until('drawn on nitro:init', () => canvas.drawn?.length > 0);
     const drawn = () => canvas.drawn.map(([name, ...args]) => `${name}(${args.join(',')})`).join(' ');
     check('in order', drawn().includes('fillStyle(#4f46e5) fillRect(0,60,30,40) fillRect(40,30,30,70) fillRect(80,75,30,25) beginPath() arc(60,50,10,0,6.283185307179586) stroke()'), drawn());
     check('its size', canvas.style.width === '120px' && canvas.width === 120, `${canvas.style.width} ${canvas.width}`);
@@ -2392,7 +2392,7 @@ await scenario('browser APIs', async () => {
 });
 
 for (const line of log) {
-    if (!/fusion:error|Not implemented/.test(line) && !expectedErrors.some((pattern) => pattern.test(line))) failures.push(`console.error: ${line}`);
+    if (!/nitro:error|Not implemented/.test(line) && !expectedErrors.some((pattern) => pattern.test(line))) failures.push(`console.error: ${line}`);
 }
 
 process.stdout.write(JSON.stringify(failures));

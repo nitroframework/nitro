@@ -1,7 +1,7 @@
 <php>
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Components\Store;
 
-/** A component written in its Vue view: Fusion makes its class (ColocatedViews). */
+/** A component written in its Vue view: Nitro makes its class (ColocatedViews). */
 new class extends Component {
     public array $marks = ['present' => 0, 'absent' => 0];
 
@@ -28,9 +28,9 @@ new class extends Component {
 
 <script setup>
 import { ref } from 'vue';
-import { useFusion } from 'nitro-fusion/vue';
+import { useNitro } from 'nitro/vue';
 
-const { marks, total, mark, take } = useFusion();
+const { marks, total, mark, take } = useNitro();
 const said = ref('');
 </script>
 

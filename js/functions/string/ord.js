@@ -1,5 +1,5 @@
-// Viewi's PhpJsFunctions/Strings/Ord.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Ord.js, for Nitro's values.
 function ord(string) {
-    /** Fusion: the first byte, as PHP (FunctionParityTest). */
+    /** Nitro: the first byte, as PHP (FunctionParityTest). */
     return P.utf8(P.toStr(string))[0] ?? 0;
 }

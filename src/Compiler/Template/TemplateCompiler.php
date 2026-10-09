@@ -1,24 +1,24 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 use Closure;
-use Nitro\Fusion\Compiler\BrowserClasses;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Globals;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\Parts\Blocks;
-use Nitro\Fusion\Compiler\Template\Parts\ChildComponents;
-use Nitro\Fusion\Compiler\Template\Parts\Context;
-use Nitro\Fusion\Compiler\Template\Parts\Directives;
-use Nitro\Fusion\Compiler\Template\Parts\ExpressionTable;
-use Nitro\Fusion\Compiler\Template\Parts\FusionAttributes;
-use Nitro\Fusion\Compiler\Template\Parts\HtmlScanner;
-use Nitro\Fusion\Compiler\Template\Parts\InlinedViews;
-use Nitro\Fusion\Compiler\Template\Parts\StaticParts;
-use Nitro\Fusion\Compiler\Template\Parts\Syntax;
-use Nitro\Fusion\Compiler\Template\Parts\Tree;
-use Nitro\Fusion\Compiler\Transpiler;
+use Nitro\Compiler\BrowserClasses;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Globals;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\Parts\Blocks;
+use Nitro\Compiler\Template\Parts\ChildComponents;
+use Nitro\Compiler\Template\Parts\Context;
+use Nitro\Compiler\Template\Parts\Directives;
+use Nitro\Compiler\Template\Parts\ExpressionTable;
+use Nitro\Compiler\Template\Parts\NitroAttributes;
+use Nitro\Compiler\Template\Parts\HtmlScanner;
+use Nitro\Compiler\Template\Parts\InlinedViews;
+use Nitro\Compiler\Template\Parts\StaticParts;
+use Nitro\Compiler\Template\Parts\Syntax;
+use Nitro\Compiler\Template\Parts\Tree;
+use Nitro\Compiler\Transpiler;
 
 /**
  * Compiles a component's Blade view the way Viewi compiles its templates: the markup becomes a
@@ -34,8 +34,8 @@ use Nitro\Fusion\Compiler\Transpiler;
  * and the tree yields the same DOM.
  *
  * Only what can render in the browser is accepted: echoes, the control-flow directives, the
- * attribute directives (@class, @checked, ...), @error, @csrf, @json, fusion: attributes and
- * <fusion:child /> tags. Anything else is a CompileException naming the file and line, and so is
+ * attribute directives (@class, @checked, ...), @error, @csrf, @json, nitro: attributes and
+ * <nitro:child /> tags. Anything else is a CompileException naming the file and line, and so is
  * markup a tree cannot hold: an element opened inside @if or @foreach and closed outside it.
  *
  * This class is the front door: compile() reads the view's tokens (Lexer) and sends each to its
@@ -45,12 +45,12 @@ use Nitro\Fusion\Compiler\Transpiler;
  *    nodes it builds)
  *  - Blade: Directives (each @directive where it belongs), Blocks (loops, @switch, @break,
  *    @error, @teleport), InlinedViews (@include and <x-component>, expanded by BladeInliner)
- *  - Fusion: ExpressionTable (the numbered expressions and what each reads: fine-grained
- *    rendering), FusionAttributes (fusion:click, fusion:model, ...), ChildComponents
- *    (<fusion:child>, <fusion:slot>)
+ *  - Nitro: ExpressionTable (the numbered expressions and what each reads: fine-grained
+ *    rendering), NitroAttributes (nitro:click, nitro:model, ...), ChildComponents
+ *    (<nitro:child>, <nitro:slot>)
  *  - Syntax: what a view may contain; Context: the state the parts share while compiling a view
  *
- * Each part's docblock says what it does and whether it is HTML, Blade or Fusion.
+ * Each part's docblock says what it does and whether it is HTML, Blade or Nitro.
  */
 final class TemplateCompiler
 {
@@ -71,16 +71,16 @@ final class TemplateCompiler
 
     public readonly InlinedViews $inlinedViews;
 
-    public readonly FusionAttributes $fusionAttributes;
+    public readonly NitroAttributes $nitroAttributes;
 
     public readonly ChildComponents $childComponents;
 
     /**
      * @param  Closure(string): bool  $isBladeDirective
-     * @param  bool  $cloneStatic  clone mode (fusion.rendering = 'clone'): the static parts are marked for the browser to copy (StaticParts)
+     * @param  bool  $cloneStatic  clone mode (nitro.rendering = 'clone'): the static parts are marked for the browser to copy (StaticParts)
      */
     /**
-     * @param  list<string>  $attributes  the application's own fusion: attributes (fusion.attributes, checked by Globals::customAttributes())
+     * @param  list<string>  $attributes  the application's own nitro: attributes (nitro.attributes, checked by Globals::customAttributes())
      */
     public function __construct(
         private readonly Closure $isBladeDirective,
@@ -98,7 +98,7 @@ final class TemplateCompiler
         $this->directives = new Directives($this, $this->context);
         $this->blocks = new Blocks($this, $this->context);
         $this->inlinedViews = new InlinedViews($this, $this->context);
-        $this->fusionAttributes = new FusionAttributes($this, $this->context);
+        $this->nitroAttributes = new NitroAttributes($this, $this->context);
         $this->childComponents = new ChildComponents($this, $this->context);
     }
 
@@ -276,8 +276,8 @@ final class TemplateCompiler
             $open = $context->stack[array_key_last($context->stack)];
             $what = match ($open['kind']) {
                 'element' => "<{$open['tag']}>",
-                'child' => "<fusion:{$open['tag']}>",
-                'slot' => "<fusion:slot name=\"{$open['name']}\">",
+                'child' => "<nitro:{$open['tag']}>",
+                'slot' => "<nitro:slot name=\"{$open['name']}\">",
                 default => "@{$open['kind']}",
             };
 
@@ -300,7 +300,7 @@ final class TemplateCompiler
         return "'".strtr($value, ['\\' => '\\\\', "'" => "\\'", "\n" => '\n', "\r" => '\r', "\u{2028}" => ' ', "\u{2029}" => ' '])."'";
     }
 
-    /** How a variable resolves in a template: a local ($item, $loop), a Fusion global, a public property. */
+    /** How a variable resolves in a template: a local ($item, $loop), a Nitro global, a public property. */
     private function resolver(): Closure
     {
         return function (string $name): ?string {

@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\State;
 
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Support\Signer;
+use Nitro\Build\BrowserNames;
+use Nitro\Compiler\Components;
+use Nitro\Support\Signer;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * A component's or store's state as the browser holds it: sealed (signed for this session, named
  * as the browser knows it, with an obfuscated build's names) on the way out, and opened (verified,
- * within fusion.state.lifetime, read by its component's own names) on the way back. The one
+ * within nitro.state.lifetime, read by its component's own names) on the way back. The one
  * place either happens.
  */
 final class Snapshots
 {
-    /** @param  ?int  $lifetime  fusion.state.lifetime: how long a snapshot is good for, in seconds; null: as long as its session */
+    /** @param  ?int  $lifetime  nitro.state.lifetime: how long a snapshot is good for, in seconds; null: as long as its session */
     public function __construct(
         private readonly Signer $signer,
         private readonly BrowserNames $names,
@@ -52,7 +52,7 @@ final class Snapshots
 
     /**
      * A state as the browser named it, by its own names: the component's (an obfuscated build's
-     * alias read as the name it stands for) and its properties' (none read for a component Fusion
+     * alias read as the name it stands for) and its properties' (none read for a component Nitro
      * does not know).
      */
     public function ownNames(Snapshot $snapshot): Snapshot

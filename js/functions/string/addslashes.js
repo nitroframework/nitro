@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Addslashes.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Addslashes.js (locutus), for Nitro's values.
 function addslashes(str) {
     return P.toStr(str)
         .replace(/[\\"']/g, '\\$&')

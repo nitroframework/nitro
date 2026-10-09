@@ -40,7 +40,7 @@ export class Placement {
                 existing.parent = parent;
                 /** The parent rendered its tag again: the slots come from there now. */
                 if (spec.slots) existing.setSlots(spec.slots);
-                /** fusion:model on its tag: its #[Modelable] property follows the parent's value. */
+                /** nitro:model on its tag: its #[Modelable] property follows the parent's value. */
                 if (spec.model && definition?.modelable && MODEL_PROP in spec.props) {
                     existing.model = { parent, path: spec.model };
                     if (existing.data.get(definition.modelable) !== spec.props[MODEL_PROP]) {
@@ -71,7 +71,7 @@ export class Placement {
             }
 
             if (!definition) {
-                runtime.report(parent, new Error(`Fusion: component [${spec.name}] is not compiled`));
+                runtime.report(parent, new Error(`Nitro: component [${spec.name}] is not compiled`));
                 continue;
             }
 
@@ -96,7 +96,7 @@ export class Placement {
             if (parent.early && (definition.mount || definition.server.length > 0)) continue;
 
             if (definition.mount) {
-                runtime.report(parent, new Error(`Fusion: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
+                runtime.report(parent, new Error(`Nitro: [${spec.name}] has mount(), which runs on the server: it cannot be created in the browser. Render it on the server, or pass its data as properties instead of mount() parameters.`));
                 continue;
             }
 
@@ -104,14 +104,14 @@ export class Placement {
             for (const [name, value] of Object.entries(spec.props)) {
                 if (name === MODEL_PROP) {
                     if (!definition.modelable) {
-                        runtime.report(parent, new Error(`Fusion: fusion:model on <fusion:${spec.name}>: it has no #[Modelable] property`));
+                        runtime.report(parent, new Error(`Nitro: nitro:model on <nitro:${spec.name}>: it has no #[Modelable] property`));
                         continue;
                     }
                     data.set(definition.modelable, value);
                     continue;
                 }
                 if (!(name in definition.props)) {
-                    runtime.report(parent, new Error(`Fusion: [${spec.name}] has no property $${name}`));
+                    runtime.report(parent, new Error(`Nitro: [${spec.name}] has no property $${name}`));
                     continue;
                 }
                 data.set(name, value);

@@ -1,4 +1,4 @@
-// Fusion: PHP's array of a match (make_subpats): 0 then each group, a named group's name before
+// Nitro: PHP's array of a match (make_subpats): 0 then each group, a named group's name before
 // its number; an unset group "" (null with PREG_UNMATCHED_AS_NULL), with PREG_OFFSET_CAPTURE
 // [value, byte offset] (-1 when unset). trim: the unset groups after the last set one are left out
 // (as preg_match() does without PREG_UNMATCHED_AS_NULL).

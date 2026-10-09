@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Support\Facades\Blade;
 use Illuminate\View\AnonymousComponent;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateCompiler;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -25,8 +25,8 @@ class InlinedViewsTest extends TestCase
         $compiler->compile($template, new Scope(properties: ['count', 'view', 'tone'], clientMethods: ['click'], file: 'Component.php'), 'view.blade.php');
 
         /** Then what the component's code reaches, as compiling the component goes on to (a method called on a value: an enum case's). */
-        $components = new \Nitro\Fusion\Compiler\ComponentCompiler(fn () => false);
-        \Closure::bind(fn (array $keys) => $this->classes->reach($keys), $components, \Nitro\Fusion\Compiler\ComponentCompiler::class)(array_keys($compiler->uses()['classes']));
+        $components = new \Nitro\Compiler\ComponentCompiler(fn () => false);
+        \Closure::bind(fn (array $keys) => $this->classes->reach($keys), $components, \Nitro\Compiler\ComponentCompiler::class)(array_keys($compiler->uses()['classes']));
     }
 
     public static function errors(): array
@@ -38,9 +38,9 @@ class InlinedViewsTest extends TestCase
             'an unknown component' => ["<div>\n<x-nope-at-all /></div>", 'Unable to locate a class or view for component [nope-at-all]', 'view.blade.php', 2],
             'a class component' => ['<div><x-boxed /></div>', 'is the class component', 'view.blade.php', 1],
             'x-dynamic-component' => ['<div><x-dynamic-component component="badge" /></div>', '<x-dynamic-component> names its component at run time', 'view.blade.php', 1],
-            'a component reading the Fusion component\'s properties' => ['<div><x-uses-count /></div>', '<x-uses-count> has no $count: a Blade component sees its @props, its attributes and its slots', self::VIEWS.'components/uses-count.blade.php', 2],
+            'a component reading the Nitro component\'s properties' => ['<div><x-uses-count /></div>', '<x-uses-count> has no $count: a Blade component sees its @props, its attributes and its slots', self::VIEWS.'components/uses-count.blade.php', 2],
             'an $attributes method the browser has not' => ['<div><x-filtered /></div>', '$attributes->filter() is not supported in the browser (merge, class, only, except, get, has are)', self::VIEWS.'components/filtered.blade.php', 1],
-            'a Fusion child in an included view' => ["<div>\n@include('inline-errors.with-child')</div>", '<fusion:...> inside inline-errors.with-child', self::VIEWS.'inline-errors/with-child.blade.php', 2],
+            'a Nitro child in an included view' => ["<div>\n@include('inline-errors.with-child')</div>", '<nitro:...> inside inline-errors.with-child', self::VIEWS.'inline-errors/with-child.blade.php', 2],
             'an error in an included view, at its own line' => ["<div>\n\n\n@include('inline-errors.bad-line', ['cake' => \$count])</div>", '->price() is called on a value in the browser', self::VIEWS.'inline-errors/bad-line.blade.php', 3],
             'an $attributes->has() without a literal name, at its line' => ['<div><x-attribute-name /></div>', "\$attributes->has() takes the attribute's name as a string", self::VIEWS.'components/attribute-name.blade.php', 3],
             'an unclosed component tag' => ["<div>\n<x-badge>open</div>", '<x-badge> is not closed', 'view.blade.php', 2],
@@ -91,7 +91,7 @@ class InlinedViewsTest extends TestCase
     public function test_a_changed_partial_or_component_changes_the_bundle(): void
     {
         $this->boot('laravel');
-        $bundle = $this->app->make(\Nitro\Fusion\Build\Bundle::class);
+        $bundle = $this->app->make(\Nitro\Build\Bundle::class);
         $before = $bundle->version();
 
         $partial = self::VIEWS.'partials/heading.blade.php';
@@ -101,7 +101,7 @@ class InlinedViewsTest extends TestCase
 
         try {
             $this->app->forgetScopedInstances(); /* the next request's bundle */
-            $this->assertNotSame($before, $this->app->make(\Nitro\Fusion\Build\Bundle::class)->version());
+            $this->assertNotSame($before, $this->app->make(\Nitro\Build\Bundle::class)->version());
         } finally {
             touch($partial, $time);
         }

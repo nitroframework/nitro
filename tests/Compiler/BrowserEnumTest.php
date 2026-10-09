@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
 use Closure;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Compiler\PropertyMeta;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Transpiler;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus;
-use Nitro\Fusion\Tests\Fixtures\Browser\Orders;
-use Nitro\Fusion\Tests\Fixtures\Browser\Priority;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Compiler\PropertyMeta;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Transpiler;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Browser\OrderStatus;
+use Nitro\Tests\Fixtures\Browser\Orders;
+use Nitro\Tests\Fixtures\Browser\Priority;
+use Nitro\Tests\Support\Node;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
@@ -60,7 +60,7 @@ class BrowserEnumTest extends TestCase
     {
         [, $classes] = self::compile();
 
-        $this->assertStringContainsString('P.defineEnum("Nitro\\\\Fusion\\\\Tests\\\\Fixtures\\\\Browser\\\\OrderStatus", [["Draft","draft"],["Paid","paid"],["Shipped","shipped"],["Cancelled","cancelled"]]', $classes);
+        $this->assertStringContainsString('P.defineEnum("Nitro\\\\Tests\\\\Fixtures\\\\Browser\\\\OrderStatus", [["Draft","draft"],["Paid","paid"],["Shipped","shipped"],["Cancelled","cancelled"]]', $classes);
         $this->assertStringContainsString('[["Low",1],["Normal",2],["High",3]]', $classes, 'an int-backed enum');
         $this->assertStringContainsString('[["Hearts"],["Spades"]]', $classes, 'a pure enum: names only');
         $this->assertStringContainsString('"open": function', $classes, 'a static method');
@@ -72,9 +72,9 @@ class BrowserEnumTest extends TestCase
     public static function refused(): array
     {
         return [
-            'an unmarked enum\'s case' => ['return \Nitro\Fusion\Tests\Fixtures\Unmarked::One;', "Unmarked's cases are not in the browser: mark Nitro\\Fusion\\Tests\\Fixtures\\Unmarked #[Browser]"],
+            'an unmarked enum\'s case' => ['return \Nitro\Tests\Fixtures\Unmarked::One;', "Unmarked's cases are not in the browser: mark Nitro\\Tests\\Fixtures\\Unmarked #[Browser]"],
             'from() on a pure enum' => ['return Suit::from("x");', 'is a pure enum: it has no from()'],
-            'an undefined case' => ['return OrderStatus::Lost;', 'Undefined constant Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::Lost'],
+            'an undefined case' => ['return OrderStatus::Lost;', 'Undefined constant Nitro\Tests\Fixtures\Browser\OrderStatus::Lost'],
         ];
     }
 
@@ -102,14 +102,14 @@ class BrowserEnumTest extends TestCase
         }
 
         try {
-            $compile(['*::save', 'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::']);
+            $compile(['*::save', 'Nitro\Tests\Fixtures\Browser\OrderStatus::']);
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
-            $this->assertStringContainsString('no #[Browser] enum this code uses (Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus) has a public save()', $e->getMessage());
+            $this->assertStringContainsString('no #[Browser] enum this code uses (Nitro\Tests\Fixtures\Browser\OrderStatus) has a public save()', $e->getMessage());
         }
 
         /** label() exists: compiled for the enum reached. */
-        $compile(['*::label', 'Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::']);
+        $compile(['*::label', 'Nitro\Tests\Fixtures\Browser\OrderStatus::']);
         $this->assertStringContainsString('"label": function', $compiler->compileClasses());
     }
 
@@ -136,7 +136,7 @@ class BrowserEnumTest extends TestCase
             PropertyMeta::from(new ReflectionProperty(EnumHolder::class, 'unmarked'), false, 'EnumHolder.php');
             $this->fail('Expected a compile error');
         } catch (CompileException $e) {
-            $this->assertStringContainsString('the browser holds it as one of its cases, so mark Nitro\Fusion\Tests\Fixtures\Unmarked #[Browser]', $e->getMessage());
+            $this->assertStringContainsString('the browser holds it as one of its cases, so mark Nitro\Tests\Fixtures\Unmarked #[Browser]', $e->getMessage());
         }
 
         try {
@@ -170,7 +170,7 @@ class BrowserEnumTest extends TestCase
 
     private static function method(string $body): string
     {
-        $source = "<?php namespace Nitro\\Fusion\\Tests\\Fixtures\\Browser;\nclass C {\n    public function run() {\n        {$body}\n    }\n}";
+        $source = "<?php namespace Nitro\\Tests\\Fixtures\\Browser;\nclass C {\n    public function run() {\n        {$body}\n    }\n}";
         $method = (new NodeFinder)->findFirstInstanceOf(self::parse($source), Stmt\ClassMethod::class);
 
         return (new Transpiler)->method($method, new Scope(file: 'C.php'));
@@ -239,7 +239,7 @@ class EnumHolder
 
     public ?Priority $priority = null;
 
-    public ?\Nitro\Fusion\Tests\Fixtures\Unmarked $unmarked = null;
+    public ?\Nitro\Tests\Fixtures\Unmarked $unmarked = null;
 
-    public ?\Nitro\Fusion\Tests\Fixtures\Browser\Suit $suit = null;
+    public ?\Nitro\Tests\Fixtures\Browser\Suit $suit = null;
 }

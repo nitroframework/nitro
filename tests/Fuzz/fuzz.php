@@ -7,7 +7,7 @@
  * reported shrunk, each with the seed that makes it again (--seed=N --count=1).
  */
 
-use Nitro\Fusion\Tests\Fuzz\Fuzzer;
+use Nitro\Tests\Fuzz\Fuzzer;
 
 require __DIR__.'/../../vendor/autoload.php';
 

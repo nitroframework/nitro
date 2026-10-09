@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Support\Protocol;
 
 /**
  * What each template expression reads, as Viewi's subs: the properties the browser runtime
@@ -77,12 +77,12 @@ final class Subscriptions
             $keys[Protocol::signal('errors')] = true;
         }
 
-        /** $this->shared(): Fusion::share()'s data, which the runtime marks "$shared" when it changes. */
+        /** $this->shared(): Nitro::share()'s data, which the runtime marks "$shared" when it changes. */
         if (str_contains($js, 'B.shared(')) {
             $keys['$shared'] = true;
         }
 
-        /** $this->flashed(): Fusion::flash()'s data, which the runtime marks "$flash" with each response. */
+        /** $this->flashed(): Nitro::flash()'s data, which the runtime marks "$flash" with each response. */
         if (str_contains($js, 'B.flashed(')) {
             $keys['$flash'] = true;
         }

@@ -1,19 +1,19 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Cached;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Url;
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Cached;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Url;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
 /**
  * #[Cached] (/catalog): mount()'s state kept by its #[Url] sort; search() what it did ($found
  * and its return) by its argument and $sort only; both under the "catalog" tag.
  * The counters say how often each really ran.
  */
-#[View('fusion.components.catalog')]
+#[View('nitro.components.catalog')]
 class Catalog extends Component
 {
     public static int $mounts = 0;

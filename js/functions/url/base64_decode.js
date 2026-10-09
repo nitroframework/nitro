@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Url/Base64Decode.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/Base64Decode.js, for Nitro's values.
 function base64_decode(str, strict) { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.base64-decode.php
   // Characters outside the alphabet are skipped (strict: false returned); missing padding is fine.
@@ -23,6 +23,6 @@ function base64_decode(str, strict) { // eslint-disable-line camelcase
       bytes.push((bits >> count) & 255)
     }
   }
-  /** Fusion: the bytes as UTF-8 text (the server sends invalid bytes as U+FFFD): FunctionParityTest. */
+  /** Nitro: the bytes as UTF-8 text (the server sends invalid bytes as U+FFFD): FunctionParityTest. */
   return P.fromUtf8(Uint8Array.from(bytes))
 }

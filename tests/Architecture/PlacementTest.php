@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 use PHPUnit\Framework\TestCase;
 
@@ -13,7 +13,7 @@ final class PlacementTest extends TestCase
 {
     /** Http: answering requests. Beside controllers and middleware, these, with why. */
     private const HTTP = [
-        'src/Http/PageResponses.php' => 'answers a routed page (Route::fusion)',
+        'src/Http/PageResponses.php' => 'answers a routed page (Route::nitro)',
         'src/Http/IncomingState.php' => 'makes the state a request brings from the browser trusted',
         'src/Http/FinishPage.php' => 'middleware: finishes any HTML answer (portals, the page\'s data block)',
         'src/Http/ServerTiming.php' => 'middleware: each answer\'s server and database time, for the dev overlay',
@@ -29,9 +29,9 @@ final class PlacementTest extends TestCase
         'src/Support/Html.php' => 'HTML\'s element rules',
         'src/Support/Duration.php' => 'durations ("500ms", "1s")',
         'src/Support/UrlValues.php' => 'typed values from a URL',
-        'src/Support/Config.php' => 'Fusion\'s configuration: every part reads it',
+        'src/Support/Config.php' => 'Nitro\'s configuration: every part reads it',
         'src/Support/LayoutKey.php' => 'the layout key the server writes and the browser compares: the build and the page responses make it',
-        'src/Support/Signer.php' => 'signs and verifies (state, uploads), and Fusion\'s key: state, the build and uploads use it',
+        'src/Support/Signer.php' => 'signs and verifies (state, uploads), and Nitro\'s key: state, the build and uploads use it',
         'src/Support/ComponentHooks.php' => 'the component hooks\' names and rules: the compiler, the server and the runtime read them',
         'src/Support/PropertyHooks.php' => 'the property hooks\' names and rules: the compiler, the server and the runtime read them',
         'src/Support/CurrentRequest.php' => 'the request being answered and its session: every layer asks (Signer, State, Rendering, Http, #[Url])',

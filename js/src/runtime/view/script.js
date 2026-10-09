@@ -1,7 +1,7 @@
 /**
  * A view written for a JavaScript framework: Vue, React, Solid, or one of the app's own.
  *
- * The app's Vite builds the view; its engine, registered with Fusion.engine(name, { load, mount }),
+ * The app's Vite builds the view; its engine, registered with Nitro.engine(name, { load, mount }),
  * loads it and mounts it in the element the server rendered. The component keeps the state, as
  * it does for a Blade view. The view reads and changes it through a handle, and is told what
  * changed. The adapters (js/adapters) build on this handle; an engine of the app's own may use
@@ -16,18 +16,18 @@
  * plain data (plain.js: a PHP array is an array or an object, and turns back into one):
  *
  *   handle.get(path)              a property's value ("form.email": a key under it), or a #[Computed] one
- *   handle.set(path, value)       writes a property, or a key under it, as fusion:model does
+ *   handle.set(path, value)       writes a property, or a key under it, as nitro:model does
  *   handle.call(method, ...args)  a browser method runs here and returns its value; a #[Server]
  *                                 one returns a promise of its value
  *   handle.errors()               the validation messages, by field
  *   handle.unsaved()              the properties changed here that the server has not seen yet
  *   handle.dispatch(event, ...)   an event, as $this->dispatch() sends one
  *   handle.upload(path, files, progress)
- *                                 files into an Upload (or #[Uploads]) property, as fusion:model
+ *                                 files into an Upload (or #[Uploads]) property, as nitro:model
  *                                 does for a file input: a promise of its new value
  *   handle.id                     the component's id on the page
  *   handle.properties, .methods, .server, .computed    the names
- *   handle.component              the component itself, as Fusion.find() gives it
+ *   handle.component              the component itself, as Nitro.find() gives it
  *
  * update(names) is told what changed, by the PHP's names: "$errors" for the messages, "$unsaved"
  * when the server has taken the changes (nothing else may have changed then).
@@ -52,8 +52,8 @@ export class ScriptView {
     }
 
     /**
-     * The server rendered the element. With server rendering (fusion.ssr) the view's HTML is in
-     * it (fusion:rendered): the engine hydrates it, taking over the elements that are there.
+     * The server rendered the element. With server rendering (nitro.ssr) the view's HTML is in
+     * it (nitro:rendered): the engine hydrates it, taking over the elements that are there.
      * Without, it is empty, and the view mounts in it.
      */
     hydrate(el) {
@@ -140,7 +140,7 @@ export class ScriptView {
         const property = (path) => {
             const [root, ...keys] = String(path).split('.');
             const browser = browserName('properties', root);
-            if (browser === undefined) throw new Error(`Fusion: [${root}] is not a property of this component`);
+            if (browser === undefined) throw new Error(`Nitro: [${root}] is not a property of this component`);
             return [browser, keys];
         };
 
@@ -171,7 +171,7 @@ export class ScriptView {
                 const values = args.map((arg) => fromPlain(arg));
                 if (browserName('server', method) !== undefined) return $this.$call(browserName('server', method), values).then(toPlain);
                 const browser = browserName('methods', method);
-                if (browser === undefined) throw new Error(`Fusion: [${method}] is not a method of this component`);
+                if (browser === undefined) throw new Error(`Nitro: [${method}] is not a method of this component`);
                 return toPlain($this[browser](...values));
             },
 
@@ -191,7 +191,7 @@ export class ScriptView {
 
             /**
              * Files into a property that takes them (an Upload, or #[Uploads] for a list: the
-             * property's value says which), as fusion:model does for a file input. Resolves with
+             * property's value says which), as nitro:model does for a file input. Resolves with
              * the property's new value; null when the server's rules refused them (errors() says
              * why); rejects when the request failed. progress(0-100) as it goes.
              */
@@ -199,9 +199,9 @@ export class ScriptView {
                 const [browser, keys] = property(path);
                 const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
                 const owner = component();
-                if (!owner) return Promise.reject(new Error('Fusion: the component has left the page'));
+                if (!owner) return Promise.reject(new Error('Nitro: the component has left the page'));
                 return send(runtime, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
-                    if (result.failed) throw new Error(`Fusion: uploading ${path}: ${result.message}`);
+                    if (result.failed) throw new Error(`Nitro: uploading ${path}: ${result.message}`);
                     if (result.refused) return null;
                     return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);
                 });

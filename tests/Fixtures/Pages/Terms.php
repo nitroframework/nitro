@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Description;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\Navigate;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Description;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\Navigate;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 /**
  * A client page (#[Navigate('client')]): text and state of its own, nothing from the server. A
@@ -14,7 +14,7 @@ use Nitro\Fusion\Component;
  */
 #[Layout('components.layouts.headed')]
 #[Title('Terms')]
-#[Description('The terms of the Fusion test app')]
+#[Description('The terms of the Nitro test app')]
 #[Navigate('client')]
 class Terms extends Component
 {

@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayCountValues.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayCountValues.js (locutus), for Nitro's values.
 // uses: _php_array
 function array_count_values(array) {
     const counts = new Map();

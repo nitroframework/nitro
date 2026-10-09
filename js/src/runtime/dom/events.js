@@ -1,5 +1,5 @@
 /**
- * fusion:<event> handlers. The render marks each element with fusion:h-<event> and gives its
+ * nitro:<event> handlers. The render marks each element with nitro:h-<event> and gives its
  * component the handler for it; one listener per event type on the document finds the marked
  * elements from the target up and runs their handlers, applying the modifiers.
  */
@@ -21,7 +21,7 @@ export class Events {
         this.timers = new WeakMap();
         /** element => the keys of its .once handlers that ran */
         this.fired = new WeakMap();
-        /** event => (element => answer): fusion:confirm asks once, however many of the element's handlers it runs */
+        /** event => (element => answer): nitro:confirm asks once, however many of the element's handlers it runs */
         this.answers = new WeakMap();
     }
 
@@ -76,7 +76,7 @@ export class Events {
             if (keys.length && !keys.some((k) => event.key === KEYS[k])) return;
             for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;
         }
-        /** fusion:submit never lets the browser post the form: the handler is what submitting does. */
+        /** nitro:submit never lets the browser post the form: the handler is what submitting does. */
         if (m.includes('prevent') || event.type === 'submit') event.preventDefault();
         if (!this.answers.has(event)) this.answers.set(event, new Map());
         const answers = this.answers.get(event);
@@ -115,13 +115,13 @@ export class Events {
     }
 
     /**
-     * fusion:confirm="Delete it?" on the element asks before its handlers run (the browser's own
-     * dialog). fusion:confirm.prompt="Type DELETE to confirm|DELETE" asks for the word after the
+     * nitro:confirm="Delete it?" on the element asks before its handlers run (the browser's own
+     * dialog). nitro:confirm.prompt="Type DELETE to confirm|DELETE" asks for the word after the
      * last |. \n in the message is a line break.
      */
     confirmed(el) {
-        const plain = el.getAttribute('fusion:confirm');
-        const prompt = el.getAttribute('fusion:confirm.prompt');
+        const plain = el.getAttribute('nitro:confirm');
+        const prompt = el.getAttribute('nitro:confirm.prompt');
         const window = this.document.defaultView;
         const text = (s) => s.replace(/\\n/g, '\n');
 

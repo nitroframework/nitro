@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
 
 /**
  * Events between components whatever their views: BladeTalk, VueTalk, ReactTalk and SolidTalk use

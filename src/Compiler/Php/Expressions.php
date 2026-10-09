@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Compiler\BrowserClasses;
+use Nitro\Compiler\BrowserClasses;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
@@ -26,7 +26,7 @@ use UnitEnum;
  *  - match compares with ===, and an unmatched value throws PHP's UnhandledMatchError
  *  - constants have the server's values (Catalog::CONSTANTS): the page is rendered on both
  *
- * The Fusion details:
+ * The Nitro details:
  *
  *  - a variable in a template is resolved by the template (Scope::$variable): the component's
  *    public properties and the template's own loop variables; anything else fails to compile
@@ -53,7 +53,7 @@ final class Expressions extends Part
         };
     }
 
-    /** Status::Paid: the case, one object per case in the browser (Fusion.classes[enum].$cases). */
+    /** Status::Paid: the case, one object per case in the browser (Nitro.classes[enum].$cases). */
     public function enumCase(UnitEnum $case, Node $node): string
     {
         $enum = $case::class;
@@ -64,7 +64,7 @@ final class Expressions extends Part
 
         $this->context->uses['classes'][BrowserClasses::definition($enum)] = true;
 
-        return 'Fusion.classes['.json_encode($this->context->scope->browserClass($enum), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).'].$cases['.json_encode($case->name, JSON_THROW_ON_ERROR).']';
+        return 'Nitro.classes['.json_encode($this->context->scope->browserClass($enum), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).'].$cases['.json_encode($case->name, JSON_THROW_ON_ERROR).']';
     }
 
     public function interpolated(Scalar\InterpolatedString $expression): string

@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Compiler\Transpiler;
+use Nitro\Compiler\Transpiler;
 
 /**
  * A part of the transpiler: one concern of compiling PHP to JavaScript (statements, writes,

@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Stripslashes.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Stripslashes.js (locutus), for Nitro's values.
 function stripslashes(str) {
     return P.toStr(str)
         .replace(/\\(.?)/g, function (s, n1) {

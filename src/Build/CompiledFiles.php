@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Illuminate\Filesystem\Filesystem;
 
 /**
- * The compiled directory (fusion.compiled): a version's bundle and chunks, readable or built,
+ * The compiled directory (nitro.compiled): a version's bundle and chunks, readable or built,
  * and what their code uses. Each version's files replace the last version's.
  *
  *   app-<version>.js                   the main bundle, compiled on first use
- *   app-<version>.min.js               fusion:build's
+ *   app-<version>.min.js               nitro:build's
  *   app-<version>.<group>.chunk.js     a group's chunk (.chunk.min.js)
  *   app-<version>.uses.json            what the version's code uses (Compiler\Uses), its chunks, its broken components
  */
@@ -72,7 +72,7 @@ final class CompiledFiles
         }
     }
 
-    /** Remove every version's files (Fusion's only: the directory's own, such as a .gitignore, stay). */
+    /** Remove every version's files (Nitro's only: the directory's own, such as a .gitignore, stay). */
     public function clear(): void
     {
         foreach ($this->files->glob($this->directory.DIRECTORY_SEPARATOR.'app-*') as $file) {

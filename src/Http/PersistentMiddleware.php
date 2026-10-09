@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Http;
+namespace Nitro\Http;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Request;

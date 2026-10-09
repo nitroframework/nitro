@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Features\Blocker;
-use Nitro\Fusion\Tests\Fixtures\Features\Recorder;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Features\Blocker;
+use Nitro\Tests\Fixtures\Features\Recorder;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Features (fusion.features): the application's hooks around every component on the server, each
- * after the component's own and after Fusion's own features (#[Url], #[Validate]). The journal
+ * Features (nitro.features): the application's hooks around every component on the server, each
+ * after the component's own and after Nitro's own features (#[Url], #[Validate]). The journal
  * logs its own hooks; Recorder logs the features' beside them.
  */
 class FeaturesTest extends TestCase
@@ -25,7 +25,7 @@ class FeaturesTest extends TestCase
 
     private function features(array $classes): void
     {
-        $this->app->make('config')->set('fusion.features', $classes);
+        $this->app->make('config')->set('nitro.features', $classes);
         $this->app->forgetScopedInstances();
     }
 
@@ -91,9 +91,9 @@ class FeaturesTest extends TestCase
         $this->assertNotContains('feature calling save() Journal POST', Store::$log);
     }
 
-    /** Fusion's own run first: #[Validate]'s failure is there for the application's to see (StudentPage's copies: min 1). */
+    /** Nitro's own run first: #[Validate]'s failure is there for the application's to see (StudentPage's copies: min 1). */
     #[DataProvider('frameworks')]
-    public function test_fusions_own_features_run_first(string $framework): void
+    public function test_nitros_own_features_run_first(string $framework): void
     {
         $this->boot($framework);
         $this->features([Recorder::class]);
@@ -127,7 +127,7 @@ class FeaturesTest extends TestCase
         $this->features([\stdClass::class]);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('fusion.features: stdClass is not a feature (a class extending Nitro\Fusion\Feature).');
-        $this->app->make(\Nitro\Fusion\Lifecycle\Features::class)->boot(new \Nitro\Fusion\Tests\Fixtures\Components\Journal);
+        $this->expectExceptionMessage('nitro.features: stdClass is not a feature (a class extending Nitro\Feature).');
+        $this->app->make(\Nitro\Lifecycle\Features::class)->boot(new \Nitro\Tests\Fixtures\Components\Journal);
     }
 }

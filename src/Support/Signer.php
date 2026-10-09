@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * What Fusion signs, signed in one place: component state (a snapshot), an upload's token. Each
+ * What Nitro signs, signed in one place: component state (a snapshot), an upload's token. Each
  * is signed for its purpose, so one cannot pass for another.
  *
  * The key comes from the application key (APP_KEY), mixed with this session's own secret
- * (fusion.state.bind_to_session) and who is logged in: a signature is good in the session it
+ * (nitro.state.bind_to_session) and who is logged in: a signature is good in the session it
  * was made for, for the user it was made for; not another visitor's, not after a logout, not for
  * the next user to log in. Without a session, the application key's alone.
  *
@@ -41,7 +41,7 @@ final class Signer
         return false;
     }
 
-    /** Fusion's key, from the current application key: for what is not a signature (an obfuscated build's names). */
+    /** Nitro's key, from the current application key: for what is not a signature (an obfuscated build's names). */
     public function key(): string
     {
         return $this->derived($this->currentAppKey());
@@ -49,7 +49,7 @@ final class Signer
 
     private function derived(string $appKey): string
     {
-        return hash_hmac('sha256', 'nitro-fusion:state', $appKey);
+        return hash_hmac('sha256', 'nitro:state', $appKey);
     }
 
     /** The key, bound to this session and who is logged in (when state is bound to the session). */
@@ -57,7 +57,7 @@ final class Signer
     {
         $secret = $this->sessionSecret();
 
-        return $secret === null ? $key : hash_hmac('sha256', 'nitro-fusion:session|'.$secret.'|'.$this->authIdentity(), $key);
+        return $secret === null ? $key : hash_hmac('sha256', 'nitro:session|'.$secret.'|'.$this->authIdentity(), $key);
     }
 
     private function currentAppKey(): string
@@ -65,7 +65,7 @@ final class Signer
         $appKey = (string) $this->app->make('config')->get('app.key');
 
         if ($appKey === '') {
-            throw new RuntimeException('Fusion signs component state with the application key: set APP_KEY.');
+            throw new RuntimeException('Nitro signs component state with the application key: set APP_KEY.');
         }
 
         return $appKey;
@@ -102,17 +102,17 @@ final class Signer
      */
     private function sessionSecret(): ?string
     {
-        $session = $this->app->make('config')->get('fusion.state.bind_to_session') ? CurrentRequest::session($this->app) : null;
+        $session = $this->app->make('config')->get('nitro.state.bind_to_session') ? CurrentRequest::session($this->app) : null;
 
         if ($session === null) {
             return null;
         }
 
-        $secret = $session->get('fusion.secret');
+        $secret = $session->get('nitro.secret');
 
         if (! is_string($secret) || $secret === '') {
             $secret = Str::random(40);
-            $session->put('fusion.secret', $secret);
+            $session->put('nitro.secret', $secret);
         }
 
         return $secret;

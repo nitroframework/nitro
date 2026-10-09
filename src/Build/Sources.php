@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Illuminate\Filesystem\Filesystem;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Compiler\Components;
+use Nitro\Support\Registry;
+use Nitro\View\ViewEngines;
 use ReflectionClass;
 
 /**

@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Compiler\Template\Token;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Compiler\Template\Token;
 
 /**
  * Blade directives: each @directive sent where it belongs, by where it appears.
@@ -15,7 +15,7 @@ use Nitro\Fusion\Compiler\Template\Token;
  *  - inside an attribute value: only @json; inside a comment or an end tag: none
  *  - a directive not in Syntax::DIRECTIVES is a compile error: it cannot render in the browser
  *
- * General Blade, plus three Fusion details: @deferred / @placeholder (a page's deferred
+ * General Blade, plus three Nitro details: @deferred / @placeholder (a page's deferred
  * properties, $this.$deferring()), @teleport (in Blocks), and BladeInliner's marker directives,
  * handed to InlinedViews.
  *
@@ -33,7 +33,7 @@ final class Directives extends Part
         $args = $token->args;
 
         if (! in_array($name, Syntax::DIRECTIVES, true)) {
-            throw $context->error("@{$name} cannot render in the browser, so it is not supported in a Fusion component".
+            throw $context->error("@{$name} cannot render in the browser, so it is not supported in a Nitro component".
                 ' (use a child component or pass the data as a property)');
         }
 
@@ -43,7 +43,7 @@ final class Directives extends Part
             return;
         }
 
-        if (in_array($name, ['fusionScope', 'endfusionScope', 'fusionSlot', 'endfusionSlot'], true)) {
+        if (in_array($name, ['nitroScope', 'endnitroScope', 'nitroSlot', 'endnitroSlot'], true)) {
             $this->compiler->inlinedViews->inlined($name, $args);
 
             return;
@@ -124,7 +124,7 @@ final class Directives extends Part
         $table = $this->compiler->expressionTable;
 
         if (in_array($name, Syntax::INLINED_TAG_DIRECTIVES, true)) {
-            $name === 'fusionAttr' ? $this->compiler->inlinedViews->componentAttribute((string) $args) : $this->compiler->inlinedViews->inlined($name, $args);
+            $name === 'nitroAttr' ? $this->compiler->inlinedViews->componentAttribute((string) $args) : $this->compiler->inlinedViews->inlined($name, $args);
 
             return;
         }

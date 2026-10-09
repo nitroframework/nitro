@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Transpiler;
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Transpiler;
+use Nitro\Tests\Support\Node;
 use PhpParser\Error as ParseError;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
@@ -88,7 +88,7 @@ final class Fuzzer
     public function prepare(array $program): array
     {
         $class = 'Program'.(++$this->classes);
-        $code = "namespace Nitro\\Fusion\\Tests\\Fuzz\\Generated;\n\nfinal class {$class}\n{\n    public \$p = null;\n\n    public function f()\n    {\n"
+        $code = "namespace Nitro\\Tests\\Fuzz\\Generated;\n\nfinal class {$class}\n{\n    public \$p = null;\n\n    public function f()\n    {\n"
             .self::source($program)."\n    }\n}";
 
         try {
@@ -109,7 +109,7 @@ final class Fuzzer
 
         try {
             eval($code);
-            $name = "Nitro\\Fusion\\Tests\\Fuzz\\Generated\\{$class}";
+            $name = "Nitro\\Tests\\Fuzz\\Generated\\{$class}";
             $object = new $name;
             $expected = self::canon([$object->f(), $object->p]);
         } catch (Throwable $e) {
@@ -245,7 +245,7 @@ final class Fuzzer
      */
     private function report(int $seed, int $count, int $ran, array $skipped, array $crashes, array $findings, int $show, float $seconds): void
     {
-        echo "\n  Fusion fuzz: seeds {$seed} to ".($seed + $count - 1).sprintf(' (%.1fs)', $seconds)."\n\n";
+        echo "\n  Nitro fuzz: seeds {$seed} to ".($seed + $count - 1).sprintf(' (%.1fs)', $seconds)."\n\n";
         echo "  {$ran} programs compared, ".array_sum($skipped).' refused by the compiler, '.count($crashes).' compiler crashes, '.count($findings)." differences\n";
 
         if ($skipped !== []) {

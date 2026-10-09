@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\PropertyHooks;
-use Nitro\Fusion\Tests\Fixtures\Invalid\ServerRendered;
-use Nitro\Fusion\Tests\Fixtures\Invalid\ServerUpdating;
-use Nitro\Fusion\Tests\Fixtures\Pages\Lifecycle;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\PropertyHooks;
+use Nitro\Tests\Fixtures\Invalid\ServerRendered;
+use Nitro\Tests\Fixtures\Invalid\ServerUpdating;
+use Nitro\Tests\Fixtures\Pages\Lifecycle;
+use Nitro\Support\Wire;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -47,7 +47,7 @@ class LifecycleHooksTest extends TestCase
 
     public function test_the_metadata_lists_the_hooks_a_component_has(): void
     {
-        $meta = ComponentReader::read(Lifecycle::class, 'pages::lifecycle', 'fusion.pages.lifecycle');
+        $meta = ComponentReader::read(Lifecycle::class, 'pages::lifecycle', 'nitro.pages.lifecycle');
 
         $this->assertSame(['rendered'], $meta->componentHooks());
         $this->assertEqualsCanonicalizing([
@@ -106,7 +106,7 @@ class LifecycleHooksTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage('#[Server] on rendered() runs after every render');
 
-        ComponentReader::read(ServerRendered::class, 'server-rendered', 'fusion.components.server-rendered');
+        ComponentReader::read(ServerRendered::class, 'server-rendered', 'nitro.components.server-rendered');
     }
 
     public function test_an_updating_hook_cannot_be_server(): void
@@ -114,6 +114,6 @@ class LifecycleHooksTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage('#[Server] on updatingEmail() runs before the change is made');
 
-        ComponentReader::read(ServerUpdating::class, 'server-updating', 'fusion.components.server-updating');
+        ComponentReader::read(ServerUpdating::class, 'server-updating', 'nitro.components.server-updating');
     }
 }

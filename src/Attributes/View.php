@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\Attributes;
+namespace Nitro\Attributes;
 
 use Attribute;
 use InvalidArgumentException;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Support\Protocol;
 
 /**
- * The component's view, when it does not follow the convention (App\Fusion\Students\Form ->
- * fusion.students.form), or when it is not Blade:
+ * The component's view, when it does not follow the convention (App\Nitro\Students\Form ->
+ * nitro.students.form), or when it is not Blade:
  *
  *     #[View('shared.form')]               a Blade view
  *     #[View(vue: 'cart/badge')]           resources/views/vue/cart/badge.vue
  *     #[View(react: 'chart')]              resources/views/react/chart.jsx (or .tsx)
  *     #[View(solid: 'clock')]              resources/views/solid/clock.jsx (or .tsx)
  *     #[View(svelte: 'cart/total')]        resources/views/svelte/cart/total.svelte
- *     #[View('map', engine: 'leaflet')]    an engine of the app's own (fusion.views)
+ *     #[View('map', engine: 'leaflet')]    an engine of the app's own (nitro.views)
  */
 #[Attribute(Attribute::TARGET_CLASS)]
 final class View
@@ -23,10 +23,10 @@ final class View
     /** The view's name, for its engine. */
     public readonly string $name;
 
-    /** Its engine: Blade's (Protocol::bladeEngine()), or one fusion.views lists. */
+    /** Its engine: Blade's (Protocol::bladeEngine()), or one nitro.views lists. */
     public readonly string $engine;
 
-    /** Each framework of Fusion's own is a parameter, named as its engine is: the signature is their one list here. */
+    /** Each framework of Nitro's own is a parameter, named as its engine is: the signature is their one list here. */
     public function __construct(?string $name = null, ?string $vue = null, ?string $react = null, ?string $solid = null, ?string $svelte = null, ?string $engine = null)
     {
         $frameworks = array_diff_key(get_defined_vars(), ['name' => true, 'engine' => true]);

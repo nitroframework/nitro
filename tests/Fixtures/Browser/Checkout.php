@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Browser;
+namespace Nitro\Tests\Fixtures\Browser;
 
 /** Browser methods using the #[Browser] classes, as a component's would (BrowserClassParityTest). */
 class Checkout

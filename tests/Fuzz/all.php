@@ -11,7 +11,7 @@
  *   roundtrip     random values through #[Server] calls
  *   endpoint      mutated requests to the server's endpoints
  *   compiler      mutated component classes and views, compiled
- *   precompiler   random views with <fusion:...> tags, through Blade
+ *   precompiler   random views with <nitro:...> tags, through Blade
  *   wire          random values and bent input through the wire format
  */
 $options = getopt('', ['seed:', 'scale:', 'only:']);

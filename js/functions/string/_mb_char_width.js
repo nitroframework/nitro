@@ -1,4 +1,4 @@
-// Fusion: mbstring's character_width(), from its table (_mb_wide).
+// Nitro: mbstring's character_width(), from its table (_mb_wide).
 // uses: _mb_wide
 function _mb_char_width(codePoint) {
     const ranges = P.fns._mb_wide();

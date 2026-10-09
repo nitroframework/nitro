@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Blade\FusionTags;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Blade\NitroTags;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Islands: components in a Blade view that start later (fusion:hydrate) or never (fusion:static).
+ * Islands: components in a Blade view that start later (nitro:hydrate) or never (nitro:static).
  * The browser side is in tests/Browser (the islands scenario).
  */
 class IslandsTest extends TestCase
@@ -21,7 +21,7 @@ class IslandsTest extends TestCase
         $html = (string) $this->get('/islands')->getContent();
 
         foreach (['idle', 'visible:100px', 'interaction', 'media:(min-width: 1200px)'] as $when) {
-            $this->assertStringContainsString('fusion:hydrate="'.$when.'"', $html);
+            $this->assertStringContainsString('nitro:hydrate="'.$when.'"', $html);
         }
 
         $chunk = $this->app->make(Bundle::class)->chunkId('islands');
@@ -36,20 +36,20 @@ class IslandsTest extends TestCase
 
         $this->assertSame(1, preg_match('#<section class="static">(.*?)</section>#s', $html, $static));
         $this->assertStringContainsString('<span class="count">0</span>', $static[1]);
-        $this->assertStringNotContainsString('fusion:id', $static[1]);
-        $this->assertStringNotContainsString('fusion:id', $static[1]);
-        $this->assertStringNotContainsString('fusion:hydrate', $static[1]);
+        $this->assertStringNotContainsString('nitro:id', $static[1]);
+        $this->assertStringNotContainsString('nitro:id', $static[1]);
+        $this->assertStringNotContainsString('nitro:hydrate', $static[1]);
     }
 
     public static function invalid(): array
     {
         return [
-            'no moment' => ['<fusion:counter fusion:hydrate />', 'fusion:hydrate takes when the island starts: .idle, .visible (.visible.200px), .interaction or .media="(max-width: 768px)" (on <fusion:counter>)'],
-            'unknown moment' => ['<fusion:counter fusion:hydrate.soon />', 'fusion:hydrate takes when the island starts'],
-            'margin not in px' => ['<fusion:counter fusion:hydrate.visible.2em />', 'fusion:hydrate takes when the island starts'],
-            'media without a query' => ['<fusion:counter fusion:hydrate.media />', 'fusion:hydrate.media on <fusion:counter> needs a media query'],
-            'both' => ['<fusion:counter fusion:hydrate.idle fusion:static />', '<fusion:counter> has one fusion:hydrate or fusion:static'],
-            'static with a value' => ['<fusion:counter fusion:static="yes" />', 'fusion:static on <fusion:counter> takes no value'],
+            'no moment' => ['<nitro:counter nitro:hydrate />', 'nitro:hydrate takes when the island starts: .idle, .visible (.visible.200px), .interaction or .media="(max-width: 768px)" (on <nitro:counter>)'],
+            'unknown moment' => ['<nitro:counter nitro:hydrate.soon />', 'nitro:hydrate takes when the island starts'],
+            'margin not in px' => ['<nitro:counter nitro:hydrate.visible.2em />', 'nitro:hydrate takes when the island starts'],
+            'media without a query' => ['<nitro:counter nitro:hydrate.media />', 'nitro:hydrate.media on <nitro:counter> needs a media query'],
+            'both' => ['<nitro:counter nitro:hydrate.idle nitro:static />', '<nitro:counter> has one nitro:hydrate or nitro:static'],
+            'static with a value' => ['<nitro:counter nitro:static="yes" />', 'nitro:static on <nitro:counter> takes no value'],
         ];
     }
 
@@ -59,6 +59,6 @@ class IslandsTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage($message);
 
-        FusionTags::compile($tag);
+        NitroTags::compile($tag);
     }
 }

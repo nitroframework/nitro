@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Description;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Description;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 /**
  * A page that sets its <head> from data ($this->head() in mount()), over its #[Title] and
- * #[Description], in a layout with @fusionHead.
+ * #[Description], in a layout with @nitroHead.
  */
 #[Layout('components.layouts.headed')]
 #[Title('Article')]
@@ -20,11 +20,11 @@ class Article extends Component
 
     public function mount(): void
     {
-        $this->heading = 'Fusion & Blade';
+        $this->heading = 'Nitro & Blade';
 
         $this->head()
             ->title($this->heading)
-            ->description('How Fusion compiles <Blade> to JavaScript')
+            ->description('How Nitro compiles <Blade> to JavaScript')
             ->image('https://example.com/article.png')
             ->canonical('https://example.com/article')
             ->meta('author', 'Ada');

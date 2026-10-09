@@ -1,36 +1,36 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\State;
 
 use Closure;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 use LogicException;
-use Nitro\Fusion\Attributes\Cached;
-use Nitro\Fusion\Compiler\BrowserClasses;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\CurrentRequest;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Attributes\Cached;
+use Nitro\Compiler\BrowserClasses;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\StateProperties;
+use Nitro\Component;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\CurrentRequest;
+use Nitro\Support\Wire;
 use Throwable;
 
 /**
  * Methods' results kept in the application's cache (#[Cached]): the state mount() left, what a
- * #[Server] method did (the properties it changed, what it returned). The one place Fusion reads or writes that cache.
+ * #[Server] method did (the properties it changed, what it returned). The one place Nitro reads or writes that cache.
  *
  * A result is kept by what it was worked out from: the component, the method, its code (a deploy
  * that changes it starts afresh), the arguments and the state the method saw (its #[Cached] $by properties), the user with $perUser, and the
- * version of each of its tags. Fusion::expire() moves a tag to its next version, so every result
+ * version of each of its tags. Nitro::expire() moves a tag to its next version, so every result
  * kept under the old one is passed over, on any cache store (none needs to support tags).
  */
 final class MethodCache
 {
-    private const RESULT = 'fusion.cached.';
+    private const RESULT = 'nitro.cached.';
 
-    private const TAG = 'fusion.cached-tag.';
+    private const TAG = 'nitro.cached-tag.';
 
     public function __construct(
         private readonly Container $app,
@@ -150,7 +150,7 @@ final class MethodCache
 
     /**
      * The key of a result; null when what it was worked out from cannot be told apart (a value
-     * that is not state, such as an object Fusion cannot send): then it is not kept.
+     * that is not state, such as an object Nitro cannot send): then it is not kept.
      *
      * @param  array<array-key, mixed>  $from
      */

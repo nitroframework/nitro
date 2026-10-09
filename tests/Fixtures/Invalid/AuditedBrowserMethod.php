@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Attributes\Audited;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Attributes\Audited;
 
 /** An attribute that runs around #[Server] calls, on a browser method: it would never run. */
 class AuditedBrowserMethod extends Component

@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Htmlentities.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Htmlentities.js, for Nitro's values.
 // uses: _php_html_escape
 function htmlentities(string, flags, encoding, doubleEncode) {
   //  discuss at: https://www.php.net/manual/en/function.htmlentities.php

@@ -1,28 +1,28 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\State;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Arr;
 use JsonSerializable;
-use Nitro\Fusion\Once;
-use Nitro\Fusion\Support\CurrentRequest;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Once;
+use Nitro\Support\CurrentRequest;
+use Nitro\Support\Protocol;
+use Nitro\Support\Wire;
 
 /**
- * Data every component reads, beyond its own state: shared data (Fusion::share(), once data
- * Fusion::once() the browser keeps) and flash data (Fusion::flash(), for the next response only),
- * on the server and as the browser gets it. A part of Fusion.
+ * Data every component reads, beyond its own state: shared data (Nitro::share(), once data
+ * Nitro::once() the browser keeps) and flash data (Nitro::flash(), for the next response only),
+ * on the server and as the browser gets it. A part of Nitro.
  */
 final class SharedData
 {
-    /** Where Fusion::flash()'s data waits in the session for the response that delivers it. */
-    public const FLASH_KEY = 'fusion.flash';
+    /** Where Nitro::flash()'s data waits in the session for the response that delivers it. */
+    public const FLASH_KEY = 'nitro.flash';
 
-    /** @var array<string, mixed> Fusion::share()'s data, closures not yet called */
+    /** @var array<string, mixed> Nitro::share()'s data, closures not yet called */
     private array $shared = [];
 
     public function __construct(private readonly Container $app)
@@ -35,7 +35,7 @@ final class SharedData
      * Data every component can read with $this->shared(), on the server and in the browser, as
      * Inertia's shared props: the signed-in user, flash messages. A value can be a closure,
      * called when the data is read. Keys use dot notation. The data is sent to the browser
-     * with every page, fusion:navigate visit and #[Server] call: nothing secret.
+     * with every page, nitro:navigate visit and #[Server] call: nothing secret.
      *
      * @param  string|array<string, mixed>  $key
      */
@@ -54,7 +54,7 @@ final class SharedData
         return $key === null ? $data : data_get($data, $key, $default);
     }
 
-    /** Share data sent once: Fusion::share($key, Fusion::once($value)). */
+    /** Share data sent once: Nitro::share($key, Nitro::once($value)). */
     public function shareOnce(string $key, Closure $value): Once
     {
         $once = new Once($value);
@@ -81,7 +81,7 @@ final class SharedData
 
     /**
      * The shared data as the browser reads it (B.shared()), without the once data the browser
-     * says it has (X-Fusion-Once), unless it is fresh.
+     * says it has (X-Nitro-Once), unless it is fresh.
      */
     private function sharedForBrowser(): mixed
     {
@@ -110,7 +110,7 @@ final class SharedData
         return $once;
     }
 
-    /** @return list<string> the once data the browser has (X-Fusion-Once) */
+    /** @return list<string> the once data the browser has (X-Nitro-Once) */
     private function heldOnce(): array
     {
         $header = (string) CurrentRequest::of($this->app)?->headers->get(Protocol::header('once'), '');
@@ -129,7 +129,7 @@ final class SharedData
      */
     public function flash(string|array $key, mixed $value = null): void
     {
-        $session = CurrentRequest::session($this->app) ?? throw new \RuntimeException('Fusion::flash() keeps its data in the session: the request has none (the web middleware starts it).');
+        $session = CurrentRequest::session($this->app) ?? throw new \RuntimeException('Nitro::flash() keeps its data in the session: the request has none (the web middleware starts it).');
         $data = $this->flashData();
 
         foreach (is_array($key) ? $key : [$key => $value] as $name => $item) {
@@ -166,7 +166,7 @@ final class SharedData
 
     /**
      * The flash data waiting in the session: the last request's, and this one's. Only there, not
-     * on this object: a Fusion kept past its request (a facade, Octane) carries none of it over.
+     * on this object: a Nitro kept past its request (a facade, Octane) carries none of it over.
      *
      * @return array<string, mixed>
      */

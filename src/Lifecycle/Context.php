@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Lifecycle;
+namespace Nitro\Lifecycle;
 
 use Illuminate\Support\MessageBag;
 
 /**
- * What Fusion keeps about a component instance besides its state.
+ * What Nitro keeps about a component instance besides its state.
  */
 final class Context
 {
@@ -39,14 +39,14 @@ final class Context
     /** @var list<string>|null the page properties for the browser to reload after a #[Server] call (all of them: []) */
     public ?array $reload = null;
 
-    /** @var array<string, \Nitro\Fusion\Merge> merge props from mount() ($this->merge(), ...): their rule is read when the page answers */
+    /** @var array<string, \Nitro\Merge> merge props from mount() ($this->merge(), ...): their rule is read when the page answers */
     public array $mergeProps = [];
 
     /** @var array<string, array{pageName: string, currentPage: int|string|null, nextPage: int|string|null, previousPage: int|string|null}> where each scroll prop's paginator is ($this->scroll()) */
     public array $scroll = [];
 
     /** The page's <head>, when mount() set some of it ($this->head()) */
-    public ?\Nitro\Fusion\Head $head = null;
+    public ?\Nitro\Head $head = null;
 
     /** @var list<string> the page's properties loaded after it is shown ($this->defer()) */
     public array $deferred = [];
@@ -58,7 +58,7 @@ final class Context
      */
     public function mergeRules(): array
     {
-        return array_map(fn (\Nitro\Fusion\Merge $merge) => $merge->rule(), $this->mergeProps);
+        return array_map(fn (\Nitro\Merge $merge) => $merge->rule(), $this->mergeProps);
     }
 
     public function __construct()

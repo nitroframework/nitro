@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Component;
 
 /**
  * A child without mount(): its props are its public properties, so the browser can create it.

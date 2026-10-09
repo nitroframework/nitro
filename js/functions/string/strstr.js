@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Strings/Strstr.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/Strstr.js (locutus), for Nitro's values.
 function strstr(haystack, needle, bool = false) {
     let pos = 0;
 

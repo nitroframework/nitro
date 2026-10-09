@@ -1,4 +1,4 @@
-// Fusion: a subject as a compiled pattern matches it (without /u: a byte string, a character per
+// Nitro: a subject as a compiled pattern matches it (without /u: a byte string, a character per
 // byte), and back: piece(from, to) as PHP's string, offset(index) in bytes, index(bytes) where
 // that byte offset is (null in the middle of a character), next(index) one character on.
 function _pcre_subject(compiled, subject) {

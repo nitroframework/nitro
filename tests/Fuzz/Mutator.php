@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
 /**
  * Seeded mutations for robustness fuzzing: a valid input bent a little (a value of another type, a

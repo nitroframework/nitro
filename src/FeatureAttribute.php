@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 /**
  * An attribute that works as a feature where it is placed: on a component's class, on one of its
- * properties or on one of its #[Server] methods. Fusion runs its hooks (Feature's) for the
+ * properties or on one of its #[Server] methods. Nitro runs its hooks (Feature's) for the
  * components that have it, after the component's own and before #[Validate] and the features
- * listed in fusion.features (so a property's updated() can tidy a value before it is validated):
+ * listed in nitro.features (so a property's updated() can tidy a value before it is validated):
  *
  *  - on a method: calling() and called() for that method only (a #[Server] one: a browser
  *    method never reaches the server, so the attribute there fails the build)
@@ -23,7 +23,7 @@ namespace Nitro\Fusion;
  *
  *         public function calling(Component $component, string $method, array $arguments): void
  *         {
- *             $key = 'fusion:'.$component::class.':'.$method.':'.request()->ip();
+ *             $key = 'nitro:'.$component::class.':'.$method.':'.request()->ip();
  *             abort_if(RateLimiter::tooManyAttempts($key, $this->perMinute), 429);
  *             RateLimiter::hit($key);
  *         }
@@ -53,7 +53,7 @@ abstract class FeatureAttribute extends Feature
     }
 
     /**
-     * Where Fusion found it.
+     * Where Nitro found it.
      *
      * @internal
      */

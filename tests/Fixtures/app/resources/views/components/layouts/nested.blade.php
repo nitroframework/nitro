@@ -2,6 +2,6 @@
 <x-layouts.app :title="$title ?? null">
     <div class="nested-shell">
         <aside class="nested-side">Nested aside</aside>
-        <section fusion:layout="nested">{{ $slot }}</section>
+        <section nitro:layout="nested">{{ $slot }}</section>
     </div>
 </x-layouts.app>

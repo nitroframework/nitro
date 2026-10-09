@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Validate;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
 /** A component with a Solid view, reading it from its props: a browser method, a #[Computed] value, a #[Server] method with its status and errors. */
 #[View(solid: 'solid-counter')]

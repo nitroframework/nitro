@@ -1,31 +1,31 @@
 <?php
 
-namespace Nitro\Fusion\View;
+namespace Nitro\View;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
-use Nitro\Fusion\View\ServerRendering\ViewState;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Component;
+use Nitro\Support\Protocol;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
+use Nitro\View\ServerRendering\ViewState;
 
 /**
  * Views written for a JavaScript framework: the app's Vite builds them, and the browser mounts
- * them with the engine Fusion.engine() registered. The server renders the element they mount
+ * them with the engine Nitro.engine() registered. The server renders the element they mount
  * in, marked with the component's state like any other; with server rendering on, the view's
  * HTML is in it too, and the browser hydrates it.
  *
- * Each fusion.views entry names its adapter: Fusion's (View\Adapters) know
+ * Each nitro.views entry names its adapter: Nitro's (View\Adapters) know
  * their framework's files and where a view keeps its <php> block. An entry without one, for a
  * framework of the app's own, is a ScriptEngine as it is.
  */
 class ScriptEngine implements ViewEngine
 {
     /**
-     * @param  list<string>  $paths  where its views are, in the order looked in (fusion.views)
+     * @param  list<string>  $paths  where its views are, in the order looked in (nitro.views)
      * @param  list<string>  $extensions  their file extensions, in the order looked for
-     * @param  ServerRenderer  $server  renders a view for the first HTML (fusion.ssr), or leaves it to the browser
+     * @param  ServerRenderer  $server  renders a view for the first HTML (nitro.ssr), or leaves it to the browser
      */
     public function __construct(
         protected readonly string $name,
@@ -75,18 +75,18 @@ class ScriptEngine implements ViewEngine
         throw new CompileException("View [{$meta->view}] of {$meta->class} not found: no ".implode(' or ', $tried).'.', $meta->file);
     }
 
-    public function compiledByFusion(): bool
+    public function compiledByNitro(): bool
     {
         return false;
     }
 
-    /** None for a framework of the app's own: its engine gives its views what it chooses. Fusion's adapters' are SharedCore's. */
+    /** None for a framework of the app's own: its engine gives its views what it chooses. Nitro's adapters' are SharedCore's. */
     public function reservedNames(): array
     {
         return [];
     }
 
-    /** None: Fusion's build has nothing of the view (the app's Vite builds it again when it changes). */
+    /** None: Nitro's build has nothing of the view (the app's Vite builds it again when it changes). */
     public function files(ComponentMeta $meta): array
     {
         return [];
@@ -94,7 +94,7 @@ class ScriptEngine implements ViewEngine
 
     /**
      * The element the view mounts in. With server rendering, the view's HTML is inside it and
-     * the element says so (fusion:rendered): the browser hydrates it. Without, or when the view
+     * the element says so (nitro:rendered): the browser hydrates it. Without, or when the view
      * cannot be rendered here, it is empty and the browser renders the view into it.
      */
     public function render(Component $component, ComponentMeta $meta): string

@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Navigate;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Navigate;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /**
  * A markup-first page (#[Navigate('markup')]): a visit renders it at once with its defaults, the

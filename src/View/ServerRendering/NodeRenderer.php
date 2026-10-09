@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\View\ServerRendering;
+namespace Nitro\View\ServerRendering;
 
 use JsonException;
 use Psr\Log\LoggerInterface;
 
 /**
- * The app's render service: a Node process (php artisan fusion:ssr) that has the app's views
- * built for the server (nitro-fusion/ssr). Each view is a POST to {url}/render with its
+ * The app's render service: a Node process (php artisan nitro:ssr) that has the app's views
+ * built for the server (nitro/ssr). Each view is a POST to {url}/render with its
  * ViewState; the answer is {"html": "..."}, {"error": "..."} when the view failed, or
  * {"unserved": true} for an engine the service has no renderer for.
  *
@@ -39,7 +39,7 @@ final class NodeRenderer implements ServerRenderer
         try {
             $payload = json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            $this->log?->warning("Fusion server rendering: [{$state->view}] has state JSON cannot hold ({$exception->getMessage()}); the browser renders it.");
+            $this->log?->warning("Nitro server rendering: [{$state->view}] has state JSON cannot hold ({$exception->getMessage()}); the browser renders it.");
 
             return null;
         }
@@ -57,7 +57,7 @@ final class NodeRenderer implements ServerRenderer
 
         if ($body === false) {
             $this->unavailable = true;
-            $this->log?->warning("Fusion server rendering: no render service at {$this->url} (php artisan fusion:ssr); the browser renders this request's views.");
+            $this->log?->warning("Nitro server rendering: no render service at {$this->url} (php artisan nitro:ssr); the browser renders this request's views.");
 
             return null;
         }
@@ -73,7 +73,7 @@ final class NodeRenderer implements ServerRenderer
 
         if (! is_array($answer) || ! is_string($answer['html'] ?? null)) {
             $error = is_array($answer) && is_string($answer['error'] ?? null) ? $answer['error'] : 'an answer without HTML';
-            $this->log?->warning("Fusion server rendering: the {$state->engine} view [{$state->view}] failed: {$error}; the browser renders it.");
+            $this->log?->warning("Nitro server rendering: the {$state->engine} view [{$state->view}] failed: {$error}; the browser renders it.");
 
             return null;
         }

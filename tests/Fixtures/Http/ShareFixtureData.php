@@ -1,27 +1,27 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Http;
+namespace Nitro\Tests\Fixtures\Http;
 
 use Closure;
 use Illuminate\Http\Request;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Nitro;
+use Nitro\Tests\Fixtures\Components\Store;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The data shared with every component, set for each request (Fusion is created per request):
+ * The data shared with every component, set for each request (Nitro is created per request):
  * the user (Greeting renames it), and countries, sent once.
  */
 class ShareFixtureData
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $fusion = app(Fusion::class);
+        $nitro = app(Nitro::class);
 
-        $fusion->share('user', fn () => ['name' => Store::$saved['user'] ?? 'Ada']);
+        $nitro->share('user', fn () => ['name' => Store::$saved['user'] ?? 'Ada']);
 
         /** Sent once: the browser keeps it; its closure runs for the browser only while the browser lacks it. */
-        $fusion->shareOnce('countries', function () {
+        $nitro->shareOnce('countries', function () {
             Store::$onceCalls++;
 
             return ['PK', 'US'];

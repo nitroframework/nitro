@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Browser;
+namespace Nitro\Tests\Fixtures\Browser;
 
-use Nitro\Fusion\Attributes\Browser;
+use Nitro\Attributes\Browser;
 
 /** A #[Browser] backed enum: its cases, methods on a case, a static method and a constant naming a case. */
 #[Browser]

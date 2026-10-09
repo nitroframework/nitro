@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Stores;
+namespace Nitro\Tests\Fixtures\Stores;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Persist;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Sync;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Store;
-use Nitro\Fusion\Tests\Fixtures\Components\Store as Record;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Persist;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Sync;
+use Nitro\Attributes\Validate;
+use Nitro\Store;
+use Nitro\Tests\Fixtures\Components\Store as Record;
 
 /**
  * A store: the cart the shop's components share (CartBadge, ShopShelf, CartList), across visits

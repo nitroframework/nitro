@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayUdiffUassoc.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayUdiffUassoc.js, for Nitro's values.
 // uses: _php_set_op
 function array_udiff_uassoc() { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.array-udiff-uassoc.php

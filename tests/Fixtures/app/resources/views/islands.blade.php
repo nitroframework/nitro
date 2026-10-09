@@ -4,19 +4,19 @@
     <title>Islands</title>
 </head>
 <body>
-    <section class="now"><fusion:counter /></section>
-    <section class="idle"><fusion:counter fusion:hydrate.idle /></section>
-    <section class="media"><fusion:counter fusion:hydrate.media="(min-width: 1200px)" /></section>
-    <section class="static"><fusion:counter fusion:static /></section>
-    <section class="visible"><fusion:beacon fusion:hydrate.visible.100px /></section>
-    <section class="interaction"><fusion:beacon fusion:hydrate.interaction /></section>
-    <section class="typing"><fusion:beacon fusion:hydrate.interaction /></section>
+    <section class="now"><nitro:counter /></section>
+    <section class="idle"><nitro:counter nitro:hydrate.idle /></section>
+    <section class="media"><nitro:counter nitro:hydrate.media="(min-width: 1200px)" /></section>
+    <section class="static"><nitro:counter nitro:static /></section>
+    <section class="visible"><nitro:beacon nitro:hydrate.visible.100px /></section>
+    <section class="interaction"><nitro:beacon nitro:hydrate.interaction /></section>
+    <section class="typing"><nitro:beacon nitro:hydrate.interaction /></section>
     <section class="slotted">
-        <fusion:card title="Slotted" fusion:hydrate.idle>
+        <nitro:card title="Slotted" nitro:hydrate.idle>
             <em class="from-blade">From the Blade view</em>
-            <fusion:slot name="footer"><small class="foot">Its footer</small></fusion:slot>
-        </fusion:card>
+            <nitro:slot name="footer"><small class="foot">Its footer</small></nitro:slot>
+        </nitro:card>
     </section>
-    @fusionScripts
+    @nitroScripts
 </body>
 </html>

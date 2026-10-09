@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Testing\TestResponse;
-use Nitro\Fusion\Merge;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Testing\AssertableFusion;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Merge;
+use Nitro\Support\Wire;
+use Nitro\Testing\AssertableNitro;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -23,9 +23,9 @@ class MergePropsTest extends TestCase
 
         $server = $only === null ? [] : [
             'HTTP_ACCEPT' => 'application/json',
-            'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_PARTIAL' => $id,
-            'HTTP_X_FUSION_ONLY' => $only,
+            'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_PARTIAL' => $id,
+            'HTTP_X_NITRO_ONLY' => $only,
         ];
 
         return TestResponse::fromBaseResponse($this->request('GET', $uri, $server));
@@ -77,7 +77,7 @@ class MergePropsTest extends TestCase
     {
         $this->boot($framework);
 
-        $response = $this->page($uri)->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+        $response = $this->page($uri)->assertOk()->assertNitro(fn (AssertableNitro $page) => $page
             ->has('posts', 10)
             ->where('posts.0.title', 'Post 1'));
 
@@ -135,7 +135,7 @@ class MergePropsTest extends TestCase
         $this->boot($framework);
 
         Store::$log = [];
-        $this->page('/timeline')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page->where('count', 23));
+        $this->page('/timeline')->assertOk()->assertNitro(fn (AssertableNitro $page) => $page->where('count', 23));
         $this->assertSame(['posts', 'tags', 'count'], Store::$log, 'a first visit: everything');
 
         Store::$log = [];

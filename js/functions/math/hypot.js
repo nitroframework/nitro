@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Hypot.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Hypot.js, for Nitro's values.
 function hypot (x, y) {
   //  discuss at: https://locutus.io/php/hypot/
   // original by: Onno Marsman (https://twitter.com/onnomarsman)

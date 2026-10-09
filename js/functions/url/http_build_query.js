@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Url/HttpBuildQuery.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/HttpBuildQuery.js, for Nitro's values.
 // uses: urlencode, rawurlencode
 function http_build_query(data, numericPrefix, separator, encType) { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.http-build-query.php

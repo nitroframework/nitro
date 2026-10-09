@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Livewire;
+namespace Nitro\Tests\Fixtures\Livewire;
 
 use Livewire\Component;
 
 /**
- * A real Livewire component, on the same pages as Fusion components (coexistence tests).
+ * A real Livewire component, on the same pages as Nitro components (coexistence tests).
  */
 class Ticker extends Component
 {

@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * fusion.view_transitions: @fusionScripts tells the runtime, which changes the page on a visit
- * inside the browser's View Transitions (navigate.js transition()). fusion:navigate.transition
+ * nitro.view_transitions: @nitroScripts tells the runtime, which changes the page on a visit
+ * inside the browser's View Transitions (navigate.js transition()). nitro:navigate.transition
  * turns them on for one link (CompileErrorsTest).
  */
 class ViewTransitionsTest extends TestCase
@@ -19,7 +19,7 @@ class ViewTransitionsTest extends TestCase
 
         $this->assertStringNotContainsString('data-view-transitions', (string) $this->get('/embed')->getContent(), 'off by default');
 
-        $this->app->make('config')->set('fusion.view_transitions', true);
+        $this->app->make('config')->set('nitro.view_transitions', true);
         $this->app->forgetScopedInstances();
 
         $this->assertStringContainsString(' data-view-transitions="1"', (string) $this->get('/embed')->getContent());

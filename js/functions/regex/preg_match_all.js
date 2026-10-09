@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_match_all(): [count, matches] (the compiler assigns matches to its third
+// Nitro: PHP's preg_match_all(): [count, matches] (the compiler assigns matches to its third
 // argument). PREG_PATTERN_ORDER (1, the default): each group's matches; PREG_SET_ORDER (2): each
 // match's groups.
 // uses: _pcre_start, _pcre_each, _pcre_groups

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 /**
  * A page's <head>: its title and the tags search engines and link previews read. Set in mount()
  * with $this->head(); what a page leaves unset comes from #[Title], #[Description] and the
- * fusion.head defaults. The layout prints it with @fusionHead; a fusion:navigate visit brings it
+ * nitro.head defaults. The layout prints it with @nitroHead; a nitro:navigate visit brings it
  * with the page's data.
  *
  *   $this->head()
@@ -29,7 +29,7 @@ final class Head
     /** @var array<string, string> other <meta name="..."> tags */
     private array $meta = [];
 
-    /** The page's title; the layout's format (fusion.head.title) is applied to it. */
+    /** The page's title; the layout's format (nitro.head.title) is applied to it. */
     public function title(string $title): self
     {
         $this->title = $title;

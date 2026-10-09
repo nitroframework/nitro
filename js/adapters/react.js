@@ -1,12 +1,12 @@
 /**
- * React views for Fusion components.
+ * React views for Nitro components.
  *
  * The PHP class names its view, #[View(react: 'post-editor')], and resources/views/react (or
  * resources/js/react) holds post-editor.jsx. Your Vite builds it; register the views once:
  *
- *     import { fusionReact } from 'nitro-fusion/react';
+ *     import { nitroReact } from 'nitro/react';
  *
- *     fusionReact(import.meta.glob('../views/react/**\/*.{jsx,tsx}'));
+ *     nitroReact(import.meta.glob('../views/react/**\/*.{jsx,tsx}'));
  *
  * The view gets the component as its props, by the PHP's names:
  *
@@ -19,7 +19,7 @@
  *         </>;
  *     }
  *
- * useFusion() gives the same to any component inside the view. The behaviour is the shared
+ * useNitro() gives the same to any component inside the view. The behaviour is the shared
  * core's (core.js); this adapter only makes it React's: a store React subscribes to.
  *
  * React 18 and 19's public API only (createElement, createContext, useContext,
@@ -31,17 +31,17 @@ import { flushSync } from 'react-dom';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { connect, register } from './core.js';
 
-const FusionContext = createContext(null);
+const NitroContext = createContext(null);
 
-/** Register the React engine with Fusion: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */
-export function fusionReact(views, { wrap } = {}) {
+/** Register the React engine with Nitro: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */
+export function nitroReact(views, { wrap } = {}) {
     register('react', views, (View, el, handle, options) => mount(View, el, handle, wrap, options));
 }
 
-/** Inside a Fusion component's React view: the component, as its view gets it in its props. */
-export function useFusion() {
-    const store = useContext(FusionContext);
-    if (!store) throw new Error('Fusion: useFusion() is for the view of a Fusion component (#[View(react: ...)])');
+/** Inside a Nitro component's React view: the component, as its view gets it in its props. */
+export function useNitro() {
+    const store = useContext(NitroContext);
+    if (!store) throw new Error('Nitro: useNitro() is for the view of a Nitro component (#[View(react: ...)])');
     return useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
 }
 
@@ -69,7 +69,7 @@ export function tree(View, handle, wrap) {
     const store = snapshots(connect(handle));
     /** The server snapshot is the same one: what the server rendered is the browser's first render. */
     const Root = () => createElement(View, useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot));
-    const element = createElement(FusionContext.Provider, { value: store }, createElement(Root));
+    const element = createElement(NitroContext.Provider, { value: store }, createElement(Root));
 
     return { element: wrap ? wrap(element) : element, store };
 }

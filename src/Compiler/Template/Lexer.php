@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 use Closure;
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 
 /**
  * Splits a Blade template into tokens the way Blade reads it: comments are dropped, @verbatim
@@ -51,7 +51,7 @@ final class Lexer
                 $this->startsWith('{{{') => $this->echo(Token::ECHO, '{{{', '}}}'),
                 $this->startsWith('{{') => $this->echo(Token::ECHO, '{{', '}}'),
                 $source[$this->position] === '@' => $this->at(),
-                $this->startsWith('<fusion:') && $this->childTag() => null,
+                $this->startsWith('<nitro:') && $this->childTag() => null,
                 default => $this->character(),
             };
         }
@@ -96,7 +96,7 @@ final class Lexer
     {
         $preceding = $this->position > 0 ? $this->source[$this->position - 1] : '';
         /** BladeInliner's markers sit wherever an inlined view begins or ends, after a word too. */
-        $inlined = preg_match('/\G@(?:(?:end)?fusion(?:Scope|Slot|Frame)|fusionAttr)\b/', $this->source, $_, 0, $this->position) === 1;
+        $inlined = preg_match('/\G@(?:(?:end)?nitro(?:Scope|Slot|Frame)|nitroAttr)\b/', $this->source, $_, 0, $this->position) === 1;
         $afterMarker = $this->position === $this->afterMarker;
 
         if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $match, 0, $this->position)) {
@@ -155,8 +155,8 @@ final class Lexer
 
     /** Plain text, up to the next place a Blade construct could start ({ or @). */
     /**
-     * A child's tag (<fusion:name ...>) is text as a whole, {{ }} in it too: ChildTag reads it as
-     * the server's Blade precompiler does (fusion:model="lines.{{ $i }}.qty").
+     * A child's tag (<nitro:name ...>) is text as a whole, {{ }} in it too: ChildTag reads it as
+     * the server's Blade precompiler does (nitro:model="lines.{{ $i }}.qty").
      */
     private function childTag(): bool
     {

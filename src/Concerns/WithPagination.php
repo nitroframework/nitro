@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Concerns;
+namespace Nitro\Concerns;
 
-use Nitro\Fusion\Attributes\Url;
+use Nitro\Attributes\Url;
 
 /**
  * Pages of rows, in the browser:
@@ -16,7 +16,7 @@ use Nitro\Fusion\Attributes\Url;
  * and in the view, rows['items'] is the page, with rows['page'], rows['pages'], ... to show where
  * it is, and previousPage, nextPage and gotoPage(3) as handlers:
  *
- *   <button fusion:click="previousPage" @disabled($this->rows['page'] === 1)>Previous</button>
+ *   <button nitro:click="previousPage" @disabled($this->rows['page'] === 1)>Previous</button>
  *
  * A new filter should start from the first page: call resetPage() when it changes
  * (updated($property) is the place).

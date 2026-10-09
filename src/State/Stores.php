@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\State;
+namespace Nitro\State;
 
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
-use Nitro\Fusion\Build\BrowserNames;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Lifecycle\Features;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Store;
+use Nitro\Build\BrowserNames;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Component;
+use Nitro\Lifecycle\Features;
+use Nitro\Support\ComponentHooks;
+use Nitro\Store;
 
 /**
  * This request's stores: one of each, shared by the components that use it, made with its mount()
  * the first time one asks, or taken as the browser sent it (a #[Server] call); and their signed
- * states for the browser. A part of Fusion.
+ * states for the browser. A part of Nitro.
  */
 final class Stores
 {
@@ -68,8 +68,8 @@ final class Stores
      */
     public function adopt(Store $store, array $memo = []): void
     {
-        $this->stores[$store->fusion()->name] = $store;
-        $this->memos[$store->fusion()->name] = $memo;
+        $this->stores[$store->nitro()->name] = $store;
+        $this->memos[$store->nitro()->name] = $memo;
     }
 
     /** The component's store properties (public Cart $cart), given this request's stores. */

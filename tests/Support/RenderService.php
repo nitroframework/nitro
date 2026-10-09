@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Support;
+namespace Nitro\Tests\Support;
 
 use RuntimeException;
 
@@ -21,13 +21,13 @@ final class RenderService
         $port = (int) substr((string) strrchr((string) stream_socket_get_name($socket, false), ':'), 1);
         fclose($socket);
 
-        $log = sys_get_temp_dir().'/fusion-ssr.log';
+        $log = sys_get_temp_dir().'/nitro-ssr.log';
         $this->process = proc_open(
             ['node', 'js/test/e2e/.built/ssr.mjs'],
             [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']],
             $pipes,
             dirname(__DIR__, 2),
-            [...getenv(), 'FUSION_SSR_PORT' => (string) $port],
+            [...getenv(), 'NITRO_SSR_PORT' => (string) $port],
         );
 
         $this->url = "http://127.0.0.1:{$port}";

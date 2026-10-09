@@ -1,11 +1,11 @@
-// Viewi's PhpJsFunctions/Url/ParseUrl.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Url/ParseUrl.js, for Nitro's values.
 function parse_url(url, component) { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.parse-url.php
   // Keys in PHP's order (scheme, host, port, user, pass, path, query, fragment), port as an int,
   // only the parts present; false for a URL PHP can't parse ('http:///x'). component:
   // PHP_URL_SCHEME 0, HOST 1, PORT 2, USER 3, PASS 4, PATH 5, QUERY 6, FRAGMENT 7 → that part or null.
   url = P.toStr(url)
-  /** Fusion: PHP's result for an empty URL (FunctionParityTest). */
+  /** Nitro: PHP's result for an empty URL (FunctionParityTest). */
   if (url === '') {
     return component !== undefined && component !== -1 ? (component === 5 ? '' : null) : P.normalize(new Map([['path', '']]))
   }
@@ -73,7 +73,7 @@ function parse_url(url, component) { // eslint-disable-line camelcase
     const value = parts[names[component]]
     return value === undefined ? null : value
   }
-  /** Fusion: a PHP array in PHP's order (a Map). */
+  /** Nitro: a PHP array in PHP's order (a Map). */
   const ordered = new Map()
   for (const key of ['scheme', 'host', 'port', 'user', 'pass', 'path', 'query', 'fragment']) {
     if (parts[key] !== undefined) {

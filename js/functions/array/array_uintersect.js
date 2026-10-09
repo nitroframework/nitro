@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayUintersect.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayUintersect.js, for Nitro's values.
 // uses: _php_set_op
 function array_uintersect() { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.array-uintersect.php

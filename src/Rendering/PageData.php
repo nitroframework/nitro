@@ -1,23 +1,23 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Support\Protocol;
 
 /**
- * A page's data as the browser gets it in the page's HTML: the globals @fusionScripts gives (what
+ * A page's data as the browser gets it in the page's HTML: the globals @nitroScripts gives (what
  * the browser's Laravel helpers need, the shared and flash data, the stores), and one block with
  * each server-rendered component's signed state, by its id, as Next.js and Nuxt carry a page's
  * data. Readable JSON, not an attribute per component: smaller, and no HTML escaping.
  *
- * Components render before and after @fusionScripts (a layout's own come after it), so the block
+ * Components render before and after @nitroScripts (a layout's own come after it), so the block
  * is a placeholder until the page is rendered: finish() fills it (Http\FinishPage). The one place
  * a page's data is written, or read back from a page; the runtime reads it in runtime/page-data.js.
  */
 final class PageData
 {
     /** Where the block goes, until finish() fills it. */
-    private const PLACEHOLDER = '<!--fusion:state-->';
+    private const PLACEHOLDER = '<!--nitro:state-->';
 
     /** @var array<string, string> component id => its signed state (JSON), for the page being rendered */
     private array $states = [];
@@ -29,7 +29,7 @@ final class PageData
     }
 
     /**
-     * @fusionScripts' part: the globals, and the place of the block.
+     * @nitroScripts' part: the globals, and the place of the block.
      *
      * @param  array<string, mixed>  $globals
      */
@@ -51,7 +51,7 @@ final class PageData
         return str_replace(self::PLACEHOLDER, '<script type="application/json" '.Protocol::attribute('state').'>'.self::json((object) $states).'</script>', $html);
     }
 
-    /** An island that never starts (fusion:static): its HTML only, without the components' marks or their states. */
+    /** An island that never starts (nitro:static): its HTML only, without the components' marks or their states. */
     public function withoutState(string $html): string
     {
         preg_match_all('/\s'.preg_quote(Protocol::attribute('id'), '/').'="([^"]*)"/', $html, $ids);
@@ -88,7 +88,7 @@ final class PageData
         return $states;
     }
 
-    /** The page component's signed state, read from a page's HTML (its element marked fusion:page); null when there is none. */
+    /** The page component's signed state, read from a page's HTML (its element marked nitro:page); null when there is none. */
     public function pageState(string $html): mixed
     {
         if (preg_match('/<[a-zA-Z][^>]*\s'.preg_quote(Protocol::attribute('page'), '/').'="[^"]*"[^>]*>/', $html, $root) !== 1

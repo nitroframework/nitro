@@ -1,5 +1,5 @@
 /**
- * Pages asked for ahead of the click (fusion:navigate.prefetch): once the pointer has rested on
+ * Pages asked for ahead of the click (nitro:navigate.prefetch): once the pointer has rested on
  * the link (or the keyboard focused it), or with .prefetch.visible once the link comes into view.
  * Kept for 30 seconds (.prefetch.60s: longer) in the navigator's page cache, which a #[Server]
  * call clears (pages.js). Only a page this one renders in place is asked for: its data, not HTML.
@@ -30,7 +30,7 @@ export class Prefetcher {
             : null;
     }
 
-    /** The pointer on a fusion:navigate.prefetch link (or the keyboard's focus): its page asked for after a moment. */
+    /** The pointer on a nitro:navigate.prefetch link (or the keyboard's focus): its page asked for after a moment. */
     hover(event) {
         this.window.clearTimeout(this.hoverTimer);
         const found = this.navigator.target(event);

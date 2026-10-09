@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
 /** A component with a Vue view that is a template alone: its names used bare, v-model deep into an array. */
 #[View(vue: 'vue-note')]

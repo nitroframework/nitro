@@ -1,13 +1,13 @@
 /**
- * Solid views for Fusion components.
+ * Solid views for Nitro components.
  *
  * The PHP class names its view, #[View(solid: 'post-editor')], and resources/views/solid (or
  * resources/js/solid) holds post-editor.jsx. Your Vite builds it (vite-plugin-solid); register
  * the views once:
  *
- *     import { fusionSolid } from 'nitro-fusion/solid';
+ *     import { nitroSolid } from 'nitro/solid';
  *
- *     fusionSolid(import.meta.glob('../views/solid/**\/*.{jsx,tsx}'));
+ *     nitroSolid(import.meta.glob('../views/solid/**\/*.{jsx,tsx}'));
  *
  * The view gets the component as its props, by the PHP's names. As with any Solid props, read
  * them where they are used (props.count), not destructured:
@@ -21,7 +21,7 @@
  *         </>;
  *     }
  *
- * useFusion() gives the same to any component inside the view. The behaviour is the shared
+ * useNitro() gives the same to any component inside the view. The behaviour is the shared
  * core's (core.js); this adapter only makes it Solid's: a store that changes only where the
  * component's state did, so only those parts of the page update.
  *
@@ -34,18 +34,18 @@ import { createMutable, createStore, reconcile } from 'solid-js/store';
 import { hydrate, render } from 'solid-js/web';
 import { connect, register } from './core.js';
 
-const FusionContext = createContext(null);
+const NitroContext = createContext(null);
 
-/** Register the Solid engine with Fusion: `views` is what import.meta.glob() gives. */
-export function fusionSolid(views) {
+/** Register the Solid engine with Nitro: `views` is what import.meta.glob() gives. */
+export function nitroSolid(views) {
     register('solid', views, mount);
 }
 
-/** Inside a Fusion component's Solid view: the component, as its view gets it in its props. */
-export function useFusion() {
-    const fusion = useContext(FusionContext);
-    if (!fusion) throw new Error('Fusion: useFusion() is for the view of a Fusion component (#[View(solid: ...)])');
-    return fusion;
+/** Inside a Nitro component's Solid view: the component, as its view gets it in its props. */
+export function useNitro() {
+    const nitro = useContext(NitroContext);
+    if (!nitro) throw new Error('Nitro: useNitro() is for the view of a Nitro component (#[View(solid: ...)])');
+    return nitro;
 }
 
 function mount(View, el, handle, { hydrate: fromServer }) {
@@ -73,7 +73,7 @@ export function view(View, handle) {
     component.subscribe(() => setValues(reconcile(component.read())));
     const props = mergeProps(values, component.functions);
 
-    const root = () => createComponent(FusionContext.Provider, {
+    const root = () => createComponent(NitroContext.Provider, {
         value: props,
         get children() {
             return createComponent(View, props);

@@ -1,5 +1,5 @@
 {
-    "name": "nitro-fusion-runtime",
+    "name": "nitro-runtime",
     "private": true,
     "type": "module",
     "scripts": {

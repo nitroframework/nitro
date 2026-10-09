@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Layout;
+use Nitro\Component;
 
 /** A page in a layout nested in the app's (components.layouts.nested): a visit from the app changes only the app's main area. */
 #[Layout('components.layouts.nested')]

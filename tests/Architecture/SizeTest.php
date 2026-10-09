@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
 use PHPUnit\Framework\TestCase;
 

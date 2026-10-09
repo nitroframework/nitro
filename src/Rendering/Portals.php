@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use InvalidArgumentException;
 
 /**
  * Portals: the directive @portal('modals') marks where content goes, @teleport('modals') renders
  * content into a buffer for it, and once the response is rendered fill() puts each portal's
- * content in its place. A part of Fusion, which the directives call.
+ * content in its place. A part of Nitro, which the directives call.
  */
 final class Portals
 {

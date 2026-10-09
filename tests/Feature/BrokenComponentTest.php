@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Support\Facades\Route;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Component;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -21,15 +21,15 @@ class BrokenComponentTest extends TestCase
     public function test_only_the_pages_that_use_it_fail(string $framework): void
     {
         $this->boot($framework);
-        file_put_contents(self::VIEWS.'/fusion/components/broken-thing.blade.php', "<div>\n    @php \$x = 1; @endphp\n</div>\n");
-        file_put_contents(self::VIEWS.'/broken-page.blade.php', "<html><body><fusion:broken-thing />@fusionScripts</body></html>\n");
+        file_put_contents(self::VIEWS.'/nitro/components/broken-thing.blade.php', "<div>\n    @php \$x = 1; @endphp\n</div>\n");
+        file_put_contents(self::VIEWS.'/broken-page.blade.php', "<html><body><nitro:broken-thing />@nitroScripts</body></html>\n");
 
         try {
-            app(\Nitro\Fusion\Support\Registry::class)->register('broken-thing', BrokenThing::class);
+            app(\Nitro\Support\Registry::class)->register('broken-thing', BrokenThing::class);
             Route::middleware('web')->get('/broken-page', fn () => view('broken-page'));
 
             $this->assertSame(200, $this->get('/counter')->getStatusCode(), 'a page without it works');
-            $this->assertSame(200, $this->get('/_fusion/app.js?v='.$this->app->make(Bundle::class)->tag())->getStatusCode(), 'and so does the bundle');
+            $this->assertSame(200, $this->get('/_nitro/app.js?v='.$this->app->make(Bundle::class)->tag())->getStatusCode(), 'and so does the bundle');
             $this->assertSame(500, $this->get('/broken-page')->getStatusCode(), 'a page with it fails');
 
             try {
@@ -43,7 +43,7 @@ class BrokenComponentTest extends TestCase
             $this->expectException(CompileException::class);
             $this->app->make(Bundle::class)->compileAll(build: true);
         } finally {
-            @unlink(self::VIEWS.'/fusion/components/broken-thing.blade.php');
+            @unlink(self::VIEWS.'/nitro/components/broken-thing.blade.php');
             @unlink(self::VIEWS.'/broken-page.blade.php');
         }
     }

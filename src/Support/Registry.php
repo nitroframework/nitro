@@ -1,25 +1,25 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use Closure;
 use FilesystemIterator;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Store;
+use Nitro\Component;
+use Nitro\Store;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
 
 /**
  * Component and page names and classes: discovered in the configured directories
- * (App\Fusion\Components and App\Fusion\Pages by default), or registered by hand. Pages are
- * named "pages::...". `fusion:build` caches the list, with the times its directories last changed:
+ * (App\Nitro\Components and App\Nitro\Pages by default), or registered by hand. Pages are
+ * named "pages::...". `nitro:build` caches the list, with the times its directories last changed:
  * a file added, removed or renamed since (a component made after a build) and it is found again.
  */
 final class Registry
 {
-    /** Where `fusion:build` caches the list, under the app's bootstrap folder. */
-    public const CACHE = 'cache/fusion.php';
+    /** Where `nitro:build` caches the list, under the app's bootstrap folder. */
+    public const CACHE = 'cache/nitro.php';
 
     /** @var array<string, class-string<Component>> name => class */
     private array $components = [];
@@ -86,7 +86,7 @@ final class Registry
         return Naming::name($class, substr($class, 0, (int) strrpos($class, '\\')));
     }
 
-    /** Whether a class is a page, from its namespace (no discovery: Route::fusion() asks while routes load). */
+    /** Whether a class is a page, from its namespace (no discovery: Route::nitro() asks while routes load). */
     public function isPageClass(string $class): bool
     {
         $class = ltrim($class, '\\');
@@ -165,7 +165,7 @@ final class Registry
         $this->components += $this->colocated === null ? [] : ($this->colocated)();
     }
 
-    /** The list for bootstrap/cache (written by fusion:build), and when its directories last changed. */
+    /** The list for bootstrap/cache (written by nitro:build), and when its directories last changed. */
     public function export(): string
     {
         return '<?php return '.var_export(['components' => $this->all(), 'directories' => $this->directories()], true).';'.PHP_EOL;

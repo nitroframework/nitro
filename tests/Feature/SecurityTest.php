@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -8,13 +8,13 @@ use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use InvalidArgumentException;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\User;
-use Nitro\Fusion\Tests\Support\Node;
-use Nitro\Fusion\Tests\TestCase;
-use Nitro\Fusion\Upload;
+use Nitro\Component;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\User;
+use Nitro\Tests\Support\Node;
+use Nitro\Tests\TestCase;
+use Nitro\Upload;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -37,8 +37,8 @@ class SecurityTest extends TestCase
         /** A partial reload of /students/2, asked for with the id of /students/1's component. */
         $this->app->forgetScopedInstances();
         $partial = $this->json($this->request('GET', '/students/2', [
-            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_PARTIAL' => $id, 'HTTP_X_FUSION_ONLY' => 'student',
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_PARTIAL' => $id, 'HTTP_X_NITRO_ONLY' => 'student',
         ]))['partial'];
 
         $this->app->forgetScopedInstances();
@@ -75,7 +75,7 @@ class SecurityTest extends TestCase
         $this->boot($framework);
         /** An application's own middleware, extending Laravel's: checked again as the one it extends. */
         if (! class_exists(GatedAuthorize::class, false)) {
-            eval('namespace Nitro\Fusion\Tests\Feature; class GatedAuthorize extends \Illuminate\Auth\Middleware\Authorize {}');
+            eval('namespace Nitro\Tests\Feature; class GatedAuthorize extends \Illuminate\Auth\Middleware\Authorize {}');
         }
         Gate::define('fuzz-wallet', fn () => self::$allowed);
         self::$allowed = true;
@@ -121,7 +121,7 @@ class SecurityTest extends TestCase
         $this->assertSame(200, $this->withdraw($snapshot));
 
         /** Good in every session, for ever, if it were taken: the session's key only. */
-        $forged = ['state' => $snapshot['state'], 'checksum' => hash_hmac('sha256', 'state|'.$snapshot['state'], app(\Nitro\Fusion\Support\Signer::class)->key())];
+        $forged = ['state' => $snapshot['state'], 'checksum' => hash_hmac('sha256', 'state|'.$snapshot['state'], app(\Nitro\Support\Signer::class)->key())];
         $this->assertSame(419, $this->withdraw($forged));
     }
 

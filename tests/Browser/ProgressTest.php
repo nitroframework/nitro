@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Browser;
+namespace Nitro\Tests\Browser;
 
-use Nitro\Fusion\Tests\Support\Node;
+use Nitro\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -32,13 +32,13 @@ class ProgressTest extends TestCase
                 'trickle' => $options['trickle'], 'trickleSpeed' => $options['trickle_speed'],
             ],
             'scenarios' => [
-                'faster than the delay' => [[0, 'fusion:navigating'], [10, 'fusion:navigated']],
-                'a quick visit' => [[0, 'fusion:navigating'], [60, 'fusion:navigated']],
-                'a slow visit' => [[0, 'fusion:navigating'], [900, 'fusion:navigated']],
-                'visits back to back' => [[0, 'fusion:navigating'], [300, 'fusion:navigated'], [20, 'fusion:navigating'], [300, 'fusion:navigated']],
-                'a click while the bar fades' => [[0, 'fusion:navigating'], [200, 'fusion:navigated'], [250, 'fusion:navigating'], [300, 'fusion:navigated']],
-                'a click as the bar finishes' => [[0, 'fusion:navigating'], [200, 'fusion:navigated'], [5, 'fusion:navigating'], [500, 'fusion:navigated']],
-                'clicks in a row' => [[0, 'fusion:navigating'], [80, 'fusion:navigated'], [40, 'fusion:navigating'], [80, 'fusion:navigated'], [40, 'fusion:navigating'], [80, 'fusion:navigated']],
+                'faster than the delay' => [[0, 'nitro:navigating'], [10, 'nitro:navigated']],
+                'a quick visit' => [[0, 'nitro:navigating'], [60, 'nitro:navigated']],
+                'a slow visit' => [[0, 'nitro:navigating'], [900, 'nitro:navigated']],
+                'visits back to back' => [[0, 'nitro:navigating'], [300, 'nitro:navigated'], [20, 'nitro:navigating'], [300, 'nitro:navigated']],
+                'a click while the bar fades' => [[0, 'nitro:navigating'], [200, 'nitro:navigated'], [250, 'nitro:navigating'], [300, 'nitro:navigated']],
+                'a click as the bar finishes' => [[0, 'nitro:navigating'], [200, 'nitro:navigated'], [5, 'nitro:navigating'], [500, 'nitro:navigated']],
+                'clicks in a row' => [[0, 'nitro:navigating'], [80, 'nitro:navigated'], [40, 'nitro:navigating'], [80, 'nitro:navigated'], [40, 'nitro:navigating'], [80, 'nitro:navigated']],
             ],
         ]);
 

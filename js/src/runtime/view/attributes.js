@@ -1,8 +1,8 @@
 /**
  * Viewi's renderAttributeValue (core/render/renderAttributeValue), for all of an element's
- * attributes at once. Fusion: as the HTML parser does, a repeated attribute keeps its first value
+ * attributes at once. Nitro: as the HTML parser does, a repeated attribute keeps its first value
  * (Viewi joins repeated attributes when it compiles); @checked, @disabled, ... are there or not
- * (when); fusion:<event> marks the element for its handler. Attributes set the initial state of
+ * (when); nitro:<event> marks the element for its handler. Attributes set the initial state of
  * inputs; their properties are what the page shows, so those follow.
  */
 import { modelAttribute } from '../dom/model.js';
@@ -46,7 +46,7 @@ export function renderAttributeValue(instance, node, element, scope, root, remov
 
     if (removeOthers) {
         for (const name of element.getAttributeNames()) {
-            if (values.has(name) || name.startsWith('data-fusion-') || (root && RUNTIME_ATTRIBUTES.has(name))) continue;
+            if (values.has(name) || name.startsWith('data-nitro-') || (root && RUNTIME_ATTRIBUTES.has(name))) continue;
             element.removeAttribute(name);
         }
     } else {

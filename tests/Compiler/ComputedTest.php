@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Component;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -18,7 +18,7 @@ class ComputedTest extends TestCase
 {
     public function test_computed_methods_are_listed_and_are_browser_methods(): void
     {
-        $meta = ComponentReader::read(ComputedCart::class, 'cart', 'fusion.cart');
+        $meta = ComponentReader::read(ComputedCart::class, 'cart', 'nitro.cart');
 
         $this->assertSame(['total'], $meta->computed);
         $this->assertTrue($meta->isComputed('total'));
@@ -41,7 +41,7 @@ class ComputedTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage($message);
 
-        ComponentReader::read($class, 'x', 'fusion.x');
+        ComponentReader::read($class, 'x', 'nitro.x');
     }
 }
 

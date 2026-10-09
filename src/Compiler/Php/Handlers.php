@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Compiler\Globals;
+use Nitro\Compiler\Globals;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
@@ -11,9 +11,9 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
 
 /**
- * Event handlers and template expressions: Fusion's view code, not general PHP.
+ * Event handlers and template expressions: Nitro's view code, not general PHP.
  *
- * An event handler (fusion:click="save", fusion:submit="add($title)") is a list of calls:
+ * An event handler (nitro:click="save", nitro:submit="add($title)") is a list of calls:
  *
  *  - a component method: "save" and "remove($id)" are $this->save() and $this->remove($id); a
  *    #[Server] method becomes a request to the server
@@ -21,7 +21,7 @@ use PhpParser\Node\Scalar;
  *  - the magic actions (Globals::ACTIONS): $set('prop.key', value), $toggle('prop'), $refresh,
  *    $reload('prop'), $loadMore('prop'), $dispatch('event'), $dispatchTo(Card::class, 'event'),
  *    $dispatchSelf('event'); a property named in them must be a public property, written out
- *  - a Fusion::browser() call (->storage()->forget('draft'))
+ *  - a Nitro::browser() call (->storage()->forget('draft'))
  *
  * A template expression ({{ $total }}, @if ($open)) renders: forbidWrites() rejects assignments,
  * increments and #[Server] calls in it before it compiles.
@@ -54,7 +54,7 @@ final class Handlers extends Part
             return '$this.$parent('.$context->string($context->scope->browserMethod($expression->name->toString())).', ['.implode(', ', $this->transpiler->calls->args($expression->args)).'])';
         }
 
-        /** Fusion::browser()->storage()->forget('draft'): a browser API, called from the view. */
+        /** Nitro::browser()->storage()->forget('draft'): a browser API, called from the view. */
         if (($expression instanceof Expr\MethodCall || $expression instanceof Expr\NullsafeMethodCall) && $component->browserApi($expression->var) !== null) {
             return $this->transpiler->expr($expression);
         }
@@ -161,7 +161,7 @@ final class Handlers extends Part
             return '$this.$dispatch('.$component->dispatchArgs($expression->args, $expression).').self()';
         }
 
-        /** $visit(url): a fusion:navigate visit there (the runtime's $redirect, as $this->redirect() in a method). */
+        /** $visit(url): a nitro:navigate visit there (the runtime's $redirect, as $this->redirect() in a method). */
         if ($name === 'visit') {
             return '$this.$redirect('.implode(', ', $this->transpiler->calls->args($expression->args)).')';
         }

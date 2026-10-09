@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\Template\ChildTag;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\Template\ChildTag;
+use Nitro\View\ViewEngines;
 
 /**
  * Whether a component's view places a child only the server can make: one with mount() (only the
@@ -27,8 +27,8 @@ final class ServerChildren
      */
     public function placedBy(ComponentMeta $meta, bool $mountOnly = false, array &$seen = []): bool
     {
-        /** A store has no view, and a view the app's build compiles places no Fusion children. */
-        if ($meta->store || ! $this->views->of($meta)->compiledByFusion()) {
+        /** A store has no view, and a view the app's build compiles places no Nitro children. */
+        if ($meta->store || ! $this->views->of($meta)->compiledByNitro()) {
             return false;
         }
 
@@ -42,7 +42,7 @@ final class ServerChildren
         $source = (string) file_get_contents($this->views->of($meta)->file($meta));
         $found = false;
 
-        preg_match_all('/<fusion:([\w.\-]+)/', $source, $tags);
+        preg_match_all('/<nitro:([\w.\-]+)/', $source, $tags);
 
         foreach (array_unique($tags[1]) as $name) {
             /** It may name any component, one with mount() or #[Server] methods too. */

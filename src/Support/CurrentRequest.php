@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Session\Session;

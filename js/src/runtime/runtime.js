@@ -1,5 +1,5 @@
 /**
- * Fusion in the page: the compiled definitions (Fusion.define, from app.js and the #[LazyLoad]
+ * Nitro in the page: the compiled definitions (Nitro.define, from app.js and the #[LazyLoad]
  * chunks it loads when a page needs them), the components currently on the page, and the
  * services they share (events, models, network, navigation).
  */
@@ -29,7 +29,7 @@ import { SharedData } from './component/shared.js';
 import { ATTRIBUTES } from './protocol.js';
 
 /** sessionStorage: the page stale() loaded again, so it does not again. */
-const STALE = 'fusion:stale';
+const STALE = 'nitro:stale';
 
 export class Runtime {
     constructor(window, config) {
@@ -39,7 +39,7 @@ export class Runtime {
         this.definitions = new Map();
         /** Stores: their compiled definitions, the tab's instances, and the server's states of those not made yet (component/stores.js). */
         this.stores = new Stores(this);
-        /** #[Browser] classes: class => its compiled static methods, which browser code calls as Fusion.classes[class][method](). */
+        /** #[Browser] classes: class => its compiled static methods, which browser code calls as Nitro.classes[class][method](). */
         this.classes = Object.create(null);
         /** #[LazyLoad] chunks, and the markup-first pages (chunks.js) */
         this.chunks = new Chunks(this);
@@ -71,27 +71,27 @@ export class Runtime {
         this.definitions.set(name, definition);
     }
 
-    /** Fusion.directive(name, directive): what runs a fusion:<name> attribute of the application's own (directives.js). */
+    /** Nitro.directive(name, directive): what runs a nitro:<name> attribute of the application's own (directives.js). */
     directive(name, directive) {
         this.directives.register(name, directive);
     }
 
-    /** Fusion.engine(name, { load, mount }): a view engine (Vue, React, Solid) components can name (view/engines.js). */
+    /** Nitro.engine(name, { load, mount }): a view engine (Vue, React, Solid) components can name (view/engines.js). */
     engine(name, engine) {
         this.engines.add(name, engine);
     }
 
-    /** Fusion.use(plugin): a plugin, called with the API to hook into the runtime (plugins.js). */
+    /** Nitro.use(plugin): a plugin, called with the API to hook into the runtime (plugins.js). */
     use(plugin) {
         this.plugins.use(plugin);
     }
 
-    /** Fusion.visit(url): a fusion:navigate visit, as $visit() in a handler does. */
+    /** Nitro.visit(url): a nitro:navigate visit, as $visit() in a handler does. */
     visit(url) {
         return this.navigator.visit(String(url));
     }
 
-    /** Fusion.store(name, definition): a store, from app.js. */
+    /** Nitro.store(name, definition): a store, from app.js. */
     store(name, definition) {
         this.stores.define(name, definition);
     }
@@ -157,8 +157,8 @@ export class Runtime {
 
     /**
      * Take over the server-rendered components under root (once the chunks they need are here).
-     * Islands with fusion:hydrate, and the components inside them, wait for their moment (not
-     * once their page is gone: a fusion:navigate visit replaced it). Resolves when the page's
+     * Islands with nitro:hydrate, and the components inside them, wait for their moment (not
+     * once their page is gone: a nitro:navigate visit replaced it). Resolves when the page's
      * components are live.
      */
     start(root = this.document.body) {
@@ -172,7 +172,7 @@ export class Runtime {
             this.styled = true;
         }
 
-        /** fusion:navigate.prefetch.visible links outside components too (the layout's). */
+        /** nitro:navigate.prefetch.visible links outside components too (the layout's). */
         this.navigator.prefetcher.watch(root);
         const islands = islandsIn(root);
         const elements = withState(root).filter((el) => !islands.some((island) => island.contains(el)));
@@ -187,7 +187,7 @@ export class Runtime {
             }
             this.navigator.current();
             /** A reload: what #[Remember] properties had in this history entry. */
-            restoreRemembered(this, this.window.history.state?.fusionRemember);
+            restoreRemembered(this, this.window.history.state?.nitroRemember);
             /** The page's once data, kept for the responses after it; its flash data, announced. */
             this.shared.withOnce(globals.shared, globals.once ?? {});
             this.shared.announceFlash(globals.flash);
@@ -216,7 +216,7 @@ export class Runtime {
     }
 
     /**
-     * Make the elements' components live, once the chunks they need are here: @fusionScripts
+     * Make the elements' components live, once the chunks they need are here: @nitroScripts
      * loads those of the page it renders; this is for any it could not know of (and islands').
      */
     take(elements) {
@@ -237,7 +237,7 @@ export class Runtime {
         });
     }
 
-    /** A page from fusion:navigate: the names of its components with state from the server. */
+    /** A page from nitro:navigate: the names of its components with state from the server. */
     pageComponents(page) {
         return [page.snapshot, ...Object.values(page.children ?? {})].map((envelope) => nameIn(envelope));
     }
@@ -249,7 +249,7 @@ export class Runtime {
             envelope = stateOf(el);
             state = readState(envelope);
         } catch (error) {
-            this.report(null, new Error('Fusion: unreadable component state'));
+            this.report(null, new Error('Nitro: unreadable component state'));
             return null;
         }
         dropState(el);
@@ -257,7 +257,7 @@ export class Runtime {
         const definition = this.definitions.get(state.name);
         if (!definition) {
             /** The page's HTML and its code from different builds: the page loads again, once. */
-            if (!this.stale()) this.report(null, new Error(`Fusion: component [${state.name}] is not compiled (is @fusionScripts on the page?)`));
+            if (!this.stale()) this.report(null, new Error(`Nitro: component [${state.name}] is not compiled (is @nitroScripts on the page?)`));
             return null;
         }
 
@@ -275,12 +275,12 @@ export class Runtime {
 
     /**
      * The component an element belongs to: the one whose view rendered it. That is the closest
-     * component element around it, unless a view marked it as its own (fusionOwner): a parent's
+     * component element around it, unless a view marked it as its own (nitroOwner): a parent's
      * slot content inside a child, content teleported elsewhere.
      */
     owner(el) {
         for (let node = el; node; node = node.parentElement) {
-            if (node.fusionOwner !== undefined) return this.find(node.fusionOwner);
+            if (node.nitroOwner !== undefined) return this.find(node.nitroOwner);
             if (node.hasAttribute?.(ATTRIBUTES.id)) return this.find(node.getAttribute(ATTRIBUTES.id));
         }
         return null;
@@ -310,7 +310,7 @@ export class Runtime {
     /** $reload / $this->reload(): a page's properties, from its route (all of them when none are named). */
     reload(component, only = []) {
         if (!component.definition.page) {
-            const error = new Error(`Fusion: [${component.name}] is a component; only pages reload their properties`);
+            const error = new Error(`Nitro: [${component.name}] is a component; only pages reload their properties`);
             this.report(component, error);
             return Promise.reject(error);
         }
@@ -328,7 +328,7 @@ export class Runtime {
         this.plugins.rendered(component);
     }
 
-    /** The state the server last signed changed (a response, a reload): fusion:dirty follows. */
+    /** The state the server last signed changed (a response, a reload): nitro:dirty follows. */
     unsavedChanged(component) {
         if (component.destroyed || !component.el || component.isStore) return;
         applyDirty(component);
@@ -341,7 +341,7 @@ export class Runtime {
         on ? methods.add(name) : methods.delete(name);
         this.inflight.set(component, methods);
 
-        /** A store's call: fusion:loading in the components that use it, with their own calls. */
+        /** A store's call: nitro:loading in the components that use it, with their own calls. */
         if (component.isStore) {
             for (const user of component.subscribers.keys()) {
                 applyLoading(user, new Set([...(this.inflight.get(user) ?? []), ...methods]));
@@ -357,7 +357,7 @@ export class Runtime {
         this.shared.receive(answer, except, visit);
     }
 
-    /** The once data the browser has and that has not expired: sent as X-Fusion-Once. */
+    /** The once data the browser has and that has not expired: sent as X-Nitro-Once. */
     onceHeader() {
         return this.shared.onceHeader();
     }
@@ -368,7 +368,7 @@ export class Runtime {
      */
     loadMore(component, name) {
         if (!component.definition.page) {
-            const error = new Error(`Fusion: [${component.name}] is a component; only pages load more of their properties`);
+            const error = new Error(`Nitro: [${component.name}] is a component; only pages load more of their properties`);
             this.report(component, error);
             return Promise.reject(error);
         }
@@ -411,8 +411,8 @@ export class Runtime {
     }
 
     report(component, error) {
-        this.window.console.error(component ? `Fusion [${component.name}]:` : 'Fusion:', error);
-        this.emit('fusion:error', {
+        this.window.console.error(component ? `Nitro [${component.name}]:` : 'Nitro:', error);
+        this.emit('nitro:error', {
             component: component?.name ?? null,
             message: String(error?.message ?? error),
             ...(error?.status !== undefined ? { status: error.status, body: error.body } : {}),

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Browser;
+namespace Nitro\Tests\Fixtures\Browser;
 
 /** Browser methods using #[Browser] enums, as a component's would (BrowserEnumTest). */
 class Orders

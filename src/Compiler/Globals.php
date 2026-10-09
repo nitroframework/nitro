@@ -1,18 +1,18 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 /**
  * Everything a component can use that it does not declare itself, in one place: the variables
- * templates and handlers see, the actions handlers can call, the component methods Fusion
- * provides, and the fusion: attributes. The compiler reads these tables; js/src/runtime
+ * templates and handlers see, the actions handlers can call, the component methods Nitro
+ * provides, and the nitro: attributes. The compiler reads these tables; js/src/runtime
  * implements each entry.
  */
 final class Globals
 {
     /**
-     * Fusion's own Blade directives a component's view may use: each is registered with Blade for
-     * the server's render (FusionServiceProvider) and compiled for the browser (Template\Parts\Directives).
+     * Nitro's own Blade directives a component's view may use: each is registered with Blade for
+     * the server's render (NitroServiceProvider) and compiled for the browser (Template\Parts\Directives).
      */
     public const DIRECTIVES = ['teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred'];
 
@@ -27,23 +27,23 @@ final class Globals
     /**
      * Laravel's helpers, in templates and browser methods (Viewi's #[GlobalEntry], the Laravel
      * way). What they need ships with the page, only for what the compiled code names: route
-     * names and translation keys as literals, config keys listed in fusion.public_config.
+     * names and translation keys as literals, config keys listed in nitro.public_config.
      */
     public const HELPERS = ['route', 'url', 'asset', '__', 'trans', 'config'];
 
     /** Methods of $errors, as on Laravel's MessageBag. */
     public const ERROR_METHODS = ['has', 'first', 'get', 'all', 'any', 'count'];
 
-    /** Methods of an Upload (a file a fusion:model file input uploaded) the browser has: what it shows of the file. */
+    /** Methods of an Upload (a file a nitro:model file input uploaded) the browser has: what it shows of the file. */
     public const UPLOAD_METHODS = ['temporaryUrl', 'getClientOriginalName', 'getClientOriginalExtension', 'getSize', 'getMimeType'];
 
-    /** Variables a handler (fusion:click="...") can read besides the template's. */
+    /** Variables a handler (nitro:click="...") can read besides the template's. */
     public const HANDLER_VARIABLES = ['event'];
 
     /**
      * Actions a handler can call without a method on the component, and their arity.
      *   $set('prop', value)  $toggle('prop')  $refresh  $reload('prop', ...)  $loadMore('prop')  $dispatch('event', ...)
-     *   $visit(url): go there, as a fusion:navigate link does
+     *   $visit(url): go there, as a nitro:navigate link does
      */
     public const ACTIONS = [
         'set' => 2,
@@ -54,48 +54,48 @@ final class Globals
         'dispatch' => null,
         'dispatchTo' => null,
         'dispatchSelf' => null,
-        /** $visit(url): a fusion:navigate visit, from any handler (search on Enter). */
+        /** $visit(url): a nitro:navigate visit, from any handler (search on Enter). */
         'visit' => 1,
     ];
 
     /**
-     * Methods Fusion gives every component, usable from browser code:
+     * Methods Nitro gives every component, usable from browser code:
      *   $this->dispatch('event', ...$params)  $this->reset('prop', ...)  $this->redirect($url)
      *   $this->js('$refs.search.focus()')  $this->shared('auth.user.name', $default)  $this->reload('orders')
      *   $this->flashed('toast')  $this->hasMore('posts')
      */
     public const COMPONENT_METHODS = ['dispatch', 'reset', 'redirect', 'js', 'shared', 'flashed', 'reload', 'hasMore'];
 
-    /** fusion: attributes that are not events (the runtime reads them from the DOM). */
+    /** nitro: attributes that are not events (the runtime reads them from the DOM). */
     public const ATTRIBUTES = ['model', 'key', 'loading', 'dirty', 'target', 'navigate', 'current', 'ignore', 'confirm', 'ref', 'transition'];
 
     /**
-     * fusion:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
+     * nitro:transition's modifiers, as Vue's <Transition> has them: .appear (on the first render
      * too), .in / .out (entering or leaving only); for the built-in effect, .opacity / .scale (one
      * of them only), .duration.300ms, .origin.top (bottom, left, right, center); .out-in / .in-out
      * (Vue's modes) and .move (Vue's <TransitionGroup>: rows slide to their new places).
      */
     /**
-     * fusion:loading: shown while loading, or .remove (hidden), .class / .class.remove (classes
+     * nitro:loading: shown while loading, or .remove (hidden), .class / .class.remove (classes
      * added or removed), .attr (an attribute set). Any of them can wait first: .delay (200ms),
-     * .delay.500ms, .delay.1s. fusion:dirty (changes the server has not seen) takes the same
+     * .delay.500ms, .delay.1s. nitro:dirty (changes the server has not seen) takes the same
      * forms, without .delay.
      */
     public const LOADING_FORMS = [[], ['remove'], ['class'], ['class', 'remove'], ['attr']];
 
     public const TRANSITION_MODIFIERS = ['appear', 'in', 'out', 'opacity', 'scale', 'duration', 'origin', 'out-in', 'in-out', 'move'];
 
-    /** fusion:model's modifiers (a time after .debounce besides). */
+    /** nitro:model's modifiers (a time after .debounce besides). */
     public const MODEL_MODIFIERS = ['live', 'blur', 'change', 'lazy', 'debounce', 'number', 'trim', 'boolean'];
 
     /**
      * The modifiers these attributes take (checked at build time, like event modifiers):
-     * fusion:navigate.keypress starts the visit on mouse down, fusion:navigate.preserve-scroll
-     * keeps the scroll position, fusion:navigate.prefetch asks for the page while the pointer rests
+     * nitro:navigate.keypress starts the visit on mouse down, nitro:navigate.preserve-scroll
+     * keeps the scroll position, nitro:navigate.prefetch asks for the page while the pointer rests
      * on the link (.prefetch.60s: kept that long; .prefetch.visible: once the link is in view),
-     * fusion:navigate.transition changes the page in a View Transition, fusion:current.exact matches the path only,
-     * fusion:confirm.prompt asks for a word to be typed. fusion:loading's, fusion:model's and
-     * fusion:transition's are checked by their own rules (LOADING_FORMS); the others take none.
+     * nitro:navigate.transition changes the page in a View Transition, nitro:current.exact matches the path only,
+     * nitro:confirm.prompt asks for a word to be typed. nitro:loading's, nitro:model's and
+     * nitro:transition's are checked by their own rules (LOADING_FORMS); the others take none.
      */
     public const ATTRIBUTE_MODIFIERS = [
         'navigate' => ['keypress', 'preserve-scroll', 'prefetch', 'visible', 'transition'],
@@ -108,9 +108,9 @@ final class Globals
     ];
 
     /**
-     * Triggers: handlers that no DOM event starts, compiled like fusion:<event> (with the modifiers each
-     * takes): fusion:poll.5s="refreshStats" calls it every interval (a bare fusion:poll
-     * refreshes), fusion:init="load" once when its element appears, fusion:visible="loadMore"
+     * Triggers: handlers that no DOM event starts, compiled like nitro:<event> (with the modifiers each
+     * takes): nitro:poll.5s="refreshStats" calls it every interval (a bare nitro:poll
+     * refreshes), nitro:init="load" once when its element appears, nitro:visible="loadMore"
      * when it comes into view (.once: the first time only; .200px: that far before).
      */
     public const TRIGGERS = [
@@ -119,7 +119,7 @@ final class Globals
         'visible' => ['once'],
     ];
 
-    /** DOM events usable as fusion:<event>. */
+    /** DOM events usable as nitro:<event>. */
     public const EVENTS = [
         'click', 'dblclick', 'submit', 'input', 'change', 'keydown', 'keyup', 'keypress', 'focus', 'blur',
         'focusin', 'focusout', 'mouseenter', 'mouseleave', 'mouseover', 'mouseout', 'mousedown', 'mouseup',
@@ -127,14 +127,14 @@ final class Globals
         'dragstart', 'dragover', 'dragend', 'paste', 'copy', 'cut', 'select', 'reset', 'toggle',
     ];
 
-    /** Event modifiers (fusion:submit.prevent, fusion:keydown.enter, fusion:click.debounce.300ms). */
+    /** Event modifiers (nitro:submit.prevent, nitro:keydown.enter, nitro:click.debounce.300ms). */
     public const MODIFIERS = [
         'prevent', 'stop', 'self', 'once', 'window', 'document', 'outside', 'passive', 'capture',
         'enter', 'escape', 'esc', 'space', 'tab', 'up', 'down', 'left', 'right', 'delete', 'backspace',
         'shift', 'ctrl', 'alt', 'meta', 'debounce', 'throttle',
     ];
 
-    /** fusion: names the runtime puts on elements itself (and fusion:h-..., its handlers' marks). */
+    /** nitro: names the runtime puts on elements itself (and nitro:h-..., its handlers' marks). */
     public const RUNTIME = ['id', 'name', 'page', 'placeholder', 'hydrate', 'static', 'fallback'];
 
     public static function isAttribute(string $name): bool
@@ -143,8 +143,8 @@ final class Globals
     }
 
     /**
-     * The application's own fusion: attributes (fusion.attributes): lowercase names, words joined
-     * by hyphens, none of Fusion's own.
+     * The application's own nitro: attributes (nitro.attributes): lowercase names, words joined
+     * by hyphens, none of Nitro's own.
      *
      * @param  array<mixed>  $names
      * @return list<string>
@@ -155,11 +155,11 @@ final class Globals
     {
         foreach ($names as $name) {
             if (! is_string($name) || preg_match('/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/', $name) !== 1) {
-                throw new CompileException('fusion.attributes: '.json_encode($name).' is not an attribute name (lowercase words joined by hyphens, such as "tooltip" or "auto-size")');
+                throw new CompileException('nitro.attributes: '.json_encode($name).' is not an attribute name (lowercase words joined by hyphens, such as "tooltip" or "auto-size")');
             }
 
             if (self::isAttribute($name) || self::isEvent($name) || isset(self::TRIGGERS[$name]) || in_array($name, self::RUNTIME, true) || str_starts_with($name, 'h-')) {
-                throw new CompileException("fusion.attributes: fusion:{$name} is Fusion's own; give yours another name");
+                throw new CompileException("nitro.attributes: nitro:{$name} is Nitro's own; give yours another name");
             }
         }
 

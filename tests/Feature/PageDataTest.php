@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -17,16 +17,16 @@ final class PageDataTest extends TestCase
         $this->boot($framework);
         $html = (string) $this->get('/scripts-first')->getContent();
 
-        $this->assertStringNotContainsString('fusion:snapshot', $html, 'no component carries its state as an attribute');
-        $this->assertSame(1, substr_count($html, '<script type="application/json" data-fusion-state>'), 'one block');
-        $this->assertStringNotContainsString('<!--fusion:state-->', $html, 'the block is filled once the page is rendered');
+        $this->assertStringNotContainsString('nitro:snapshot', $html, 'no component carries its state as an attribute');
+        $this->assertSame(1, substr_count($html, '<script type="application/json" data-nitro-state>'), 'one block');
+        $this->assertStringNotContainsString('<!--nitro:state-->', $html, 'the block is filled once the page is rendered');
 
-        /** @fusionScripts is in the <head>: the components after it are in the block all the same. */
+        /** @nitroScripts is in the <head>: the components after it are in the block all the same. */
         $states = $this->snapshots($html);
         $this->assertCount(1, $states, 'the live component, not the static one');
         $this->assertSame(3, $states[0]['state']['data']['step']);
 
-        preg_match('/<script type="application\/json" data-fusion-state>(.*?)<\/script>/s', $html, $block);
+        preg_match('/<script type="application\/json" data-nitro-state>(.*?)<\/script>/s', $html, $block);
         $this->assertStringNotContainsString('&quot;', $block[1], 'readable JSON: no HTML escaping');
     }
 
@@ -39,7 +39,7 @@ final class PageDataTest extends TestCase
 
         /** What an attribute per component would have carried, escaped for HTML. */
         $asAttributes = array_sum(array_map(fn (array $state) => strlen(htmlspecialchars(json_encode($state['envelope'], JSON_UNESCAPED_SLASHES), ENT_QUOTES)), $states));
-        preg_match('/<script type="application\/json" data-fusion-state>(.*?)<\/script>/s', $html, $block);
+        preg_match('/<script type="application\/json" data-nitro-state>(.*?)<\/script>/s', $html, $block);
 
         $this->assertLessThan($asAttributes, strlen($block[1]));
     }

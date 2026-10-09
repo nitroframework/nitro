@@ -1,5 +1,5 @@
-name: Set up Fusion
-description: PHP, Node and the dependencies, for a job that checked out the repository into nitro-fusion.
+name: Set up Nitro
+description: PHP, Node and the dependencies, for a job that checked out the repository into nitro.
 
 runs:
   using: composite
@@ -13,7 +13,7 @@ runs:
       with:
         node-version: '22'
         cache: npm
-        cache-dependency-path: nitro-fusion/package-lock.json
+        cache-dependency-path: nitro/package-lock.json
     # package-lock.json names nitro-progress by SSH; it is public, so HTTPS needs no key.
     - shell: bash
       run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
@@ -21,11 +21,11 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/composer
-        key: composer-${{ hashFiles('nitro-fusion/composer.lock') }}
+        key: composer-${{ hashFiles('nitro/composer.lock') }}
         restore-keys: composer-
     - shell: bash
-      working-directory: nitro-fusion
+      working-directory: nitro
       run: composer install --no-interaction --no-progress --prefer-dist
     - shell: bash
-      working-directory: nitro-fusion
+      working-directory: nitro
       run: npm ci --no-audit --no-fund

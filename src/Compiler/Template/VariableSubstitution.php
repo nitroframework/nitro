@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 use Closure;
 use PhpParser\Node;

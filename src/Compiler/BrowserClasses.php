@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
-use Nitro\Fusion\Attributes\Browser;
+use Nitro\Attributes\Browser;
 use ReflectionClass;
 
 /**

@@ -11,7 +11,7 @@ export function persist({ on }) {
         if (store.persist.length === 0) return;
         const storage = storageOf();
         if (!storage) return;
-        const key = `fusion:persist:${store.name}`;
+        const key = `nitro:persist:${store.name}`;
 
         let kept = null;
         try {

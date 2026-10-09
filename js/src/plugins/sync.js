@@ -9,7 +9,7 @@
 export function sync({ on }) {
     on('store', (store) => {
         if (store.sync.length === 0 || typeof window.BroadcastChannel !== 'function') return;
-        const channel = new window.BroadcastChannel(`fusion:sync:${store.name}`);
+        const channel = new window.BroadcastChannel(`nitro:sync:${store.name}`);
         const values = () => JSON.stringify(Object.fromEntries(store.sync.map((property) => [property, store.get(property)])));
         let last = values();
 

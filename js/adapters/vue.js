@@ -1,12 +1,12 @@
 /**
- * Vue views for Fusion components.
+ * Vue views for Nitro components.
  *
  * The PHP class names its view, #[View(vue: 'post-editor')], and resources/views/vue (or
  * resources/js/vue) holds post-editor.vue. Your Vite builds it; register the views once:
  *
- *     import { fusionVue } from 'nitro-fusion/vue';
+ *     import { nitroVue } from 'nitro/vue';
  *
- *     fusionVue(import.meta.glob('../views/vue/**\/*.vue'));
+ *     nitroVue(import.meta.glob('../views/vue/**\/*.vue'));
  *
  * The template sees the component by its PHP names, as a Blade view does:
  *
@@ -17,7 +17,7 @@
  *     <p v-if="unsaved.length">Unsaved changes</p>    what the server has not seen yet
  *     {{ errors.title?.[0] }}                         the validation messages
  *
- * In <script setup>, useFusion() gives the same: properties and values as refs, the functions,
+ * In <script setup>, useNitro() gives the same: properties and values as refs, the functions,
  * `errors` and `unsaved` as refs. The behaviour is the shared core's (core.js); this adapter
  * only makes it Vue's.
  *
@@ -27,27 +27,27 @@
 import { computed, createApp, createSSRApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
 import { connect, register } from './core.js';
 
-const KEY = Symbol('fusion');
+const KEY = Symbol('nitro');
 
-/** Register the Vue engine with Fusion: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */
-export function fusionVue(views, { setup } = {}) {
+/** Register the Vue engine with Nitro: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */
+export function nitroVue(views, { setup } = {}) {
     register('vue', views, (view, el, handle, options) => mount(view, el, handle, setup, options));
 }
 
-/** In a Fusion component's Vue view: the component, as refs and functions. */
-export function useFusion() {
-    const fusion = inject(KEY, null);
-    if (!fusion) throw new Error('Fusion: useFusion() is for the view of a Fusion component (#[View(vue: ...)])');
-    return fusion;
+/** In a Nitro component's Vue view: the component, as refs and functions. */
+export function useNitro() {
+    const nitro = inject(KEY, null);
+    if (!nitro) throw new Error('Nitro: useNitro() is for the view of a Nitro component (#[View(vue: ...)])');
+    return nitro;
 }
 
 function mount(view, el, handle, setup, { hydrate }) {
-    const { app, fusion, scope } = createView(view, handle, { setup, ssr: hydrate });
+    const { app, nitro, scope } = createView(view, handle, { setup, ssr: hydrate });
     /** An app made with createSSRApp() takes over the server's HTML in el rather than replacing it. */
     app.mount(el);
 
     return {
-        update: (names) => fusion.component.changed(names),
+        update: (names) => nitro.component.changed(names),
         unmount() {
             app.unmount();
             scope.stop();
@@ -62,19 +62,19 @@ function mount(view, el, handle, setup, { hydrate }) {
  */
 export function createView(view, handle, { setup, ssr = false } = {}) {
     const scope = effectScope();
-    const fusion = scope.run(() => bind(handle));
+    const nitro = scope.run(() => bind(handle));
     /** The view with the component's names for its template: a copy, so its own setup() stays its own. */
-    const app = (ssr ? createSSRApp : createApp)({ ...view, mixins: [...(view.mixins ?? []), fusion.mixin] });
-    app.provide(KEY, fusion.api);
+    const app = (ssr ? createSSRApp : createApp)({ ...view, mixins: [...(view.mixins ?? []), nitro.mixin] });
+    app.provide(KEY, nitro.api);
     setup?.(app);
 
-    return { app, fusion, scope };
+    return { app, nitro, scope };
 }
 
 /** The component as Vue holds it: a ref per property, kept in step both ways; derived values that follow. */
 function bind(handle) {
     const component = connect(handle, { status: (initial) => reactive(initial) });
-    const raw = rawUploads(globalThis.Fusion?.P?.Upload);
+    const raw = rawUploads(globalThis.Nitro?.P?.Upload);
     const tick = shallowRef(0);
     const values = {};
     let syncing = false;
@@ -123,7 +123,7 @@ function bind(handle) {
     return { component, api, mixin };
 }
 
-/** Uploads stay as Fusion has them (Vue would wrap them); enum cases are frozen, so Vue leaves them be. */
+/** Uploads stay as Nitro has them (Vue would wrap them); enum cases are frozen, so Vue leaves them be. */
 function rawUploads(Upload) {
     const raw = (value) => {
         if (Upload && value instanceof Upload) return markRaw(value);

@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /** /shop/cart: the same cart store, after a visit from /shop. */
 class ShopCart extends Component

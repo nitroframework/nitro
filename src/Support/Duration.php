@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
  * A time written as a modifier (.debounce.300ms, .delay.1s, .prefetch.60s, .duration.150ms):

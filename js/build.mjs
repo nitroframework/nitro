@@ -1,5 +1,5 @@
-// Builds dist/fusion.js (the runtime served by {endpoint}/fusion.js) and dist/fusion-devtools.js
-// (the dev overlay, served by {endpoint}/fusion-devtools.js in development only).
+// Builds dist/nitro.js (the runtime served by {endpoint}/nitro.js) and dist/nitro-devtools.js
+// (the dev overlay, served by {endpoint}/nitro-devtools.js in development only).
 import * as esbuild from 'esbuild';
 
 const build = (entry, outfile) => esbuild.build({
@@ -14,5 +14,5 @@ const build = (entry, outfile) => esbuild.build({
     logLevel: 'info',
 });
 
-await build('js/src/index.js', 'dist/fusion.js');
-await build('js/src/devtools/index.js', 'dist/fusion-devtools.js');
+await build('js/src/index.js', 'dist/nitro.js');
+await build('js/src/devtools/index.js', 'dist/nitro-devtools.js');

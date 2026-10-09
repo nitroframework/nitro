@@ -1,5 +1,5 @@
-// fusion:build: minify the compiled components with the application's own esbuild, as `vite build`
-// does. Run from the application root (fusion.esbuild.root), so `esbuild` resolves from its
+// nitro:build: minify the compiled components with the application's own esbuild, as `vite build`
+// does. Run from the application root (nitro.esbuild.root), so `esbuild` resolves from its
 // node_modules.
 //
 //   node minify.cjs            the bundle on stdin, the minified bundle on stdout

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Attributes;
+namespace Nitro\Tests\Fixtures\Attributes;
 
 use Attribute;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\FeatureAttribute;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Component;
+use Nitro\FeatureAttribute;
+use Nitro\Tests\Fixtures\Components\Store;
 
 /** On a property: the browser's value, trimmed and its spaces collapsed, when the browser changed it. */
 #[Attribute(Attribute::TARGET_PROPERTY)]

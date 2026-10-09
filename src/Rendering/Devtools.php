@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Support\Config;
+use Nitro\Support\Protocol;
 
 /**
- * The dev overlay (dist/fusion-devtools.js, js/src/devtools): whether it is on, its file, and the
- * script @fusionScripts adds for it. On with fusion.devtools, or when that is null with APP_DEBUG:
+ * The dev overlay (dist/nitro-devtools.js, js/src/devtools): whether it is on, its file, and the
+ * script @nitroScripts adds for it. On with nitro.devtools, or when that is null with APP_DEBUG:
  * never in production, where it is neither added to a page nor served.
  *
  * @internal
@@ -27,7 +27,7 @@ final class Devtools
 
     public function path(): string
     {
-        return dirname(__DIR__, 2).'/dist/fusion-devtools.js';
+        return dirname(__DIR__, 2).'/dist/nitro-devtools.js';
     }
 
     public function version(): string

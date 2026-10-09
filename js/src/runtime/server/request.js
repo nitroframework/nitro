@@ -1,13 +1,13 @@
 /**
  * Every request the runtime sends to the server: a visit's page (and a prefetch), a reload of a
  * page's properties, a #[Server] call, an upload. The one place that sends (the guards keep it
- * so): Fusion's headers on each, the plugins' (Fusion.use(): on('request')) on each a component
+ * so): Nitro's headers on each, the plugins' (Nitro.use(): on('request')) on each a component
  * sends, and expired state (419) handled alike for a call and an upload.
  */
 import { session } from '../../laravel/blade.js';
 import { HEADERS, PATHS, TIMING } from '../protocol.js';
 
-/** Fusion's headers when it asks a page for its data (a visit, a reload): a Fusion page answers with it, not its HTML. */
+/** Nitro's headers when it asks a page for its data (a visit, a reload): a Nitro page answers with it, not its HTML. */
 function pageHeaders(runtime) {
     return {
         Accept: 'application/json',
@@ -17,7 +17,7 @@ function pageHeaders(runtime) {
     };
 }
 
-/** Fusion's headers on a request to its endpoint (a call, an upload). */
+/** Nitro's headers on a request to its endpoint (a call, an upload). */
 function endpointHeaders(runtime) {
     return {
         Accept: 'application/json',
@@ -37,7 +37,7 @@ export function visit(runtime, url, data, id = null) {
 
 /** A reload of the page's properties (all of them when none are named), for the component that asks. */
 export function reload(runtime, component, href, only) {
-    /** Plugins hear it as a call of $reload, and may add headers; Fusion's own are set after theirs. */
+    /** Plugins hear it as a call of $reload, and may add headers; Nitro's own are set after theirs. */
     const headers = {
         ...runtime.plugins.request(component, '$reload', {}),
         ...pageHeaders(runtime),
@@ -49,11 +49,11 @@ export function reload(runtime, component, href, only) {
 
 /**
  * The component's state is no longer good (another session, an expired lifetime, a logout, a new
- * APP_KEY): the page loads again, with fresh state. A fusion:expired listener can preventDefault()
+ * APP_KEY): the page loads again, with fresh state. A nitro:expired listener can preventDefault()
  * to do something else.
  */
 function expired(runtime, component, status) {
-    if (status === 419 && runtime.emit('fusion:expired', { component: component.name, status: 419 }, true)) runtime.window.location.reload();
+    if (status === 419 && runtime.emit('nitro:expired', { component: component.name, status: 419 }, true)) runtime.window.location.reload();
 }
 
 /**
@@ -74,7 +74,7 @@ export function timingOf(runtime, response, started, text = null) {
 
 /** A #[Server] call (method null: $refresh) with its body. */
 export async function call(runtime, component, method, body) {
-    /** Plugins may add headers (Fusion.use(): on('request')); Fusion's own are set after theirs. */
+    /** Plugins may add headers (Nitro.use(): on('request')); Nitro's own are set after theirs. */
     const headers = runtime.plugins.request(component, method, {});
     const response = await runtime.window.fetch(`${runtime.config.endpoint}/${PATHS.update}`, {
         method: 'POST',

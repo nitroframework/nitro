@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
 use Illuminate\Testing\TestResponse;
-use Nitro\Fusion\Fusion;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Nitro;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Once shared data (Fusion::once(), Fusion::shareOnce()) and flash data (Fusion::flash()), as
+ * Once shared data (Nitro::once(), Nitro::shareOnce()) and flash data (Nitro::flash()), as
  * Inertia's once props and flash data.
  */
 class OnceAndFlashTest extends TestCase
@@ -21,7 +21,7 @@ class OnceAndFlashTest extends TestCase
         Store::$onceCalls = 0;
     }
 
-    /** A fusion:navigate visit, with the once data the browser says it has. */
+    /** A nitro:navigate visit, with the once data the browser says it has. */
     private function visit(string $uri, string $once = ''): TestResponse
     {
         $this->app->forgetScopedInstances();
@@ -29,8 +29,8 @@ class OnceAndFlashTest extends TestCase
 
         return TestResponse::fromBaseResponse($this->request('GET', $uri, array_filter([
             'HTTP_ACCEPT' => 'application/json',
-            'HTTP_X_FUSION_NAVIGATE' => '1',
-            'HTTP_X_FUSION_ONCE' => $once,
+            'HTTP_X_NITRO_NAVIGATE' => '1',
+            'HTTP_X_NITRO_ONCE' => $once,
         ])));
     }
 
@@ -41,7 +41,7 @@ class OnceAndFlashTest extends TestCase
 
     private function globals(string $html): array
     {
-        preg_match('#<script type="application/json" data-fusion-globals>(.*?)</script>#s', $html, $m);
+        preg_match('#<script type="application/json" data-nitro-globals>(.*?)</script>#s', $html, $m);
 
         return json_decode($m[1], true);
     }
@@ -69,13 +69,13 @@ class OnceAndFlashTest extends TestCase
     public function test_once_data_can_expire_and_be_sent_fresh(string $framework): void
     {
         $this->boot($framework);
-        $fusion = $this->app->make(Fusion::class);
+        $nitro = $this->app->make(Nitro::class);
 
-        $fusion->share('rates', $fusion->once(fn () => [1.5])->until(60));
-        $fusion->share('menu', $fusion->once(fn () => ['home'])->fresh());
+        $nitro->share('rates', $nitro->once(fn () => [1.5])->until(60));
+        $nitro->share('menu', $nitro->once(fn () => ['home'])->fresh());
 
-        $this->app->instance('request', \Illuminate\Http\Request::create('/', 'GET', server: ['HTTP_X_FUSION_ONCE' => 'rates,menu,countries']));
-        $data = $this->app->make(\Nitro\Fusion\State\SharedData::class)->forBrowser();
+        $this->app->instance('request', \Illuminate\Http\Request::create('/', 'GET', server: ['HTTP_X_NITRO_ONCE' => 'rates,menu,countries']));
+        $data = $this->app->make(\Nitro\State\SharedData::class)->forBrowser();
         $shared = Wire::decode($data['shared']);
         $once = (array) $data['once'];
 

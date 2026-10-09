@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 /**
  * What compiled code uses that the browser must be given: the routes, translation keys and config
  * keys its Laravel helpers name, the PHP functions it calls (js/functions), the #[Browser] classes
- * it reaches. The compiler collects them; @fusionScripts ships their values with the page.
+ * it reaches. The compiler collects them; @nitroScripts ships their values with the page.
  */
 final class Uses
 {
@@ -26,7 +26,7 @@ final class Uses
      * The uses, sorted; config() only for the keys the application made public.
      *
      * @param  array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>}  $uses
-     * @param  list<string>  $publicConfig  fusion.public_config
+     * @param  list<string>  $publicConfig  nitro.public_config
      * @return array{routes: list<string>, lang: list<string>, config: list<string>, functions: list<string>, classes: list<string>}
      *
      * @throws CompileException for a config key that is not public
@@ -35,7 +35,7 @@ final class Uses
     {
         foreach (array_keys($uses['config']) as $key) {
             if (! in_array($key, $publicConfig, true)) {
-                throw new CompileException("config('{$key}') runs in the browser, which sees only public config: add '{$key}' to fusion.public_config (its value is sent to every visitor)");
+                throw new CompileException("config('{$key}') runs in the browser, which sees only public config: add '{$key}' to nitro.public_config (its value is sent to every visitor)");
             }
         }
 

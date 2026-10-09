@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /**
  * Broadcast events (#[On('echo...')]): a public channel, a private one named by the state, a

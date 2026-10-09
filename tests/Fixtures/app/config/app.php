@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'name' => 'Fusion Tests',
+    'name' => 'Nitro Tests',
     'env' => 'testing',
     'debug' => true,
     'url' => 'http://localhost',

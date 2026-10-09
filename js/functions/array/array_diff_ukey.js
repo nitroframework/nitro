@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayDiffUkey.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayDiffUkey.js, for Nitro's values.
 // uses: _php_set_op
 function array_diff_ukey() { // eslint-disable-line camelcase
   //  discuss at: https://www.php.net/manual/en/function.array-diff-ukey.php

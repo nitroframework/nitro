@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue';
-import { useFusion } from 'nitro-fusion/vue';
+import { useNitro } from 'nitro/vue';
 
-const { count, doubled, increment, save, errors } = useFusion();
+const { count, doubled, increment, save, errors } = useNitro();
 const said = ref('');
 
 async function submit() {

@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fuzz;
+namespace Nitro\Tests\Fuzz;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\User;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\User;
+use Nitro\Tests\TestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Robustness fuzzing of the server's endpoints: real requests (the #[Server] calls the fixture
- * pages make, and fusion:navigate visits with their headers) mutated at random, in their JSON and
+ * pages make, and nitro:navigate visits with their headers) mutated at random, in their JSON and
  * in their bytes, and sent. Whatever comes in:
  *
  *   - the answer is never a server error (5xx): bad input is refused (4xx) or handled;
@@ -73,7 +73,7 @@ class EndpointFuzzTest extends TestCase
                 }
 
                 $what = "{$label}: ".substr((string) $json, 0, 300);
-                $response = $this->send(fn () => $this->request('POST', '/_fusion/update', [
+                $response = $this->send(fn () => $this->request('POST', '/_nitro/update', [
                     'CONTENT_TYPE' => 'application/json',
                     'HTTP_ACCEPT' => 'application/json',
                     'HTTP_SEC_FETCH_SITE' => 'same-origin',
@@ -153,9 +153,9 @@ class EndpointFuzzTest extends TestCase
         $panels = $snapshot('/panels', 'pages::panels');
         $shelf = $snapshot('/shop', 'shop-shelf');
         $this->app->forgetScopedInstances();
-        preg_match('#data-fusion-globals>(.*?)</script>#s', (string) $this->get('/shop')->getContent(), $globals);
+        preg_match('#data-nitro-globals>(.*?)</script>#s', (string) $this->get('/shop')->getContent(), $globals);
         $cart = json_decode($globals[1], true)['stores']['stores::cart'];
-        $visit = ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_X_FUSION_VERSION' => '', 'HTTP_X_FUSION_ID' => 'fabcdefghij'];
+        $visit = ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_NITRO_NAVIGATE' => '1', 'HTTP_X_NITRO_VERSION' => '', 'HTTP_X_NITRO_ID' => 'fabcdefghij'];
 
         return [
             ['wallet withdraw', $call($wallet, 'withdraw', [30, 'rent'], ['amount' => 5, 'label' => 'x'])],
@@ -170,7 +170,7 @@ class EndpointFuzzTest extends TestCase
             ['store save', $call($cart, 'save', [], ['items' => [['name' => 'Pen', 'price' => 2]]])],
             ['store made in the browser', ['kind' => 'call', 'payload' => ['snapshot' => null, 'store' => 'stores::cart', 'updates' => ['items' => Wire::encode([['name' => 'Book', 'price' => 10]])], 'call' => ['method' => 'save', 'params' => []]]]],
             ['visit counter', ['kind' => 'visit', 'uri' => '/counter', 'headers' => $visit]],
-            ['partial student', ['kind' => 'visit', 'uri' => '/students/1', 'headers' => [...$visit, 'HTTP_X_FUSION_PARTIAL' => 'fabcdefghij', 'HTTP_X_FUSION_ONLY' => 'note,tags']]],
+            ['partial student', ['kind' => 'visit', 'uri' => '/students/1', 'headers' => [...$visit, 'HTTP_X_NITRO_PARTIAL' => 'fabcdefghij', 'HTTP_X_NITRO_ONLY' => 'note,tags']]],
         ];
     }
 }

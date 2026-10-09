@@ -1,17 +1,17 @@
 /**
- * Files for a property that takes them (Nitro\Fusion\Upload, or #[Uploads] for a list): uploaded at
+ * Files for a property that takes them (Nitro\Upload, or #[Uploads] for a list): uploaded at
  * once, and the property set to what the server answers, Uploads: one, or a list.
  *
  * The files are sent as Viewi's HttpClient sends a file (XMLHttpRequest, which reports upload
  * progress; fetch() does not), as FormData with the component's signed snapshot and the property,
  * so the server only takes files for a component it rendered, on a page the visitor may still
- * see: POST {endpoint}/upload (Http/UploadController). While it uploads, fusion:loading with
- * fusion:target="photo" shows. A file the server refuses (its rules) gives the property's $errors
+ * see: POST {endpoint}/upload (Http/UploadController). While it uploads, nitro:loading with
+ * nitro:target="photo" shows. A file the server refuses (its rules) gives the property's $errors
  * message, as validate() would.
  *
- *   upload()   fusion:model on a file input: its files, and on the input fusion-upload-start,
- *              fusion-upload-progress ({progress: 0-100}), fusion-upload-finish and
- *              fusion-upload-error ({status, message})
+ *   upload()   nitro:model on a file input: its files, and on the input nitro-upload-start,
+ *              nitro-upload-progress ({progress: 0-100}), nitro-upload-finish and
+ *              nitro-upload-error ({status, message})
  *   send()     the files given, with callbacks: what a JavaScript view's upload() uses
  *              (runtime/view/script.js)
  */
@@ -20,16 +20,16 @@ import { SIGNALS } from '../protocol.js';
 import { ErrorBag } from '../component/errors.js';
 import { sendFiles } from './request.js';
 
-/** fusion:model on a file input: its chosen files, the input told how it goes. */
+/** nitro:model on a file input: its chosen files, the input told how it goes. */
 export function upload(runtime, component, el, path) {
     const fire = (name, detail = {}) => el.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
 
     return send(runtime, component, path, Array.prototype.slice.call(el.files), {
         multiple: el.multiple,
-        start: () => fire('fusion-upload-start'),
-        progress: (progress) => fire('fusion-upload-progress', { progress }),
-        finish: () => fire('fusion-upload-finish'),
-        error: (status, message) => fire('fusion-upload-error', { status, message }),
+        start: () => fire('nitro-upload-start'),
+        progress: (progress) => fire('nitro-upload-progress', { progress }),
+        finish: () => fire('nitro-upload-finish'),
+        error: (status, message) => fire('nitro-upload-error', { status, message }),
     });
 }
 
@@ -77,7 +77,7 @@ export function send(runtime, component, path, files, on = {}) {
 
             const message = answer?.message ?? (status === 0 ? 'The server could not be reached.' : `The server answered ${status}.`);
             if (status === 422) setErrors(component, root, answer?.errors?.[root] ?? [message]);
-            else runtime.report(component, new Error(`Fusion: uploading ${root}: ${message}`));
+            else runtime.report(component, new Error(`Nitro: uploading ${root}: ${message}`));
             on.error?.(status, message);
             resolve(status === 422 ? { refused: true } : { failed: true, status, message });
         };

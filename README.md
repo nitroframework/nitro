@@ -1,7 +1,7 @@
-# Nitro Fusion
+# Nitro
 
-Fusion is a full-stack framework for Laravel. You write components and pages as a
-PHP class and a Blade view, the way you already write Laravel code, and Fusion compiles them to
+Nitro is a full-stack framework for Laravel. You write components and pages as a
+PHP class and a Blade view, the way you already write Laravel code, and Nitro compiles them to
 JavaScript that runs in the browser.
 
 - **The server renders the first page** with Blade, so it is fast to show and works for search
@@ -14,12 +14,12 @@ JavaScript that runs in the browser.
   virtual DOM and no HTML diffing.
 
 ```php
-// app/Fusion/Components/Counter.php
-namespace App\Fusion\Components;
+// app/Nitro/Components/Counter.php
+namespace App\Nitro\Components;
 
 use App\Models\Score;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 class Counter extends Component
 {
@@ -39,17 +39,17 @@ class Counter extends Component
 ```
 
 ```blade
-{{-- resources/views/fusion/components/counter.blade.php --}}
+{{-- resources/views/nitro/components/counter.blade.php --}}
 <div>
-    <button fusion:click="increment">+</button>
+    <button nitro:click="increment">+</button>
     <span>{{ $count }}</span>
-    <button fusion:click="save" fusion:loading.attr="disabled">Save</button>
+    <button nitro:click="save" nitro:loading.attr="disabled">Save</button>
 </div>
 ```
 
 ```blade
 {{-- any Blade view --}}
-<fusion:counter />
+<nitro:counter />
 ```
 
 ## Contents
@@ -74,7 +74,7 @@ class Counter extends Component
 - [Testing your application](#testing-your-application)
 - [Limitations](#limitations)
 - [Security](#security)
-- [How Fusion is tested](#how-fusion-is-tested)
+- [How Nitro is tested](#how-nitro-is-tested)
 - [Contributing](#contributing)
 
 ## Requirements
@@ -83,54 +83,54 @@ class Counter extends Component
 - Laravel 13, or Nitro
 - Node.js and esbuild, to minify the compiled code: `npm install --save-dev esbuild`
 
-Fusion's browser versions of Laravel's helpers (`Str::`, `route()`, `__()`) follow Laravel 13, so
-earlier Laravel versions are not supported. Fusion uses only Laravel's public APIs, and it can run
-on the same page as Livewire: its tags, attributes, scripts and endpoints all use the `fusion:`
+Nitro's browser versions of Laravel's helpers (`Str::`, `route()`, `__()`) follow Laravel 13, so
+earlier Laravel versions are not supported. Nitro uses only Laravel's public APIs, and it can run
+on the same page as Livewire: its tags, attributes, scripts and endpoints all use the `nitro:`
 prefix.
 
 ## Installation
 
 ```bash
-composer require nitro/fusion
-php artisan vendor:publish --tag=fusion-config   # optional: config/fusion.php
+composer require nitro/nitro
+php artisan vendor:publish --tag=nitro-config   # optional: config/nitro.php
 ```
 
-Add `@fusionHead` to your layout's `<head>` and `@fusionScripts` before `</body>`:
+Add `@nitroHead` to your layout's `<head>` and `@nitroScripts` before `</body>`:
 
 ```blade
 {{-- resources/views/components/layouts/app.blade.php --}}
 <html>
 <head>
-    @fusionHead
+    @nitroHead
 </head>
 <body>
     {{ $slot }}
 
-    @fusionScripts
+    @nitroScripts
 </body>
 </html>
 ```
 
 ## Components and pages
 
-Fusion has two kinds of classes:
+Nitro has two kinds of classes:
 
 | | Components | Pages |
 | --- | --- | --- |
-| Class | `app/Fusion/Components` | `app/Fusion/Pages` |
-| View | `resources/views/fusion/components` | `resources/views/fusion/pages` |
-| Name | `students.table` for `App\Fusion\Components\Students\Table` | `pages::students.index` for `App\Fusion\Pages\Students\Index` |
-| Used | placed in a view: `<fusion:students.table />` | routed: `Route::fusion('/students', Index::class)` |
+| Class | `app/Nitro/Components` | `app/Nitro/Pages` |
+| View | `resources/views/nitro/components` | `resources/views/nitro/pages` |
+| Name | `students.table` for `App\Nitro\Components\Students\Table` | `pages::students.index` for `App\Nitro\Pages\Students\Index` |
+| Used | placed in a view: `<nitro:students.table />` | routed: `Route::nitro('/students', Index::class)` |
 | Layout and title | no | `#[Layout]`, `#[Title]` |
 
 A page is a whole screen of the application: it has a route, a layout and a title, and it loads its
 own data in `mount()`. A component is a reusable part placed inside a page or any Blade view.
 
-A page cannot be placed in a view and a component cannot be routed; Fusion says what to use
-instead. The directories, namespaces and view paths are set in `config/fusion.php`.
+A page cannot be placed in a view and a component cannot be routed; Nitro says what to use
+instead. The directories, namespaces and view paths are set in `config/nitro.php`.
 
-In a plain Blade view or a layout, `@fusion('counter', ['start' => 5])` renders a component from
-PHP, as `<fusion:counter :start="5" />` does. A `<fusion:...>` tag written in PHP (an `@php` block,
+In a plain Blade view or a layout, `@nitro('counter', ['start' => 5])` renders a component from
+PHP, as `<nitro:counter :start="5" />` does. A `<nitro:...>` tag written in PHP (an `@php` block,
 `<?php ?>`, an echo or a string in them), in a Blade comment or in `@verbatim` is text, not a
 component.
 
@@ -166,7 +166,7 @@ browser:
 | `#[Locked]` | Readable in the browser, changed only on the server |
 | `#[Url]` | Kept in the query string (`as`, `history`, `keep`, `except`); read before `mount()` and kept in step with the property |
 | `#[Remember]` | Kept in the browser's history entry: back, forward and a reload bring back its value, such as a half-filled form. Not for `#[Locked]` properties, models or uploads |
-| `#[Modelable]` | On one property, lets a parent bind it: `<fusion:search-box fusion:model="query" />` |
+| `#[Modelable]` | On one property, lets a parent bind it: `<nitro:search-box nitro:model="query" />` |
 | `#[Validate]` | Rules checked on the server whenever the browser changes the property: `#[Validate('integer\|min:1\|max:10')]`; for an array's keys, `#[Validate(['tags' => 'array\|max:3', 'tags.*' => 'string'])]`; `as:` names it in messages |
 
 **What the browser can change.** Every public property that is not `#[Locked]` can be set by the
@@ -197,8 +197,8 @@ Pages also take `#[Title]`, `#[Description]`, `#[Layout]`, `#[LazyLoad]` and `#[
 ### Methods
 
 ```php
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
 
 class Cart extends Component
 {
@@ -231,11 +231,11 @@ class Cart extends Component
 ```
 
 - **`mount(...)`** runs once, on the server, when the component is created. Its parameters come
-  from the route (with route-model binding) or from the tag: `<fusion:cart :customer="$customer" />`.
+  from the route (with route-model binding) or from the tag: `<nitro:cart :customer="$customer" />`.
 - **Methods** run in the browser.
 - **`#[Server]` methods** run on the server. Their arguments are checked against their types:
   - a **model** parameter receives the record its key names, as route model binding resolves one
-    (its route key, or its own `resolveRouteBinding()`): `fusion:click="remove($post['id'])"` gives
+    (its route key, or its own `resolveRouteBinding()`): `nitro:click="remove($post['id'])"` gives
     `remove(Post $post)` the post. The row itself works too: `remove($post)`. A missing record
     answers 404; a nullable `?Post` takes `null`;
   - a **backed enum** parameter receives the case its value names; another value answers 403;
@@ -258,7 +258,7 @@ own marked `#[Browser]`. Browser methods and views can call its static methods a
 constants:
 
 ```php
-use Nitro\Fusion\Attributes\Browser;
+use Nitro\Attributes\Browser;
 
 #[Browser]
 final class Money
@@ -334,7 +334,7 @@ class Order extends Component
 ```blade
 @use('App\Enums\Status')
 
-<select fusion:model="status">
+<select nitro:model="status">
     @foreach (Status::cases() as $case)
         <option value="{{ $case->value }}">{{ $case->label() }}</option>
     @endforeach
@@ -344,7 +344,7 @@ class Order extends Component
 
 - **A case is one object** in the browser, so `===`, `match` and `in_array(..., true)` compare cases
   as PHP does, and `->name` and `->value` read as in PHP.
-- **An enum property** travels as its value: `fusion:model` sets it from an `<option>`'s value, and
+- **An enum property** travels as its value: `nitro:model` sets it from an `<option>`'s value, and
   the server makes the case of it. The browser may set only one of its cases' values, of its
   backing type; any other value is refused (403). It must be a backed enum marked `#[Browser]`.
   `#[Url]` and `#[Remember]` work on it.
@@ -360,23 +360,23 @@ class Order extends Component
 | `mount(...)` | on the server, when the component is created |
 | `hydrate()` | on the server, when a `#[Server]` call starts |
 | `dehydrate()` | on the server, before the state is sent to the browser |
-| `updatedEmail($value)` | in the browser, after `fusion:model` or `$set` changes `$email` |
+| `updatedEmail($value)` | in the browser, after `nitro:model` or `$set` changes `$email` |
 | `updated($property, $value)` | in the browser, after any such change |
 | `mounted()` | in the browser, once the component is live |
 | `destroyed()` | in the browser, when it leaves the page |
 
-`$this->js('...')` runs JavaScript after the next render, with `$fusion` (the component), `$refs`
-(its `fusion:ref` elements) and `$el`.
+`$this->js('...')` runs JavaScript after the next render, with `$nitro` (the component), `$refs`
+(its `nitro:ref` elements) and `$el`.
 
 ### Features
 
 A feature runs around every component on the server, where one component's hooks cannot: an audit
 of every `#[Server]` call, a tenant set on every component, a check before any method runs. Extend
-`Nitro\Fusion\Feature`, override the hooks it needs, and list it in `config/fusion.php`:
+`Nitro\Feature`, override the hooks it needs, and list it in `config/nitro.php`:
 
 ```php
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Feature;
+use Nitro\Component;
+use Nitro\Feature;
 
 class AuditCalls extends Feature
 {
@@ -384,13 +384,13 @@ class AuditCalls extends Feature
 
     public function called(Component $component, string $method, mixed $result): void
     {
-        Log::info('fusion call', ['component' => $component::class, 'method' => $method, 'ip' => $this->request->ip()]);
+        Log::info('nitro call', ['component' => $component::class, 'method' => $method, 'ip' => $this->request->ip()]);
     }
 }
 ```
 
 ```php
-// config/fusion.php
+// config/nitro.php
 'features' => [AuditCalls::class],
 ```
 
@@ -405,17 +405,17 @@ class AuditCalls extends Feature
 | `dehydrate($component)` | before the state goes to the browser, once per request |
 
 - **Order:** each hook runs after the component's own method of that name (`boot()`, `hydrate()`,
-  `dehydrate()`), and after Fusion's own, `#[Url]` and `#[Validate]`, which are features too:
-  `updated()` sees what `#[Validate]` found in `$component->fusion()->errors`.
+  `dehydrate()`), and after Nitro's own, `#[Url]` and `#[Validate]`, which are features too:
+  `updated()` sees what `#[Validate]` found in `$component->nitro()->errors`.
 - **Made by the container** once per request, so a constructor can take services.
 - **Stores** run them too: they are components.
 - **`updated()`** runs for every feature, even after one returned `false`; an error it adds to
-  `$component->fusion()->errors` reaches the browser as a validation message.
+  `$component->nitro()->errors` reaches the browser as a validation message.
 
 #### Attributes that work as features
 
 A feature can also be an attribute, which runs only for the components that have it, where it is
-placed. Extend `Nitro\Fusion\FeatureAttribute` (a `Feature`); `$this->target()` is the property or
+placed. Extend `Nitro\FeatureAttribute` (a `Feature`); `$this->target()` is the property or
 method it is on:
 
 ```php
@@ -426,7 +426,7 @@ class Throttle extends FeatureAttribute
 
     public function calling(Component $component, string $method, array $arguments): void
     {
-        $key = 'fusion:'.$component::class.':'.$method.':'.request()->ip();
+        $key = 'nitro:'.$component::class.':'.$method.':'.request()->ip();
         abort_if(RateLimiter::tooManyAttempts($key, $this->perMinute), 429);
         RateLimiter::hit($key);
     }
@@ -445,9 +445,9 @@ class Contact extends Component
 - **On a property**, `updated()` runs only when the browser changed that property.
 - **On the class**, and for the other hooks anywhere, they run always.
 - **Order:** attributes run after the component's own hooks and before `#[Validate]` and the
-  features listed in `config/fusion.php`, so a property's `updated()` can tidy a value before it
+  features listed in `config/nitro.php`, so a property's `updated()` can tidy a value before it
   is validated. Each component gets its own instance, made from the attribute's arguments (not by
-  the container). Fusion's `#[Url]` is one.
+  the container). Nitro's `#[Url]` is one.
 
 ### Events
 
@@ -491,7 +491,7 @@ with a custom name (`broadcastAs()`) is written with a leading dot: `echo:orders
 
 ### Pagination and sorting
 
-`Nitro\Fusion\Concerns\WithPagination` and `WithSorting` page and sort an array in the browser:
+`Nitro\Concerns\WithPagination` and `WithSorting` page and sort an array in the browser:
 
 ```php
 use WithPagination, WithSorting;
@@ -519,12 +519,12 @@ through its compiled form, so it uses what both can do:
 | Attributes | `@class` `@style` `@checked` `@selected` `@disabled` `@readonly` `@required` |
 | Forms | `@error` and `$errors`, `@csrf`, `@method` |
 | Data | `@json` |
-| Children | `<fusion:task-item :task="$task" :key="$task['id']" />` |
-| Dynamic children | `<fusion:dynamic-component :is="$name" />` renders the component `$name` names; none for `''` |
-| Slots | `<fusion:card>...<fusion:slot name="footer">...</fusion:slot></fusion:card>`; the card prints `{{ $slot }}` and `{{ $slots['footer'] }}` (`$slots->has('footer')`, `$slot->isEmpty()`) |
+| Children | `<nitro:task-item :task="$task" :key="$task['id']" />` |
+| Dynamic children | `<nitro:dynamic-component :is="$name" />` renders the component `$name` names; none for `''` |
+| Slots | `<nitro:card>...<nitro:slot name="footer">...</nitro:slot></nitro:card>`; the card prints `{{ $slot }}` and `{{ $slots['footer'] }}` (`$slots->has('footer')`, `$slot->isEmpty()`) |
 | Teleport | `@teleport('modals') ... @endteleport` renders at `@portal('modals')` in the layout |
 | Deferred | `@deferred('stats') ... @placeholder ... @enddeferred` in a page (see [Page data](#page-data)) |
-| Laravel helpers | `route()`, `url()`, `asset()`, `__()` / `trans()`, and `config()` for the keys in `fusion.public_config` |
+| Laravel helpers | `route()`, `url()`, `asset()`, `__()` / `trans()`, and `config()` for the keys in `nitro.public_config` |
 | PHP | operators, casts and PHP's functions: strings, mbstring, arrays, math, ctype, URLs, HTML entities, `preg_*`, `sprintf`, `json_encode` and more, tested against PHP |
 | `Str::` | 54 of Laravel's string helpers (`slug`, `limit`, `title`, `headline`, `camel`, `snake`, `mask`, `squish`, ...), tested against Laravel |
 
@@ -532,19 +532,19 @@ through its compiled form, so it uses what both can do:
 Anything else (`@php`, class-based Blade components, custom directives) cannot run in the browser,
 and the build fails with the file and line.
 
-Slot content belongs to the parent: its handlers and `fusion:model` act on the parent component.
+Slot content belongs to the parent: its handlers and `nitro:model` act on the parent component.
 
 ## Directives
 
 ### Events
 
 ```blade
-<button fusion:click="save">Save</button>
-<form fusion:submit.prevent="add">...</form>
-<input fusion:keydown.enter="search">
+<button nitro:click="save">Save</button>
+<form nitro:submit.prevent="add">...</form>
+<input nitro:keydown.enter="search">
 ```
 
-Any DOM event works: `fusion:click`, `fusion:submit`, `fusion:input`, `fusion:keydown`, and so on.
+Any DOM event works: `nitro:click`, `nitro:submit`, `nitro:input`, `nitro:keydown`, and so on.
 The value is a method name, a call (`remove($index)`), or one of the actions below.
 
 | Modifier | |
@@ -567,44 +567,44 @@ The value is a method name, a call (`remove($index)`), or one of the actions bel
 | `$dispatch('event', ...)`, `$dispatchTo('name', 'event', ...)`, `$dispatchSelf('event', ...)` | Dispatch an event |
 | `$reload('prop', ...)` | Reload page properties from the page's route (pages only) |
 | `$loadMore('prop')` | Load the next page of a scroll property (pages only) |
-| `$visit(url)` | Go to another page, as a `fusion:navigate` link does |
+| `$visit(url)` | Go to another page, as a `nitro:navigate` link does |
 
 ### Attributes
 
 | Attribute | |
 | --- | --- |
-| `fusion:model="email"` | Two-way binding. `.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`; a dotted path binds a key: `fusion:model="form.email"` |
-| `fusion:loading` | Shown while a `#[Server]` call runs. `.remove`, `.class="..."`, `.attr="disabled"`; `fusion:target="save"` limits it to one method |
-| `fusion:key` | Keeps an element's identity in a list |
-| `fusion:navigate` | A link to another page, rendered without a reload (see [Navigation](#navigation)) |
-| `fusion:current="active"` | A class while the link points at the current page |
-| `fusion:ignore` | Leaves the element as it is when the component renders again |
-| `fusion:confirm="Delete it?"` | Asks before the element's handlers run. `.prompt="Type DELETE to confirm\|DELETE"` asks for the word after the last `\|` |
-| `fusion:poll.30s="refresh"` | Calls a method every interval (2.5s by default); a bare `fusion:poll` refreshes. It pauses while the tab is hidden (`.keep-alive` does not); `.visible` polls only while the element is on screen |
-| `fusion:init="load"` | Calls a method once, when the element appears |
-| `fusion:visible="loadMore"` | Calls a method when the element comes into view. `.once` for the first time only, `.200px` to start that far before. While it stays in view, it is called again after each call that changed something, so a "load more" row fills the screen |
-| `fusion:ref="chart"` | The element, as `$refs.chart` in `$this->js()` and for `Fusion::browser()->canvas('chart')` |
-| `fusion:transition` | Animates the element as it enters and leaves (see [Transitions](#transitions)) |
+| `nitro:model="email"` | Two-way binding. `.blur`, `.debounce.300ms`, `.number`, `.trim`, `.boolean`; a dotted path binds a key: `nitro:model="form.email"` |
+| `nitro:loading` | Shown while a `#[Server]` call runs. `.remove`, `.class="..."`, `.attr="disabled"`; `nitro:target="save"` limits it to one method |
+| `nitro:key` | Keeps an element's identity in a list |
+| `nitro:navigate` | A link to another page, rendered without a reload (see [Navigation](#navigation)) |
+| `nitro:current="active"` | A class while the link points at the current page |
+| `nitro:ignore` | Leaves the element as it is when the component renders again |
+| `nitro:confirm="Delete it?"` | Asks before the element's handlers run. `.prompt="Type DELETE to confirm\|DELETE"` asks for the word after the last `\|` |
+| `nitro:poll.30s="refresh"` | Calls a method every interval (2.5s by default); a bare `nitro:poll` refreshes. It pauses while the tab is hidden (`.keep-alive` does not); `.visible` polls only while the element is on screen |
+| `nitro:init="load"` | Calls a method once, when the element appears |
+| `nitro:visible="loadMore"` | Calls a method when the element comes into view. `.once` for the first time only, `.200px` to start that far before. While it stays in view, it is called again after each call that changed something, so a "load more" row fills the screen |
+| `nitro:ref="chart"` | The element, as `$refs.chart` in `$this->js()` and for `Nitro::browser()->canvas('chart')` |
+| `nitro:transition` | Animates the element as it enters and leaves (see [Transitions](#transitions)) |
 
 ### Your own attributes
 
 An attribute of your own, such as a tooltip or a textarea that grows, is listed in
-`config/fusion.php` and run by a directive of the same name in your JavaScript:
+`config/nitro.php` and run by a directive of the same name in your JavaScript:
 
 ```php
-// config/fusion.php
+// config/nitro.php
 'attributes' => ['tooltip'],
 ```
 
 ```js
-Fusion.directive('tooltip', ({ el, value, modifiers, component }) => {
+Nitro.directive('tooltip', ({ el, value, modifiers, component }) => {
     const tip = makeTooltip(el, value, modifiers.includes('top') ? 'top' : 'bottom');
     return () => tip.remove();
 });
 ```
 
 ```blade
-<button fusion:tooltip.top="Saved {{ $count }} times">Save</button>
+<button nitro:tooltip.top="Saved {{ $count }} times">Save</button>
 ```
 
 - **The directive runs** when the element appears, again when the attribute's value or modifiers
@@ -613,19 +613,19 @@ Fusion.directive('tooltip', ({ el, value, modifiers, component }) => {
 - **It gets** `el`, `value` (a string; `@json(...)` in it passes data), `modifiers` (any words:
   `.top`, `.300ms`) and `component`. `component.dispatch(event, ...params)` dispatches an event as
   `$this->dispatch()` does, so `#[On]` methods, browser or `#[Server]`, hear it.
-- **Registering:** a script that runs after `@fusionScripts` calls `Fusion.directive()` directly;
-  one that runs before it (a module in the `<head>`) registers in a `fusion:starting` listener on
+- **Registering:** a script that runs after `@nitroScripts` calls `Nitro.directive()` directly;
+  one that runs before it (a module in the `<head>`) registers in a `nitro:starting` listener on
   `document`, which fires before any component starts. A directive registered later still runs on
   the elements already on the page.
-- **An unlisted `fusion:` attribute** fails the build. A name of Fusion's own (`fusion:click`,
-  `fusion:model`, ...) cannot be listed.
+- **An unlisted `nitro:` attribute** fails the build. A name of Nitro's own (`nitro:click`,
+  `nitro:model`, ...) cannot be listed.
 
 ### Plugins
 
-A plugin hooks into the runtime in the browser. `Fusion.use()` calls it once with the plugin API:
+A plugin hooks into the runtime in the browser. `Nitro.use()` calls it once with the plugin API:
 
 ```js
-Fusion.use(({ on, directive }) => {
+Nitro.use(({ on, directive }) => {
     on('request', ({ headers }) => {
         headers['X-Tenant'] = document.body.dataset.tenant;
     });
@@ -640,7 +640,7 @@ Fusion.use(({ on, directive }) => {
 | `component` | a component that started in the page: `{ name, el, dispatch(event, ...params) }` |
 | `render` | the same, after each render of the component |
 | `store` | a store made in this tab: `{ name, persist, sync, get(property), set(property, value), onChange(listener) }` |
-| `request` | before a `#[Server]` call (or a partial reload, as `$reload`): `{ component, method, headers }`; a header added is sent, Fusion's own cannot be changed |
+| `request` | before a `#[Server]` call (or a partial reload, as `$reload`): `{ component, method, headers }`; a header added is sent, Nitro's own cannot be changed |
 | `response` | when its answer came: `{ component, method, status }` (0: none came) |
 
 - **`on()`** returns a function that removes the listener. A `component` or `store` listener
@@ -649,24 +649,24 @@ Fusion.use(({ on, directive }) => {
   `{"$m": [[key, value], ...]}`). `set()` is the browser's own change, checked by the server on the
   next call; a `#[Locked]` property refuses it.
 - **Names** are the browser's: in an obfuscated build, methods and properties go by their aliases.
-- **A listener that throws** is reported (`fusion:error`); the others still run.
-- **`directive()`** is `Fusion.directive()` (see [Your own attributes](#your-own-attributes)).
+- **A listener that throws** is reported (`nitro:error`); the others still run.
+- **`directive()`** is `Nitro.directive()` (see [Your own attributes](#your-own-attributes)).
 - A plugin used twice runs once. Register plugins as directives are: directly after
-  `@fusionScripts`, or in a `fusion:starting` listener.
-- `#[Persist]` and `#[Sync]` are Fusion's own plugins, built on this API only.
+  `@nitroScripts`, or in a `nitro:starting` listener.
+- `#[Persist]` and `#[Sync]` are Nitro's own plugins, built on this API only.
 
 ## Stores
 
 A component's properties are its own. When several components need the same state (a cart a
 badge, a product list and a cart page all show), and need it longer than any one of them lives,
-put it in a store: a class written like a component, without a view, in `app/Fusion/Stores`.
+put it in a store: a class written like a component, without a view, in `app/Nitro/Stores`.
 
 ```php
-namespace App\Fusion\Stores;
+namespace App\Nitro\Stores;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Store;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Store;
 
 class Cart extends Store
 {
@@ -707,12 +707,12 @@ class Badge extends Component
 
 ```blade
 <span>{{ $cart->count }}</span>
-<button fusion:click="$cart->add($product)">Add</button>
+<button nitro:click="$cart->add($product)">Add</button>
 ```
 
 - **One store, shared.** Every component that uses `Cart` gets the same one: on the server, one
   per request (made with its `mount()`, which renders the first page); in the browser, one per
-  tab, kept across `fusion:navigate` visits. A component made later (a drawer opened, a cart page
+  tab, kept across `nitro:navigate` visits. A component made later (a drawer opened, a cart page
   reached by a visit) reads it as it is.
 - **What reads it renders again.** A change made through the store's methods renders again, in
   every component that uses it, only what reads it, and works out their `#[Computed]` values again.
@@ -728,7 +728,7 @@ class Badge extends Component
 A store has no view, is never placed or routed, and cannot use what belongs to a component on the
 page (`#[On]`, `#[Url]`, `#[Remember]`, `#[Modelable]`, uploads) or hold another store. A store is
 in the browser: like any public property, its state is public, and its `#[Server]` methods check
-what they rely on. Classes in `App\Fusion\Stores` are named `stores::cart` (`fusion.stores`).
+what they rely on. Classes in `App\Nitro\Stores` are named `stores::cart` (`nitro.stores`).
 
 ### Keeping and sharing a store
 
@@ -756,31 +756,31 @@ class Cart extends Store
   change from the browser. Read what must be true (prices, stock) from the database in `#[Server]`
   methods.
 - Without localStorage (blocked, a private window) or BroadcastChannel, the store works as without
-  them. Both are Fusion's own plugins (see [Plugins](#plugins)).
+  them. Both are Nitro's own plugins (see [Plugins](#plugins)).
 
 ## Pages
 
 A page is routed by its class or its name:
 
 ```php
-use App\Fusion\Pages\Students\Show;
+use App\Nitro\Pages\Students\Show;
 
-Route::fusion('/students/{student}', Show::class)->name('students.show');
-Route::fusion('/students', 'pages::students.index')->name('students.index');
+Route::nitro('/students/{student}', Show::class)->name('students.show');
+Route::nitro('/students', 'pages::students.index')->name('students.index');
 ```
 
-`Route::fusion()` returns a normal Laravel route, so names, middleware and route-model binding
+`Route::nitro()` returns a normal Laravel route, so names, middleware and route-model binding
 work as usual. The page's `mount()` receives the route's parameters:
 
 ```php
-namespace App\Fusion\Pages\Students;
+namespace App\Nitro\Pages\Students;
 
 use App\Models\Student;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 #[Title('Student')]
 #[Layout('components.layouts.app')]
@@ -807,16 +807,16 @@ class Show extends Component
 ```
 
 The page renders inside its layout as `$slot`, with `#[Title]` as `$title`. Without `#[Layout]`,
-it uses `fusion.layout` (`components.layouts.app`).
+it uses `nitro.layout` (`components.layouts.app`).
 
 ### The page's head
 
-Every Fusion page is rendered on the server on its first load, so search engines and link
-previews always get complete HTML. `@fusionHead` in the layout prints the page's `<title>` and
+Every Nitro page is rendered on the server on its first load, so search engines and link
+previews always get complete HTML. `@nitroHead` in the layout prints the page's `<title>` and
 the tags they read; a page sets only what it needs, and the rest comes from defaults.
 
 ```php
-// config/fusion.php: for every page
+// config/nitro.php: for every page
 'head' => [
     'title' => '%s · Campus Admin',      // the page's title in place of %s
     'description' => 'School administration',
@@ -854,7 +854,7 @@ public function mount(Invoice $invoice): void
 | `noindex()` | `<meta name="robots" content="noindex">` |
 | `meta($name, $content)` | any other `<meta name>` |
 
-A `fusion:navigate` visit brings the new page's head with its data, and the browser puts it in
+A `nitro:navigate` visit brings the new page's head with its data, and the browser puts it in
 place of the last page's. Pages behind a login rarely need more than a title; the head matters for
 public pages people search for and share. A layout that writes its own `<title>{{ $title }}</title>`
 keeps working: `$title` is the page's title.
@@ -866,10 +866,10 @@ components that are used together in one chunk.
 ## Navigation
 
 ```blade
-<a href="{{ route('students.index') }}" fusion:navigate>Students</a>
+<a href="{{ route('students.index') }}" nitro:navigate>Students</a>
 ```
 
-The first visit is rendered by the server. After that, a `fusion:navigate` link asks the same URL
+The first visit is rendered by the server. After that, a `nitro:navigate` link asks the same URL
 for the page's data: Laravel routes it as usual (middleware, bindings, redirects), the page runs
 `mount()` and answers with its state and title, and the browser renders the page in place of the
 current one. The layout, and the components in it, stay.
@@ -879,20 +879,20 @@ current one. The layout, and the components in it, stay.
   stylesheets load before it shows, its new scripts run, and its components and islands start. An
   error or a download loads normally.
 - **Scrolling.** A visit scrolls to the top, or to the URL's `#fragment`;
-  `fusion:navigate.preserve-scroll` keeps the current position. Back and forward return to where
+  `nitro:navigate.preserve-scroll` keeps the current position. Back and forward return to where
   each page was left.
-- **Starting early.** `fusion:navigate.keypress` starts the visit as the mouse button goes down,
+- **Starting early.** `nitro:navigate.keypress` starts the visit as the mouse button goes down,
   not on the click; touch and keyboard still use the click.
 - **Deploys.** Each visit sends the build's version. When a new build has been deployed since the
   page loaded, the server answers `409` and the browser loads the page in full, with the new code.
 - **From code.** `$visit(url)` in a handler and `$this->redirect($url)` in a method visit a page.
 
 Links are for going to another page. To filter or sort what a page shows, change a property
-(`$set()`, `fusion:model`) and let the view render again.
+(`$set()`, `nitro:model`) and let the view render again.
 
 ### How a visit shows a page
 
-A page chooses how a `fusion:navigate` visit shows it with `#[Navigate]`. Two questions decide
+A page chooses how a `nitro:navigate` visit shows it with `#[Navigate]`. Two questions decide
 which mode fits:
 
 ```
@@ -915,15 +915,15 @@ visit does.
 ### Data first or markup first
 
 Both ask the server; they differ in when the page appears. Set the default in
-`config/fusion.php`, and choose per page with `#[Navigate]`:
+`config/nitro.php`, and choose per page with `#[Navigate]`:
 
 ```php
-// config/fusion.php
+// config/nitro.php
 'navigation' => 'data',   // or 'markup'
 ```
 
 ```php
-use Nitro\Fusion\Attributes\Navigate;
+use Nitro\Attributes\Navigate;
 
 #[Navigate('markup')]
 class Dashboard extends Component
@@ -991,7 +991,7 @@ A progress bar runs at the top of the window during a visit. Publish its configu
 | `minimum`, `maximum`, `trickle`, `trickle_speed`, `speed`, `easing`, `fade_speed` | Its motion |
 
 The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. The runtime emits
-`fusion:request` and `fusion:response` around each `#[Server]` call.
+`nitro:request` and `nitro:response` around each `#[Server]` call.
 
 ## Page data
 
@@ -1084,11 +1084,11 @@ public function mount(): void
 
 ```blade
 @foreach ($posts as $post)
-    <article fusion:key="{{ $post['id'] }}">...</article>
+    <article nitro:key="{{ $post['id'] }}">...</article>
 @endforeach
 
 @if ($this->hasMore('posts'))
-    <div fusion:visible="$loadMore('posts')">Loading…</div>
+    <div nitro:visible="$loadMore('posts')">Loading…</div>
 @endif
 ```
 
@@ -1101,14 +1101,14 @@ sent whole and filtered in the browser with a `#[Computed]` method: filtering th
 
 ### Shared data
 
-`Fusion::share()` gives every component and page the same data. Set it in a middleware, so it is
+`Nitro::share()` gives every component and page the same data. Set it in a middleware, so it is
 set on every request:
 
 ```php
-use Nitro\Fusion\Facades\Fusion;
+use Nitro\Facades\Nitro;
 
-Fusion::share('user', fn () => $request->user()?->only('id', 'name'));
-Fusion::share('locale', app()->getLocale());
+Nitro::share('user', fn () => $request->user()?->only('id', 'name'));
+Nitro::share('locale', app()->getLocale());
 ```
 
 ```blade
@@ -1122,8 +1122,8 @@ Everything shared is sent to the browser, so share nothing secret.
 Data that rarely changes can be sent once:
 
 ```php
-Fusion::shareOnce('countries', fn () => Country::pluck('name', 'code'));
-Fusion::share('permissions', Fusion::once(fn () => $user->permissions())->until(3600));
+Nitro::shareOnce('countries', fn () => Country::pluck('name', 'code'));
+Nitro::share('permissions', Nitro::once(fn () => $user->permissions())->until(3600));
 ```
 
 The browser keeps it across visits and `#[Server]` calls, and the server does not send it again
@@ -1132,10 +1132,10 @@ is shared at the top level, under a key without dots.
 
 ### Flash data
 
-`Fusion::flash()` sends data with the next response only, such as a message after a save:
+`Nitro::flash()` sends data with the next response only, such as a message after a save:
 
 ```php
-Fusion::flash('toast', 'Invoice saved');
+Nitro::flash('toast', 'Invoice saved');
 ```
 
 ```blade
@@ -1146,18 +1146,18 @@ Fusion::flash('toast', 'Invoice saved');
 
 It goes with this request's page, visit or `#[Server]` answer, or, after a redirect, with the
 page the redirect leads to. Then it is gone, and back does not bring it again. The browser emits
-`fusion:flash` with it (`event.detail.flash`). Flash data needs the session (the `web` middleware).
+`nitro:flash` with it (`event.detail.flash`). Flash data needs the session (the `web` middleware).
 
 ## Transitions
 
-`fusion:transition` animates an element as it enters (an `@if` that turns true, a new row of a
+`nitro:transition` animates an element as it enters (an `@if` that turns true, a new row of a
 `@foreach`) and as it leaves. A leaving element stays in the page until its animation ends.
 
 Without a name, a built-in fade and scale needs no CSS:
 
 ```blade
 @if ($open)
-    <div class="panel" fusion:transition.duration.200ms>...</div>
+    <div class="panel" nitro:transition.duration.200ms>...</div>
 @endif
 ```
 
@@ -1174,7 +1174,7 @@ Without a name, a built-in fade and scale needs no CSS:
 With a name, CSS classes decide what moves and for how long:
 
 ```blade
-<p fusion:transition="fade">...</p>
+<p nitro:transition="fade">...</p>
 ```
 
 ```css
@@ -1185,13 +1185,13 @@ With a name, CSS classes decide what moves and for how long:
 
 ```blade
 @foreach ($students as $student)
-    <li fusion:key="{{ $student['id'] }}" fusion:transition.move.duration.250ms>{{ $student['name'] }}</li>
+    <li nitro:key="{{ $student['id'] }}" nitro:transition.move.duration.250ms>{{ $student['name'] }}</li>
 @endforeach
 
 @if ($tab === 'fees')
-    <section fusion:transition.out-in>...</section>
+    <section nitro:transition.out-in>...</section>
 @else
-    <section fusion:transition.out-in>...</section>
+    <section nitro:transition.out-in>...</section>
 @endif
 ```
 
@@ -1199,35 +1199,35 @@ Nothing animates on the server's HTML, in a hidden tab, or for visitors who ask 
 
 ## Islands
 
-A component placed in a plain Blade view (a page that is not a Fusion page, or a layout) is an
+A component placed in a plain Blade view (a page that is not a Nitro page, or a layout) is an
 island: the rest of the page stays HTML. An island starts with the page by default;
-`fusion:hydrate` starts it later, and `fusion:static` never does.
+`nitro:hydrate` starts it later, and `nitro:static` never does.
 
 ```blade
-<fusion:comments :post="$post" fusion:hydrate.visible />
-<fusion:chat-widget fusion:hydrate.interaction />
-<fusion:report-chart fusion:hydrate.idle />
-<fusion:mobile-menu fusion:hydrate.media="(max-width: 768px)" />
-<fusion:price-table fusion:static />
+<nitro:comments :post="$post" nitro:hydrate.visible />
+<nitro:chat-widget nitro:hydrate.interaction />
+<nitro:report-chart nitro:hydrate.idle />
+<nitro:mobile-menu nitro:hydrate.media="(max-width: 768px)" />
+<nitro:price-table nitro:static />
 ```
 
 | Attribute | The island starts |
 | --- | --- |
-| `fusion:hydrate.idle` | When the browser is idle |
-| `fusion:hydrate.visible` | When it comes into view; `.visible.200px` that far before |
-| `fusion:hydrate.interaction` | On the first click, focus, key or input in it. The click is replayed once the island is live, and typed text reaches `fusion:model` |
-| `fusion:hydrate.media="(query)"` | When the media query matches |
-| `fusion:static` | Never: the server's HTML, with no state sent |
+| `nitro:hydrate.idle` | When the browser is idle |
+| `nitro:hydrate.visible` | When it comes into view; `.visible.200px` that far before |
+| `nitro:hydrate.interaction` | On the first click, focus, key or input in it. The click is replayed once the island is live, and typed text reaches `nitro:model` |
+| `nitro:hydrate.media="(query)"` | When the media query matches |
+| `nitro:static` | Never: the server's HTML, with no state sent |
 
 Until it starts, an island is the server's HTML, and what is typed in it is kept. Its slots are
 rendered again in the browser once it starts. With `#[LazyLoad]`, an island's code is fetched only
-when it starts. Inside a component's view, children start with their parent, so `fusion:hydrate`
+when it starts. Inside a component's view, children start with their parent, so `nitro:hydrate`
 there is a build error.
 
 ## Uploads
 
 ```php
-use Nitro\Fusion\Upload;
+use Nitro\Upload;
 
 class CakeForm extends Component
 {
@@ -1246,8 +1246,8 @@ class CakeForm extends Component
 ```
 
 ```blade
-<input type="file" fusion:model="photo">
-<span fusion:loading fusion:target="photo">Uploading…</span>
+<input type="file" nitro:model="photo">
+<span nitro:loading nitro:target="photo">Uploading…</span>
 @error('photo') <p>{{ $message }}</p> @enderror
 
 @if ($photo)
@@ -1255,31 +1255,31 @@ class CakeForm extends Component
 @endif
 ```
 
-Choosing a file uploads it at once into `fusion.uploads.directory`, checked against
-`fusion.uploads.rules`. The property becomes an `Upload`, which is an `UploadedFile`, so
+Choosing a file uploads it at once into `nitro.uploads.directory`, checked against
+`nitro.uploads.rules`. The property becomes an `Upload`, which is an `UploadedFile`, so
 validation and `store()` work as usual; the browser holds only a signed reference to it.
 `temporaryUrl()` (images), `getClientOriginalName()`, `getClientOriginalExtension()`, `getSize()`
 and `getMimeType()` work in views on both sides.
 
-The input fires `fusion-upload-start`, `fusion-upload-progress` (`detail.progress`),
-`fusion-upload-finish` and `fusion-upload-error`. A file the rules refuse gives the property an
+The input fires `nitro-upload-start`, `nitro-upload-progress` (`detail.progress`),
+`nitro-upload-finish` and `nitro-upload-error`. A file the rules refuse gives the property an
 `$errors` message. Uploads that no component stored are removed after a day.
 
 ## Browser APIs
 
-`Fusion::browser()` reaches the browser's APIs from methods and handlers, written in PHP:
+`Nitro::browser()` reaches the browser's APIs from methods and handlers, written in PHP:
 
 ```php
-use Nitro\Fusion\Facades\Fusion;
+use Nitro\Facades\Nitro;
 
 public function copy(): void
 {
-    Fusion::browser()->clipboard()->write($this->invoice['number'], fn () => $this->copied = true);
+    Nitro::browser()->clipboard()->write($this->invoice['number'], fn () => $this->copied = true);
 }
 
 public function draw(): void
 {
-    $canvas = Fusion::browser()->canvas('chart')->size(320, 160)->clear()->fillStyle('#4f46e5');
+    $canvas = Nitro::browser()->canvas('chart')->size(320, 160)->clear()->fillStyle('#4f46e5');
 
     foreach ($this->totals as $i => $total) {
         $canvas->fillRect($i * 40, 160 - $total, 30, $total);
@@ -1288,27 +1288,27 @@ public function draw(): void
 
 public function connect(): void
 {
-    Fusion::browser()->socket('/ws/orders')
+    Nitro::browser()->socket('/ws/orders')
         ->onMessage(fn (array $order) => $this->orders[] = $order)
         ->send(['subscribe' => 'orders']);
 }
 ```
 
 ```blade
-<canvas fusion:ref="chart" fusion:init="draw"></canvas>
-<button fusion:click="Fusion::browser()->storage()->forget('draft')">Discard draft</button>
+<canvas nitro:ref="chart" nitro:init="draw"></canvas>
+<button nitro:click="Nitro::browser()->storage()->forget('draft')">Discard draft</button>
 ```
 
 | API | |
 | --- | --- |
 | `clipboard()` | `write($text, $then)`, `read($then)`; on https pages and localhost |
 | `storage()`, `session()` | localStorage and sessionStorage: `get($key, $default)`, `set($key, $value)`, `has($key)`, `forget($key)`. Values are stored as JSON |
-| `canvas($ref)` | The 2D context of `<canvas fusion:ref="...">`, with the context's own method names (`fillStyle`, `fillRect`, `arc`, `fillText`, ...). `size($width, $height)` sets the size in CSS pixels, scaled for the screen |
+| `canvas($ref)` | The 2D context of `<canvas nitro:ref="...">`, with the context's own method names (`fillStyle`, `fillRect`, `arc`, `fillText`, ...). `size($width, $height)` sets the size in CSS pixels, scaled for the screen |
 | `socket($url)` | A WebSocket, one per URL and component: `onMessage($then)`, `onOpen($then)`, `onClose($then)`, `send($data)`, `close()`. JSON messages arrive as arrays; it reconnects after a drop and closes when the component leaves the page |
 
 Callbacks are closures, and a property they change renders like any other change. Calls are
 checked when the bundle is built, and the bundle includes only the APIs the application uses.
-On the server, `Fusion::browser()` throws.
+On the server, `Nitro::browser()` throws.
 
 ## Rendering
 
@@ -1318,7 +1318,7 @@ property changes, only the parts that read it run, and only their DOM nodes chan
 
 ```blade
 <div>
-    <button fusion:click="increment">+</button>
+    <button nitro:click="increment">+</button>
     <p>Clicked {{ $count }} times</p>      {{-- reads $count --}}
     <p>Hello, {{ $name }}</p>               {{-- reads $name: untouched by a click --}}
 
@@ -1334,16 +1334,16 @@ A click on `+` changes one text node:
 | --- | --- | --- |
 | Livewire | the whole view, on the server | the new HTML against the page |
 | React, Vue | the component's render function | the new virtual DOM against the last one |
-| Fusion | the expressions that read the property | nothing: each expression updates its own node |
+| Nitro | the expressions that read the property | nothing: each expression updates its own node |
 
 What a part reads is worked out at compile time, through the methods it calls. `#[Computed]`
 values are kept until the state changes. `$errors`, `$this->shared()` and `$this->flashed()` are
 tracked like properties. A `#[Server]` answer, a reload and a parent's new props render only what
-reads what changed. Keyed lists (`fusion:key`, `:key`) move, add and remove rows and leave the
+reads what changed. Keyed lists (`nitro:key`, `:key`) move, add and remove rows and leave the
 others alone.
 
 When the browser creates elements (a visit, an `@if` turning true, new rows), the
-`fusion.rendering` setting decides how:
+`nitro.rendering` setting decides how:
 
 - **`'clone'`** (the default): each static part of a view is built once and copied after that.
 - **`'create'`**: every element is created in turn.
@@ -1352,26 +1352,26 @@ The result is the same either way. The first page load uses the server's HTML as
 
 ## Building for production
 
-During development, Fusion compiles components on the first request after a change. For
+During development, Nitro compiles components on the first request after a change. For
 production, build ahead of time:
 
 ```bash
-php artisan fusion:build
+php artisan nitro:build
 ```
 
 - **Compiles** every component and page, minified with esbuild, and shows each step with its time
   (`-v` lists the components). Unchanged chunks come from a cache.
-- **Publishes** the build to `public/fusion`. `@fusionScripts` points at those files through
+- **Publishes** the build to `public/nitro`. `@nitroScripts` points at those files through
   `asset()`, so `ASSET_URL` and a CDN apply, and the web server sends them without PHP. Their names
   carry a version, so they can be cached for a year
-  (`Cache-Control: public, max-age=31536000, immutable`). Add `/public/fusion` to `.gitignore`.
-- **Obfuscates** the build (`fusion.build.obfuscate`, on by default): methods, properties, pages
+  (`Cache-Control: public, max-age=31536000, immutable`). Add `/public/nitro` to `.gitignore`.
+- **Obfuscates** the build (`nitro.build.obfuscate`, on by default): methods, properties, pages
   and components go by aliases derived from `APP_KEY` in the bundle, the page and what the
   browser sends, and the server translates them back. Your PHP, views and tests use the real
   names.
 
-Run `fusion:build` when deploying; `php artisan optimize` does not run it. `php artisan
-fusion:clear` removes the compiled files. Until the next build after a change, the `/_fusion`
+Run `nitro:build` when deploying; `php artisan optimize` does not run it. `php artisan
+nitro:clear` removes the compiled files. Until the next build after a change, the `/_nitro`
 routes serve the current code.
 
 With obfuscation, write property and key names out in full (`$errors->has('form.email')`,
@@ -1385,42 +1385,42 @@ of views and browser methods.
 
 ## Configuration
 
-`config/fusion.php`:
+`config/nitro.php`:
 
 | Key | Default | |
 | --- | --- | --- |
-| `endpoint` | `/_fusion` | The URL prefix for `#[Server]` calls, uploads and assets (`FUSION_ENDPOINT`) |
+| `endpoint` | `/_nitro` | The URL prefix for `#[Server]` calls, uploads and assets (`NITRO_ENDPOINT`) |
 | `middleware` | `['web']` | Middleware for the endpoint |
-| `components` | `App\Fusion\Components` | Namespace, path and view path of components |
-| `pages` | `App\Fusion\Pages` | Namespace, path and view path of pages |
-| `stores` | `App\Fusion\Stores` | Namespace and path of stores |
+| `components` | `App\Nitro\Components` | Namespace, path and view path of components |
+| `pages` | `App\Nitro\Pages` | Namespace, path and view path of pages |
+| `stores` | `App\Nitro\Stores` | Namespace and path of stores |
 | `layout` | `components.layouts.app` | The layout of pages without `#[Layout]` |
-| `head` | `'%s'`, no description or image | `@fusionHead`'s defaults: the title format, the description and the link-preview image |
+| `head` | `'%s'`, no description or image | `@nitroHead`'s defaults: the title format, the description and the link-preview image |
 | `persistent_middleware` | auth, can, verified, ... | Page middleware checked again on each `#[Server]` call |
 | `max_payload` | 1 MB | The largest `#[Server]` call accepted |
 | `state.bind_to_session` | `true` | Sign state with the session's secret too: good only in its own session |
 | `state.lifetime` | `null` | How long a snapshot is good for, in seconds; null: as long as its session |
 | `uploads` | | `directory`, `rules`, `max_files`, `throttle` |
 | `public_config` | `['app.name']` | Config keys `config()` may read in the browser; their values are public |
-| `compiled` | `storage/framework/fusion` | Where compiled files are written |
-| `static` | `fusion` | The directory in `public/` for the build |
-| `build.obfuscate` | `true` | Obfuscate builds (`FUSION_OBFUSCATE`) |
-| `minify_on_change` | `true` | Minify when recompiling during development (`FUSION_MINIFY_ON_CHANGE`) |
+| `compiled` | `storage/framework/nitro` | Where compiled files are written |
+| `static` | `nitro` | The directory in `public/` for the build |
+| `build.obfuscate` | `true` | Obfuscate builds (`NITRO_OBFUSCATE`) |
+| `minify_on_change` | `true` | Minify when recompiling during development (`NITRO_MINIFY_ON_CHANGE`) |
 | `rendering` | `'clone'` | How the browser creates elements: `'clone'` or `'create'` |
 | `navigation` | `'data'` | How a visit shows a page: `'data'` (data first) or `'markup'` (markup first); `#[Navigate]` per page |
-| `attributes` | `[]` | Your own `fusion:` attributes, each run by a `Fusion.directive()` (see [Your own attributes](#your-own-attributes)) |
+| `attributes` | `[]` | Your own `nitro:` attributes, each run by a `Nitro.directive()` (see [Your own attributes](#your-own-attributes)) |
 | `features` | `[]` | Classes that run around every component on the server (see [Features](#features)) |
-| `esbuild` | | The Node binary (`FUSION_NODE`) and where esbuild is installed |
+| `esbuild` | | The Node binary (`NITRO_NODE`) and where esbuild is installed |
 
 ## Testing your application
 
-`assertFusion()` reads a page from a response, whether rendered in full or answered to a visit,
+`assertNitro()` reads a page from a response, whether rendered in full or answered to a visit,
 and asserts on its name and state. Keys use dot notation.
 
 ```php
-use Nitro\Fusion\Testing\AssertableFusion;
+use Nitro\Testing\AssertableNitro;
 
-$this->get('/orders')->assertOk()->assertFusion(fn (AssertableFusion $page) => $page
+$this->get('/orders')->assertOk()->assertNitro(fn (AssertableNitro $page) => $page
     ->page('pages::orders.index')
     ->has('orders', 12)
     ->where('orders.0.status', 'new')
@@ -1428,21 +1428,21 @@ $this->get('/orders')->assertOk()->assertFusion(fn (AssertableFusion $page) => $
     ->missing('secret')
     ->deferred('stats'));
 
-$orders = $this->get('/orders')->fusionState('orders');
+$orders = $this->get('/orders')->nitroState('orders');
 ```
 
 `deferred()` asserts that the page leaves properties for later, and `notDeferred()` that it does not.
 
 ## Limitations
 
-Fusion runs your methods in the browser, which has some consequences:
+Nitro runs your methods in the browser, which has some consequences:
 
 - **Server work belongs in `#[Server]` methods.** Queries, services, `Auth`, `Cache`, files, mail
   and the clock (`now()`, `date()`) are the server's. A browser method that uses them fails the
   build with the file and line.
 - **A component with `mount()` is created by the server**: on the first request, a visit, or a
   `#[Server]` call of the component whose view places it. A change made in the browser alone
-  (`$set`, a browser method) cannot place a new one: a `<fusion:dynamic-component>` that switches
+  (`$set`, a browser method) cannot place a new one: a `<nitro:dynamic-component>` that switches
   to such a component needs one of those.
 - **Numbers are JavaScript's.** Integers are exact up to 2^53 (`PHP_INT_MAX` is 2^53-1 in the
   browser), and a whole float arrives as an int. Transcendental functions (`tanh`, `atanh`, ...)
@@ -1471,7 +1471,7 @@ own secret and the logged-in user. The endpoint refuses:
 
 - a changed state, or one made in another session or for another user: another visitor's, or one
   from before a logout, even an `Auth::logout()` that keeps the session (419);
-- a state older than `fusion.state.lifetime`, when one is set (419);
+- a state older than `nitro.state.lifetime`, when one is set (419);
 - methods that are not `#[Server]`, locked or unknown properties, and values or arguments of the
   wrong type (403); an upload anywhere but an `Upload` or `#[Uploads]` property (403);
 - a visitor who no longer passes the page's authorization middleware (`auth`, `can`, `verified`,
@@ -1489,11 +1489,11 @@ needs them.
 Within its type, an unlocked property takes any value the browser sends; `#[Validate]` rules on
 it are checked before a `#[Server]` method runs (see [Properties](#properties)).
 
-On a 419 the page reloads with fresh state; a `fusion:expired` listener can `preventDefault()` to
+On a 419 the page reloads with fresh state; a `nitro:expired` listener can `preventDefault()` to
 do something else.
 
 ```php
-// config/fusion.php
+// config/nitro.php
 'state' => [
     'bind_to_session' => true,   // off only for pages cached as whole HTML for every visitor
     'lifetime' => null,          // seconds; set it where an old state must not come back
@@ -1514,9 +1514,9 @@ value in the child's `mount()`, when the child relies on it.
 The endpoint runs in the `web` middleware group, with sessions and CSRF protection. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for how state, signing and calls work.
 
-## How Fusion is tested
+## How Nitro is tested
 
-Fusion runs one component in two places, so it is tested for doing the same thing in both, for
+Nitro runs one component in two places, so it is tested for doing the same thing in both, for
 refusing what it must, and for not breaking on input nobody planned for. The test suites are kept
 with the framework's source; they are not part of the published package.
 
@@ -1531,7 +1531,7 @@ with the framework's source; they are not part of the published package.
 | Differential fuzzing | Thousands of random PHP methods, run in PHP and compiled in the browser's runtime | Any difference is a bug, reported with the seed that makes it again |
 | Template fuzzing | Random views rendered by Blade and by the browser | The same DOM on both sides |
 | Round-trip (property) fuzzing | Random values sent through `#[Server]` calls and back | Every value arrives as it left: types, keys, order |
-| Robustness fuzzing | Valid input bent at random: requests to the endpoints, component classes and views, views with `<fusion:...>` tags, the wire format | Bad input is refused cleanly (a 4xx, or a compile error with its file and line); never a crash, a 500 or invalid output |
+| Robustness fuzzing | Valid input bent at random: requests to the endpoints, component classes and views, views with `<nitro:...>` tags, the wire format | Bad input is refused cleanly (a 4xx, or a compile error with its file and line); never a crash, a 500 or invalid output |
 | Static analysis | PHPStan, level 6 | Types and calls across the PHP source |
 
 ```bash
@@ -1550,9 +1550,9 @@ composer install
 npm install
 composer test     # PHP and Node: parity with PHP, rendering, security, the runtime in a browser
 composer analyse  # PHPStan
-npm run build     # rebuild dist/fusion.js after changing js/src
+npm run build     # rebuild dist/nitro.js after changing js/src
 ```
 
 ## License
 
-Nitro Fusion is open-source software licensed under the [MIT license](LICENSE.md).
+Nitro is open-source software licensed under the [MIT license](LICENSE.md).

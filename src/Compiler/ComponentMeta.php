@@ -1,28 +1,28 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
-use Nitro\Fusion\Attributes\Cached;
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Description;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Attributes\Modelable;
-use Nitro\Fusion\Attributes\Navigate;
-use Nitro\Fusion\Attributes\Persist;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Sync;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\PropertyHooks;
-use Nitro\Fusion\NavigationMode;
-use Nitro\Fusion\Store;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Attributes\Cached;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Description;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Attributes\Modelable;
+use Nitro\Attributes\Navigate;
+use Nitro\Attributes\Persist;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Sync;
+use Nitro\Attributes\Validate;
+use Nitro\Attributes\View;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\PropertyHooks;
+use Nitro\NavigationMode;
+use Nitro\Store;
+use Nitro\Support\Protocol;
 use ReflectionMethod;
 
 /**
- * What Fusion knows about a component class, read once from its code (ComponentReader).
+ * What Nitro knows about a component class, read once from its code (ComponentReader).
  */
 final class ComponentMeta
 {
@@ -55,10 +55,10 @@ final class ComponentMeta
         public readonly string $engine,
         public readonly array $computed = [],
         public readonly ?string $lazy = null,
-        /** The #[Modelable] property: what fusion:model on its tag binds. */
+        /** The #[Modelable] property: what nitro:model on its tag binds. */
         public readonly ?string $modelable = null,
         public readonly bool $page = false,
-        /** #[Navigate]: this page's mode; null to follow fusion.navigation. */
+        /** #[Navigate]: this page's mode; null to follow nitro.navigation. */
         public readonly ?NavigationMode $navigate = null,
         /** #[Description]: the page's description for search results and link previews. */
         public readonly ?string $description = null,
@@ -123,7 +123,7 @@ final class ComponentMeta
     }
 
     /**
-     * Its view gets these names from Fusion (ViewEngine::reservedNames()): a property or method
+     * Its view gets these names from Nitro (ViewEngine::reservedNames()): a property or method
      * of the component cannot have one too, or the view would see only one of them.
      *
      * @param  list<string>  $reserved
@@ -136,7 +136,7 @@ final class ComponentMeta
         if ($taken !== []) {
             $what = isset($this->properties[$taken[0]]) ? '$'.$taken[0] : $taken[0].'()';
 
-            throw new CompileException("{$what} of {$this->class}: a {$engine} view gets {$taken[0]} from Fusion (".implode(', ', $reserved).'), so the component cannot have it too; rename it', $this->file);
+            throw new CompileException("{$what} of {$this->class}: a {$engine} view gets {$taken[0]} from Nitro (".implode(', ', $reserved).'), so the component cannot have it too; rename it', $this->file);
         }
     }
 

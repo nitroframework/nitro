@@ -1,12 +1,12 @@
 /**
- * fusion:transition, as Vue's <Transition>: an element animates as it enters (an @if that
+ * nitro:transition, as Vue's <Transition>: an element animates as it enters (an @if that
  * becomes true, a new row of a @foreach) and as it leaves (it stays in the page until its leave
  * animation ends, then goes).
  *
- *   fusion:transition="fade"            Vue's classes: fade-enter-from, fade-enter-active,
+ *   nitro:transition="fade"            Vue's classes: fade-enter-from, fade-enter-active,
  *                                       fade-enter-to, then fade-leave-from, -leave-active, -leave-to;
  *                                       the CSS says what moves, and for how long
- *   fusion:transition                   a built-in fade and scale, no CSS needed:
+ *   nitro:transition                   a built-in fade and scale, no CSS needed:
  *                                       .opacity or .scale (one only), .duration.300ms, .origin.top
  *   .appear                             on the component's first render too (a visit's new page);
  *                                       never on the server's HTML, which is there already
@@ -20,10 +20,10 @@
  */
 import { duration } from '../dom/events.js';
 
-/** The element's transition, from its fusion:transition attribute; null for none. */
+/** The element's transition, from its nitro:transition attribute; null for none. */
 export function transitionOf(el) {
     if (el?.nodeType !== 1) return null;
-    const attribute = el.getAttributeNames().find((name) => name === 'fusion:transition' || name.startsWith('fusion:transition.'));
+    const attribute = el.getAttributeNames().find((name) => name === 'nitro:transition' || name.startsWith('nitro:transition.'));
     if (!attribute) return null;
 
     const modifiers = attribute.split('.').slice(1);

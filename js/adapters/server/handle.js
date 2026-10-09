@@ -18,12 +18,12 @@ export function handleFrom(state) {
     const get = (path) => {
         if (path in computed) return computed[path];
         const [root, ...keys] = String(path).split('.');
-        if (!(root in properties)) throw new Error(`Fusion: [${root}] is not a property of this component`);
+        if (!(root in properties)) throw new Error(`Nitro: [${root}] is not a property of this component`);
         return keys.reduce((value, key) => value?.[key], properties[root]);
     };
 
     const browserOnly = (what) => () => {
-        throw new Error(`Fusion: ${what} while the view renders on the server: that is the browser's, once it has taken over`);
+        throw new Error(`Nitro: ${what} while the view renders on the server: that is the browser's, once it has taken over`);
     };
 
     return {

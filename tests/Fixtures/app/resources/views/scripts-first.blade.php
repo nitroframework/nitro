@@ -2,10 +2,10 @@
 <html>
 <head>
     <title>Scripts first</title>
-    @fusionScripts
+    @nitroScripts
 </head>
 <body>
-    <fusion:counter :step="3" />
-    <fusion:counter fusion:static />
+    <nitro:counter :step="3" />
+    <nitro:counter nitro:static />
 </body>
 </html>

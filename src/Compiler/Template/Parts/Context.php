@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Compiler\Transpiler;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Compiler\Transpiler;
 use PhpParser\Node\Expr;
 
 /**
@@ -27,7 +27,7 @@ use PhpParser\Node\Expr;
  *    value is being read, the comment and end tag read so far, the static text not yet a node
  *    (HtmlScanner, Tree)
  *  - the line being compiled, for errors and handlers (TemplateCompiler, HtmlScanner)
- *  - the inlined views' frames (InlinedViews): Fusion's handling of @include and <x-component>
+ *  - the inlined views' frames (InlinedViews): Nitro's handling of @include and <x-component>
  *
  * TemplateCompiler binds its public $calledMethods to the property here (by reference), so the
  * ComponentCompiler keeps reading it on the TemplateCompiler.
@@ -68,7 +68,7 @@ final class Context
     /** Static text read but not yet made a node. */
     public string $text = '';
 
-    /** How many <fusion:child> tags the view has so far: each one's number. */
+    /** How many <nitro:child> tags the view has so far: each one's number. */
     public int $children = 0;
 
     /** A directive was the last token: Blade's PHP drops the newline right after it. */

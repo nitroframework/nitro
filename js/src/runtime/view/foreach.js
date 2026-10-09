@@ -3,7 +3,7 @@
  * there keeps its nodes, moved to its new place; new values get new iterations; those gone are
  * removed.
  *
- * Fusion: an array at another key (a list reindexed) is still the same item, and moves. A write
+ * Nitro: an array at another key (a list reindexed) is still the same item, and moves. A write
  * replaces a value where Viewi changes it in place, so an iteration whose value was replaced
  * keeps its nodes too, by its key, and takes the new value: what reads its variables renders
  * after this (it reads what the loop reads), so a row being typed into keeps its field. An
@@ -37,7 +37,7 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     const current = [...currentArrayScope.data.values()];
     const usedMap = new Set();
 
-    /** fusion:transition.move: where its rows are before anything changes. */
+    /** nitro:transition.move: where its rows are before anything changes. */
     const movers = moversIn(current);
     const before = movers.length ? positions(movers.map(([el]) => el)) : null;
 
@@ -47,11 +47,11 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     for (const [dataKey, dataItem] of P.iter(data)) {
         positionIndex++;
         let foundIndex = current.findIndex((item) => !usedMap.has(item) && item.value === dataItem && (noKey || item.key === dataKey));
-        /** Fusion: an array at another key (a list reindexed) is the same item: it moves. */
+        /** Nitro: an array at another key (a list reindexed) is the same item: it moves. */
         if (foundIndex === -1 && typeof dataItem === 'object' && dataItem !== null) {
             foundIndex = current.findIndex((item) => !usedMap.has(item) && item.value === dataItem);
         }
-        /** Fusion: a value replaced by a write keeps the iteration of its key. */
+        /** Nitro: a value replaced by a write keeps the iteration of its key. */
         if (foundIndex === -1) {
             foundIndex = current.findIndex((item) => !usedMap.has(item) && item.key === dataKey);
         }
@@ -63,7 +63,7 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     }
 
     /**
-     * Those gone are removed first: a row that leaves animated (fusion:transition) stays where it
+     * Those gone are removed first: a row that leaves animated (nitro:transition) stays where it
      * was meanwhile, and the rows are placed around it.
      */
     for (const item of current) {
@@ -119,7 +119,7 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     }
 }
 
-/** The rows' elements with fusion:transition.move (not those leaving, nor in a tab that is hidden). */
+/** The rows' elements with nitro:transition.move (not those leaving, nor in a tab that is hidden). */
 function moversIn(items) {
     const movers = [];
     for (const item of items) {
@@ -131,7 +131,7 @@ function moversIn(items) {
     return movers;
 }
 
-/** Past the nodes still leaving (fusion:transition): they keep their place until they go. */
+/** Past the nodes still leaving (nitro:transition): they keep their place until they go. */
 function pastLeaving(node) {
     while (node?._leaving) node = node.nextSibling;
     return node;

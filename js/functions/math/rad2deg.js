@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Rad2deg.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Rad2deg.js, for Nitro's values.
 function rad2deg (angle) {
   //  discuss at: https://locutus.io/php/rad2deg/
   // original by: Enrique Gonzalez

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
 /**
  * Where fixture #[Server] methods record what they did (not a component: it does not extend

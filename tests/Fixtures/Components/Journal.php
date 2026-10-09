@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /**
  * The lifecycle: the server hooks (boot, mount, hydrate, dehydrate) as Livewire has them; the
- * browser's (mounted, destroyed) as Viewi has them; $this->js() with $refs (fusion:ref).
+ * browser's (mounted, destroyed) as Viewi has them; $this->js() with $refs (nitro:ref).
  */
 class Journal extends Component
 {
@@ -54,6 +54,6 @@ class Journal extends Component
     public function save(): void
     {
         $this->saved[] = $this->note;
-        $this->js('window.savedJournal = $fusion.note + " / " + $refs.status.textContent + " / " + $el.tagName');
+        $this->js('window.savedJournal = $nitro.note + " / " + $refs.status.textContent + " / " + $el.tagName');
     }
 }

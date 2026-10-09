@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Cached;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Cached;
+use Nitro\Component;
 
 /** #[Cached] on a browser method: it runs where there is no cache to keep its result in. */
 class CachedBrowserMethod extends Component

@@ -1,23 +1,23 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Closure;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\View\Compilers\BladeCompiler;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentCompiler;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\Functions;
-use Nitro\Fusion\Compiler\Globals;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Compiler\Uses;
-use Nitro\Fusion\NavigationMode;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\LayoutKey;
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentCompiler;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\Functions;
+use Nitro\Compiler\Globals;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\Uses;
+use Nitro\NavigationMode;
+use Nitro\Support\Config;
+use Nitro\Support\LayoutKey;
+use Nitro\Support\Registry;
+use Nitro\View\ViewEngines;
 
 /**
  * Every component compiled into the browser's files: the main bundle ('') and a chunk for each
@@ -37,9 +37,9 @@ final class BundleCompiler
         private readonly Filesystem $files,
         private readonly Chunks $chunks,
         private readonly PageRoutes $pageRoutes,
-        /** fusion.rendering: 'clone' (views' static parts copied in the browser) or 'create' */
+        /** nitro.rendering: 'clone' (views' static parts copied in the browser) or 'create' */
         private readonly string $rendering,
-        /** fusion.navigation: how a visit shows a page without #[Navigate] */
+        /** nitro.navigation: how a visit shows a page without #[Navigate] */
         private readonly NavigationMode $navigation,
     ) {
     }
@@ -47,7 +47,7 @@ final class BundleCompiler
     /**
      * Every file: '' the main bundle, then each group's chunk; and what the code uses, the
      * #[Browser] classes it reaches, and the components that did not compile. $compiling hears
-     * each component as it is compiled (fusion:build -v lists them).
+     * each component as it is compiled (nitro:build -v lists them).
      *
      * A build ($build) fails on the first component that does not compile. In development, such a
      * component is left out, with its error (uses' broken): the pages that use it fail with that
@@ -89,11 +89,11 @@ final class BundleCompiler
                     continue;
                 }
 
-                /** A view Fusion compiles is read here; one the app's build compiles is only named. */
+                /** A view Nitro compiles is read here; one the app's build compiles is only named. */
                 $engine = $this->views->of($meta);
                 $meta->assertNamesFree($engine->reservedNames(), $engine->label());
                 $viewFile = $engine->file($meta);
-                $definition = $compiler->compile($meta, $engine->compiledByFusion() ? $this->files->get($viewFile) : null, $viewFile);
+                $definition = $compiler->compile($meta, $engine->compiledByNitro() ? $this->files->get($viewFile) : null, $viewFile);
             } catch (CompileException $exception) {
                 if ($build) {
                     throw $exception;
@@ -121,7 +121,7 @@ final class BundleCompiler
             $routes = array_map(fn (array $route) => [$route[0], $this->chunks->id($route[1], $build)], $this->chunks->routes());
 
             $main[] = '// #[LazyLoad]: component => chunk, and the pages that render them'."\n"
-                .'Fusion.lazy('.json_encode((object) $ids, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).', '
+                .'Nitro.lazy('.json_encode((object) $ids, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).', '
                 .json_encode($routes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
 
@@ -140,7 +140,7 @@ final class BundleCompiler
 
         if ($markup !== []) {
             $main[] = '// #[Navigate(\'markup\')] and #[Navigate(\'client\')]: path => page, rendered at once on a visit'."\n"
-                .'Fusion.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
+                .'Nitro.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
 
         /** The #[Browser] classes' methods the components reach, in the main bundle: any chunk may call them. */
@@ -168,15 +168,15 @@ final class BundleCompiler
         return ['files' => $files, 'uses' => $uses + ['chunks' => $map, 'broken' => (object) $broken], 'classes' => $compiler->compiledClasses()];
     }
 
-    /** Whether a visit to the page renders it at once (markup first, or client): its #[Navigate], or fusion.navigation. */
+    /** Whether a visit to the page renders it at once (markup first, or client): its #[Navigate], or nitro.navigation. */
     public function markupFirst(ComponentMeta $meta): bool
     {
         return $meta->page && ($meta->navigate ?? $this->navigation)->rendersAtOnce();
     }
 
     /**
-     * The application's own fusion: attributes (fusion.attributes), checked: a name that is not
-     * one, or is Fusion's own, fails every compile with the reason.
+     * The application's own nitro: attributes (nitro.attributes), checked: a name that is not
+     * one, or is Nitro's own, fails every compile with the reason.
      *
      * @return list<string>
      */
@@ -217,7 +217,7 @@ final class BundleCompiler
     /** @param  list<string>  $definitions */
     private function wrap(array $definitions): string
     {
-        return "(function (Fusion, P, B) {\n\"use strict\";\n".implode("\n\n", $definitions)
-            ."\n})(window.Fusion, window.Fusion.P, window.Fusion.B);\n";
+        return "(function (Nitro, P, B) {\n\"use strict\";\n".implode("\n\n", $definitions)
+            ."\n})(window.Nitro, window.Nitro.P, window.Nitro.B);\n";
     }
 }

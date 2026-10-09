@@ -1,9 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Support\Html;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Support\Html;
+use Nitro\Support\Protocol;
 
 /**
  * The HTML scanner: the view's static text read as the browser's HTML parser reads it, into
@@ -23,10 +24,10 @@ use Nitro\Fusion\Support\Html;
  * match the open element is a compile error, as is a <tr> directly in a <table> (the browser
  * would insert a <tbody>, and the trees would differ).
  *
- * Fusion's syntax inside HTML is handed on: <fusion:...> tags and <fusion:slot> to
- * ChildComponents, fusion: attributes to FusionAttributes. Two Fusion details stay here, in
- * quoted values: an obfuscated build's names for the property in fusion:model and the targets
- * in fusion:target.
+ * Nitro's syntax inside HTML is handed on: <nitro:...> tags and <nitro:slot> to
+ * ChildComponents, nitro: attributes to NitroAttributes. Two Nitro details stay here, in
+ * quoted values: an obfuscated build's names for the property in nitro:model and the targets
+ * in nitro:target.
  *
  * @internal
  */
@@ -114,6 +115,8 @@ final class HtmlScanner extends Part
 
         $context->text .= substr($text, $i, $tagStart - $i);
         $this->lineAt($text, $tagStart);
+        /** <nitro:..., </nitro:..., <nitro:slot: the protocol's namespace, measured (it is not always that long). */
+        [$open, $close, $slot] = ['<'.Protocol::namespace(), '</'.Protocol::namespace(), '<'.Protocol::namespace().'slot'];
 
         if (substr_compare($text, '<!--', $tagStart, 4) === 0) {
             $tree->flushText();
@@ -123,15 +126,15 @@ final class HtmlScanner extends Part
             return $tagStart + 4;
         }
 
-        if (substr_compare($text, '<fusion:slot', $tagStart, 12, true) === 0 && preg_match('/\G<fusion:slot[\s\/>]/i', $text, $_, 0, $tagStart)) {
+        if (substr_compare($text, $slot, $tagStart, strlen($slot), true) === 0 && preg_match('/\G'.preg_quote($slot, '/').'[\s\/>]/i', $text, $_, 0, $tagStart)) {
             return $children->slotOpen($text, $tagStart);
         }
 
-        if (substr_compare($text, '<fusion:', $tagStart, 8, true) === 0) {
+        if (substr_compare($text, $open, $tagStart, strlen($open), true) === 0) {
             return $children->child($text, $tagStart);
         }
 
-        if (substr_compare($text, '</fusion:', $tagStart, 9, true) === 0) {
+        if (substr_compare($text, $close, $tagStart, strlen($close), true) === 0) {
             return $children->childClose($text, $tagStart);
         }
 
@@ -252,8 +255,8 @@ final class HtmlScanner extends Part
             return $i + 1;
         }
 
-        if (preg_match('/\Gfusion:([\w\-.]+)/', $text, $match, 0, $i)) {
-            return $this->compiler->fusionAttributes->fusionAttribute($text, $i, $match[1]);
+        if (preg_match('/\Gnitro:([\w\-.]+)/', $text, $match, 0, $i)) {
+            return $this->compiler->nitroAttributes->nitroAttribute($text, $i, $match[1]);
         }
 
         if (preg_match('/\G([^\s"\'>\/=]+)(\s*=\s*)?/', $text, $match, 0, $i)) {
@@ -291,15 +294,15 @@ final class HtmlScanner extends Part
         if ($static !== '') {
             $decoded = html_entity_decode($static, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-            /** fusion:model's property by the browser's name for it: the path's start (an obfuscated build). */
+            /** nitro:model's property by the browser's name for it: the path's start (an obfuscated build). */
             $attribute = $context->tag->attributes[$context->attribute];
 
-            if ($context->scope->names !== null && ($attribute['c'] === 'fusion:model' || str_starts_with($attribute['c'], 'fusion:model.')) && $attribute['h'] === []) {
+            if ($context->scope->names !== null && ($attribute['c'] === 'nitro:model' || str_starts_with($attribute['c'], 'nitro:model.')) && $attribute['h'] === []) {
                 $decoded = $context->scope->browserPath($decoded);
             }
 
-            /** fusion:target's methods, and properties or paths (an upload's, fusion:dirty's), by the browser's names for them (an obfuscated build). */
-            if ($context->scope->names !== null && $context->tag->attributes[$context->attribute]['c'] === 'fusion:target') {
+            /** nitro:target's methods, and properties or paths (an upload's, nitro:dirty's), by the browser's names for them (an obfuscated build). */
+            if ($context->scope->names !== null && $context->tag->attributes[$context->attribute]['c'] === 'nitro:target') {
                 $decoded = implode(',', array_map(fn (string $target) => match (true) {
                     $context->scope->isClientMethod(trim($target)) || $context->scope->isServerMethod(trim($target)) => $context->scope->browserMethod(trim($target)),
                     $context->scope->isProperty(explode('.', trim($target))[0]) => $context->scope->browserPath(trim($target)),

@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
 use Illuminate\Validation\ValidationException;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Attributes\Audited;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Server;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Attributes\Audited;
 
 /**
  * The security fixture: a locked balance, typed server arguments, and methods the browser must

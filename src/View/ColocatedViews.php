@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\View;
+namespace Nitro\View;
 
 use FilesystemIterator;
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
@@ -16,7 +16,7 @@ use RecursiveIteratorIterator;
  * Components written in their view's file: a JavaScript view with its PHP in it.
  *
  *     <php>                                     resources/views/vue/cart/badge.vue
- *     new class extends Component {             is <fusion:cart.badge />
+ *     new class extends Component {             is <nitro:cart.badge />
  *         public int $count = 0;
  *         #[Server] public function save(): void { ... }
  *     };
@@ -25,27 +25,27 @@ use RecursiveIteratorIterator;
  * In a .jsx or .tsx file the block is a comment at the top, so the file stays JavaScript:
  * / * <php> ... </php> * /. The block holds an anonymous class (`new class ...`, `return` before
  * it if you like), the `use` statements it needs above it, and attributes on it
- * (`new #[Title('Cart')] class ...`). Component and Fusion's attributes need no `use`.
+ * (`new #[Title('Cart')] class ...`). Component and Nitro's attributes need no `use`.
  *
- * Fusion makes each one a class of its own (Fusion\Views\Vue\Cart\Badge), written to its
+ * Nitro makes each one a class of its own (Nitro\Views\Vue\Cart\Badge), written to its
  * compiled directory when the view changes, with #[View] naming the view. The class keeps the
  * block's line numbers, so an error in it names the line in the view.
  */
 final class ColocatedViews
 {
-    public const NAMESPACE = 'Fusion\\Views';
+    public const NAMESPACE = 'Nitro\\Views';
 
     /** Names a block may use without importing them. */
     private const IMPORTS = [
-        'Component' => \Nitro\Fusion\Component::class,
-        'Computed' => \Nitro\Fusion\Attributes\Computed::class,
-        'Locked' => \Nitro\Fusion\Attributes\Locked::class,
-        'Modelable' => \Nitro\Fusion\Attributes\Modelable::class,
-        'On' => \Nitro\Fusion\Attributes\On::class,
-        'Server' => \Nitro\Fusion\Attributes\Server::class,
-        'Title' => \Nitro\Fusion\Attributes\Title::class,
-        'Url' => \Nitro\Fusion\Attributes\Url::class,
-        'Validate' => \Nitro\Fusion\Attributes\Validate::class,
+        'Component' => \Nitro\Component::class,
+        'Computed' => \Nitro\Attributes\Computed::class,
+        'Locked' => \Nitro\Attributes\Locked::class,
+        'Modelable' => \Nitro\Attributes\Modelable::class,
+        'On' => \Nitro\Attributes\On::class,
+        'Server' => \Nitro\Attributes\Server::class,
+        'Title' => \Nitro\Attributes\Title::class,
+        'Url' => \Nitro\Attributes\Url::class,
+        'Validate' => \Nitro\Attributes\Validate::class,
     ];
 
     /** @var array<string, class-string>|null */
@@ -142,13 +142,13 @@ final class ColocatedViews
         $offset = strlen("<?php\n");
         $text = substr($code, $body->getStartFilePos() - $offset, $body->getEndFilePos() - $body->getStartFilePos() + 1);
         $short = substr($class, strrpos($class, '\\') + 1);
-        $text = (string) preg_replace('/\bclass\b/', '#[\\Nitro\\Fusion\\Attributes\\View('.var_export($view, true).', engine: '.var_export($engine, true).')] final class '.$short, $text, 1);
+        $text = (string) preg_replace('/\bclass\b/', '#[\\Nitro\\Attributes\\View('.var_export($view, true).', engine: '.var_export($engine, true).')] final class '.$short, $text, 1);
 
         if ($body->extends === null) {
             $text = (string) preg_replace('/(final class '.$short.')/', '$1 extends Component', $text, 1);
         }
 
-        /** Its own imports, then Fusion's for the names it did not import. */
+        /** Its own imports, then Nitro's for the names it did not import. */
         $imported = [];
         $uses = [];
 
@@ -172,7 +172,7 @@ final class ColocatedViews
         $classLine = $line + $body->getStartLine() - 2;
         $head = "<?php namespace {$namespace}; ".implode(' ', $uses);
 
-        return $head.str_repeat("\n", max(1, $classLine - 1)).$text."\n\n// Made by Fusion from ".str_replace('\\', '/', $file).": edit the view, not this file.\n";
+        return $head.str_repeat("\n", max(1, $classLine - 1)).$text."\n\n// Made by Nitro from ".str_replace('\\', '/', $file).": edit the view, not this file.\n";
     }
 
     /**

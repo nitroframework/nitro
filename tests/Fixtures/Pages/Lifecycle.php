@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Validate;
+use Nitro\Component;
 use RuntimeException;
 use Throwable;
 

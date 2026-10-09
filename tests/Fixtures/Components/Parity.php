@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Uploads;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Upload;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Uploads;
+use Nitro\Attributes\Validate;
+use Nitro\Upload;
 
 /**
  * One component, four views: BladeParity, VueParity, ReactParity and SolidParity use it, and
@@ -24,7 +24,7 @@ trait Parity
 
     public string $said = '';
 
-    /** A file, and a list of them: uploaded at once, by fusion:model or the view's upload(). */
+    /** A file, and a list of them: uploaded at once, by nitro:model or the view's upload(). */
     public ?Upload $photo = null;
 
     #[Uploads]
@@ -49,7 +49,7 @@ trait Parity
     #[Server]
     public function save(): string
     {
-        /** Longer than a call takes to be slow (fusion:loading.delay, save.slow). */
+        /** Longer than a call takes to be slow (nitro:loading.delay, save.slow). */
         usleep(400_000);
         $this->validate();
 

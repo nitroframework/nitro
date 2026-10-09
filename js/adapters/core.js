@@ -1,5 +1,5 @@
 /**
- * What the Vue, React, Solid and Svelte adapters share: everything about a Fusion component that
+ * What the Vue, React, Solid and Svelte adapters share: everything about a Nitro component that
  * is not a framework's own reactivity. An adapter registers its engine here, and binds the
  * component that connect() describes to its framework; the behaviour is the same in all of them,
  * because it is written once, here.
@@ -13,16 +13,16 @@
  *   functions         the methods (a browser one runs here; a #[Server] one returns a promise of
  *                     its value), `set(path, value)`, `dispatch(event, ...params)`,
  *                     `upload(path, files)` (files into an Upload or #[Uploads] property, as
- *                     fusion:model does for a file input: a promise of its new value),
- *                     `link(href, ...modifiers)` (a fusion:navigate link's attributes, to spread)
+ *                     nitro:model does for a file input: a promise of its new value),
+ *                     `link(href, ...modifiers)` (a nitro:navigate link's attributes, to spread)
  *                     and `visit(url)`
  *   subscribe(fn)     fn(names) when something changed; returns the unsubscribe
  *   changed(names)    told by the engine's update(): what the component changed
  *
- * A #[Server] method carries its call's status, as Blade's fusion:loading shows it:
+ * A #[Server] method carries its call's status, as Blade's nitro:loading shows it:
  *
- *   save.processing   the call is running        (fusion:loading)
- *   save.slow         ...and has taken 200ms     (fusion:loading.delay)
+ *   save.processing   the call is running        (nitro:loading)
+ *   save.slow         ...and has taken 200ms     (nitro:loading.delay)
  *   save.failed       the call itself failed (the server's error, no connection)
  *   save.error        why, as a message
  *
@@ -30,23 +30,23 @@
  *
  * The adapters stay small: they turn these into Vue refs, a React store, a Solid store or Svelte
  * $state, each through its framework's public API alone, so a framework's release asks nothing
- * of Fusion beyond running the parity tests against it. The
+ * of Nitro beyond running the parity tests against it. The
  * same binding renders the view on the server (adapters/server): there the handle is made of
  * the state the server sent, so the first HTML is what the browser's first render gives.
  */
 
-/** What this core gives every view besides the component's own names: Fusion's build refuses a property or method named as one. */
+/** What this core gives every view besides the component's own names: Nitro's build refuses a property or method named as one. */
 import reserved from './names.json' with { type: 'json' };
 import protocol from '../protocol.json' with { type: 'json' };
 
 /** What a view is told changed besides properties ($errors, $unsaved, $uploads, $status): js/protocol.json's. */
 const SIGNALS = protocol.signals;
 
-/** How long a call runs before it is `slow`, as fusion:loading.delay waits. */
+/** How long a call runs before it is `slow`, as nitro:loading.delay waits. */
 const SLOW_AFTER = 200;
 
 /**
- * Register an adapter's engine with Fusion: now, or once Fusion is starting (a script that runs
+ * Register an adapter's engine with Nitro: now, or once Nitro is starting (a script that runs
  * before the runtime). `views` is what import.meta.glob() gives: loaders, or modules with
  * { eager: true }.
  *
@@ -61,8 +61,8 @@ export function register(name, views, mount) {
         mount: (view, el, handle, options = {}) => mount(view, el, handle, { hydrate: Boolean(options.hydrate) }),
     };
 
-    if (window.Fusion?.engine) window.Fusion.engine(name, engine);
-    else document.addEventListener('fusion:starting', ({ detail }) => detail.Fusion.engine(name, engine), { once: true });
+    if (window.Nitro?.engine) window.Nitro.engine(name, engine);
+    else document.addEventListener('nitro:starting', ({ detail }) => detail.Nitro.engine(name, engine), { once: true });
 }
 
 /**
@@ -77,7 +77,7 @@ export function findView(views, view, engine) {
     });
 
     if (path === undefined) {
-        return Promise.reject(new Error(`Fusion: no ${engine} view [${view}] among those the adapter was given (its import.meta.glob())`));
+        return Promise.reject(new Error(`Nitro: no ${engine} view [${view}] among those the adapter was given (its import.meta.glob())`));
     }
 
     const entry = views[path];
@@ -124,14 +124,14 @@ export function connect(handle, { status = (initial) => initial } = {}) {
     functions.dispatch = (event, ...params) => handle.dispatch(event, ...params);
 
     /**
-     * A fusion:navigate link's attributes, for the view to spread on an <a>: link('/students'),
+     * A nitro:navigate link's attributes, for the view to spread on an <a>: link('/students'),
      * link('/reports', 'prefetch', 'keypress'). A framework's own syntax can't always write the
      * attribute (JSX and Svelte take no dots in a name; React drops one with no value).
      */
-    functions.link = (href, ...modifiers) => ({ href, [['fusion:navigate', ...modifiers].join('.')]: '' });
+    functions.link = (href, ...modifiers) => ({ href, [['nitro:navigate', ...modifiers].join('.')]: '' });
 
-    /** A fusion:navigate visit, as $visit() is in a Blade handler. */
-    functions.visit = (url) => globalThis.Fusion.visit(url);
+    /** A nitro:navigate visit, as $visit() is in a Blade handler. */
+    functions.visit = (url) => globalThis.Nitro.visit(url);
 
     /**
      * Files (a FileList, an array) into an Upload or #[Uploads] property: uploads[path] follows it.
@@ -159,8 +159,8 @@ export function connect(handle, { status = (initial) => initial } = {}) {
 
     /** names.json and this core are one list: a name it lists and the core does not give is a mistake here. */
     const given = read();
-    for (const name of reserved.functions) if (typeof functions[name] !== 'function') throw new Error(`Fusion: names.json lists ${name}(), which the core does not give`);
-    for (const name of reserved.values) if (!(name in given)) throw new Error(`Fusion: names.json lists ${name}, which the core does not give`);
+    for (const name of reserved.functions) if (typeof functions[name] !== 'function') throw new Error(`Nitro: names.json lists ${name}(), which the core does not give`);
+    for (const name of reserved.values) if (!(name in given)) throw new Error(`Nitro: names.json lists ${name}, which the core does not give`);
 
     return {
         read,

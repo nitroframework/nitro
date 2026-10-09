@@ -1,13 +1,13 @@
 /**
- * Svelte views for Fusion components (Svelte 5).
+ * Svelte views for Nitro components (Svelte 5).
  *
  * The PHP class names its view, #[View(svelte: 'post-editor')], and resources/views/svelte (or
  * resources/js/svelte) holds post-editor.svelte. Your Vite builds it (@sveltejs/vite-plugin-svelte,
  * which also compiles this file: it uses runes); register the views once:
  *
- *     import { fusionSvelte } from 'nitro-fusion/svelte';
+ *     import { nitroSvelte } from 'nitro/svelte';
  *
- *     fusionSvelte(import.meta.glob('../views/svelte/**\/*.svelte'));
+ *     nitroSvelte(import.meta.glob('../views/svelte/**\/*.svelte'));
  *
  * The view gets the component as its props, by the PHP's names, reactive as any Svelte props:
  *
@@ -21,7 +21,7 @@
  *     {#if unsaved.length}Unsaved changes{/if} {errors.title?.[0]}
  *
  * A $bindable property is written back: bind:value, deep too (bind:value={form.email}), or an
- * assignment. set(path, value) writes any property. useFusion() gives the same to any component
+ * assignment. set(path, value) writes any property. useNitro() gives the same to any component
  * inside the view. The behaviour is the shared core's (core.js); this adapter only makes it
  * Svelte's: one $state object the view's props are read from, changed in place as the component
  * changes, and followed back to the component when the view changes it.
@@ -32,18 +32,18 @@
 import { flushSync, getContext, hydrate, mount, unmount } from 'svelte';
 import { connect, register } from './core.js';
 
-const KEY = Symbol('fusion');
+const KEY = Symbol('nitro');
 
-/** Register the Svelte engine with Fusion: `views` is what import.meta.glob() gives. */
-export function fusionSvelte(views) {
+/** Register the Svelte engine with Nitro: `views` is what import.meta.glob() gives. */
+export function nitroSvelte(views) {
     register('svelte', views, mountView);
 }
 
-/** Inside a Fusion component's Svelte view: the component, as its view gets it in its props. */
-export function useFusion() {
-    const fusion = getContext(KEY);
-    if (!fusion) throw new Error('Fusion: useFusion() is for the view of a Fusion component (#[View(svelte: ...)])');
-    return fusion;
+/** Inside a Nitro component's Svelte view: the component, as its view gets it in its props. */
+export function useNitro() {
+    const nitro = getContext(KEY);
+    if (!nitro) throw new Error('Nitro: useNitro() is for the view of a Nitro component (#[View(svelte: ...)])');
+    return nitro;
 }
 
 function mountView(View, el, handle, { hydrate: fromServer }) {

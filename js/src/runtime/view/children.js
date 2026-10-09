@@ -8,7 +8,7 @@ import { render } from './render.js';
 
 // ------------------------------------------------------------ children, raw HTML
 
-/** Fusion: <fusion:name />, a placeholder the runtime puts the child component in (it renders itself). */
+/** Nitro: <nitro:name />, a placeholder the runtime puts the child component in (it renders itself). */
 export function renderChild(target, instance, node, scope, hydrate, insert) {
     if (node.is !== undefined) {
         renderDynamicChild(target, instance, node, scope, hydrate, insert);
@@ -18,9 +18,9 @@ export function renderChild(target, instance, node, scope, hydrate, insert) {
 }
 
 /**
- * Viewi's dynamic tag (render.ts, renderDynamic.ts), as Livewire's <fusion:dynamic-component
+ * Viewi's dynamic tag (render.ts, renderDynamic.ts), as Livewire's <nitro:dynamic-component
  * :is="$name">: the component the expression names, between anchors; when it names another, what
- * was rendered goes (its scope disposed, its nodes removed) and that one renders. Fusion: the
+ * was rendered goes (its scope disposed, its nodes removed) and that one renders. Nitro: the
  * same name keeps its component (a component has state; Viewi renders anew).
  */
 function renderDynamicChild(target, instance, node, scope, hydrate, insert) {
@@ -50,7 +50,7 @@ function placeChild(target, instance, node, scope, hydrate, insert, name) {
     for (const [slotName, slot] of Object.entries(node.slots ?? {})) {
         slots[slotName] = { nodes: slot.h ?? [], instance, scope };
     }
-    /** fusion:model's path: as written, or built by an expression ("lines.{{ $i }}.qty"). */
+    /** nitro:model's path: as written, or built by an expression ("lines.{{ $i }}.qty"). */
     const model = () => typeof node.model === 'number' ? evaluate(instance, node.model, scope) : node.model;
     const id = instance.host.child(name, key, evaluate(instance, node.props, scope), slots, model());
     if (id === null || id === undefined) return;
@@ -147,16 +147,16 @@ function renderPortal(instance, portal, nodes, scope, hydrate = false, insert = 
     const portalEndMark = document.getElementById('portal_' + portal.to + '_end');
     if (portalEndMark) { // Viewi: TODO: delay render when portal is not ready
         const portalBeginMark = document.getElementById('portal_' + portal.to);
-        /** Viewi's portals[name].current, set as the name portal hydrates; Fusion's layout is Blade: from its begin mark. */
-        portalBeginMark.fusionPortalCurrent ??= Array.prototype.indexOf.call(portalBeginMark.parentNode.childNodes, portalBeginMark);
+        /** Viewi's portals[name].current, set as the name portal hydrates; Nitro's layout is Blade: from its begin mark. */
+        portalBeginMark.nitroPortalCurrent ??= Array.prototype.indexOf.call(portalBeginMark.parentNode.childNodes, portalBeginMark);
         const renderTarget = insert ? portalEndMark : portalEndMark.parentElement;
         const owned = instance.anchors?.has(renderTarget);
         const anchor = hydrate ? getAnchor(instance, renderTarget) : undefined;
-        /** Fusion: the view does not own the portal's element (the layout does): hydration leaves the rest of it. */
+        /** Nitro: the view does not own the portal's element (the layout does): hydration leaves the rest of it. */
         if (hydrate && !owned) anchor.foreign = true;
         const anchorCurrent = hydrate ? anchor.current : 0;
         const portalPositionIndexBefore = Array.prototype.indexOf.call(renderTarget.childNodes, portalEndMark);
-        hydrate && (anchor.current = portalBeginMark.fusionPortalCurrent);
+        hydrate && (anchor.current = portalBeginMark.nitroPortalCurrent);
         // render
         const anchorSlotBegin = createAnchorNode(instance, renderTarget, insert, anchor); // begin slot
         render(renderTarget, instance, nodes, scope, hydrate, insert);
@@ -164,16 +164,16 @@ function renderPortal(instance, portal, nodes, scope, hydrate = false, insert = 
         portal.anchorNode = anchorSlotNode;
         // restore anchor position
         if (hydrate) {
-            portalBeginMark.fusionPortalCurrent = anchor.current;
+            portalBeginMark.nitroPortalCurrent = anchor.current;
             const portalPositionIndexAfter = Array.prototype.indexOf.call(renderTarget.childNodes, portalEndMark);
             anchor.current = anchorCurrent + portalPositionIndexAfter - portalPositionIndexBefore;
         }
     } else {
-        console.warn(`Fusion: @teleport('${portal.to}') found no @portal('${portal.to}') in the page`);
+        console.warn(`Nitro: @teleport('${portal.to}') found no @portal('${portal.to}') in the page`);
     }
 }
 
-/** Viewi's Portal.destroy: its nodes, and its anchors, leave the page (Fusion: the components in them too). */
+/** Viewi's Portal.destroy: its nodes, and its anchors, leave the page (Nitro: the components in them too). */
 function destroyPortal(instance, portal) {
     if (portal.anchorNode && portal.anchorNode.previousSibling) {
         while (portal.anchorNode.previousSibling._anchor !== portal.anchorNode._anchor) {
@@ -211,7 +211,7 @@ export function renderRawNode(target, instance, node, scope, hydrate, insert) {
     if (hydrate) {
         anchor.current++;
         hydrateRaw(vdom, anchor, target);
-        /** Fusion: back on the last node it took; Viewi's end anchor went one node too far (the counter fixture's raw HTML: the text after it came out twice). */
+        /** Nitro: back on the last node it took; Viewi's end anchor went one node too far (the counter fixture's raw HTML: the text after it came out twice). */
         anchor.current--;
     } else {
         for (const rawNode of [...vdom.childNodes]) append(target, rawNode, insert);
@@ -221,7 +221,7 @@ export function renderRawNode(target, instance, node, scope, hydrate, insert) {
 }
 
 /**
- * The element raw HTML is parsed in (Viewi: one named as its parent). Fusion: a new component's
+ * The element raw HTML is parsed in (Viewi: one named as its parent). Nitro: a new component's
  * nodes are made in a fragment first, which has no element name: a <div> parses as its parent will.
  */
 export function rawParentName(parent) {

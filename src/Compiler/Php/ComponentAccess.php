@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Php;
+namespace Nitro\Compiler\Php;
 
-use Nitro\Fusion\Browser\Browser;
-use Nitro\Fusion\Compiler\BrowserClasses;
-use Nitro\Fusion\Compiler\Globals;
+use Nitro\Browser\Browser;
+use Nitro\Compiler\BrowserClasses;
+use Nitro\Compiler\Globals;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
@@ -17,7 +17,7 @@ use ReflectionNamedType;
 use ReflectionParameter;
 
 /**
- * The component, from its compiled code: Fusion's component model, not general PHP. In the
+ * The component, from its compiled code: Nitro's component model, not general PHP. In the
  * browser, $this is the live component (js/src/runtime/component/component.js):
  *
  *  - $this->prop reads the component's state ($this.prop), by the browser's name of an
@@ -31,7 +31,7 @@ use ReflectionParameter;
  *  - $this->dispatch('event')->to(Card::class) / ->self(): Livewire's targeted events
  *  - in a template: $errors (the validation errors), $slots->has() and $slot->isEmpty() (the
  *    slots the parent passed), and an Upload's methods ($photo->temporaryUrl())
- *  - Fusion::browser() and what it returns (src/Browser: clipboard, storage, canvas, sockets):
+ *  - Nitro::browser() and what it returns (src/Browser: clipboard, storage, canvas, sockets):
  *    each call checked against the PHP class's method and its parameters, the PHP defaults filled
  *    in, and the browser function (js/functions/browser/_browser_*.js) included in the bundle when called
  *
@@ -323,13 +323,13 @@ final class ComponentAccess extends Part
             return $value instanceof Scalar\String_ ? $context->string($context->scope->browserComponent($value->value)) : $this->transpiler->expr($value);
         }
 
-        $name = $context->scope->componentName($class) ?? throw $context->error("{$class} is not a Fusion component", $node);
+        $name = $context->scope->componentName($class) ?? throw $context->error("{$class} is not a Nitro component", $node);
 
         return $context->string($context->scope->browserComponent($name));
     }
 
     /**
-     * The Fusion::browser() API an expression holds: Fusion::browser() itself, a call on one that
+     * The Nitro::browser() API an expression holds: Nitro::browser() itself, a call on one that
      * returns another (or itself: ->fillRect()->stroke()), or a variable assigned one. Null for
      * anything else.
      *
@@ -338,7 +338,7 @@ final class ComponentAccess extends Part
     public function browserApi(Expr $expression): ?string
     {
         if ($expression instanceof Expr\StaticCall && $expression->class instanceof Name && $expression->name instanceof Identifier && $expression->name->toString() === 'browser'
-            && in_array(ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\'), Catalog::FUSION, true)) {
+            && in_array(ltrim(($expression->class->getAttribute('resolvedName') ?? $expression->class)->toString(), '\\'), Catalog::NITRO, true)) {
             return Browser::class;
         }
 
@@ -353,7 +353,7 @@ final class ComponentAccess extends Part
 
             return match (true) {
                 $name === 'static', $name === 'self' => $api,
-                $name !== null && str_starts_with($name, 'Nitro\\Fusion\\Browser\\') && class_exists($name) => $name,
+                $name !== null && str_starts_with($name, 'Nitro\\Browser\\') && class_exists($name) => $name,
                 default => null,
             };
         }
@@ -402,7 +402,7 @@ final class ComponentAccess extends Part
     }
 
     /**
-     * A call on a Fusion::browser() API, checked against its PHP class (src/Browser): on the
+     * A call on a Nitro::browser() API, checked against its PHP class (src/Browser): on the
      * Browser, one of js/functions/browser/_browser_*.js, in the bundle when called; on what that
      * returns, its method. Arguments left out get the PHP method's defaults.
      *
@@ -411,7 +411,7 @@ final class ComponentAccess extends Part
     private function browserCall(Expr\MethodCall|Expr\NullsafeMethodCall $expression, string $api): string
     {
         $context = $this->context;
-        $short = 'Fusion::browser()'.($api === Browser::class ? '' : '->'.lcfirst(class_basename($api)).'()');
+        $short = 'Nitro::browser()'.($api === Browser::class ? '' : '->'.lcfirst(class_basename($api)).'()');
         $methods = array_map(fn (ReflectionMethod $reflected) => $reflected->getName(), (new ReflectionClass($api))->getMethods(ReflectionMethod::IS_PUBLIC));
         $name = $expression->name instanceof Identifier ? $expression->name->toString() : throw $context->error('Dynamic method names are not supported in the browser', $expression);
 
@@ -452,7 +452,7 @@ final class ComponentAccess extends Part
     }
 
     /**
-     * $this->js('...')'s code: written out, it reads $fusion.<name> by the browser's names (an
+     * $this->js('...')'s code: written out, it reads $nitro.<name> by the browser's names (an
      * obfuscated build).
      *
      * @param  list<Arg|Node\VariadicPlaceholder>  $args

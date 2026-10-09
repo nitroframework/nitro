@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 use Closure;
 use DateInterval;
 use DateTimeInterface;
 
 /**
- * Shared data sent to the browser once (Fusion::once(), Fusion::shareOnce()), as Inertia's once
+ * Shared data sent to the browser once (Nitro::once(), Nitro::shareOnce()), as Inertia's once
  * props: the browser keeps it across visits and #[Server] calls, says it has it, and the server
  * neither calls the closure for the browser nor sends it again, until it expires.
  */

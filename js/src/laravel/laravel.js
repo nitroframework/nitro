@@ -3,7 +3,7 @@
  * url() and asset() (UrlGenerator), __() / trans() (Translator's replacements), config().
  * Compiled code calls them as B.route(...), ... (blade.js exports them).
  *
- * What they need comes with the page (@fusionScripts, Fusion::globals()), and only for what the
+ * What they need comes with the page (@nitroScripts, Nitro::globals()), and only for what the
  * compiled code names: those route definitions, those translations, that public config.
  */
 import { decode, entries, isArray, key as phpKey, toStr } from '../php.js';
@@ -195,7 +195,7 @@ export function trans(key, replace = []) {
 }
 
 /**
- * $this->shared($key, $default): Fusion::share()'s data, as the last page, fusion:navigate visit
+ * $this->shared($key, $default): Nitro::share()'s data, as the last page, nitro:navigate visit
  * or #[Server] call brought it, read as data_get() reads it (dot notation, the default when a
  * key is missing).
  */
@@ -203,7 +203,7 @@ export function shared(key = null, fallback = null) {
     return dataGet(decode(globals.shared), key, fallback);
 }
 
-/** $this->flashed($key, $default): Fusion::flash()'s data, as the last page, visit or #[Server] call brought it. */
+/** $this->flashed($key, $default): Nitro::flash()'s data, as the last page, visit or #[Server] call brought it. */
 export function flashed(key = null, fallback = null) {
     return dataGet(decode(globals.flash), key, fallback);
 }
@@ -226,7 +226,7 @@ function dataGet(value, key, fallback) {
     return value;
 }
 
-/** config($key, $default): a key the application made public (fusion.public_config). */
+/** config($key, $default): a key the application made public (nitro.public_config). */
 export function config(key, fallback = null) {
     key = toStr(key);
     return Object.prototype.hasOwnProperty.call(globals.config, key) ? decode(globals.config[key]) : fallback;

@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Uploads;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Upload;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Uploads;
+use Nitro\Component;
+use Nitro\Upload;
 
 /** The uploads fixture: one photo (?Upload) and several (array), validated and stored on the server. */
 class Gallery extends Component

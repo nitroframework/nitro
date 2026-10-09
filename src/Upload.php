@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion;
+namespace Nitro;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Signer;
+use Nitro\Support\Config;
+use Nitro\Support\Protocol;
+use Nitro\Support\Signer;
 
 /**
- * A file the browser uploaded for a component, kept in Fusion's temporary folder until the
- * component stores it: public ?Upload $photo = null, bound with fusion:model="photo" on a file
+ * A file the browser uploaded for a component, kept in Nitro's temporary folder until the
+ * component stores it: public ?Upload $photo = null, bound with nitro:model="photo" on a file
  * input (Livewire's TemporaryUploadedFile). It is an UploadedFile, so validation rules (image,
  * mimes, max) and store() / storeAs() work as they do for any upload.
  *

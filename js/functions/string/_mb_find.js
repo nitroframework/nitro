@@ -1,4 +1,4 @@
-// Fusion: mb_strpos() and mb_strrpos() on characters, with PHP's offsets and errors.
+// Nitro: mb_strpos() and mb_strrpos() on characters, with PHP's offsets and errors.
 function _mb_find(fn, haystack, needle, offset, last, caseless) {
     const fold = (s) => (caseless ? s.toLowerCase() : s);
     const h = [...fold(P.toStr(haystack))];

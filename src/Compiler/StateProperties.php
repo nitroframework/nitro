@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Store;
+use Nitro\Component;
+use Nitro\Store;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionProperty;

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
-use Nitro\Fusion\Compiler\Transpiler;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Template\TemplateCompiler;
+use Nitro\Compiler\Transpiler;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\ParserFactory;
@@ -76,7 +76,7 @@ class StoreCompileTest extends TestCase
 
     public function test_a_view_reads_and_calls_the_store_through_its_property(): void
     {
-        $js = (new TemplateCompiler(fn () => false))->compile('<div>{{ $cart->count }} {{ count($cart->items) }}<button fusion:click="$cart->remove(0)">x</button><button fusion:click="$cart->save()">s</button></div>', $this->scope());
+        $js = (new TemplateCompiler(fn () => false))->compile('<div>{{ $cart->count }} {{ count($cart->items) }}<button nitro:click="$cart->remove(0)">x</button><button nitro:click="$cart->save()">s</button></div>', $this->scope());
 
         $this->assertStringContainsString('$this.cart.$computed("count")', $js);
         $this->assertStringContainsString('P.fns.count($this.cart.items)', $js);

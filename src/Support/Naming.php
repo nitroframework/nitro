@@ -1,22 +1,22 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 use Illuminate\Support\Str;
 
 /**
- * Names. A component, App\Fusion\Components\Students\StudentForm (namespace
- * App\Fusion\Components), is "students.student-form", placed as <fusion:students.student-form />;
- * a page, App\Fusion\Pages\Students\Index (namespace App\Fusion\Pages), is
+ * Names. A component, App\Nitro\Components\Students\StudentForm (namespace
+ * App\Nitro\Components), is "students.student-form", placed as <nitro:students.student-form />;
+ * a page, App\Nitro\Pages\Students\Index (namespace App\Nitro\Pages), is
  * "pages::students.index", as Livewire 4 names pages. Their views are the name under the
- * configured view path: "fusion.components.students.student-form", "fusion.pages.students.index".
+ * configured view path: "nitro.components.students.student-form", "nitro.pages.students.index".
  */
 final class Naming
 {
     /** What a page's name starts with. */
     public const PAGES = 'pages::';
 
-    /** What a store's name starts with: App\Fusion\Stores\Cart is "stores::cart"; a store has no view. */
+    /** What a store's name starts with: App\Nitro\Stores\Cart is "stores::cart"; a store has no view. */
     public const STORES = 'stores::';
 
     public static function name(string $class, string $namespace, bool $page = false, bool $store = false): string
@@ -48,7 +48,7 @@ final class Naming
         return $prefix === '' ? self::bare($name) : $prefix.'.'.self::bare($name);
     }
 
-    /** "task-item" or "students.task-item": what a <fusion:...> tag may name. */
+    /** "task-item" or "students.task-item": what a <nitro:...> tag may name. */
     public static function isValid(string $name): bool
     {
         return (bool) preg_match('/^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/', $name);

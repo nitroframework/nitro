@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 
 /**
  * A Blade component and one whose view is JavaScript on the same page: the server renders the

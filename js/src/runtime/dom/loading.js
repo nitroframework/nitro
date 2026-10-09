@@ -1,21 +1,21 @@
 /**
- * fusion:loading: what shows while a component waits for the server.
+ * nitro:loading: what shows while a component waits for the server.
  *
- *   fusion:loading                   shown only while loading
- *   fusion:loading.remove            hidden while loading
- *   fusion:loading.class="opacity-50" classes added while loading (.class.remove: removed)
- *   fusion:loading.attr="disabled"   attribute set while loading
- *   fusion:loading.delay...          any of them once the call has taken 200ms (.delay.500ms, .delay.1s)
- *   fusion:target="save,delete"      only for calls to these methods
+ *   nitro:loading                   shown only while loading
+ *   nitro:loading.remove            hidden while loading
+ *   nitro:loading.class="opacity-50" classes added while loading (.class.remove: removed)
+ *   nitro:loading.attr="disabled"   attribute set while loading
+ *   nitro:loading.delay...          any of them once the call has taken 200ms (.delay.500ms, .delay.1s)
+ *   nitro:target="save,delete"      only for calls to these methods
  *
  * The plain forms are hidden by the stylesheet; a delayed one, whose name the stylesheet can't
- * know, by data-fusion-loading-hidden, which this sets.
+ * know, by data-nitro-loading-hidden, which this sets.
  */
 import { duration } from './events.js';
 
-export const STYLE = '[fusion\\:loading]:not([data-fusion-loading]){display:none!important}'
-    + '[fusion\\:loading\\.remove][data-fusion-loading]{display:none!important}'
-    + '[data-fusion-loading-hidden]{display:none!important}';
+export const STYLE = '[nitro\\:loading]:not([data-nitro-loading]){display:none!important}'
+    + '[nitro\\:loading\\.remove][data-nitro-loading]{display:none!important}'
+    + '[data-nitro-loading-hidden]{display:none!important}';
 
 /** .delay without a time, as Livewire's. */
 const DELAY = 200;
@@ -27,13 +27,13 @@ export function applyLoading(component, active) {
     const methods = active;
     for (const el of component.scan('*')) {
         if (component.runtime.owner(el) !== component) continue;
-        const attributes = el.getAttributeNames().filter((n) => n === 'fusion:loading' || n.startsWith('fusion:loading.'));
+        const attributes = el.getAttributeNames().filter((n) => n === 'nitro:loading' || n.startsWith('nitro:loading.'));
         if (attributes.length === 0) continue;
 
-        const target = el.getAttribute('fusion:target');
+        const target = el.getAttribute('nitro:target');
         const on = methods.size > 0 && (!target || target.split(',').map((t) => t.trim()).some((t) => methods.has(t)));
 
-        on ? el.setAttribute('data-fusion-loading', '') : el.removeAttribute('data-fusion-loading');
+        on ? el.setAttribute('data-nitro-loading', '') : el.removeAttribute('data-nitro-loading');
 
         for (const attribute of attributes) {
             const [wait, form] = parse(attribute);
@@ -42,7 +42,7 @@ export function applyLoading(component, active) {
     }
 }
 
-/** fusion:loading.delay.500ms.class: [the wait in ms (null: none), the form: ['class']]. */
+/** nitro:loading.delay.500ms.class: [the wait in ms (null: none), the form: ['class']]. */
 function parse(attribute) {
     const modifiers = attribute.split('.').slice(1);
     if (modifiers[0] !== 'delay') return [null, modifiers];
@@ -80,8 +80,8 @@ function apply(el, attribute, form, on) {
         classes.forEach((c) => el.classList.toggle(c, add));
     } else if (form[0] === 'attr') {
         on ? el.setAttribute(value, '') : el.removeAttribute(value);
-    } else if (attribute !== 'fusion:loading' && attribute !== 'fusion:loading.remove') {
+    } else if (attribute !== 'nitro:loading' && attribute !== 'nitro:loading.remove') {
         const hidden = form[0] === 'remove' ? on : !on;
-        hidden ? el.setAttribute('data-fusion-loading-hidden', '') : el.removeAttribute('data-fusion-loading-hidden');
+        hidden ? el.setAttribute('data-nitro-loading-hidden', '') : el.removeAttribute('data-nitro-loading-hidden');
     }
 }

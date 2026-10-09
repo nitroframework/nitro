@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * A component that fails shows a fallback in its place, and the rest of the page works on: its
- * fallback(), else fusion.fallbacks.view, else Fusion's message. On when APP_DEBUG is off, or
- * with fusion.fallbacks.enabled; in development the error shows.
+ * fallback(), else nitro.fallbacks.view, else Nitro's message. On when APP_DEBUG is off, or
+ * with nitro.fallbacks.enabled; in development the error shows.
  */
 class FallbackTest extends TestCase
 {
     private function fallbacks(bool $on, ?string $view = null): void
     {
-        $this->app->make('config')->set('fusion.fallbacks', ['enabled' => $on, 'view' => $view]);
-        /** As between requests: the parts read fusion.* again (Config is per request). */
+        $this->app->make('config')->set('nitro.fallbacks', ['enabled' => $on, 'view' => $view]);
+        /** As between requests: the parts read nitro.* again (Config is per request). */
         $this->app->forgetScopedInstances();
     }
 
@@ -29,22 +29,22 @@ class FallbackTest extends TestCase
         $html = (string) $response->getContent();
 
         $this->assertSame(200, $response->getStatusCode(), $html);
-        $this->assertMatchesRegularExpression('#<div fusion:fallback fusion:id="f[a-z0-9]{10}">Flaky is resting &lt;for now&gt;\.</div>#', $html, 'its fallback(), as text, with its id (a parent\'s view keeps it there)');
+        $this->assertMatchesRegularExpression('#<div nitro:fallback nitro:id="f[a-z0-9]{10}">Flaky is resting &lt;for now&gt;\.</div>#', $html, 'its fallback(), as text, with its id (a parent\'s view keeps it there)');
         $this->assertStringContainsString('The gauge reads 42.', $html, 'the rest of the page works on');
         $this->assertStringNotContainsString('Flaky is up', $html);
         $this->assertCount(2, $this->snapshots($html), 'the counter and the gauge go live; the fallback has no state');
     }
 
     #[DataProvider('frameworks')]
-    public function test_without_a_fallback_of_its_own_the_applications_or_fusions(string $framework): void
+    public function test_without_a_fallback_of_its_own_the_applications_or_nitros(string $framework): void
     {
         $this->boot($framework);
         $this->fallbacks(true);
 
-        $this->assertMatchesRegularExpression('#<div fusion:fallback fusion:id="\w+"><p class="fusion-fallback">This part of the page could not load\. <a href="">Try again</a></p></div>#', (string) $this->get('/fallbacks?gauge=fail')->getContent());
+        $this->assertMatchesRegularExpression('#<div nitro:fallback nitro:id="\w+"><p class="nitro-fallback">This part of the page could not load\. <a href="">Try again</a></p></div>#', (string) $this->get('/fallbacks?gauge=fail')->getContent());
 
         $this->fallbacks(true, 'partials.fallback');
-        $this->assertMatchesRegularExpression('#<div fusion:fallback fusion:id="\w+"><aside class="app-fallback">Back soon\.</aside>#', (string) $this->get('/fallbacks?gauge=fail')->getContent());
+        $this->assertMatchesRegularExpression('#<div nitro:fallback nitro:id="\w+"><aside class="app-fallback">Back soon\.</aside>#', (string) $this->get('/fallbacks?gauge=fail')->getContent());
     }
 
     #[DataProvider('frameworks')]
@@ -85,7 +85,7 @@ class FallbackTest extends TestCase
     }
 
     /**
-     * A visit (fusion:navigate asks for the page's data): a child that fails goes as its fallback,
+     * A visit (nitro:navigate asks for the page's data): a child that fails goes as its fallback,
      * by its id, and the page renders in place; the browser puts it where the child goes.
      */
     #[DataProvider('frameworks')]
@@ -93,7 +93,7 @@ class FallbackTest extends TestCase
     {
         $this->boot($framework);
         $this->fallbacks(true);
-        $visit = fn () => $this->request('GET', '/outage', ['HTTP_X_FUSION_NAVIGATE' => '1', 'HTTP_ACCEPT' => 'application/json']);
+        $visit = fn () => $this->request('GET', '/outage', ['HTTP_X_NITRO_NAVIGATE' => '1', 'HTTP_ACCEPT' => 'application/json']);
 
         $response = $visit();
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
@@ -102,13 +102,13 @@ class FallbackTest extends TestCase
         $failed = array_filter($children, fn (array $child) => isset($child['fallback']));
         $this->assertCount(1, $failed, 'Flaky failed: its fallback');
         [$id, $child] = [array_key_first($failed), reset($failed)];
-        $this->assertSame('<div fusion:fallback fusion:id="'.$id.'">Flaky is resting &lt;for now&gt;.</div>', $child['fallback']);
+        $this->assertSame('<div nitro:fallback nitro:id="'.$id.'">Flaky is resting &lt;for now&gt;.</div>', $child['fallback']);
 
         $this->fallbacks(false);
         $this->assertSame(500, $visit()->getStatusCode(), 'off, the failure is the visit\'s, as in development');
     }
 
-    /** What a component that fails to render in the browser shows: given with @fusionScripts. */
+    /** What a component that fails to render in the browser shows: given with @nitroScripts. */
     #[DataProvider('frameworks')]
     public function test_the_browser_is_given_the_default(string $framework): void
     {

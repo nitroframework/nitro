@@ -1,6 +1,6 @@
-// Viewi's PhpJsFunctions/Strings/SubstrReplace.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/SubstrReplace.js (locutus), for Nitro's values.
 function substr_replace(str, replace, start, length = null) {
-    /** Fusion: bytes, and PHP's clamping of start and length (FunctionParityTest). */
+    /** Nitro: bytes, and PHP's clamping of start and length (FunctionParityTest). */
     const bytes = P.utf8(P.toStr(str));
     const n = bytes.length;
     start = P.toInt(start);

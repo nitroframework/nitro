@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Illuminate\Filesystem\Filesystem;
-use Nitro\Fusion\Compiler\BrowserClasses;
+use Nitro\Compiler\BrowserClasses;
 
 /**
  * The files of the #[Browser] classes the last compile reached, kept in classes.json (not an
@@ -63,7 +63,7 @@ final class BrowserClassFiles
         return true;
     }
 
-    /** Forgets them (fusion:clear). */
+    /** Forgets them (nitro:clear). */
     public function clear(): void
     {
         $this->files->delete($this->path());

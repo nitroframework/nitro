@@ -16,7 +16,7 @@ export function createScope(parent, why, args = parent.arguments) {
         id: ++parent.counter,
         why,
         arguments: args,
-        /** Fusion: indexes of the @foreach loops around it (a child's key has them) */
+        /** Nitro: indexes of the @foreach loops around it (a child's key has them) */
         loops: parent.loops,
         depth: parent.depth + 1,
         track: [],
@@ -24,7 +24,7 @@ export function createScope(parent, why, args = parent.arguments) {
         children: {},
         counter: 0,
         untracked: parent.untracked,
-        /** Fusion: what else goes when it does (a slot's content, which its parent's view tracks). */
+        /** Nitro: what else goes when it does (a slot's content, which its parent's view tracks). */
         cleanups: [],
     };
     parent.children[scope.id] = scope;
@@ -35,7 +35,7 @@ export function rootScope() {
     return { id: 0, why: 'root', arguments: [], loops: [], depth: 0, track: [], parent: null, children: {}, counter: 0, untracked: false, cleanups: [] };
 }
 
-/** What the expressions read (Fusion: the compiler's subs, by expression); a string is a key itself. */
+/** What the expressions read (Nitro: the compiler's subs, by expression); a string is a key itself. */
 export function keysOf(instance, codes) {
     const keys = new Set();
     for (const code of codes) {
@@ -77,7 +77,7 @@ export function dispose(instance, scope) {
 
 /**
  * Viewi's schedule and executeQueue, for the properties that changed ("*": any). Viewi runs the
- * queue in a timeout, in the order it was tracked; Fusion runs it when the component updates (a
+ * queue in a timeout, in the order it was tracked; Nitro runs it when the component updates (a
  * microtask), outer scopes first: a @foreach gives its iterations their new values before what is
  * in them reads them, and a block rendered again leaves nothing of its old bindings to run.
  */

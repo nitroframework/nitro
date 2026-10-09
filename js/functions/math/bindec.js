@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Bindec.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Bindec.js, for Nitro's values.
 function bindec(str) {
   //  discuss at: https://www.php.net/manual/en/function.bindec.php
   // Characters that are not base-2 digits are ignored, as PHP does; '' is 0.

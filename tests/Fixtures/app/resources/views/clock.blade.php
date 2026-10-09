@@ -4,8 +4,8 @@
     <title>Clock</title>
 </head>
 <body>
-    <fusion:clock />
-    <fusion:roster />
-    @fusionScripts
+    <nitro:clock />
+    <nitro:roster />
+    @nitroScripts
 </body>
 </html>

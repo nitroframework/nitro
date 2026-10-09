@@ -1,23 +1,23 @@
 <?php
 
-namespace Nitro\Fusion\Build;
+namespace Nitro\Build;
 
 use Closure;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Routing\Router;
 use Illuminate\View\Compilers\BladeCompiler;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\Components;
-use Nitro\Fusion\Compiler\Obfuscator;
-use Nitro\Fusion\Compiler\Template\ChildTag;
-use Nitro\Fusion\Compiler\Uses;
-use Nitro\Fusion\NavigationMode;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Registry;
-use Nitro\Fusion\Support\Signer;
-use Nitro\Fusion\View\ViewEngines;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\Components;
+use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\Template\ChildTag;
+use Nitro\Compiler\Uses;
+use Nitro\NavigationMode;
+use Nitro\Support\Config;
+use Nitro\Support\Protocol;
+use Nitro\Support\Registry;
+use Nitro\Support\Signer;
+use Nitro\View\ViewEngines;
 use RuntimeException;
 
 /**
@@ -25,13 +25,13 @@ use RuntimeException;
  * a chunk for each group (Chunks: the browser loads it when a page first needs it), versioned
  * together by a hash of what they are compiled from.
  *
- * Two ways to have them, as with Vite: `fusion:build` writes the production bundle, minified with
+ * Two ways to have them, as with Vite: `nitro:build` writes the production bundle, minified with
  * the application's esbuild (templates as JSON the browser parses); without a build, the bundle
- * is compiled on first use (and again whenever a component changes): built as fusion:build does
- * with fusion.minify_on_change, else (or when esbuild cannot run) readable. APP_DEBUG plays no
+ * is compiled on first use (and again whenever a component changes): built as nitro:build does
+ * with nitro.minify_on_change, else (or when esbuild cannot run) readable. APP_DEBUG plays no
  * part in either. Each version's files replace the last version's: they do not accumulate.
  *
- * fusion:build also publishes the build as static files (StaticFiles); without them, the Fusion
+ * nitro:build also publishes the build as static files (StaticFiles); without them, the Nitro
  * routes serve the files. Its other parts: BundleCompiler, Chunks, CompiledFiles, Sources,
  * Minifier, PageRoutes, BrowserClassFiles (each says what it does).
  */
@@ -78,18 +78,18 @@ final class Bundle
         array $esbuild = [],
         ?Router $router = null,
         private readonly bool $minifyOnChange = false,
-        /** fusion:build's static files: the directory (public/fusion), and its path under public/ for asset(); null: none */
+        /** nitro:build's static files: the directory (public/nitro), and its path under public/ for asset(); null: none */
         ?string $staticDirectory = null,
-        string $staticPath = 'fusion',
-        /** fusion.build.obfuscate: a build names methods and components by aliases (Obfuscator) */
+        string $staticPath = 'nitro',
+        /** nitro.build.obfuscate: a build names methods and components by aliases (Obfuscator) */
         private readonly bool $obfuscate = false,
-        /** fusion.rendering: 'clone' (the default: views' static parts copied in the browser) or 'create' */
+        /** nitro.rendering: 'clone' (the default: views' static parts copied in the browser) or 'create' */
         private readonly string $rendering = 'clone',
-        /** fusion.navigation: how a visit shows a page without #[Navigate] */
+        /** nitro.navigation: how a visit shows a page without #[Navigate] */
         private readonly NavigationMode $navigation = NavigationMode::Data,
     ) {
         if (! in_array($rendering, ['create', 'clone'], true)) {
-            throw new \InvalidArgumentException("fusion.rendering is 'create' or 'clone', not '{$rendering}'");
+            throw new \InvalidArgumentException("nitro.rendering is 'create' or 'clone', not '{$rendering}'");
         }
 
         $this->minifier = new Minifier($files, $directory.DIRECTORY_SEPARATOR.'minified', $esbuild);
@@ -120,7 +120,7 @@ final class Bundle
         );
     }
 
-    /** Whether a view has <fusion:dynamic-component>: it names components as it runs, so they keep their names. */
+    /** Whether a view has <nitro:dynamic-component>: it names components as it runs, so they keep their names. */
     private function usesDynamicComponents(): bool
     {
         foreach (array_keys($this->registry->all()) as $name) {
@@ -132,7 +132,7 @@ final class Bundle
 
             $engine = $this->views->of($meta);
 
-            if ($engine->compiledByFusion() && str_contains((string) $this->files->get($engine->file($meta)), '<'.Protocol::namespace().ChildTag::DYNAMIC)) {
+            if ($engine->compiledByNitro() && str_contains((string) $this->files->get($engine->file($meta)), '<'.Protocol::namespace().ChildTag::DYNAMIC)) {
                 return true;
             }
         }
@@ -152,7 +152,7 @@ final class Bundle
             .($this->rendering === 'clone' ? 'rendering:clone' : '')
             /** Markup-first pages carry their layout and are listed by path: another build. */
             .'navigation:'.$this->navigation->value
-            /** The application's own fusion: attributes: a view using one compiles only once it is listed. */
+            /** The application's own nitro: attributes: a view using one compiles only once it is listed. */
             .'attributes:'.implode(',', $this->compiler->customAttributes())), 0, 16);
     }
 
@@ -199,8 +199,8 @@ final class Bundle
 
     /**
      * Where the build's static copy of the bundle ('') or a group's chunk is, under public/
-     * (fusion/app-<version>.js, fusion/<chunk id>-<version>.js); null when there is none for the
-     * components as they are (no build, a change since, fusion.static off).
+     * (nitro/app-<version>.js, nitro/<chunk id>-<version>.js); null when there is none for the
+     * components as they are (no build, a change since, nitro.static off).
      */
     public function staticFile(string $group = ''): ?string
     {
@@ -213,7 +213,7 @@ final class Bundle
         return $this->staticFile() === null ? null : $this->static->pattern('{id}-'.$this->version().'.js');
     }
 
-    /** The runtime's static copy under public/ (fusion/fusion-<version>.js), null when there is none. */
+    /** The runtime's static copy under public/ (nitro/nitro-<version>.js), null when there is none. */
     public function staticRuntime(): ?string
     {
         return $this->static->url($this->runtimeName());
@@ -226,14 +226,14 @@ final class Bundle
 
     private function runtimeName(): string
     {
-        return 'fusion-'.$this->runtimeVersion().'.js';
+        return 'nitro-'.$this->runtimeVersion().'.js';
     }
 
     /**
-     * The production bundle and its chunks, minified with esbuild; with $static (fusion:build),
-     * published to fusion.static as well, with the runtime.
+     * The production bundle and its chunks, minified with esbuild; with $static (nitro:build),
+     * published to nitro.static as well, with the runtime.
      *
-     * $report hears how it goes (fusion:build prints it):
+     * $report hears how it goes (nitro:build prints it):
      *   ('compiling', count), ('component', name) for each, ('compiled', seconds),
      *   ('minifying', chunks), ('minified', seconds, how many were minified rather than cached),
      *   ('publishing', directory, files), ('published', seconds),
@@ -284,7 +284,7 @@ final class Bundle
     }
 
     /**
-     * What a build made, for fusion:build to show: the version, whether it is obfuscated, where it
+     * What a build made, for nitro:build to show: the version, whether it is obfuscated, where it
      * was published (null: not published), the runtime, and each file of the bundle with its size
      * and the components and pages in it ('' the main bundle, then the files loaded on demand).
      *
@@ -320,7 +320,7 @@ final class Bundle
     /** Remove the compiled files, and the published ones. */
     public function clear(): void
     {
-        /** Fusion's files only (app-*, classes.json, the minified cache): the directory's own, such as a .gitignore, stay. */
+        /** Nitro's files only (app-*, classes.json, the minified cache): the directory's own, such as a .gitignore, stay. */
         $this->compiled->clear();
         $this->browserClasses->clear();
 
@@ -355,7 +355,7 @@ final class Bundle
     }
 
     /**
-     * What the compiled code uses (Compiler\Uses): @fusionScripts ships their values with the page;
+     * What the compiled code uses (Compiler\Uses): @nitroScripts ships their values with the page;
      * and its chunks (component => the chunk it is in), and the components that did not compile.
      *
      * @return array<string, mixed>
@@ -484,10 +484,10 @@ final class Bundle
         return $this->minifier->minify($chunks, $minified, $prune);
     }
 
-    /** The browser runtime, as this version of Fusion ships it. */
+    /** The browser runtime, as this version of Nitro ships it. */
     public function runtimePath(): string
     {
-        return dirname(__DIR__, 2).'/dist/fusion.js';
+        return dirname(__DIR__, 2).'/dist/nitro.js';
     }
 
     public function runtimeVersion(): string

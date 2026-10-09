@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Parity;
+namespace Nitro\Tests\Parity;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\MessageBag;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Support\Node;
-use Nitro\Fusion\Tests\TestCase;
-use Nitro\Fusion\Upload;
+use Nitro\Build\Bundle;
+use Nitro\Component;
+use Nitro\Compiler\StateProperties;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Support\Node;
+use Nitro\Tests\TestCase;
+use Nitro\Upload;
 
 /**
  * Each fixture view, in many states, rendered by Blade on the server and by its compiled render
@@ -33,8 +33,8 @@ class TemplateParityTest extends TestCase
         $cases = [];
 
         /** A page's portals (@portal in its layout), as the response has them: @teleport content goes there. */
-        $page = fn () => app(\Nitro\Fusion\Rendering\Portals::class)->fill(
-            '<aside id="dock">'.app(\Nitro\Fusion\Rendering\Portals::class)->portal('dock').'</aside><div id="toasts">'.app(\Nitro\Fusion\Rendering\Portals::class)->portal('toasts').'</div>'
+        $page = fn () => app(\Nitro\Rendering\Portals::class)->fill(
+            '<aside id="dock">'.app(\Nitro\Rendering\Portals::class)->portal('dock').'</aside><div id="toasts">'.app(\Nitro\Rendering\Portals::class)->portal('toasts').'</div>'
         );
 
         foreach ($this->states() as $i => $case) {
@@ -45,13 +45,13 @@ class TemplateParityTest extends TestCase
             /** The stores it uses: a new request's, with the items given (the server renders with them, the browser reads them). */
             $stores = [];
 
-            foreach (app(\Nitro\Fusion\Compiler\Components::class)->meta($name)->stores as $property => $class) {
+            foreach (app(\Nitro\Compiler\Components::class)->meta($name)->stores as $property => $class) {
                 $store = $component->{$property};
                 $store->items = $case[3] ?? [];
-                $stores[$property] = ['name' => app(\Nitro\Fusion\Compiler\Components::class)->meta($class)->name, 'state' => Wire::encode(StateProperties::values($store))];
+                $stores[$property] = ['name' => app(\Nitro\Compiler\Components::class)->meta($class)->name, 'state' => Wire::encode(StateProperties::values($store))];
             }
-            $meta = app(\Nitro\Fusion\Compiler\Components::class)->meta($name);
-            $ssr = app(\Nitro\Fusion\Rendering\ComponentRenderer::class)->render($component, $meta);
+            $meta = app(\Nitro\Compiler\Components::class)->meta($name);
+            $ssr = app(\Nitro\Rendering\ComponentRenderer::class)->render($component, $meta);
 
             $data = StateProperties::values($component);
 
@@ -72,8 +72,8 @@ class TemplateParityTest extends TestCase
             /** The bundle and its #[LazyLoad] chunks: every component. */
             'bundle' => implode("\n", $this->app->make(Bundle::class)->compileAll()),
             'csrf' => csrf_token(),
-            /** What @fusionScripts ships for Laravel's helpers (routes, translations, public config). */
-            'globals' => app(\Nitro\Fusion\Rendering\Scripts::class)->globals(),
+            /** What @nitroScripts ships for Laravel's helpers (routes, translations, public config). */
+            'globals' => app(\Nitro\Rendering\Scripts::class)->globals(),
             'cases' => $cases,
         ]);
 
@@ -86,12 +86,12 @@ class TemplateParityTest extends TestCase
 
     private function component(string $name, array $state, array $errors): Component
     {
-        $meta = app(\Nitro\Fusion\Compiler\Components::class)->meta($name);
+        $meta = app(\Nitro\Compiler\Components::class)->meta($name);
         $component = $this->app->make($meta->class);
-        $component->fusion()->id = 'p';
-        $component->fusion()->name = $name;
-        $component->fusion()->errors = new MessageBag($errors);
-        app(\Nitro\Fusion\State\Stores::class)->give($component, $meta);
+        $component->nitro()->id = 'p';
+        $component->nitro()->name = $name;
+        $component->nitro()->errors = new MessageBag($errors);
+        app(\Nitro\State\Stores::class)->give($component, $meta);
 
         foreach ($state as $property => $value) {
             $component->{$property} = $value;
@@ -161,7 +161,7 @@ class TemplateParityTest extends TestCase
             ['pages::pair',['sure' => Student::find(1), 'mentee' => Student::find(1)], []],
             /** The stress page: everything together. */
             ['pages::stress',[], []],
-            ['pages::stress',['filter' => 'a', 'sort' => 'total', 'selected' => 3, 'focus' => \Nitro\Fusion\Tests\Fixtures\Browser\OrderStatus::Shipped, 'log' => ['bump 1.0', 'pick 3']], []],
+            ['pages::stress',['filter' => 'a', 'sort' => 'total', 'selected' => 3, 'focus' => \Nitro\Tests\Fixtures\Browser\OrderStatus::Shipped, 'log' => ['bump 1.0', 'pick 3']], []],
             ['pages::stress',['sort' => 'customer', 'orders' => [], 'draft' => ['customer' => 'x', 'lines' => [['name' => 'Ladoo', 'price' => 150, 'qty' => 0]]]], ['draft.customer' => ['The draft.customer field must be at least 2 characters.']]],
             ['pages::stress',['filter' => 'zzz'], []],
             ['stress-row',['order' => ['id' => 1, 'customer' => 'Ada <b>', 'status' => 'paid', 'lines' => [['name' => 'Rasmalai', 'price' => 450, 'qty' => 2]]], 'selected' => true, 'focus' => 'paid'], []],

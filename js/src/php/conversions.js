@@ -9,7 +9,7 @@ import { EnumCase } from './enums.js';
 
 export function typeName(v) {
     if (v === null || v === undefined) return 'null';
-    if (v instanceof Upload) return 'Nitro\\Fusion\\Upload';
+    if (v instanceof Upload) return 'Nitro\\Upload';
     if (v instanceof EnumCase) return v.$class;
     if (typeof v === 'boolean') return 'bool';
     if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float';

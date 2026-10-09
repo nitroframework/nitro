@@ -1,6 +1,6 @@
 // Viewi's PhpJsFunctions/Strings/StripTags.js (locutus) removes tags with regular expressions,
 // which a quoted ">" in an attribute, an unclosed comment, "<<b>>" or a doctype get past
-// (FunctionParityTest): Fusion ports PHP's own state machine (php_strip_tags_ex in
+// (FunctionParityTest): Nitro ports PHP's own state machine (php_strip_tags_ex in
 // ext/standard/string.c). Allowed tags are not taken.
 function strip_tags(input, allowed = null) {
     if (allowed !== null && allowed !== undefined) {

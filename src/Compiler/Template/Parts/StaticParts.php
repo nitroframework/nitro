@@ -1,17 +1,17 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Support\Protocol;
 
 /**
- * Clone mode (config fusion.rendering = 'clone', the default): the largest static parts of a
+ * Clone mode (config nitro.rendering = 'clone', the default): the largest static parts of a
  * view's tree are marked (s: 1), so the browser copies them instead of creating them element by
- * element. Fusion's, an optimisation only: the DOM is the same either way. In create mode
- * (fusion.rendering = 'create') nothing is marked, and the browser creates every element.
+ * element. Nitro's, an optimisation only: the DOM is the same either way. In create mode
+ * (nitro.rendering = 'create') nothing is marked, and the browser creates every element.
  *
  * A part is static when nothing in it depends on data or needs the runtime: an element whose
- * attributes are all plain text (no {{ }}, no @class / @checked, no fusion: attribute: those are
+ * attributes are all plain text (no {{ }}, no @class / @checked, no nitro: attribute: those are
  * read or bound by the runtime), whose children are plain text, comments and static elements, and
  * which is not a form control, <script> or <template> (their state and behaviour are not what a
  * copy of the element carries). Only the outermost static element of a part is marked; what is

@@ -90,7 +90,7 @@ export function snapshotInto(component, envelope, sent) {
     const modelable = component.definition.modelable;
     const modelChanged = modelable && component.dirty.has(modelable);
     component.update();
-    /** The server changed what fusion:model binds: the parent follows. */
+    /** The server changed what nitro:model binds: the parent follows. */
     if (modelChanged) component.modelChanged(modelable);
     /** Its changes are the server's now, though nothing may have rendered again. */
     component.runtime.unsavedChanged(component);

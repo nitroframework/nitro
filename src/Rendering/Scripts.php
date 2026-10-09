@@ -1,21 +1,21 @@
 <?php
 
-namespace Nitro\Fusion\Rendering;
+namespace Nitro\Rendering;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\HtmlString;
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\State\SharedData;
-use Nitro\Fusion\State\Stores;
-use Nitro\Fusion\Support\Config;
-use Nitro\Fusion\Support\CurrentRequest;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Support\Wire;
+use Nitro\Build\Bundle;
+use Nitro\State\SharedData;
+use Nitro\State\Stores;
+use Nitro\Support\Config;
+use Nitro\Support\CurrentRequest;
+use Nitro\Support\Protocol;
+use Nitro\Support\Wire;
 
 /**
- * @fusionScripts: the runtime, the compiled components and the chunks this page's components are
+ * @nitroScripts: the runtime, the compiled components and the chunks this page's components are
  * in, and the globals the browser starts with (what its Laravel helpers name, the shared and
- * flash data, the progress bar's settings). A part of Fusion.
+ * flash data, the progress bar's settings). A part of Nitro.
  */
 final class Scripts
 {
@@ -32,7 +32,7 @@ final class Scripts
     ) {
     }
 
-    /** @fusionScripts: the runtime and the application's compiled components. */
+    /** @nitroScripts: the runtime and the application's compiled components. */
     public function html(): HtmlString
     {
         if ($this->head->renderingTitle()) {
@@ -46,7 +46,7 @@ final class Scripts
         $tag = $built->tag();
         $urls = $this->app->make('url');
 
-        /** fusion:build's static files when it has them for these components (served without PHP), else Fusion's routes. */
+        /** nitro:build's static files when it has them for these components (served without PHP), else Nitro's routes. */
         $static = fn (?string $file) => $file === null ? null : $urls->asset($file);
         $runtime = e($static($built->staticRuntime()) ?? $this->config->endpoint(Protocol::path('runtime')).'?v='.$built->runtimeVersion());
         $bundle = e($static($built->staticFile()) ?? $this->config->endpoint(Protocol::path('bundle')).'?v='.$tag);

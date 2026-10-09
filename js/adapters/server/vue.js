@@ -1,12 +1,12 @@
 /**
  * Vue views in the render service:
  *
- *     import { renderVue } from 'nitro-fusion/vue/server';
+ *     import { renderVue } from 'nitro/vue/server';
  *
  *     serve({ vue: renderVue(import.meta.glob('../views/vue/**\/*.vue', { eager: true })) });
  *
  * The app is the browser's (adapters/vue.js, createView()), made with createSSRApp(), so the
- * browser hydrates exactly what was rendered. `setup(app)` is fusionVue()'s: the same plugins.
+ * browser hydrates exactly what was rendered. `setup(app)` is nitroVue()'s: the same plugins.
  */
 import { renderToString } from 'vue/server-renderer';
 import { findView } from '../core.js';

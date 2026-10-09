@@ -7,7 +7,7 @@
 import { getAnchor } from './anchor.js';
 import { ATTRIBUTES } from '../protocol.js';
 
-/** Viewi's hydrateTag (Fusion: the namespace given, since SVG names keep their case). */
+/** Viewi's hydrateTag (Nitro: the namespace given, since SVG names keep their case). */
 export function hydrateTag(instance, target, tag, ns) {
     const anchor = getAnchor(instance, target);
     const max = target.childNodes.length;
@@ -46,7 +46,7 @@ export function childPlaceholder(document, id) {
     return placeholder;
 }
 
-/** Fusion: a child component's element (it hydrates itself), found by its id. */
+/** Nitro: a child component's element (it hydrates itself), found by its id. */
 export function hydrateChild(instance, target, id) {
     const anchor = getAnchor(instance, target);
     const max = target.childNodes.length;
@@ -74,7 +74,7 @@ export function hydrateChild(instance, target, id) {
 /** Viewi's hydrateText. */
 export function hydrateText(instance, target, content) {
     const anchor = getAnchor(instance, target);
-    /** Fusion: an empty text is no node in the server's HTML: it is made, and what is there kept. */
+    /** Nitro: an empty text is no node in the server's HTML: it is made, and what is there kept. */
     if (content === '' && target.childNodes[anchor.current + 1]?.nodeType !== 3) {
         anchor.added++;
         anchor.current++;
@@ -94,7 +94,7 @@ export function hydrateText(instance, target, content) {
             potentialNode.nodeType === 3
         ) {
             if (i === anchor.current) {
-                /** Fusion: the rest of a server text node the text before split off (setText) is this text's. */
+                /** Nitro: the rest of a server text node the text before split off (setText) is this text's. */
                 if (target.childNodes[i + 1]?.nodeType === 3) continue;
                 // text after text, no shift
                 break;
@@ -207,13 +207,13 @@ export function hydrateRaw(vdom, anchor, target) {
 
 /**
  * Viewi's clean up of unhydrated content: what is left after each element's last matched node,
- * and the nodes skipped. (Fusion: the component's own; a child component's element is matched,
+ * and the nodes skipped. (Nitro: the component's own; a child component's element is matched,
  * never left.)
  */
 export function cleanup(instance) {
     for (const anchor of instance.anchors.values()) {
         const target = anchor.target;
-        /** Fusion: a portal's element is the layout's (Blade's, not a view's): what follows is not the view's to remove. */
+        /** Nitro: a portal's element is the layout's (Blade's, not a view's): what follows is not the view's to remove. */
         for (let i = target.childNodes.length - 1; !anchor.foreign && i >= anchor.current + 1; i--) {
             instance.host.removed?.(target.childNodes[i]);
             target.childNodes[i].remove();

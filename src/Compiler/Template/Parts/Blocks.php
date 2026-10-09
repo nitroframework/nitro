@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\TemplateNode;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Compiler\Template\TemplateNode;
+use Nitro\Support\Protocol;
 
 /**
  * Blade's blocks that need more than open / branch / close (those are Tree's): the loops,
@@ -18,7 +18,7 @@ use Nitro\Fusion\Support\Protocol;
  *  - @switch: only @case and @default may follow it, as in Blade's PHP
  *  - @error('field'): the component's validation message for the field, as $message
  *
- * Fusion: @teleport('modals') renders its content at @portal('modals'), with this component's
+ * Nitro: @teleport('modals') renders its content at @portal('modals'), with this component's
  * state and handlers; and a field named in @error is the browser's name for it (an obfuscated
  * build).
  *

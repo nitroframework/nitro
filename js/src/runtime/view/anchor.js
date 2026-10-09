@@ -11,7 +11,7 @@ export function nextAnchorNodeId() {
     return ++anchorNodeId;
 }
 
-/** Viewi's getAnchor: the hydration position in the target (Fusion: kept by the hydration, not on the node). */
+/** Viewi's getAnchor: the hydration position in the target (Nitro: kept by the hydration, not on the node). */
 export function getAnchor(instance, target) {
     let anchor = instance.anchors.get(target);
     if (!anchor) {
@@ -44,11 +44,11 @@ export function removeBefore(instance, anchorNode) {
     nodes.forEach((node) => removeNode(instance, node));
 }
 
-/** Fusion: a node leaving the page takes the components in it along. */
+/** Nitro: a node leaving the page takes the components in it along. */
 export function removeNode(instance, node) {
     instance.host.removed?.(node);
 
-    /** fusion:transition: it leaves animated, then goes. */
+    /** nitro:transition: it leaves animated, then goes. */
     const transition = transitionOf(node);
     if (transition?.leave && node.isConnected && !motionless(node)) {
         if (node._leaving) return;

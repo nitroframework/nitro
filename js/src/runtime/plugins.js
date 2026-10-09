@@ -1,7 +1,7 @@
 /**
- * Plugins: Fusion.use(plugin) calls the plugin once with an API to listen to the runtime.
+ * Plugins: Nitro.use(plugin) calls the plugin once with an API to listen to the runtime.
  *
- *     Fusion.use(({ on, directive }) => {
+ *     Nitro.use(({ on, directive }) => {
  *         on('request', ({ headers }) => { headers['X-Tenant'] = tenant(); });
  *         on('store', (store) => store.onChange(() => console.log(store.name, store.get('items'))));
  *     });
@@ -23,7 +23,7 @@
  * change, which the server checks on the next call. A listener registered for component or store
  * hears those already there too. Property names are the browser's (an obfuscated build's aliases).
  *
- * Fusion's #[Persist] and #[Sync] are plugins (js/src/plugins).
+ * Nitro's #[Persist] and #[Sync] are plugins (js/src/plugins).
  */
 import * as P from '../php.js';
 
@@ -40,7 +40,7 @@ export class Plugins {
     }
 
     use(plugin) {
-        if (typeof plugin !== 'function') throw new Error('Fusion.use(): a plugin is a function, called with the plugin API');
+        if (typeof plugin !== 'function') throw new Error('Nitro.use(): a plugin is a function, called with the plugin API');
         if (this.used.has(plugin)) return;
         this.used.add(plugin);
         plugin({
@@ -50,8 +50,8 @@ export class Plugins {
     }
 
     on(event, listener) {
-        if (!this.listeners.has(event)) throw new Error(`Fusion.use(): there is no event "${event}" (${EVENTS.join(', ')})`);
-        if (typeof listener !== 'function') throw new Error(`Fusion.use(): on('${event}', ...) takes a function`);
+        if (!this.listeners.has(event)) throw new Error(`Nitro.use(): there is no event "${event}" (${EVENTS.join(', ')})`);
+        if (typeof listener !== 'function') throw new Error(`Nitro.use(): on('${event}', ...) takes a function`);
         this.listeners.get(event).add(listener);
 
         /** Registered after the page started: the components and stores already there. */
@@ -126,7 +126,7 @@ export class Plugins {
     storeFacade(store) {
         const props = store.definition.props;
         const known = (property) => {
-            if (!(property in props)) throw new Error(`Fusion: the store ${store.name} has no property ${property}`);
+            if (!(property in props)) throw new Error(`Nitro: the store ${store.name} has no property ${property}`);
         };
         return Object.freeze({
             name: store.name,

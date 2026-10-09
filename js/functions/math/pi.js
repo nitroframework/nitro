@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Math/Pi.js, for Fusion's values.
+// Viewi's PhpJsFunctions/Math/Pi.js, for Nitro's values.
 function pi () {
   //  discuss at: https://locutus.io/php/pi/
   // original by: Onno Marsman (https://twitter.com/onnomarsman)

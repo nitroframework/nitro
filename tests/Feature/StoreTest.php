@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store as Record;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store as Record;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -22,10 +22,10 @@ class StoreTest extends TestCase
         return (string) $response->getContent();
     }
 
-    /** @return array<string, mixed> the page's @fusionScripts globals */
+    /** @return array<string, mixed> the page's @nitroScripts globals */
     private function globals(string $html): array
     {
-        preg_match('#<script type="application/json" data-fusion-globals>(.*?)</script>#s', $html, $m);
+        preg_match('#<script type="application/json" data-nitro-globals>(.*?)</script>#s', $html, $m);
 
         return json_decode($m[1] ?? '{}', true);
     }
@@ -170,11 +170,11 @@ class StoreTest extends TestCase
     public static function invalidStores(): array
     {
         return [
-            'an event listener' => ['#[\Nitro\Fusion\Attributes\On("saved")] public function saved(): void {}', '#[On] is for components on the page'],
-            'the query string' => ['#[\Nitro\Fusion\Attributes\Url] public string $q = "";', '#[Url] is for components'],
-            'the history entry' => ['#[\Nitro\Fusion\Attributes\Remember] public string $q = "";', '#[Remember] is for components'],
-            'fusion:model on its tag' => ['#[\Nitro\Fusion\Attributes\Modelable] public string $q = "";', '#[Modelable] is for components'],
-            'another store' => ['public \Nitro\Fusion\Tests\Fixtures\Stores\Cart $cart;', 'it cannot hold another store'],
+            'an event listener' => ['#[\Nitro\Attributes\On("saved")] public function saved(): void {}', '#[On] is for components on the page'],
+            'the query string' => ['#[\Nitro\Attributes\Url] public string $q = "";', '#[Url] is for components'],
+            'the history entry' => ['#[\Nitro\Attributes\Remember] public string $q = "";', '#[Remember] is for components'],
+            'nitro:model on its tag' => ['#[\Nitro\Attributes\Modelable] public string $q = "";', '#[Modelable] is for components'],
+            'another store' => ['public \Nitro\Tests\Fixtures\Stores\Cart $cart;', 'it cannot hold another store'],
         ];
     }
 
@@ -183,12 +183,12 @@ class StoreTest extends TestCase
     {
         $this->boot('laravel');
         $class = 'BadStore'.md5($member);
-        eval("namespace Nitro\\Fusion\\Tests\\Fuzz\\Generated; class {$class} extends \\Nitro\\Fusion\\Store { {$member} }");
+        eval("namespace Nitro\\Tests\\Fuzz\\Generated; class {$class} extends \\Nitro\\Store { {$member} }");
 
-        $this->expectException(\Nitro\Fusion\Compiler\CompileException::class);
+        $this->expectException(\Nitro\Compiler\CompileException::class);
         $this->expectExceptionMessage($message);
 
-        app(\Nitro\Fusion\Compiler\Components::class)->meta("Nitro\\Fusion\\Tests\\Fuzz\\Generated\\{$class}");
+        app(\Nitro\Compiler\Components::class)->meta("Nitro\\Tests\\Fuzz\\Generated\\{$class}");
     }
 
     #[DataProvider('frameworks')]
@@ -197,14 +197,14 @@ class StoreTest extends TestCase
         $this->boot($framework);
 
         try {
-            \Illuminate\Support\Facades\Route::fusion('/cart-store', \Nitro\Fusion\Tests\Fixtures\Stores\Cart::class);
+            \Illuminate\Support\Facades\Route::nitro('/cart-store', \Nitro\Tests\Fixtures\Stores\Cart::class);
             $this->fail('a store is not routed');
         } catch (\InvalidArgumentException $e) {
             $this->assertStringContainsString('is a store', $e->getMessage());
         }
 
         try {
-            app(\Nitro\Fusion\Rendering\Placement::class)->mount('stores::cart');
+            app(\Nitro\Rendering\Placement::class)->mount('stores::cart');
             $this->fail('a store is not placed');
         } catch (\InvalidArgumentException $e) {
             $this->assertStringContainsString('[stores::cart] is a store: components use it through a property of its type', $e->getMessage());

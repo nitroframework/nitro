@@ -1,6 +1,6 @@
 // Viewi's PhpJsFunctions/Strings/StrWordCount.js drops "'" and "-" at every word's start and a
 // "-" at every word's end, and has no "a..z" ranges: PHP only does so at the string's
-// (FunctionParityTest). Fusion ports PHP's own (ext/standard/string.c), on bytes.
+// (FunctionParityTest). Nitro ports PHP's own (ext/standard/string.c), on bytes.
 // uses: _charmask
 function str_word_count(str, format = 0, charlist = null) {
     const bytes = P.utf8(P.toStr(str));

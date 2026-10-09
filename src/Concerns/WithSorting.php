@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Concerns;
+namespace Nitro\Concerns;
 
 /**
  * Sortable rows, in the browser:
  *
- *   <th><button fusion:click="sortBy('name')">Name {{ $this->sortIcon('name') }}</button></th>
+ *   <th><button nitro:click="sortBy('name')">Name {{ $this->sortIcon('name') }}</button></th>
  *
  * with the rows passed through $this->sorted($rows) where the component works them out.
  * Until a column is chosen the rows keep the order they came in.

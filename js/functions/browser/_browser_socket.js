@@ -1,5 +1,5 @@
 /**
- * Fusion::browser()->socket($url): the component's WebSocket to the URL (one per URL), opened the
+ * Nitro::browser()->socket($url): the component's WebSocket to the URL (one per URL), opened the
  * first time. JSON messages arrive decoded; send() encodes what is not a string. What is sent
  * before it opens goes once it does. It reconnects after a drop (1s, 2s, 4s, ... up to 30s) and
  * closes when the component leaves the page.

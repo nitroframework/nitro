@@ -11,7 +11,7 @@ import { toStr, typeName } from './conversions.js';
 export class EnumCase {}
 
 /**
- * A #[Browser] enum, as Fusion.classes holds it: its cases by name ($cases), cases(), from() and
+ * A #[Browser] enum, as Nitro.classes holds it: its cases by name ($cases), cases(), from() and
  * tryFrom() for a backed one, and its compiled static methods. $class names it in errors.
  *
  * @param cases [[name, value], ...], or [[name], ...] for a pure enum

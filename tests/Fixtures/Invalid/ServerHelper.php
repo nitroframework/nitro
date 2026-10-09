@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Invalid;
+namespace Nitro\Tests\Fixtures\Invalid;
 
-use Nitro\Fusion\Attributes\Browser;
+use Nitro\Attributes\Browser;
 
 /** A #[Browser] class with a method that needs the server: it cannot compile. */
 #[Browser]

@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Features;
+namespace Nitro\Tests\Fixtures\Features;
 
 use Illuminate\Http\Request;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Feature;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
+use Nitro\Component;
+use Nitro\Feature;
+use Nitro\Tests\Fixtures\Components\Store;
 
 /** An application's feature: logs each hook beside the component's own (Store::$log), made by the container (its Request). */
 class Recorder extends Feature
@@ -29,8 +29,8 @@ class Recorder extends Feature
 
     public function updated(Component $component, array $changed): bool
     {
-        /** It runs after Fusion's own: it sees what #[Validate] found. */
-        $errors = $component->fusion()->errors->keys();
+        /** It runs after Nitro's own: it sees what #[Validate] found. */
+        $errors = $component->nitro()->errors->keys();
         $this->log('updated '.implode(',', $changed).($errors === [] ? '' : ' (invalid: '.implode(',', $errors).')'), $component);
 
         return true;

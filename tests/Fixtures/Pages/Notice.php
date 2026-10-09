@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Description;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Description;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\Title;
+use Nitro\Component;
 
 /**
  * A page whose <head> comes from its attributes, and kept out of search engines.

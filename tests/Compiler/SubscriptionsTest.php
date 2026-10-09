@@ -1,10 +1,10 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Compiler;
+namespace Nitro\Tests\Compiler;
 
-use Nitro\Fusion\Compiler\Scope;
-use Nitro\Fusion\Compiler\Subscriptions;
-use Nitro\Fusion\Compiler\Template\TemplateCompiler;
+use Nitro\Compiler\Scope;
+use Nitro\Compiler\Subscriptions;
+use Nitro\Compiler\Template\TemplateCompiler;
 use PHPUnit\Framework\TestCase;
 
 /**

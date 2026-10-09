@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
 /**
  * A node of a compiled template, while the compiler builds the tree. Its array form is what the

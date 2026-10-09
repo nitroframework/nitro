@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Architecture;
+namespace Nitro\Tests\Architecture;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\Globals;
-use Nitro\Fusion\Support\Protocol;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\Globals;
+use Nitro\Support\Protocol;
+use Nitro\Tests\TestCase;
 
 /**
  * The compiled component the browser gets (Compiler\Template\TemplateNode's format, and the
@@ -131,11 +131,11 @@ final class CompiledFormatTest extends TestCase
         $this->assertSame([], array_values(array_diff(array_filter(array_unique([...$read[1], ...$read[2]])), $compiled['prop'])), 'prop fields the runtime reads that js/protocol.json does not list');
     }
 
-    /** Fusion's Blade directives: each registered for the server's render and compiled for the browser, none on one side only. */
-    public function test_each_fusion_directive_renders_on_both_sides(): void
+    /** Nitro's Blade directives: each registered for the server's render and compiled for the browser, none on one side only. */
+    public function test_each_nitro_directive_renders_on_both_sides(): void
     {
         $code = Scanner::code();
-        preg_match_all("/Blade::directive\('(\w+)'/", $code['src/FusionServiceProvider.php'], $registered);
+        preg_match_all("/Blade::directive\('(\w+)'/", $code['src/NitroServiceProvider.php'], $registered);
         preg_match_all("/^\s*'(\w+)'(?:, '\w+')* =>/m", $code['src/Compiler/Template/Parts/Directives.php'], $compiled);
 
         foreach (Globals::DIRECTIVES as $directive) {
@@ -144,13 +144,13 @@ final class CompiledFormatTest extends TestCase
         }
     }
 
-    /** The globals @fusionScripts gives the browser (B.globals): what the server sends and the runtime reads, both listed. */
+    /** The globals @nitroScripts gives the browser (B.globals): what the server sends and the runtime reads, both listed. */
     public function test_the_browser_globals_are_the_listed_ones(): void
     {
         $listed = Protocol::get('globals');
         $this->boot('laravel');
         $this->app->instance('request', \Illuminate\Http\Request::create('/'));
-        $sent = array_keys($this->app->make(\Nitro\Fusion\Rendering\Scripts::class)->globals());
+        $sent = array_keys($this->app->make(\Nitro\Rendering\Scripts::class)->globals());
         $this->assertSame([], array_values(array_diff($sent, $listed)), 'globals Scripts sends that js/protocol.json does not list');
 
         $read = [];

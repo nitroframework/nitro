@@ -1,4 +1,4 @@
-// Fusion: PHP's ctype functions: a string is non-empty and each of its bytes passes the test (in
+// Nitro: PHP's ctype functions: a string is non-empty and each of its bytes passes the test (in
 // the C locale); an int from -128 to 255 is the character with that code (deprecated since PHP
 // 8.1), another int its digits; anything else is false.
 function _ctype(text, test) {

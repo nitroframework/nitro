@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\View;
+namespace Nitro\View;
 
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\View\Compilers\BladeCompiler;
@@ -8,16 +8,16 @@ use Illuminate\View\ComponentSlot;
 use Illuminate\View\Engines\CompilerEngine;
 use Illuminate\View\Factory as ViewFactory;
 use LogicException;
-use Nitro\Fusion\Compiler\ComponentMeta;
-use Nitro\Fusion\Compiler\StateProperties;
-use Nitro\Fusion\Compiler\Template\BladeInliner;
-use Nitro\Fusion\Compiler\Template\ComponentTags;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Compiler\ComponentMeta;
+use Nitro\Compiler\StateProperties;
+use Nitro\Compiler\Template\BladeInliner;
+use Nitro\Compiler\Template\ComponentTags;
+use Nitro\Component;
+use Nitro\Support\Protocol;
 use Throwable;
 
 /**
- * Blade views: rendered on the server by Blade itself, and compiled by Fusion for the browser.
+ * Blade views: rendered on the server by Blade itself, and compiled by Nitro for the browser.
  * The view sees the component's properties as variables and the component as $this, and its
  * loops start fresh, so $loop and child keys depend on the component's own view only.
  */
@@ -44,7 +44,7 @@ final class BladeEngine implements ViewEngine
         return $this->views->getFinder()->find($meta->view);
     }
 
-    public function compiledByFusion(): bool
+    public function compiledByNitro(): bool
     {
         return true;
     }
@@ -70,7 +70,7 @@ final class BladeEngine implements ViewEngine
         $engine = $this->views->getEngineResolver()->resolve('blade');
 
         if (! $engine instanceof CompilerEngine) {
-            throw new LogicException('Fusion renders views with Blade\'s compiler engine.');
+            throw new LogicException('Nitro renders views with Blade\'s compiler engine.');
         }
 
         $compiler = $engine->getCompiler();
@@ -80,9 +80,9 @@ final class BladeEngine implements ViewEngine
         }
 
         $errors = new ViewErrorBag;
-        $errors->put('default', $component->fusion()->errors);
+        $errors->put('default', $component->nitro()->errors);
 
-        $slots = $component->fusion()->slots;
+        $slots = $component->nitro()->slots;
         $stores = array_keys(StateProperties::stores($component::class));
 
         $data = [

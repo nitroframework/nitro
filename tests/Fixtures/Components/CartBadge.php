@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Component;
-use Nitro\Fusion\Tests\Fixtures\Stores\Cart;
+use Nitro\Component;
+use Nitro\Tests\Fixtures\Stores\Cart;
 
 /** Reads the cart store: its count and total, rendered again when the cart changes. */
 class CartBadge extends Component

@@ -1,13 +1,13 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template\Parts;
+namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Fusion\Compiler\Template\TemplateNode;
+use Nitro\Compiler\Template\TemplateNode;
 
 /**
  * The expression table: every dynamic part of the view ({{ $x }}, an @if's condition, a loop's
  * data, a handler) becomes a numbered function, and the tree refers to it by number ({e: 1,
- * code: 3}). Fusion's, and the start of its fine-grained rendering:
+ * code: 3}). Nitro's, and the start of its fine-grained rendering:
  *
  *  - an expression is `function ($this, $item, $loop, ...) { return ...; }`: the component and
  *    the template variables in scope, by argument position, so a render can call it for any

@@ -1,8 +1,18 @@
 # Changelog
 
-All notable changes to `nitro/fusion` will be documented in this file.
+All notable changes to `nitro/nitro` will be documented in this file. Before the rename below,
+the package was `nitro/fusion` and the entries say Fusion.
 
 ## Unreleased
+
+- Fusion is now Nitro: the package `nitro/nitro`, the namespace `Nitro\` (`Nitro\Fusion\X` is
+  `Nitro\X`), the facade and `window.Nitro`, `<nitro:counter />` and `nitro:click`, `@nitroScripts`,
+  `config/nitro.php` (`nitro.*`), `php artisan nitro:build`, the endpoint `/_nitro`, the
+  `X-Nitro-*` headers and `data-nitro-*` attributes, the adapters' `nitro/vue` (and react, solid,
+  svelte, ssr). An application's own `App\Fusion\...` components and pages are `App\Nitro\...` by
+  default (`nitro.components`, `nitro.pages`). State signed before the rename is not accepted
+  after it: open pages load again once.
+- The tests run on Laravel only.
 
 - A collection property of several model classes (a polymorphic relation's) is read again with
   each model's own class, in order; it was read as the first model's class.

@@ -6,8 +6,8 @@
 </head>
 <body>
     <livewire:ticker />
-    <fusion:counter />
+    <nitro:counter />
     @livewireScripts
-    @fusionScripts
+    @nitroScripts
 </body>
 </html>

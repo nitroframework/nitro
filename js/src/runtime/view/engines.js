@@ -1,13 +1,13 @@
 /**
  * View engines: what turns a component's state into its element. Blade's (View, the compiled
  * template) is built in. A JavaScript framework's (Vue, React, Solid) is added with
- * Fusion.engine(name, { load, mount }) and runs as a ScriptView (script.js). A component's
+ * Nitro.engine(name, { load, mount }) and runs as a ScriptView (script.js). A component's
  * definition names its engine (engine: 'vue'); none is Blade.
  *
  * Every view has:
  *
  *   hydrate(el)      the server's HTML taken over: el is the root element (a JavaScript view's
- *                    is server-rendered with fusion.ssr, or empty for the view to mount in)
+ *                    is server-rendered with nitro.ssr, or empty for the view to mount in)
  *   create()         a new root element (a child made in the browser, a page from a visit)
  *   update(names)    the properties that changed ("*": all); false when the root must be made again
  *   refreshSlots()   the parent passed new slots
@@ -31,19 +31,19 @@ export class Engines {
     }
 
     add(name, engine) {
-        if (name === BLADE_ENGINE || this.engines.has(name)) throw new Error(`Fusion.engine('${name}') is registered already`);
+        if (name === BLADE_ENGINE || this.engines.has(name)) throw new Error(`Nitro.engine('${name}') is registered already`);
         if (typeof engine?.load !== 'function' || typeof engine?.mount !== 'function') {
-            throw new Error(`Fusion.engine('${name}', { load, mount }): load(view) gives the view's module, mount(module, el, handle) mounts it`);
+            throw new Error(`Nitro.engine('${name}', { load, mount }): load(view) gives the view's module, mount(module, el, handle) mounts it`);
         }
         this.engines.set(name, engine);
     }
 
     view(definition, $this, host, document) {
-        /** A view Fusion compiled names no engine: only a JavaScript framework's does. */
+        /** A view Nitro compiled names no engine: only a JavaScript framework's does. */
         const name = definition.engine;
         if (name === undefined) return new View(definition, $this, host, document);
         const engine = this.engines.get(name);
-        if (!engine) throw new Error(`Fusion: no view engine [${name}]: register it with Fusion.engine('${name}', { load, mount })`);
+        if (!engine) throw new Error(`Nitro: no view engine [${name}]: register it with Nitro.engine('${name}', { load, mount })`);
         return new ScriptView(this.runtime, this, engine, definition, $this, host);
     }
 
@@ -94,7 +94,7 @@ export class Engines {
     }
 }
 
-/** The components a compiled template places by name (<fusion:name />: a 'c' node), wherever they are in it. */
+/** The components a compiled template places by name (<nitro:name />: a 'c' node), wherever they are in it. */
 function childrenIn(node, found) {
     if (Array.isArray(node)) {
         node.forEach((item) => childrenIn(item, found));

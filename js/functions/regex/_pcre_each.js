@@ -1,4 +1,4 @@
-// Fusion: every match from index on, as PHP's global matching goes (php_pcre.c): after an empty
+// Nitro: every match from index on, as PHP's global matching goes (php_pcre.c): after an empty
 // match, one that is not empty at the same place, else one character on.
 // uses: _pcre_exec
 function _pcre_each(compiled, work, index, limit, each) {

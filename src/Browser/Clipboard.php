@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Browser;
+namespace Nitro\Browser;
 
 use Closure;
 

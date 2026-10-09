@@ -1,4 +1,4 @@
-// Fusion (Viewi has no mbstring): PHP's mb_convert_case() for MB_CASE_UPPER (0), MB_CASE_LOWER
+// Nitro (Viewi has no mbstring): PHP's mb_convert_case() for MB_CASE_UPPER (0), MB_CASE_LOWER
 // (1) and MB_CASE_TITLE (2). Title case as mbstring's (php_unicode.c): a character after a cased
 // one (case-ignorable ones, such as ' . and marks, in between) is lower case, else title case.
 // uses: _mb_title

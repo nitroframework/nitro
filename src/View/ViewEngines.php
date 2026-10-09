@@ -1,9 +1,9 @@
 <?php
 
-namespace Nitro\Fusion\View;
+namespace Nitro\View;
 
 use LogicException;
-use Nitro\Fusion\Compiler\ComponentMeta;
+use Nitro\Compiler\ComponentMeta;
 
 /**
  * The engines components' views are written for, by name: what renders, compiles and watches a
@@ -21,7 +21,7 @@ final class ViewEngines
 
     public function of(ComponentMeta $meta): ViewEngine
     {
-        return $this->engines[$meta->engine] ?? throw new LogicException("Fusion component [{$meta->name}]: no view engine [{$meta->engine}].");
+        return $this->engines[$meta->engine] ?? throw new LogicException("Nitro component [{$meta->name}]: no view engine [{$meta->engine}].");
     }
 
     public function named(string $name): ?ViewEngine

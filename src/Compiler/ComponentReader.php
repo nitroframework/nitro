@@ -1,35 +1,35 @@
 <?php
 
-namespace Nitro\Fusion\Compiler;
+namespace Nitro\Compiler;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
-use Nitro\Fusion\Attributes\Cached;
-use Nitro\Fusion\Attributes\Computed;
-use Nitro\Fusion\Attributes\Description;
-use Nitro\Fusion\Attributes\Layout;
-use Nitro\Fusion\Attributes\LazyLoad;
-use Nitro\Fusion\Attributes\Locked;
-use Nitro\Fusion\Attributes\Modelable;
-use Nitro\Fusion\Attributes\Navigate;
-use Nitro\Fusion\Attributes\On;
-use Nitro\Fusion\Attributes\Persist;
-use Nitro\Fusion\Attributes\Remember;
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Attributes\Sync;
-use Nitro\Fusion\Attributes\Title;
-use Nitro\Fusion\Attributes\Uploads;
-use Nitro\Fusion\Attributes\Url;
-use Nitro\Fusion\Attributes\Validate;
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
-use Nitro\Fusion\FeatureAttribute;
-use Nitro\Fusion\Support\ComponentHooks;
-use Nitro\Fusion\Support\PropertyHooks;
-use Nitro\Fusion\NavigationMode;
-use Nitro\Fusion\Store;
-use Nitro\Fusion\Support\Naming;
-use Nitro\Fusion\Support\Protocol;
+use Nitro\Attributes\Cached;
+use Nitro\Attributes\Computed;
+use Nitro\Attributes\Description;
+use Nitro\Attributes\Layout;
+use Nitro\Attributes\LazyLoad;
+use Nitro\Attributes\Locked;
+use Nitro\Attributes\Modelable;
+use Nitro\Attributes\Navigate;
+use Nitro\Attributes\On;
+use Nitro\Attributes\Persist;
+use Nitro\Attributes\Remember;
+use Nitro\Attributes\Server;
+use Nitro\Attributes\Sync;
+use Nitro\Attributes\Title;
+use Nitro\Attributes\Uploads;
+use Nitro\Attributes\Url;
+use Nitro\Attributes\Validate;
+use Nitro\Attributes\View;
+use Nitro\Component;
+use Nitro\FeatureAttribute;
+use Nitro\Support\ComponentHooks;
+use Nitro\Support\PropertyHooks;
+use Nitro\NavigationMode;
+use Nitro\Store;
+use Nitro\Support\Naming;
+use Nitro\Support\Protocol;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -49,7 +49,7 @@ final class ComponentReader
             /**
              * The class's own code failing as it is read: an attribute PHP cannot make (repeated,
              * on the wrong target, wrong arguments), a default value naming a constant that is not
-             * there. Where it is, as any compile error. An error in Fusion's own code is not this.
+             * there. Where it is, as any compile error. An error in Nitro's own code is not this.
              */
             $attribute = array_filter($exception->getTrace(), fn (array $frame) => ($frame['class'] ?? null) === \ReflectionAttribute::class && $frame['function'] === 'newInstance') !== [];
 
@@ -67,7 +67,7 @@ final class ComponentReader
         $file = (string) $reflection->getFileName();
 
         if (! $reflection->isSubclassOf(Component::class) || ! $reflection->isInstantiable()) {
-            throw new CompileException("{$class} is not a Fusion component (a concrete class extending ".Component::class.')', $file);
+            throw new CompileException("{$class} is not a Nitro component (a concrete class extending ".Component::class.')', $file);
         }
 
         $properties = [];
@@ -144,7 +144,7 @@ final class ComponentReader
 
             if ($method->getAttributes(Server::class) !== []) {
                 if (! $method->isPublic() || ComponentHooks::isReserved($methodName)) {
-                    throw new CompileException("#[Server] {$methodName}() must be a public method that is not one Fusion calls on the server itself (".implode(', ', ComponentHooks::SERVER).')', $file, $method->getStartLine());
+                    throw new CompileException("#[Server] {$methodName}() must be a public method that is not one Nitro calls on the server itself (".implode(', ', ComponentHooks::SERVER).')', $file, $method->getStartLine());
                 }
 
                 $why = ComponentHooks::whyNotServer($methodName) ?? PropertyHooks::whyNotServer($methodName, array_keys($properties));
@@ -182,7 +182,7 @@ final class ComponentReader
         $description = ($reflection->getAttributes(Description::class)[0] ?? null)?->newInstance()->description;
 
         if (! $page && ($layout !== null || $title !== null || $navigate !== null || $description !== null)) {
-            throw new CompileException("#[Layout], #[Title], #[Description] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (fusion.pages) to route it.", $file);
+            throw new CompileException("#[Layout], #[Title], #[Description] and #[Navigate] are a page's: {$class} is a component (it renders inside a page). Move it to the pages namespace (nitro.pages) to route it.", $file);
         }
 
         if (is_string($navigate)) {
@@ -406,7 +406,7 @@ final class ComponentReader
 
     /**
      * What a store cannot have: what belongs to a component on the page (events it listens to, the
-     * query string, the history entry, fusion:model on its tag, uploads), or stores of its own.
+     * query string, the history entry, nitro:model on its tag, uploads), or stores of its own.
      *
      * @param  ReflectionClass<object>  $reflection
      * @param  array<string, string>  $stores

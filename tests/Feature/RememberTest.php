@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Build\Bundle;
-use Nitro\Fusion\Compiler\CompileException;
-use Nitro\Fusion\Compiler\ComponentReader;
-use Nitro\Fusion\Tests\Fixtures\Invalid\RememberedLocked;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
+use Nitro\Tests\Fixtures\Invalid\RememberedLocked;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -30,6 +30,6 @@ class RememberTest extends TestCase
         $this->expectException(CompileException::class);
         $this->expectExceptionMessage('$total is #[Remember]: the browser brings its value back, so it is a plain value the browser can change');
 
-        ComponentReader::read(RememberedLocked::class, 'remembered-locked', 'fusion.components.remembered-locked');
+        ComponentReader::read(RememberedLocked::class, 'remembered-locked', 'nitro.components.remembered-locked');
     }
 }

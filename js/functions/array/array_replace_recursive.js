@@ -1,4 +1,4 @@
-// Viewi's PhpJsFunctions/Array/ArrayReplaceRecursive.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Array/ArrayReplaceRecursive.js (locutus), for Nitro's values.
 // uses: _php_array
 function array_replace_recursive(arr, ...replacements) {
     const replace = (base, replacement) => {

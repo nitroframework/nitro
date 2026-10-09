@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Compiler\Template;
+namespace Nitro\Compiler\Template;
 
-use Nitro\Fusion\Compiler\CompileException;
+use Nitro\Compiler\CompileException;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
@@ -11,7 +11,7 @@ use PhpParser\Node\Scalar;
  * A Blade component's $attributes in its inlined view (BladeInliner), worked out as Laravel's
  * ComponentAttributeBag works it out: {{ $attributes }} with ->merge([...]), ->class([...]),
  * ->only([...]) and ->except([...]) prints the attributes; ->get() and ->has() read one. Each
- * attribute is left out when its value is null or false (@fusionAttr).
+ * attribute is left out when its value is null or false (@nitroAttr).
  *
  * @internal
  */
@@ -22,15 +22,15 @@ final class AttributeBag
      * ComponentAttributeBag), and ->get() / ->has() elsewhere.
      *
      * @param  array<string, string>  $codes  attribute => the variable holding its value ($__fa0)
-     * @param  array<string, string>  $fusion  fusion: attribute => as written
+     * @param  array<string, string>  $nitro  nitro: attribute => as written
      * @param  array<string, string>  $bag  attribute => PHP
      */
-    public static function render(string $view, array $codes, array $fusion, array $bag, int $frame, string $path): string
+    public static function render(string $view, array $codes, array $nitro, array $bag, int $frame, string $path): string
     {
         $entries = [];
 
         foreach (array_keys($bag) as $attribute) {
-            $entries[$attribute] = isset($fusion[$attribute]) ? ['fusion' => $fusion[$attribute]] : ['code' => $codes[$attribute]];
+            $entries[$attribute] = isset($nitro[$attribute]) ? ['nitro' => $nitro[$attribute]] : ['code' => $codes[$attribute]];
         }
 
         $view = preg_replace_callback('/\{\{\s*(\$attributes\b(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $frame, $path, $view) {
@@ -59,15 +59,15 @@ final class AttributeBag
                 return isset($args[1]) ? PhpSource::print($args[1]) : 'null';
             }
 
-            return $entry['code'] ?? var_export(html_entity_decode(trim($entry['fusion']), ENT_QUOTES), true);
+            return $entry['code'] ?? var_export(html_entity_decode(trim($entry['nitro']), ENT_QUOTES), true);
         }, $view, flags: PREG_OFFSET_CAPTURE);
     }
 
     /**
      * $attributes and its methods, run here on the attributes' names (their values are code).
      *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
-     * @return array<string, array{code?: string, fusion?: string}>
+     * @param  array<string, array{code?: string, nitro?: string}>  $entries
+     * @return array<string, array{code?: string, nitro?: string}>
      */
     private static function evaluate(string $php, array $entries, string $path, string $view, string $echo): array
     {
@@ -102,9 +102,9 @@ final class AttributeBag
      * ComponentAttributeBag::merge(): defaults (escaped) first, the tag's attributes over them;
      * class and style are appended to their defaults.
      *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
+     * @param  array<string, array{code?: string, nitro?: string}>  $entries
      * @param  array<string, string>  $defaults  attribute => PHP
-     * @return array<string, array{code?: string, fusion?: string}>
+     * @return array<string, array{code?: string, nitro?: string}>
      */
     private static function merge(array $entries, array $defaults): array
     {
@@ -119,7 +119,7 @@ final class AttributeBag
 
         foreach ($entries as $attribute => $entry) {
             if ($attribute === 'class' || $attribute === 'style') {
-                $value = $entry['code'] ?? var_export(html_entity_decode(trim($entry['fusion']), ENT_QUOTES), true);
+                $value = $entry['code'] ?? var_export(html_entity_decode(trim($entry['nitro']), ENT_QUOTES), true);
                 $value = $attribute === 'style' ? "(str_ends_with((string) ({$value}), ';') ? ({$value}) : ({$value}).';')" : $value;
                 $default = $escaped[$attribute] ?? "''";
                 $appendable[$attribute] = ['code' => "implode(' ', array_unique(array_filter([{$default}, {$value}])))"];
@@ -171,21 +171,21 @@ final class AttributeBag
      * The attributes as the bag prints them (ComponentAttributeBag::__toString): a null or false
      * value leaves the attribute out, true writes its name (x-data and wire: an empty value).
      *
-     * @param  array<string, array{code?: string, fusion?: string}>  $entries
+     * @param  array<string, array{code?: string, nitro?: string}>  $entries
      */
     private static function print(array $entries, int $frame): string
     {
         $out = '';
 
         foreach ($entries as $attribute => $entry) {
-            if (isset($entry['fusion'])) {
+            if (isset($entry['nitro'])) {
                 /** Written where the tag is: its handler reads the variables there. */
-                $out .= " @fusionFrame({$frame}) {$entry['fusion']} @endfusionFrame";
+                $out .= " @nitroFrame({$frame}) {$entry['nitro']} @endnitroFrame";
 
                 continue;
             }
 
-            $out .= ' @fusionAttr('.var_export($attribute, true).', '.$entry['code'].')';
+            $out .= ' @nitroAttr('.var_export($attribute, true).', '.$entry['code'].')';
         }
 
         return $out;

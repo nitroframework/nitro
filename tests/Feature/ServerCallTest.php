@@ -1,16 +1,16 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Support\Wire;
-use Nitro\Fusion\Tests\Fixtures\Components\Store;
-use Nitro\Fusion\Tests\Fixtures\Models\Student;
-use Nitro\Fusion\Tests\Fixtures\Models\User;
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Support\Wire;
+use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Models\Student;
+use Nitro\Tests\Fixtures\Models\User;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * POST /_fusion/update: #[Server] calls, and everything the endpoint must refuse.
+ * POST /_nitro/update: #[Server] calls, and everything the endpoint must refuse.
  */
 class ServerCallTest extends TestCase
 {
@@ -82,7 +82,7 @@ class ServerCallTest extends TestCase
         $this->assertSame(['boot', 'hydrate', 'dehydrate'], Store::$log);
 
         $body = $this->json($response);
-        $this->assertSame(['window.savedJournal = $fusion.note + " / " + $refs.status.textContent + " / " + $el.tagName'], $body['effects']['js']);
+        $this->assertSame(['window.savedJournal = $nitro.note + " / " + $refs.status.textContent + " / " + $el.tagName'], $body['effects']['js']);
         $this->assertSame(['second'], Wire::fromJson($body['snapshot']['state'])['data']['saved']);
     }
 
@@ -114,7 +114,7 @@ class ServerCallTest extends TestCase
         $snapshot = $this->wallet();
 
         foreach (['clientOnly', 'drain', 'preview', 'mount', 'render', 'callAction', 'validate', 'dispatch', 'reset',
-            'redirect', 'fusion', 'getId', '__construct', '__destruct', 'secret', 'nonexistent', ''] as $method) {
+            'redirect', 'nitro', 'getId', '__construct', '__destruct', 'secret', 'nonexistent', ''] as $method) {
             $response = $this->call($snapshot, $method);
             $this->assertSame(403, $response->getStatusCode(), "{$method}() must be refused: ".$response->getContent());
         }
@@ -247,7 +247,7 @@ class ServerCallTest extends TestCase
         $this->boot($framework);
         $snapshot = $this->snapshotOf('/embed');
 
-        $bad = fn (string $body) => $this->request('POST', '/_fusion/update', ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], $body)->getStatusCode();
+        $bad = fn (string $body) => $this->request('POST', '/_nitro/update', ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], $body)->getStatusCode();
 
         $this->assertSame(400, $bad('{not json'));
         $this->assertSame(400, $bad('"a string"'));
@@ -268,11 +268,11 @@ class ServerCallTest extends TestCase
         $body = json_encode(['snapshot' => $snapshot, 'call' => ['method' => 'save', 'params' => []]]);
         $json = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'];
 
-        $this->assertSame(419, $this->request('POST', '/_fusion/update', $json, $body)->getStatusCode());
-        $this->assertSame(419, $this->request('POST', '/_fusion/update', [...$json, 'HTTP_SEC_FETCH_SITE' => 'cross-site'], $body)->getStatusCode());
-        $this->assertSame(200, $this->request('POST', '/_fusion/update', [...$json, 'HTTP_SEC_FETCH_SITE' => 'same-origin'], $body)->getStatusCode());
+        $this->assertSame(419, $this->request('POST', '/_nitro/update', $json, $body)->getStatusCode());
+        $this->assertSame(419, $this->request('POST', '/_nitro/update', [...$json, 'HTTP_SEC_FETCH_SITE' => 'cross-site'], $body)->getStatusCode());
+        $this->assertSame(200, $this->request('POST', '/_nitro/update', [...$json, 'HTTP_SEC_FETCH_SITE' => 'same-origin'], $body)->getStatusCode());
 
         $token = $this->app->make('session')->driver()->token();
-        $this->assertSame(200, $this->request('POST', '/_fusion/update', [...$json, 'HTTP_X_CSRF_TOKEN' => $token], $body)->getStatusCode());
+        $this->assertSame(200, $this->request('POST', '/_nitro/update', [...$json, 'HTTP_X_CSRF_TOKEN' => $token], $body)->getStatusCode());
     }
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Browser;
+namespace Nitro\Browser;
 
 /**
  * localStorage or sessionStorage. Values are stored as JSON, so arrays keep their keys; a value

@@ -1,7 +1,7 @@
-// Viewi's PhpJsFunctions/Strings/SimilarText.js (locutus), for Fusion's values.
+// Viewi's PhpJsFunctions/Strings/SimilarText.js (locutus), for Nitro's values.
 function similar_text(first, second) {
     /**
-     * Fusion: bytes, as PHP. PHP's third parameter takes the percentage by reference; Viewi's
+     * Nitro: bytes, as PHP. PHP's third parameter takes the percentage by reference; Viewi's
      * returns it instead of the count, which PHP code does not expect: it is not taken.
      */
     first = P.utf8(P.toStr(first));

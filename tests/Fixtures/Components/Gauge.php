@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Component;
+use Nitro\Component;
 use RuntimeException;
 
-/** A component that fails when told to, without a fallback of its own: the application's, or Fusion's. */
+/** A component that fails when told to, without a fallback of its own: the application's, or Nitro's. */
 class Gauge extends Component
 {
     public function mount(bool $fail = false): void

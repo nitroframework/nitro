@@ -1,12 +1,12 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Pages;
+namespace Nitro\Tests\Fixtures\Pages;
 
-use Nitro\Fusion\Attributes\Server;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\Server;
+use Nitro\Component;
 
 /**
- * fusion:visible: a list that loads more as its end comes into view, a .once marker, and a
+ * nitro:visible: a list that loads more as its end comes into view, a .once marker, and a
  * #[Server] method that changes nothing (called once per time it comes into view).
  */
 class Feed extends Component

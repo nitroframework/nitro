@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    @fusionHead
+    @nitroHead
 </head>
 <body>
     <main>{{ $slot }}</main>
-    @fusionScripts
+    @nitroScripts
 </body>
 </html>

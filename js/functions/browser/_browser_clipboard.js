@@ -1,9 +1,9 @@
-/** Fusion::browser()->clipboard(): navigator.clipboard (https pages and localhost). */
+/** Nitro::browser()->clipboard(): navigator.clipboard (https pages and localhost). */
 function _browser_clipboard(browser) {
     const clipboard = browser.el.ownerDocument.defaultView.navigator.clipboard;
     const available = () => {
         if (clipboard) return true;
-        browser.report(new Error('Fusion::browser()->clipboard(): the clipboard is available on https pages and localhost only'));
+        browser.report(new Error('Nitro::browser()->clipboard(): the clipboard is available on https pages and localhost only'));
         return false;
     };
 

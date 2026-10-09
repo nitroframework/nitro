@@ -1,11 +1,11 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Fixtures\Components;
+namespace Nitro\Tests\Fixtures\Components;
 
-use Nitro\Fusion\Attributes\View;
-use Nitro\Fusion\Component;
+use Nitro\Attributes\View;
+use Nitro\Component;
 
-/** A component with a React view that reads it with useFusion() in a child: a key under an array set by its path. */
+/** A component with a React view that reads it with useNitro() in a child: a key under an array set by its path. */
 #[View(react: 'react-note')]
 class ReactNote extends Component
 {

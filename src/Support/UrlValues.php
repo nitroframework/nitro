@@ -1,6 +1,6 @@
 <?php
 
-namespace Nitro\Fusion\Support;
+namespace Nitro\Support;
 
 /**
  * A typed value from a URL (a #[Url] property's, a route parameter's): the one rule set, which

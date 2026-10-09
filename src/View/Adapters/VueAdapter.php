@@ -1,15 +1,15 @@
 <?php
 
-namespace Nitro\Fusion\View\Adapters;
+namespace Nitro\View\Adapters;
 
-use Nitro\Fusion\View\ScriptEngine;
-use Nitro\Fusion\View\ServerRendering\NullRenderer;
-use Nitro\Fusion\View\ServerRendering\ServerRenderer;
+use Nitro\View\ScriptEngine;
+use Nitro\View\ServerRendering\NullRenderer;
+use Nitro\View\ServerRendering\ServerRenderer;
 
 /**
  * Vue: #[View(vue: 'cart/badge')] is cart/badge.vue in resources/views/vue or resources/js/vue.
  * A single-file component; its component's PHP, when it holds it, is a <php> block in it. In the
- * browser: nitro-fusion/vue (js/adapters/vue.js).
+ * browser: nitro/vue (js/adapters/vue.js).
  */
 final class VueAdapter extends ScriptEngine
 {

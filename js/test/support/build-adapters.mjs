@@ -21,18 +21,18 @@ import { compile as compileSvelte, compileModule as compileSvelteModule } from '
 const root = process.cwd();
 const fixtureViews = join(root, 'tests/Fixtures/app/resources/views');
 
-/** 'nitro-fusion/vue', /react, /solid, /svelte: the adapters, as an app's Vite alias names them. */
+/** 'nitro/vue', /react, /solid, /svelte: the adapters, as an app's Vite alias names them. */
 const aliases = {
     name: 'aliases',
     setup(build) {
-        build.onResolve({ filter: /^nitro-fusion\/(vue|react|solid)$/ }, ({ path }) => ({ path: join(root, 'js/adapters', `${path.split('/')[1]}.js`) }));
-        build.onResolve({ filter: /^nitro-fusion\/svelte$/ }, () => ({ path: join(root, 'js/adapters/svelte.svelte.js') }));
+        build.onResolve({ filter: /^nitro\/(vue|react|solid)$/ }, ({ path }) => ({ path: join(root, 'js/adapters', `${path.split('/')[1]}.js`) }));
+        build.onResolve({ filter: /^nitro\/svelte$/ }, () => ({ path: join(root, 'js/adapters/svelte.svelte.js') }));
     },
 };
 
 /**
  * Svelte's .svelte views and .svelte.js modules (runes), compiled by Svelte's own compiler for the
- * DOM or for the server. A view's <php> block is left out, as Fusion's Vite plugin does.
+ * DOM or for the server. A view's <php> block is left out, as Nitro's Vite plugin does.
  */
 const svelte = (generate = 'client') => ({
     name: 'svelte',
@@ -66,7 +66,7 @@ const sfc = (ssr = false) => ({
     name: 'vue-sfc',
     setup(build) {
         build.onLoad({ filter: /\.vue$/ }, ({ path }) => {
-            /** The <php> block left out, as Fusion's Vite plugin does. */
+            /** The <php> block left out, as Nitro's Vite plugin does. */
             const source = readFileSync(path, 'utf8').replace(/<php>[\s\S]*?<\/php>/, (block) => block.replace(/[^\n]/g, ''));
             const { descriptor, errors } = parse(source, { filename: path });
             if (errors.length) return { errors: errors.map((e) => ({ text: String(e.message ?? e) })) };
@@ -129,10 +129,10 @@ const browser = { format: 'iife', platform: 'browser', target: ['es2020'], condi
 const service = { format: 'esm', platform: 'node', target: ['node20'], packages: 'external' };
 
 const builds = [
-    { name: 'vue.js', entry: entryFor('js/adapters/vue.js', 'fusionVue', join(fixtureViews, 'vue'), '.vue'), plugins: [aliases, globalVue, sfc()], ...browser },
-    { name: 'react.js', entry: entryFor('js/adapters/react.js', 'fusionReact', join(fixtureViews, 'react'), '.jsx'), plugins: [aliases], ...browser },
-    { name: 'solid.js', entry: entryFor('js/adapters/solid.js', 'fusionSolid', join(fixtureViews, 'solid'), '.jsx'), plugins: [aliases, solidJsx('dom')], ...browser },
-    { name: 'svelte.js', entry: entryFor('js/adapters/svelte.svelte.js', 'fusionSvelte', join(fixtureViews, 'svelte'), '.svelte'), plugins: [aliases, svelte('client')], ...browser },
+    { name: 'vue.js', entry: entryFor('js/adapters/vue.js', 'nitroVue', join(fixtureViews, 'vue'), '.vue'), plugins: [aliases, globalVue, sfc()], ...browser },
+    { name: 'react.js', entry: entryFor('js/adapters/react.js', 'nitroReact', join(fixtureViews, 'react'), '.jsx'), plugins: [aliases], ...browser },
+    { name: 'solid.js', entry: entryFor('js/adapters/solid.js', 'nitroSolid', join(fixtureViews, 'solid'), '.jsx'), plugins: [aliases, solidJsx('dom')], ...browser },
+    { name: 'svelte.js', entry: entryFor('js/adapters/svelte.svelte.js', 'nitroSvelte', join(fixtureViews, 'svelte'), '.svelte'), plugins: [aliases, svelte('client')], ...browser },
     { name: 'ssr.mjs', entry: serviceEntry(), plugins: [aliases, sfc(true), solidJsx('ssr'), svelte('server')], ...service },
 ];
 

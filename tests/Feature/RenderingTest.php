@@ -1,8 +1,8 @@
 <?php
 
-namespace Nitro\Fusion\Tests\Feature;
+namespace Nitro\Tests\Feature;
 
-use Nitro\Fusion\Tests\TestCase;
+use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class RenderingTest extends TestCase
@@ -19,7 +19,7 @@ class RenderingTest extends TestCase
         $this->assertStringContainsString('<span class="count">0</span>', $html);
         $this->assertStringContainsString('<p>Doubled: 0</p>', $html);
         $this->assertStringContainsString('<small>Normal</small>', $html);
-        $this->assertStringContainsString('fusion:click="increment"', $html);
+        $this->assertStringContainsString('nitro:click="increment"', $html);
         $this->assertStringContainsString('1 item left', $html);
 
         /** Counter, the list, and one child per todo, each with its own signed state. */
@@ -33,8 +33,8 @@ class RenderingTest extends TestCase
         $listId = $snapshots[1]['state']['id'];
         $this->assertSame([$listId.'.1', $listId.'.2'], [$snapshots[2]['state']['id'], $snapshots[3]['state']['id']]);
 
-        $this->assertStringContainsString('<script src="/_fusion/fusion.js?v=', $html);
-        $this->assertStringContainsString('<script src="/_fusion/app.js?v=', $html);
+        $this->assertStringContainsString('<script src="/_nitro/nitro.js?v=', $html);
+        $this->assertStringContainsString('<script src="/_nitro/app.js?v=', $html);
     }
 
     #[DataProvider('frameworks')]
@@ -49,7 +49,7 @@ class RenderingTest extends TestCase
         $this->assertStringContainsString('<title>Student</title>', $html);
         $this->assertStringContainsString('<h1>Ada Lovelace</h1>', $html);
         $this->assertStringContainsString('<p class="shout">ADA LOVELACE!</p>', $html);
-        $this->assertStringContainsString('fusion:page="components.layouts.app"', $html);
+        $this->assertStringContainsString('nitro:page="components.layouts.app"', $html);
 
         /** The browser gets the model's visible attributes, and the server remembers the key. */
         $state = $this->snapshots($html)[0]['state'];
@@ -80,9 +80,9 @@ class RenderingTest extends TestCase
 
         $this->assertStringContainsString('<p class="label">0 ticks</p>', $html);
         $this->assertStringContainsString('<p class="again">0 ticks</p>', $html);
-        $this->assertStringContainsString('fusion:init="start"', $html);
-        $this->assertStringContainsString('fusion:poll.100ms="tick"', $html);
-        $this->assertStringContainsString('fusion:confirm="Reset the clock?"', $html);
+        $this->assertStringContainsString('nitro:init="start"', $html);
+        $this->assertStringContainsString('nitro:poll.100ms="tick"', $html);
+        $this->assertStringContainsString('nitro:confirm="Reset the clock?"', $html);
 
         /** WithPagination and WithSorting run in PHP too, for the server's render. */
         $this->assertMatchesRegularExpression('/<li>Eva<\/li>\s*<li>Bea<\/li>\s*<li>Gus<\/li>/', $html);
@@ -92,7 +92,7 @@ class RenderingTest extends TestCase
         $this->assertArrayNotHasKey('label', $this->snapshots($html)[0]['state']['data']);
 
         /** Outside a render (a #[Server] method), $this->label is worked out afresh. */
-        $clock = new \Nitro\Fusion\Tests\Fixtures\Components\Clock;
+        $clock = new \Nitro\Tests\Fixtures\Components\Clock;
         $clock->ticks = 4;
         $this->assertSame('4 ticks', $clock->label);
         $clock->ticks = 5;
@@ -120,7 +120,7 @@ class RenderingTest extends TestCase
 
     /**
      * Slots: what is between a child's tags renders in the parent's view (its variables) and goes
-     * where the child's view puts $slot; <fusion:slot name="..."> where it puts $slots['...'].
+     * where the child's view puts $slot; <nitro:slot name="..."> where it puts $slots['...'].
      * Whitespace after the tags stays as Blade keeps it.
      */
     #[DataProvider('frameworks')]
@@ -130,12 +130,12 @@ class RenderingTest extends TestCase
 
         $html = (string) $this->get('/shelf')->getContent();
 
-        $this->assertMatchesRegularExpression('#<article fusion:id="[^"]+\.c0" fusion:name="card"[^>]*class="card">\s*<header>\s*<h3>Stock</h3>#', $html);
-        $this->assertMatchesRegularExpression('#<div class="body">\s*<p class="count">Books: 1</p>.*<li>Atlas</li>\s*<li>Bible</li>.*fusion:name="todo-item".*<span[^>]*>Books</span>.*</div>#s', $html);
-        $this->assertMatchesRegularExpression('#<footer><button type="button" class="add" fusion:click="add">Add</button></footer>#', $html);
-        $this->assertStringNotContainsString('<p class="blank">', explode('fusion:name="card"', $html)[1]);
+        $this->assertMatchesRegularExpression('#<article nitro:id="[^"]+\.c0" nitro:name="card"[^>]*class="card">\s*<header>\s*<h3>Stock</h3>#', $html);
+        $this->assertMatchesRegularExpression('#<div class="body">\s*<p class="count">Books: 1</p>.*<li>Atlas</li>\s*<li>Bible</li>.*nitro:name="todo-item".*<span[^>]*>Books</span>.*</div>#s', $html);
+        $this->assertMatchesRegularExpression('#<footer><button type="button" class="add" nitro:click="add">Add</button></footer>#', $html);
+        $this->assertStringNotContainsString('<p class="blank">', explode('nitro:name="card"', $html)[1]);
 
-        $empty = explode('fusion:name="card"', $html)[2];
+        $empty = explode('nitro:name="card"', $html)[2];
         $this->assertStringContainsString('<p class="blank">Nothing here yet.</p>', $empty);
         $this->assertStringNotContainsString('<footer>', $empty);
         $this->assertStringContainsString('<div class="body"></div>', $empty);
@@ -157,7 +157,7 @@ class RenderingTest extends TestCase
             $this->assertMatchesRegularExpression('#<aside id="dock"><i id="portal_dock" style="display: none !important;"></i>\s*<aside class="journal-dock">\s*<span class="dock-note">first entry</span>\s*</aside>\s*<i id="portal_dock_end"#', $html, $url);
             $this->assertMatchesRegularExpression('#<i id="portal_toasts"[^>]*></i><i id="portal_toasts_end"#', $html, $url);
             /** The component on /portals, the page on /journal. */
-            $this->assertStringNotContainsString('journal-dock', explode('</section>', preg_split('/fusion:name="(?:pages::)?journal"/', $html)[1])[0], $url);
+            $this->assertStringNotContainsString('journal-dock', explode('</section>', preg_split('/nitro:name="(?:pages::)?journal"/', $html)[1])[0], $url);
         }
     }
 
@@ -178,7 +178,7 @@ class RenderingTest extends TestCase
     {
         $this->boot($framework);
 
-        $bundle = $this->get('/_fusion/app.js');
+        $bundle = $this->get('/_nitro/app.js');
         $this->assertSame(200, $bundle->getStatusCode());
         $this->assertStringStartsWith('application/javascript', $bundle->headers->get('Content-Type'));
 
@@ -186,14 +186,14 @@ class RenderingTest extends TestCase
         $this->assertStringNotContainsString('console.error', $js, $js);
 
         foreach (['counter', 'todo-list', 'wallet'] as $name) {
-            $this->assertStringContainsString('Fusion.define("'.$name.'"', $js);
+            $this->assertStringContainsString('Nitro.define("'.$name.'"', $js);
         }
 
         /** Pages and #[LazyLoad] components come in their chunks. */
         foreach (['pages' => 'pages::student-page', 'todos' => 'todo-item', 'board' => 'pages::board'] as $group => $name) {
-            $chunk = $this->get('/_fusion/app/'.$group.'.js');
+            $chunk = $this->get('/_nitro/app/'.$group.'.js');
             $this->assertSame(200, $chunk->getStatusCode());
-            $this->assertStringContainsString('Fusion.define("'.$name.'"', (string) $chunk->getContent());
+            $this->assertStringContainsString('Nitro.define("'.$name.'"', (string) $chunk->getContent());
             $js .= $chunk->getContent();
         }
 
@@ -203,8 +203,8 @@ class RenderingTest extends TestCase
         $this->assertStringNotContainsString('"withdraw": function', $js);
         $this->assertStringNotContainsString('"drain": function', $js);
 
-        $runtime = $this->get('/_fusion/fusion.js');
+        $runtime = $this->get('/_nitro/nitro.js');
         $this->assertSame(200, $runtime->getStatusCode());
-        $this->assertStringContainsString('Fusion', (string) $runtime->getContent());
+        $this->assertStringContainsString('Nitro', (string) $runtime->getContent());
     }
 }

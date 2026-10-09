@@ -1,4 +1,4 @@
-// Fusion: PHP's preg_replace() and preg_replace_callback() for one pattern and one subject (null
+// Nitro: PHP's preg_replace() and preg_replace_callback() for one pattern and one subject (null
 // where PHP fails): each match (up to limit) replaced by what make() gives for it.
 // uses: _pcre_start, _pcre_each
 function _pcre_replace(pattern, subject, limit, make) {
