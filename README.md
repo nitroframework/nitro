@@ -1389,7 +1389,7 @@ of views and browser methods.
 
 | Key | Default | |
 | --- | --- | --- |
-| `endpoint` | `/_nitro` | The URL prefix for `#[Server]` calls, uploads and assets (`NITRO_ENDPOINT`) |
+| `endpoint` | `/_nitro` | The URL prefix for `#[Server]` calls, uploads and assets |
 | `middleware` | `['web']` | Middleware for the endpoint |
 | `components` | `App\Nitro\Components` | Namespace, path and view path of components |
 | `pages` | `App\Nitro\Pages` | Namespace, path and view path of pages |
@@ -1404,8 +1404,8 @@ of views and browser methods.
 | `public_config` | `['app.name']` | Config keys `config()` may read in the browser; their values are public |
 | `compiled` | `storage/framework/nitro` | Where compiled files are written |
 | `static` | `nitro` | The directory in `public/` for the build |
-| `build.obfuscate` | `true` | Obfuscate builds (`NITRO_OBFUSCATE`) |
-| `minify_on_change` | `true` | Minify when recompiling during development (`NITRO_MINIFY_ON_CHANGE`) |
+| `build.obfuscate` | `true` | Obfuscate builds |
+| `minify_on_change` | `true` | Minify when recompiling during development |
 | `rendering` | `'clone'` | How the browser creates elements: `'clone'` or `'create'` |
 | `navigation` | `'data'` | How a visit shows a page: `'data'` (data first) or `'markup'` (markup first); `#[Navigate]` per page |
 | `attributes` | `[]` | Your own `nitro:` attributes, each run by a `Nitro.directive()` (see [Your own attributes](#your-own-attributes)) |

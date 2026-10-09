@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'endpoint' => env('NITRO_ENDPOINT', '/_nitro'),
+    'endpoint' => '/_nitro',
 
     'middleware' => ['web'],
 
@@ -153,7 +153,7 @@ return [
     */
 
     'cache' => [
-        'store' => env('NITRO_CACHE_STORE'),
+        'store' => null,
     ],
 
     /*
@@ -173,7 +173,7 @@ return [
     */
 
     'fallbacks' => [
-        'enabled' => env('NITRO_FALLBACKS'),
+        'enabled' => null,
         'view' => null,
     ],
 
@@ -272,10 +272,10 @@ return [
     */
 
     'build' => [
-        'obfuscate' => env('NITRO_OBFUSCATE', true),
+        'obfuscate' => true,
     ],
 
-    'minify_on_change' => env('NITRO_MINIFY_ON_CHANGE', true),
+    'minify_on_change' => true,
 
     /*
     |--------------------------------------------------------------------------
@@ -330,7 +330,7 @@ return [
     |
     */
 
-    'view_transitions' => (bool) env('NITRO_VIEW_TRANSITIONS', false),
+    'view_transitions' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -344,7 +344,7 @@ return [
     |
     */
 
-    'devtools' => env('NITRO_DEVTOOLS'),
+    'devtools' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -421,6 +421,9 @@ return [
     | the view, as it does with this off. Blade views are always rendered
     | on the server.
     |
+    | enabled and url come from .env: whether this machine runs the render
+    | service, and where it listens, differ from one machine to the next.
+    |
     */
 
     'ssr' => [
@@ -446,6 +449,7 @@ return [
 
     'features' => [],
 
+    /** esbuild, run with Node: the Node binary on this machine (.env), and the folder esbuild is installed in. */
     'esbuild' => [
         'node' => env('NITRO_NODE', 'node'),
         'root' => base_path(),
