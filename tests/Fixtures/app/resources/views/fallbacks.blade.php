@@ -5,7 +5,7 @@
 </head>
 <body>
     <nitro:counter />
-    <nitro:flaky :fail="request('flaky') === 'fail'" :forbidden="request('flaky') === 'forbidden'" />
+    <nitro:flaky :fail="request('flaky') === 'fail'" :refuse="(string) request('refuse')" />
     <nitro:gauge :fail="request('gauge') === 'fail'" />
     @nitroScripts
 </body>

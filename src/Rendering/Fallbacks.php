@@ -2,15 +2,27 @@
 
 namespace Nitro\Rendering;
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\RecordNotFoundException;
+use Illuminate\Database\RecordsNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Validation\ValidationException;
 use Nitro\Component;
 use Nitro\Support\ComponentHooks;
 use Nitro\Support\Config;
+use Nitro\Support\CurrentRequest;
 use Nitro\Support\Protocol;
+use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
@@ -46,12 +58,19 @@ final class Fallbacks
     /**
      * A component placed in a view that failed to start or render: its fallback, marked for the
      * browser and with the component's id (a parent's view finds its child there and keeps it; it
-     * has no state, so it does not start). The error again when fallbacks are off, or when it is the
-     * request's answer (abort(403), an HTTP exception), not the component's failure.
+     * has no state, so it does not start). The error again when fallbacks are off. The request's
+     * answer (isAnswer()), not the component's failure, goes as Laravel's handler renders it, thrown
+     * as a response: the view it fails in lets a response through, where it would wrap an exception.
      */
     public function placed(string $id, ?Component $component, Throwable $exception): string
     {
-        if (! $this->enabled() || $exception instanceof HttpExceptionInterface) {
+        $request = CurrentRequest::of($this->app);
+
+        if ($request !== null && $this->isAnswer($exception)) {
+            throw new HttpResponseException($this->app->make(ExceptionHandler::class)->render($request, $exception));
+        }
+
+        if (! $this->enabled() || $this->isAnswer($exception)) {
             throw $exception;
         }
 
@@ -66,7 +85,7 @@ final class Fallbacks
      */
     public function failedCall(Component $component, Throwable $exception): ?JsonResponse
     {
-        if (! $this->enabled() || $exception instanceof HttpExceptionInterface) {
+        if (! $this->enabled() || $this->isAnswer($exception)) {
             return null;
         }
 
@@ -79,6 +98,28 @@ final class Fallbacks
     public function forBrowser(): ?string
     {
         return $this->enabled() ? $this->html(null, null) : null;
+    }
+
+    /**
+     * What Laravel's exception handler sends as an answer rather than an error: an HTTP exception
+     * (abort()), what it turns into one (a policy, a missing model or enum case, a CSRF token, a
+     * bad request), a guest, failed validation, a response thrown (a redirect), or an exception that
+     * renders its own. The visitor gets it as Laravel sends it, never a fallback.
+     */
+    private function isAnswer(Throwable $exception): bool
+    {
+        return $exception instanceof HttpExceptionInterface
+            || $exception instanceof HttpResponseException
+            || $exception instanceof Responsable
+            || $exception instanceof AuthenticationException
+            || $exception instanceof AuthorizationException
+            || $exception instanceof ValidationException
+            || $exception instanceof RecordsNotFoundException
+            || $exception instanceof RecordNotFoundException
+            || $exception instanceof BackedEnumCaseNotFoundException
+            || $exception instanceof TokenMismatchException
+            || $exception instanceof OriginMismatchException
+            || $exception instanceof RequestExceptionInterface;
     }
 
     private function html(?Component $component, ?Throwable $exception): string

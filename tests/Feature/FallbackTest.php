@@ -57,14 +57,51 @@ class FallbackTest extends TestCase
         $this->assertStringNotContainsString('data-fallback', (string) $this->get('/fallbacks')->getContent(), 'the browser is given no fallback either');
     }
 
-    /** abort() is the request's answer, not the component's failure. */
-    #[DataProvider('frameworks')]
-    public function test_an_http_exception_is_not_a_failure(string $framework): void
+    /**
+     * What Laravel answers as a response (abort(), a policy, a missing model, a guest, a redirect)
+     * is the request's answer, not the component's failure: as Laravel sends it, never a fallback.
+     *
+     * @return array<string, array{string, int}>
+     */
+    public static function answers(): array
     {
-        $this->boot($framework);
-        $this->fallbacks(true);
+        return [
+            'abort()' => ['abort', 403],
+            'a policy' => ['gate', 403],
+            'a missing model' => ['missing', 404],
+            'a guest' => ['guest', 401],
+            'a redirect' => ['redirect', 302],
+        ];
+    }
 
-        $this->assertSame(403, $this->get('/fallbacks?flaky=forbidden')->getStatusCode());
+    #[DataProvider('answers')]
+    public function test_what_laravel_answers_is_not_a_failure_on_the_page(string $refuse, int $status): void
+    {
+        $this->boot('laravel');
+
+        /** With fallbacks on or off: the view the component fails in doesn't make it a 500. */
+        foreach ([true, false] as $on) {
+            $this->fallbacks($on);
+            $response = $this->get("/fallbacks?refuse={$refuse}");
+
+            /** A guest on a page is sent to sign in; a call (JSON) is answered 401. */
+            $this->assertSame($status === 401 ? 302 : $status, $response->getStatusCode(), (string) $response->getContent());
+            $this->assertStringNotContainsString('Flaky is resting', (string) $response->getContent());
+        }
+    }
+
+    #[DataProvider('answers')]
+    public function test_what_laravel_answers_is_not_a_failure_in_a_call(string $refuse, int $status): void
+    {
+        $this->boot('laravel');
+        $this->fallbacks(true);
+        $html = (string) $this->get('/fallbacks')->getContent();
+        $flaky = array_values(array_filter($this->snapshots($html), fn (array $s) => $s['state']['name'] === 'flaky'))[0]['envelope'];
+
+        $response = $this->update(['snapshot' => $flaky, 'call' => ['method' => 'open', 'params' => [$refuse]]]);
+
+        $this->assertSame($status, $response->getStatusCode(), (string) $response->getContent());
+        $this->assertStringNotContainsString('Flaky is resting', (string) $response->getContent());
     }
 
     #[DataProvider('frameworks')]
