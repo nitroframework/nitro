@@ -5,11 +5,11 @@ namespace Nitro\Support;
 use Illuminate\Support\Str;
 
 /**
- * Names. A component, App\Nitro\Components\Students\StudentForm (namespace
- * App\Nitro\Components), is "students.student-form", placed as <nitro:students.student-form />;
- * a page, App\Nitro\Pages\Students\Index (namespace App\Nitro\Pages), is
- * "pages::students.index", as Livewire 4 names pages. Their views are the name under the
- * configured view path: "nitro.components.students.student-form", "nitro.pages.students.index".
+ * Names. A component, App\Nitro\Components\Posts\CommentForm (namespace
+ * App\Nitro\Components), is "posts.comment-form", placed as <nitro:posts.comment-form />;
+ * a page, App\Nitro\Pages\Posts\Index (namespace App\Nitro\Pages), is
+ * "pages::posts.index", as Livewire 4 names pages. Their views are the name under the
+ * configured view path: "nitro.components.posts.comment-form", "nitro.pages.posts.index".
  */
 final class Naming
 {
@@ -48,7 +48,7 @@ final class Naming
         return $prefix === '' ? self::bare($name) : $prefix.'.'.self::bare($name);
     }
 
-    /** "task-item" or "students.task-item": what a <nitro:...> tag may name. */
+    /** "post-card" or "posts.post-card": what a <nitro:...> tag may name. */
     public static function isValid(string $name): bool
     {
         return (bool) preg_match('/^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/', $name);

@@ -224,7 +224,7 @@ class NitroServiceProvider extends ServiceProvider
         $this->app->make('router')->pushMiddlewareToGroup('web', ServerTiming::class);
 
         /**
-         * Route::nitro('/students/{student}', Pages\Students\Show::class), or 'pages::students.show':
+         * Route::nitro('/posts/{post}', Pages\Posts\Show::class), or 'pages::posts.show':
          * a page; mount() is the action, so its parameters bind like a controller's.
          */
         Router::macro('nitro', function (string $uri, string $page) {

@@ -23,12 +23,12 @@ return [
     | Components and Pages
     |--------------------------------------------------------------------------
     |
-    | Components are placed in views: App\Nitro\Components\Students\Table is
-    | <nitro:students.table /> and renders "nitro.components.students.table".
+    | Components are placed in views: App\Nitro\Components\Posts\Table is
+    | <nitro:posts.table /> and renders "nitro.components.posts.table".
     |
-    | Pages are whole screens, routed with Route::nitro() or returned by a
-    | controller with Nitro::render(): App\Nitro\Pages\Students\Index is
-    | "pages::students.index" and renders "nitro.pages.students.index".
+    | Pages are whole screens, routed with Route::nitro():
+    | App\Nitro\Pages\Posts\Index is "pages::posts.index" and renders
+    | "nitro.pages.posts.index".
     |
     */
 
@@ -76,7 +76,7 @@ return [
     | say otherwise (#[Title], #[Description], $this->head() in mount()):
     |
     | title: the format of the <title>, the page's title in place of %s
-    |        ('%s · Campus Admin'); a page without a title gets app.name.
+    |        ('%s · My Blog'); a page without a title gets app.name.
     | description: the description search results and link previews show.
     | image: the image link previews show (an absolute URL).
     |
@@ -309,7 +309,7 @@ return [
     | 'markup': the browser renders the page at once, with its properties'
     | defaults, and fills it in when the data arrives. Until then every
     | property counts as deferred: @deferred / @placeholder show what to show
-    | meanwhile. Its views must render with the defaults (no $student['name']
+    | meanwhile. Its views must render with the defaults (no $post['title']
     | on an empty array). A page in another layout, a redirect or an error is
     | handled as with 'data'. The first page load is the server's HTML either way.
     |

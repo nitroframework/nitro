@@ -267,7 +267,7 @@ abstract class Component
      * The page's <head>: title, description, link-preview image, canonical URL, noindex. Set in
      * mount(); what is left unset comes from #[Title], #[Description] and nitro.head.
      *
-     *   $this->head()->title("Invoice {$invoice->number}")->description('...');
+     *   $this->head()->title($post->title)->description($post->excerpt);
      */
     final protected function head(): Head
     {

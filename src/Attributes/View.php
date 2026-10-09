@@ -7,8 +7,8 @@ use InvalidArgumentException;
 use Nitro\Support\Protocol;
 
 /**
- * The component's view, when it does not follow the convention (App\Nitro\Students\Form ->
- * nitro.students.form), or when it is not Blade:
+ * The component's view, when it does not follow the convention (App\Nitro\Posts\Form ->
+ * nitro.posts.form), or when it is not Blade:
  *
  *     #[View('shared.form')]               a Blade view
  *     #[View(vue: 'cart/badge')]           resources/views/vue/cart/badge.vue

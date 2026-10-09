@@ -9,10 +9,10 @@ namespace Nitro;
  * with the page's data.
  *
  *   $this->head()
- *       ->title("Invoice {$invoice->number}")
- *       ->description("Invoice for {$invoice->student->name}")
- *       ->image(asset('img/invoice.png'))
- *       ->canonical(route('invoices.show', $invoice));
+ *       ->title($post->title)
+ *       ->description($post->excerpt)
+ *       ->image($post->cover_url)
+ *       ->canonical(route('posts.show', $post));
  */
 final class Head
 {

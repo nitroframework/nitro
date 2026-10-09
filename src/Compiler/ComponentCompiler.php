@@ -10,8 +10,8 @@ use ReflectionMethod;
 /**
  * Compiles a component (its class and its view) to the definition the browser runtime loads:
  *
- *   // App\Nitro\Students\Form · view nitro.students.form
- *   Nitro.define("students.form", {
+ *   // App\Nitro\Posts\Form · view nitro.posts.form
+ *   Nitro.define("posts.form", {
  *       props: {...}, server: [...], listeners: {...}, mount: true,
  *       methods: { reset: function () {...} },
  *       template: {t: "r", h: [...]},           // the view's markup, as a tree (TemplateCompiler)

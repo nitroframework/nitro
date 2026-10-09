@@ -16,18 +16,18 @@ use InvalidArgumentException;
  *    changed and what it returned, done again without running it. For a method that loads data
  *    (a lookup, a search); one that saves runs every time, so it is not #[Cached].
  *
- *     #[Cached(300, tags: ['students'])]
+ *     #[Cached(300, tags: ['posts'])]
  *     public function mount(): void
  *     {
- *         $this->students = Student::with('plan')->orderBy('name')->get()->all();
+ *         $this->posts = Post::with('author')->latest()->get()->all();
  *     }
  *
  * A result is kept by the method's arguments and the state it saw: all of it, or with $by only
  * the properties it depends on, so a lookup is found again whatever else changed since:
  *
  *     #[Server]
- *     #[Cached(300, tags: ['students'], by: ['status'])]
- *     public function lookUp(string $grade): void
+ *     #[Cached(300, tags: ['posts'], by: ['status'])]
+ *     public function byTag(string $tag): void
  *
  * $perUser keeps one result for each signed-in user (and one for guests).
  */

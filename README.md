@@ -119,8 +119,8 @@ Nitro has two kinds of classes:
 | --- | --- | --- |
 | Class | `app/Nitro/Components` | `app/Nitro/Pages` |
 | View | `resources/views/nitro/components` | `resources/views/nitro/pages` |
-| Name | `students.table` for `App\Nitro\Components\Students\Table` | `pages::students.index` for `App\Nitro\Pages\Students\Index` |
-| Used | placed in a view: `<nitro:students.table />` | routed: `Route::nitro('/students', Index::class)` |
+| Name | `posts.table` for `App\Nitro\Components\Posts\Table` | `pages::posts.index` for `App\Nitro\Pages\Posts\Index` |
+| Used | placed in a view: `<nitro:posts.table />` | routed: `Route::nitro('/posts', Index::class)` |
 | Layout and title | no | `#[Layout]`, `#[Title]` |
 
 A page is a whole screen of the application: it has a route, a layout and a title, and it loads its
@@ -499,7 +499,7 @@ use WithPagination, WithSorting;
 #[Computed]
 public function rows(): array
 {
-    return $this->paginate($this->sorted($this->students), 12);
+    return $this->paginate($this->sorted($this->posts), 12);
 }
 ```
 
@@ -763,45 +763,45 @@ class Cart extends Store
 A page is routed by its class or its name:
 
 ```php
-use App\Nitro\Pages\Students\Show;
+use App\Nitro\Pages\Posts\Show;
 
-Route::nitro('/students/{student}', Show::class)->name('students.show');
-Route::nitro('/students', 'pages::students.index')->name('students.index');
+Route::nitro('/posts/{post}', Show::class)->name('posts.show');
+Route::nitro('/posts', 'pages::posts.index')->name('posts.index');
 ```
 
 `Route::nitro()` returns a normal Laravel route, so names, middleware and route-model binding
 work as usual. The page's `mount()` receives the route's parameters:
 
 ```php
-namespace App\Nitro\Pages\Students;
+namespace App\Nitro\Pages\Posts;
 
-use App\Models\Student;
+use App\Models\Post;
 use Nitro\Attributes\Layout;
 use Nitro\Attributes\Locked;
 use Nitro\Attributes\Server;
 use Nitro\Attributes\Title;
 use Nitro\Component;
 
-#[Title('Student')]
+#[Title('Post')]
 #[Layout('components.layouts.app')]
 class Show extends Component
 {
     #[Locked]
-    public array $student = [];
+    public array $post = [];
 
-    public string $note = '';
+    public string $comment = '';
 
-    public function mount(Student $student): void
+    public function mount(Post $post): void
     {
-        $this->student = $student->toArray();
+        $this->post = $post->only('id', 'title', 'body');
     }
 
     #[Server]
-    public function addNote(): void
+    public function addComment(): void
     {
-        $this->validate(['note' => 'required|max:500']);
-        Student::findOrFail($this->student['id'])->notes()->create(['body' => $this->note]);
-        $this->reset('note');
+        $this->validate(['comment' => 'required|max:1000']);
+        Post::findOrFail($this->post['id'])->comments()->create(['body' => $this->comment, 'user_id' => auth()->id()]);
+        $this->reset('comment');
     }
 }
 ```
@@ -818,9 +818,9 @@ the tags they read; a page sets only what it needs, and the rest comes from defa
 ```php
 // config/nitro.php: for every page
 'head' => [
-    'title' => '%s · Campus Admin',      // the page's title in place of %s
-    'description' => 'School administration',
-    'image' => 'https://campus.test/img/share.png',
+    'title' => '%s · My Blog',           // the page's title in place of %s
+    'description' => 'Notes on Laravel and the web',
+    'image' => 'https://example.com/img/share.png',
 ],
 ```
 
@@ -828,20 +828,19 @@ A page with fixed text uses attributes; a page whose head depends on its data se
 `mount()`:
 
 ```php
-#[Title('Pricing')]
-#[Description('Plans for every school size')]
-class Pricing extends Component
+#[Title('About')]
+#[Description('Who writes this blog, and why')]
+class About extends Component
 ```
 
 ```php
-public function mount(Invoice $invoice): void
+public function mount(Post $post): void
 {
     $this->head()
-        ->title("Invoice {$invoice->number}")
-        ->description("Invoice for {$invoice->student->name}")
-        ->image(asset('img/invoice.png'))
-        ->canonical(route('invoices.show', $invoice))
-        ->noindex();
+        ->title($post->title)
+        ->description($post->excerpt)
+        ->image($post->cover_url)
+        ->canonical(route('posts.show', $post));
 }
 ```
 
@@ -866,7 +865,7 @@ components that are used together in one chunk.
 ## Navigation
 
 ```blade
-<a href="{{ route('students.index') }}" nitro:navigate>Students</a>
+<a href="{{ route('posts.index') }}" nitro:navigate>Posts</a>
 ```
 
 The first visit is rendered by the server. After that, a `nitro:navigate` link asks the same URL
@@ -905,7 +904,7 @@ Does the page need the server?
 
 | Mode | The browser | Feels | Suits |
 | --- | --- | --- | --- |
-| **`data`** (the default) | asks the server for the page's data, then renders the page complete | one server round trip before the page changes; nothing shows half-filled | pages that mean nothing without their data (a student's profile), pages behind `auth` or `can` |
+| **`data`** (the default) | asks the server for the page's data, then renders the page complete | one server round trip before the page changes; nothing shows half-filled | pages that mean nothing without their data (a post, an author's profile), pages behind `auth` or `can` |
 | **`markup`** | renders the page at once with its properties' defaults, then fills it in when the data arrives | instant | dashboards, lists and forms with placeholders where the data goes |
 | **`client`** | renders the page at once and does not ask the server at all | instant, no request | pages that need nothing from the server: help, about, legal text, docs |
 
@@ -943,7 +942,7 @@ On a markup-first visit every property counts as deferred until the data arrives
 ```
 
 - The view must render with the defaults: guard data that is not there yet with `@deferred` or
-  `??` (no `$student['name']` on an empty array).
+  `??` (no `$post['title']` on an empty array).
 - What is typed or toggled before the data arrives is kept. A `#[Server]` call made meanwhile
   waits for the data.
 - Components created by the server (those with `mount()`) appear when the data arrives.
@@ -1135,7 +1134,7 @@ is shared at the top level, under a key without dots.
 `Nitro::flash()` sends data with the next response only, such as a message after a save:
 
 ```php
-Nitro::flash('toast', 'Invoice saved');
+Nitro::flash('toast', 'Post published');
 ```
 
 ```blade
@@ -1184,11 +1183,11 @@ With a name, CSS classes decide what moves and for how long:
 ```
 
 ```blade
-@foreach ($students as $student)
-    <li nitro:key="{{ $student['id'] }}" nitro:transition.move.duration.250ms>{{ $student['name'] }}</li>
+@foreach ($tags as $tag)
+    <li nitro:key="{{ $tag }}" nitro:transition.move.duration.250ms>{{ $tag }}</li>
 @endforeach
 
-@if ($tab === 'fees')
+@if ($tab === 'comments')
     <section nitro:transition.out-in>...</section>
 @else
     <section nitro:transition.out-in>...</section>
@@ -1274,7 +1273,7 @@ use Nitro\Facades\Nitro;
 
 public function copy(): void
 {
-    Nitro::browser()->clipboard()->write($this->invoice['number'], fn () => $this->copied = true);
+    Nitro::browser()->clipboard()->write($this->post['url'], fn () => $this->copied = true);
 }
 
 public function draw(): void
@@ -1322,8 +1321,8 @@ property changes, only the parts that read it run, and only their DOM nodes chan
     <p>Clicked {{ $count }} times</p>      {{-- reads $count --}}
     <p>Hello, {{ $name }}</p>               {{-- reads $name: untouched by a click --}}
 
-    @foreach ($students as $student)        {{-- reads $students: untouched by both --}}
-        <li>{{ $student['name'] }}</li>
+    @foreach ($posts as $post)              {{-- reads $posts: untouched by both --}}
+        <li>{{ $post['title'] }}</li>
     @endforeach
 </div>
 ```

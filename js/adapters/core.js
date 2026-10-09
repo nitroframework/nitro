@@ -124,7 +124,7 @@ export function connect(handle, { status = (initial) => initial } = {}) {
     functions.dispatch = (event, ...params) => handle.dispatch(event, ...params);
 
     /**
-     * A nitro:navigate link's attributes, for the view to spread on an <a>: link('/students'),
+     * A nitro:navigate link's attributes, for the view to spread on an <a>: link('/posts'),
      * link('/reports', 'keypress'), and nitro:prefetch with it: link('/reports', 'prefetch.visible').
      * A framework's own syntax can't always write the attribute (JSX and Svelte take no dots in a
      * name; React drops one with no value).

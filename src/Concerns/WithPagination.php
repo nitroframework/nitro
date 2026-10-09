@@ -10,7 +10,7 @@ use Nitro\Attributes\Url;
  *   #[Computed]
  *   public function rows(): array
  *   {
- *       return $this->paginate($this->students, 12);
+ *       return $this->paginate($this->posts, 12);
  *   }
  *
  * and in the view, rows['items'] is the page, with rows['page'], rows['pages'], ... to show where

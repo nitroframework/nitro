@@ -91,7 +91,7 @@ final class Nitro
     /**
      * Forget the results #[Cached] keeps under these tags: after a save, what showed the old data.
      *
-     *     Nitro::expire('students');
+     *     Nitro::expire('posts');
      */
     public function expire(string ...$tags): void
     {
