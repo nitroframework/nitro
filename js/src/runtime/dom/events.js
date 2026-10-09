@@ -9,6 +9,19 @@ const KEYS = {
     backspace: 'Backspace', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
 };
 const SYSTEM = { shift: 'shiftKey', ctrl: 'ctrlKey', alt: 'altKey', meta: 'metaKey' };
+/** A key written as its letter or digit: .k, .1 (Globals::isModifier()). */
+const LETTER_OR_DIGIT = /^[a-z0-9]$/;
+
+/**
+ * Whether the event is the modifier's key. A letter in either case (Shift+K is .k), or with Alt
+ * held its key on the keyboard (Option+K types "˚" on a Mac); a digit, or its key on the keyboard
+ * (Shift+2 types "@").
+ */
+function isKey(event, modifier) {
+    if (KEYS[modifier]) return event.key === KEYS[modifier];
+    if (/^\d$/.test(modifier)) return event.key === modifier || event.code === `Digit${modifier}`;
+    return event.key.toLowerCase() === modifier || (event.altKey && event.code === `Key${modifier.toUpperCase()}`);
+}
 const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'scroll']);
 const GLOBAL = ['window', 'document', 'outside'];
 
@@ -72,8 +85,8 @@ export class Events {
         const m = handler.modifiers;
         if (m.includes('self') && event.target !== el) return;
         if (typeof event.key === 'string') {
-            const keys = m.filter((x) => KEYS[x]);
-            if (keys.length && !keys.some((k) => event.key === KEYS[k])) return;
+            const keys = m.filter((x) => KEYS[x] || LETTER_OR_DIGIT.test(x));
+            if (keys.length && !keys.some((k) => isKey(event, k))) return;
         }
         /** .shift, .ctrl, .alt, .meta: held during the event, a key's or a click's. */
         for (const [name, flag] of Object.entries(SYSTEM)) if (m.includes(name) && !event[flag]) return;

@@ -24,6 +24,7 @@
     <button type="button" class="add-badge" nitro:click="addBadge">Add a badge</button>
     <input class="keys" nitro:keydown.enter="$set('key', 'enter')" nitro:keydown.escape="$set('key', 'escape')">
     <input class="ctrl-keys" nitro:keydown.ctrl.enter="$set('key', 'ctrl-enter')">
+    <input class="letter-keys" nitro:keydown.ctrl.k="$set('key', 'ctrl-k')" nitro:keydown.shift.k="$set('key', 'shift-k')" nitro:keydown.2="$set('key', 'two')">
     <button type="button" class="shift-click" nitro:click.shift="$set('key', 'shift-click')">Shift-click</button>
     <span class="key">{{ $key }}</span>
 </section>

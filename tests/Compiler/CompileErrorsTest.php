@@ -102,6 +102,8 @@ class CompileErrorsTest extends TestCase
             '@push' => ["<div>\n\n@push('scripts') x</div>", '@push cannot render in the browser', 3],
             'unknown nitro attribute' => ['<div nitro:clik="save"></div>', 'Unknown attribute nitro:clik', 1],
             'unknown modifier' => ['<form nitro:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
+            'two letters are no key' => ['<input nitro:keydown.ctrl.kk="open">', 'Unknown modifier .kk', 1],
+            'a capital is no key' => ['<input nitro:keydown.K="open">', 'Unknown modifier .K', 1],
             'unknown navigate modifier' => ["<div>\n<a href=\"/x\" nitro:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on nitro:navigate (it takes .keypress, .preserve-scroll, .transition)', 2],
             'prefetch on navigate' => ['<div><a href="/x" nitro:navigate.visible>x</a></div>', 'Unknown modifier .visible on nitro:navigate', 1],
             'unknown prefetch modifier' => ['<div><a href="/x" nitro:navigate nitro:prefetch.hover>x</a></div>', 'Unknown modifier .hover on nitro:prefetch (it takes .visible, .wait, .keep, or a time first: .150ms)', 1],
@@ -349,6 +351,15 @@ class CompileErrorsTest extends TestCase
         $this->assertSame(['c' => 'nitro:poll', 'on' => ['e' => 'poll', 'm' => [], 'code' => 3]], $div['h'][2]['a'][0]);
         $this->assertStringContainsString('$this.$refresh()', $expressions[3]);
         $this->assertSame(['c' => 'nitro:confirm', 'h' => [['c' => 'Sure?']]], $div['h'][3]['a'][1]);
+    }
+
+    /** A key written as its letter or digit, beside the named ones: passed to the runtime as written. */
+    public function test_a_letter_or_a_digit_is_a_key(): void
+    {
+        [$tree] = $this->compiled('<div><input nitro:keydown.ctrl.k="save"><input nitro:keyup.1="save"></div>');
+
+        $this->assertSame(['ctrl', 'k'], $tree['h'][0]['h'][0]['a'][0]['on']['m']);
+        $this->assertSame(['1'], $tree['h'][0]['h'][1]['a'][0]['on']['m']);
     }
 
     public function test_navigate_and_current_take_their_modifiers(): void

@@ -133,7 +133,10 @@ final class Globals
         'dragstart', 'dragover', 'dragend', 'paste', 'copy', 'cut', 'select', 'reset', 'toggle',
     ];
 
-    /** Event modifiers (nitro:submit.prevent, nitro:keydown.enter, nitro:click.debounce.300ms). */
+    /**
+     * Event modifiers (nitro:submit.prevent, nitro:keydown.enter, nitro:click.debounce.300ms); a
+     * single letter or digit is a key too (nitro:keydown.ctrl.k, nitro:keydown.1): isModifier().
+     */
     public const MODIFIERS = [
         'prevent', 'stop', 'self', 'once', 'window', 'document', 'outside', 'passive', 'capture',
         'enter', 'escape', 'esc', 'space', 'tab', 'up', 'down', 'left', 'right', 'delete', 'backspace',
@@ -142,6 +145,12 @@ final class Globals
 
     /** nitro: names the runtime puts on elements itself (and nitro:h-..., its handlers' marks). */
     public const RUNTIME = ['id', 'name', 'page', 'placeholder', 'hydrate', 'static', 'fallback'];
+
+    /** An event modifier: one of MODIFIERS, or a key written as its letter or digit (.k, .1). */
+    public static function isModifier(string $modifier): bool
+    {
+        return in_array($modifier, self::MODIFIERS, true) || preg_match('/^[a-z0-9]$/', $modifier) === 1;
+    }
 
     public static function isAttribute(string $name): bool
     {

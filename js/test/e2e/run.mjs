@@ -1066,6 +1066,18 @@ await scenario('server calls from children', async () => {
     document.querySelector('.shift-click').dispatchEvent(new window.MouseEvent('click', { shiftKey: true, bubbles: true }));
     await until('nitro:click.shift: a click with Shift held', () => text(document.querySelector('.key')) === 'shift-click');
 
+    /** A key written as its letter or digit: either case, and a digit by its key on the keyboard. */
+    const letters = document.querySelector('.letter-keys');
+    letters.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'j', code: 'KeyJ', ctrlKey: true, bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    check('Ctrl+J is not .ctrl.k', text(document.querySelector('.key')) === 'shift-click', text(document.querySelector('.key')));
+    letters.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }));
+    await until('nitro:keydown.ctrl.k: Ctrl+K', () => text(document.querySelector('.key')) === 'ctrl-k');
+    letters.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'K', code: 'KeyK', shiftKey: true, bubbles: true }));
+    await until('nitro:keydown.shift.k: Shift+K types "K", still .k', () => text(document.querySelector('.key')) === 'shift-k');
+    letters.dispatchEvent(new window.KeyboardEvent('keydown', { key: '@', code: 'Digit2', shiftKey: true, bubbles: true }));
+    await until('nitro:keydown.2: the 2 key, though Shift makes it "@"', () => text(document.querySelector('.key')) === 'two');
+
     window.close();
 });
 

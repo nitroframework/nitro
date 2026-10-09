@@ -112,7 +112,7 @@ final class NitroAttributes extends Part
 
         foreach ($parts as $modifier) {
             $known = $trigger === null
-                ? in_array($modifier, Globals::MODIFIERS, true) || Duration::is($modifier)
+                ? Globals::isModifier($modifier) || Duration::is($modifier)
                 : in_array($modifier, $trigger, true)
                     || ($name === 'poll' && Duration::is($modifier))
                     || ($name === 'visible' && preg_match('/^\d+px$/', $modifier) === 1);
