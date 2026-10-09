@@ -129,6 +129,17 @@ own data in `mount()`. A component is a reusable part placed inside a page or an
 A page cannot be placed in a view and a component cannot be routed; Nitro says what to use
 instead. The directories, namespaces and view paths are set in `config/nitro.php`.
 
+`make:nitro` writes the class and its view, and says what to do next:
+
+```bash
+php artisan make:nitro PostCard                # a component
+php artisan make:nitro Posts/Show --page       # a page
+php artisan make:nitro Cart --store            # a store (no view)
+```
+
+It never writes over a file without `--force`. `php artisan vendor:publish --tag=nitro-stubs`
+gives you its templates to change.
+
 In a plain Blade view or a layout, `@nitro('counter', ['start' => 5])` renders a component from
 PHP, as `<nitro:counter :start="5" />` does. A `<nitro:...>` tag written in PHP (an `@php` block,
 `<?php ?>`, an echo or a string in them), in a Blade comment or in `@verbatim` is text, not a

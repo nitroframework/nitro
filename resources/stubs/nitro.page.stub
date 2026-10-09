@@ -1,0 +1,15 @@
+<?php
+
+namespace {{ namespace }};
+
+use Nitro\Attributes\Title;
+use Nitro\Component;
+
+#[Title('{{ title }}')]
+class {{ class }} extends Component
+{
+    public function mount(): void
+    {
+        //
+    }
+}

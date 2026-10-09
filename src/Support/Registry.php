@@ -114,6 +114,28 @@ final class Registry
         return Naming::view($name, (Naming::isPage($name) ? $this->pagesAt : $this->componentsAt)['views']);
     }
 
+    /**
+     * Where a new component, page or store goes (make:nitro): its class, from its folders and
+     * name (['Posts', 'Index']) under the namespace configured for its kind, and its file.
+     *
+     * @param  'component'|'page'|'store'  $kind
+     * @param  non-empty-list<string>  $segments
+     * @return array{0: string, 1: string} the class, and its file
+     */
+    public function placeOf(string $kind, array $segments): array
+    {
+        $location = match ($kind) {
+            'page' => $this->pagesAt,
+            'store' => $this->storesAt ?? throw new \LogicException('No place for stores is configured (nitro.stores).'),
+            default => $this->componentsAt,
+        };
+
+        return [
+            trim($location['namespace'], '\\').'\\'.implode('\\', $segments),
+            rtrim($location['path'], '/\\').DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $segments).'.php',
+        ];
+    }
+
     private function discover(): void
     {
         if ($this->discovered) {

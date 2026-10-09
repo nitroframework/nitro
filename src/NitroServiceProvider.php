@@ -20,6 +20,7 @@ use Nitro\Compiler\ComponentMeta;
 use Nitro\Compiler\Components;
 use Nitro\Console\BuildCommand;
 use Nitro\Console\ClearCommand;
+use Nitro\Console\MakeCommand;
 use Nitro\Console\SsrCommand;
 use Nitro\Http\AssetController;
 use Nitro\Http\FinishPage;
@@ -244,7 +245,9 @@ class NitroServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             /** nitro:build is its own step (as `vite build` is), not part of `optimize`. */
-            $this->commands([BuildCommand::class, ClearCommand::class, SsrCommand::class]);
+            $this->commands([BuildCommand::class, ClearCommand::class, SsrCommand::class, MakeCommand::class]);
+            /** make:nitro's templates, for an app to change: it reads stubs/nitro.*.stub first. */
+            $this->publishes([dirname(__DIR__).'/resources/stubs' => base_path('stubs')], 'nitro-stubs');
 
             $this->publishes([dirname(__DIR__).'/config/nitro.php' => config_path('nitro.php')], 'nitro-config');
             $this->publishes([dirname(__DIR__).'/config/nprogress.php' => config_path('nprogress.php')], ['nitro-config', 'nprogress-config']);

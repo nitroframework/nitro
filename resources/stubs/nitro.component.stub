@@ -1,0 +1,10 @@
+<?php
+
+namespace {{ namespace }};
+
+use Nitro\Component;
+
+class {{ class }} extends Component
+{
+    //
+}
