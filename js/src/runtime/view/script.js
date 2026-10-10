@@ -12,29 +12,13 @@
  *                                 mounts it in el, and returns { update(names), unmount() };
  *                                 hydrate: el holds the view's server-rendered HTML, to take over
  *
- * The handle speaks the PHP's names (an obfuscated build's aliases never reach the view) and
- * plain data (plain.js: a PHP array is an array or an object, and turns back into one):
- *
- *   handle.get(path)              a property's value ("form.email": a key under it), or a #[Computed] one
- *   handle.set(path, value)       writes a property, or a key under it, as nitro:model does
- *   handle.call(method, ...args)  a browser method runs here and returns its value; a #[Server]
- *                                 one returns a promise of its value
- *   handle.errors()               the validation messages, by field
- *   handle.unsaved()              the properties changed here that the server has not seen yet
- *   handle.dispatch(event, ...)   an event, as $this->dispatch() sends one
- *   handle.upload(path, files, progress)
- *                                 files into an Upload (or #[Uploads]) property, as nitro:model
- *                                 does for a file input: a promise of its new value
- *   handle.id                     the component's id on the page
- *   handle.properties, .methods, .server, .computed    the names
- *   handle.component              the component itself, as Nitro.find() gives it
+ * The handle (component/handle.js) speaks the PHP's names, in plain data: get, set, watch,
+ * call, errors, unsaved, dispatch, upload.
  *
  * update(names) is told what changed, by the PHP's names: "$errors" for the messages, "$unsaved"
  * when the server has taken the changes (nothing else may have changed then).
  */
-import * as P from '../../php.js';
-import { fromPlain, toPlain } from './plain.js';
-import { send } from '../server/upload.js';
+import { handleOf, phpNamesOf } from '../component/handle.js';
 import { ATTRIBUTES, SIGNALS, VIEW_WRAPPER } from '../protocol.js';
 
 export class ScriptView {
@@ -48,7 +32,7 @@ export class ScriptView {
         this.el = null;
         this.mounted = null;
         this.disposed = false;
-        this.handle = this.makeHandle();
+        this.handle = handleOf(runtime, definition, $this, host.id);
     }
 
     /**
@@ -121,91 +105,7 @@ export class ScriptView {
 
     /** The PHP's names, by the browser's (an obfuscated build's aliases). */
     phpNames() {
-        this.byName ??= new Map(Object.entries(this.definition.names?.properties ?? {}).map(([php, browser]) => [browser, php]));
+        this.byName ??= phpNamesOf(this.definition);
         return this.byName;
-    }
-
-    makeHandle() {
-        const names = this.definition.names ?? {};
-        const browserName = (kind, php) => names[kind]?.[php];
-        const $this = this.$this;
-        const runtime = this.runtime;
-        const id = this.host.id;
-        const component = () => runtime.find(id);
-        const phpNames = this.phpNames();
-        const phpPath = (path) => {
-            const [root, ...keys] = String(path).split('.');
-            return [phpNames.get(root) ?? root, ...keys].join('.');
-        };
-        const property = (path) => {
-            const [root, ...keys] = String(path).split('.');
-            const browser = browserName('properties', root);
-            if (browser === undefined) throw new Error(`Nitro: [${root}] is not a property of this component`);
-            return [browser, keys];
-        };
-
-        return {
-            id,
-            properties: Object.keys(names.properties ?? {}),
-            methods: Object.keys(names.methods ?? {}),
-            server: Object.keys(names.server ?? {}),
-            computed: Object.keys(names.computed ?? {}),
-
-            get component() {
-                return component();
-            },
-
-            get(path) {
-                if (browserName('computed', path) !== undefined) return toPlain($this.$computed(browserName('computed', path)));
-                const [browser, keys] = property(path);
-                return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);
-            },
-
-            set(path, value) {
-                const [browser, keys] = property(path);
-                const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
-                $this.$set([browser, ...keys].join('.'), fromPlain(value, current));
-            },
-
-            call(method, ...args) {
-                const values = args.map((arg) => fromPlain(arg));
-                if (browserName('server', method) !== undefined) return $this.$call(browserName('server', method), values).then(toPlain);
-                const browser = browserName('methods', method);
-                if (browser === undefined) throw new Error(`Nitro: [${method}] is not a method of this component`);
-                return toPlain($this[browser](...values));
-            },
-
-            errors() {
-                const messages = {};
-                for (const [field, list] of component()?.errors.messages ?? []) messages[phpPath(field)] = [...list];
-                return messages;
-            },
-
-            unsaved() {
-                return (component()?.unsaved() ?? []).map(phpPath);
-            },
-
-            dispatch(event, ...params) {
-                component()?.dispatch(event, params.map((param) => fromPlain(param)));
-            },
-
-            /**
-             * Files into a property that takes them (an Upload, or #[Uploads] for a list: the
-             * property's value says which), as nitro:model does for a file input. Resolves with
-             * the property's new value; null when the server's rules refused them (errors() says
-             * why); rejects when the request failed. progress(0-100) as it goes.
-             */
-            upload(path, files, progress) {
-                const [browser, keys] = property(path);
-                const current = keys.length ? P.getIn($this[browser], keys) : $this[browser];
-                const owner = component();
-                if (!owner) return Promise.reject(new Error('Nitro: the component has left the page'));
-                return send(runtime, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
-                    if (result.failed) throw new Error(`Nitro: uploading ${path}: ${result.message}`);
-                    if (result.refused) return null;
-                    return toPlain(keys.length ? P.getIn($this[browser], keys) : $this[browser]);
-                });
-            },
-        };
     }
 }

@@ -9,13 +9,14 @@
  *
  * The directive runs when its element appears, and again when the attribute's value or modifiers
  * change (the view renders the value, {{ }} and all); what it returns, a function, cleans up
- * before it runs again and when the element or its component goes. component.dispatch(event,
- * ...params) dispatches an event, as $this->dispatch() does: #[On] methods hear it.
+ * before it runs again and when the element or its component goes. component is the component's
+ * handle (component/handle.js), by the PHP's names: get(), set() and watch() connect a library's
+ * value to a property both ways, call() runs a method, dispatch() sends an event, as
+ * $this->dispatch() does (#[On] methods hear it).
  *
  * The compiled view marks the elements that have one (nitro:h-directive); after each render of a
  * component, its marked elements are matched against the directives registered.
  */
-import * as P from '../php.js';
 import { NAMESPACE, selector } from './protocol.js';
 
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -96,21 +97,14 @@ export class Directives {
     }
 
     run(name, el, value, modifiers, component) {
-        const self = this;
         try {
             const cleanup = this.registered.get(name)({
                 el,
                 name,
                 value,
                 modifiers,
-                component: {
-                    el: component.el,
-                    name: component.name,
-                    /** As $this->dispatch(): the page's #[On] methods hear it, and a window event too. */
-                    dispatch(event, ...params) {
-                        self.runtime.dispatch(String(event), params.map((param) => P.decode(param)), component);
-                    },
-                },
+                /** The component, by the PHP's names (component/handle.js): get, set, watch, call, dispatch, ... */
+                component: component.handle(),
             });
             if (cleanup !== undefined && typeof cleanup !== 'function') {
                 throw new Error(`Nitro.directive('${name}') returned ${typeof cleanup}: return nothing, or a function that cleans up`);

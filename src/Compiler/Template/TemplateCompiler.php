@@ -57,6 +57,13 @@ final class TemplateCompiler
     /** @var list<string> component methods the template calls (for the compiler's reachability); bound to Context */
     public array $calledMethods = [];
 
+    /**
+     * Whether the view runs JavaScript of the app's own on the component (a nitro: attribute of
+     * nitro.attributes, its Nitro.directive()): that code reaches it by the PHP's names, so the
+     * component's definition carries them.
+     */
+    public bool $runsAppScript = false;
+
     private readonly Context $context;
 
     public readonly Tree $tree;

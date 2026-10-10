@@ -241,14 +241,18 @@ final class ComponentCompiler
             'propertyHooks' => (object) $this->propertyHooksFor($propertyHooks, $scope),
         ];
 
-        /**
-         * A view the app's build compiles: its engine, its name (the engine loads it), and the
-         * browser's names for what it uses by the PHP's names (an obfuscated build's aliases).
-         */
+        /** A view the app's build compiles: its engine, and its name (the engine loads it). */
         if ($templates === null) {
-            $properties = array_keys($meta->properties);
             $definition['engine'] = $meta->engine;
             $definition['view'] = $meta->view;
+        }
+
+        /**
+         * JavaScript that reaches the component by the PHP's names (a JavaScript framework's view,
+         * an app's nitro: attribute): the browser's names for them (an obfuscated build's aliases).
+         */
+        if ($templates === null || $templates->runsAppScript) {
+            $properties = array_keys($meta->properties);
             $definition['names'] = [
                 'properties' => (object) array_combine($properties, array_map($scope->browserProperty(...), $properties)),
                 'methods' => (object) array_combine($public, array_map($scope->browserMethod(...), $public)),

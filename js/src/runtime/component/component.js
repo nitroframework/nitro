@@ -14,6 +14,8 @@ import { ATTRIBUTES, SIGNALS } from '../protocol.js';
 import { defaultsOf, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
 import { contextOf, enumCase } from './context.js';
 import { ErrorBag } from './errors.js';
+import { Watchers } from './watchers.js';
+import { handleOf } from './handle.js';
 
 export class Component {
     /**
@@ -65,6 +67,8 @@ export class Component {
         /** Renders of what changed so far (nitro:visible: whether a call changed anything). */
         this.renders = 0;
         this.ctx = contextOf(this);
+        /** handle.watch(): code outside the view told when a value changes (watchers.js). */
+        this.watchers = new Watchers(this);
         /** The stores it uses: a change in one renders again what reads its property here. */
         for (const [property, store] of Object.entries(this.definition.stores ?? {})) {
             this.runtime.stores.named(store).subscribe(this, property);
@@ -238,8 +242,15 @@ export class Component {
             if ([...dirty].some((name) => this.definition.props[name]?.remember)) {
                 this.runtime.navigator.remember();
             }
+
+            this.watchers.changed(dirty);
         }
         this.runJs();
+    }
+
+    /** The component as JavaScript outside its view reaches it, by the PHP's names (handle.js): a handle of its own for each caller. */
+    handle() {
+        return handleOf(this.runtime, this.definition, this.ctx, this.id);
     }
 
     /** $this->js(): run once the component has rendered what changed. */
@@ -445,6 +456,7 @@ export class Component {
         if (this.destroyed) return;
         this.hook('destroyed');
         this.destroyed = true;
+        this.watchers.clear();
         this.runtime.broadcasts.unsubscribe(this);
         for (const store of Object.values(this.definition.stores ?? {})) {
             this.runtime.stores.get(store)?.unsubscribe(this);

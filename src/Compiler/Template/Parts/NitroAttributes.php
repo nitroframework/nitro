@@ -85,6 +85,8 @@ final class NitroAttributes extends Part
          * which runs the Nitro.directive() of that name on it.
          */
         if (in_array($name, $this->compiler->attributes, true)) {
+            $this->compiler->runsAppScript = true;
+
             foreach ($parts as $modifier) {
                 if (preg_match('/^[\w\-]+$/', $modifier) !== 1) {
                     throw $context->error("nitro:{$name}: a modifier is a word (nitro:{$name}.top, nitro:{$name}.300ms)");
