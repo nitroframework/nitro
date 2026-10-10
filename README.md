@@ -1565,4 +1565,5 @@ npm run build     # rebuild dist/nitro.js after changing js/src
 
 ## License
 
-Nitro is open-source software licensed under the [MIT license](LICENSE.md).
+Nitro was created by [Zeeshan Ali](https://github.com/ZeeshanX4) and is open-source software
+licensed under the [MIT license](LICENSE.md).
