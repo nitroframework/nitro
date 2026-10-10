@@ -2,7 +2,7 @@
     "name": "nitro/nitro",
     "description": "A full-stack framework for Laravel. Write components in PHP and Blade; Nitro compiles them to JavaScript that runs in the browser, and calls the server only when you ask it to.",
     "keywords": ["nitro", "laravel", "blade", "framework", "components", "compiler", "reactive", "full-stack"],
-    "homepage": "https://github.com/nitroframework/nitro",
+    "homepage": "https://www.nitrophp.com",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -13,6 +13,7 @@
         }
     ],
     "support": {
+        "docs": "https://www.nitrophp.com/docs",
         "issues": "https://github.com/nitroframework/nitro/issues",
         "source": "https://github.com/nitroframework/nitro"
     },

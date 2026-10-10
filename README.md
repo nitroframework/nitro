@@ -114,22 +114,22 @@ Links marked `nitro:navigate` move between pages without a full reload.
 
 ## Features
 
-- **[Components](REFERENCE.md#components)**: properties, browser and `#[Server]` methods,
+- **[Components](https://www.nitrophp.com/docs/components)**: properties, browser and `#[Server]` methods,
   `#[Computed]`, lifecycle hooks, events
 - **Views**: Blade, or Vue, React, Solid and Svelte through Vite, with optional server rendering
-- **[Forms and validation](REFERENCE.md#properties)**: `nitro:model`, `#[Validate]`, errors in the
+- **[Forms and validation](https://www.nitrophp.com/docs/forms)**: `nitro:model`, `#[Validate]`, errors in the
   view
-- **[Pages and navigation](REFERENCE.md#pages)**: `Route::nitro()`, layouts, titles, the page's
+- **[Pages and navigation](https://www.nitrophp.com/docs/pages)**: `Route::nitro()`, layouts, titles, the page's
   head, single-page visits
-- **[Page data](REFERENCE.md#page-data)**: deferred properties, partial reloads, shared and flash
+- **[Page data](https://www.nitrophp.com/docs/page-data)**: deferred properties, partial reloads, shared and flash
   data
-- **[Stores](REFERENCE.md#stores)**: state shared between components
-- **[Uploads](REFERENCE.md#uploads)**: files with validation and progress
-- **[Islands](REFERENCE.md#islands)** and **[transitions](REFERENCE.md#transitions)**
-- **[Broadcasting](REFERENCE.md#broadcasting)**: live updates with Laravel Echo
-- **[Browser APIs](REFERENCE.md#browser-apis)**: storage, clipboard and more, from PHP
-- **[Testing](REFERENCE.md#testing-your-application)**: `assertNitro()` on responses
-- **[Production builds](REFERENCE.md#building-for-production)**: `php artisan nitro:build`, minified,
+- **[Stores](https://www.nitrophp.com/docs/sharing-state)**: state shared between components
+- **[Uploads](https://www.nitrophp.com/docs/uploads)**: files with validation and progress
+- **[Islands](https://www.nitrophp.com/docs/islands)** and **[transitions](https://www.nitrophp.com/docs/transitions)**
+- **[Broadcasting](https://www.nitrophp.com/docs/events#broadcasting)**: live updates with Laravel Echo
+- **[Browser APIs](https://www.nitrophp.com/docs/browser-apis)**: storage, clipboard and more, from PHP
+- **[Testing](https://www.nitrophp.com/docs/testing)**: `assertNitro()` on responses
+- **[Production builds](https://www.nitrophp.com/docs/production)**: `php artisan nitro:build`, minified,
   versioned and cacheable for a year
 
 ## How Nitro compares
@@ -147,8 +147,8 @@ the `nitro:` prefix.
 
 ## Documentation
 
-The complete reference is in [REFERENCE.md](REFERENCE.md), and the documentation site is on its
-way.
+The documentation is at **[nitrophp.com](https://www.nitrophp.com)**: guides, every feature, and
+live examples. The complete reference is also in [REFERENCE.md](REFERENCE.md).
 
 ## Contributing
 
@@ -164,7 +164,7 @@ npm run build     # rebuild dist/nitro.js after changing js/src
 
 Please report security issues privately through
 [GitHub's security advisories](https://github.com/nitroframework/nitro/security/advisories/new),
-not in public issues. See [Security](REFERENCE.md#security) for how Nitro signs and checks state.
+not in public issues. See [Security](https://www.nitrophp.com/docs/security) for how Nitro signs and checks state.
 
 ## License
 
