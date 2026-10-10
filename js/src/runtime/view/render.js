@@ -123,13 +123,25 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
     /** Nitro: the component whose view rendered it (its handlers, models, refs), wherever it sits. */
     if (instance.ownerId !== undefined) element.nitroOwner = instance.ownerId;
 
-    /** Nitro: nitro:ignore keeps an element and everything in it as it is. */
-    if (!created && element.hasAttribute('nitro:ignore')) return element;
+    /**
+     * Nitro: nitro:ignore: the element and what is in it start once, as the server rendered them or
+     * as made here (their handlers, their app's nitro: attributes), and no render changes them after:
+     * a library that owns that markup keeps it.
+     */
+    /** From the view: a new element has no attributes yet. */
+    const ignored = (node.a ?? []).some((attribute) => attribute.c === 'nitro:ignore');
+    /** Live already (a list taking up its rows again): left as it is. */
+    if (ignored && !created && instance.live) return element;
+    let childScope = scope;
+    if (ignored) {
+        childScope = createScope(scope, 'ignore');
+        childScope.untracked = true;
+    }
 
     const root = rootEl !== null;
     renderAttributeValue(instance, node, element, scope, root, hydrate && !created);
     const codes = attributeCodes(node);
-    if (codes.length) {
+    if (codes.length && !ignored) {
         track(instance, codes, scope, () => renderAttributeValue(instance, node, element, scope, root, false));
     }
 
@@ -138,13 +150,7 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         if (!attribute.on) continue;
         const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(instance, attribute.on.code, scope), attribute.c);
         bind();
-        track(instance, [attribute.on.code], scope, bind);
-    }
-
-    let childScope = scope;
-    if (created && element.hasAttribute('nitro:ignore')) {
-        childScope = createScope(scope, 'ignore');
-        childScope.untracked = true;
+        if (!ignored) track(instance, [attribute.on.code], scope, bind);
     }
 
     if (tag === 'textarea' && ns === null) {
