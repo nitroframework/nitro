@@ -2,6 +2,7 @@
 
 namespace Nitro\Build;
 
+use Closure;
 use Nitro\Compiler\Components;
 use Nitro\Support\Registry;
 
@@ -20,16 +21,19 @@ final class Chunks
         private readonly Registry $registry,
         private readonly Components $components,
         private readonly PageRoutes $pageRoutes,
+        /** @var (Closure(): mixed)|null the map as a build recorded it (Sources::derived()), while the components' files are as they were then */
+        private readonly ?Closure $recorded = null,
     ) {
     }
 
-    /** @return array<string, string> each component in a chunk => its group */
+    /** @return array<string, string> each component in a chunk => its group: from the build's record, else from each component's meta */
     public function map(): array
     {
         if ($this->map === null) {
-            $this->map = [];
+            $recorded = $this->recorded === null ? null : ($this->recorded)();
+            $this->map = is_array($recorded) ? $recorded : [];
 
-            foreach (array_keys($this->registry->all()) as $name) {
+            foreach (is_array($recorded) ? [] : array_keys($this->registry->all()) as $name) {
                 $group = $this->components->meta($name)->lazy;
 
                 if ($group !== null) {

@@ -95,11 +95,11 @@ final class Bundle
         $this->minifier = new Minifier($files, $directory.DIRECTORY_SEPARATOR.'minified', $esbuild);
         $this->pageRoutes = new PageRoutes($registry, $router);
         $this->browserClasses = new BrowserClassFiles($files, $directory);
-        $this->chunks = new Chunks($registry, $components, $this->pageRoutes);
+        $this->sources = new Sources($files, $registry, $components, $views, $this->browserClasses, $directory);
+        $this->chunks = new Chunks($registry, $components, $this->pageRoutes, fn () => $this->sources->derived('chunks'));
         $this->static = new StaticFiles($files, $staticDirectory, $staticPath);
         $this->compiler = new BundleCompiler($config, $clientHead, $registry, $components, $views, $blade, $files, $this->chunks, $this->pageRoutes, $rendering, $navigation);
         $this->compiled = new CompiledFiles($files, $directory);
-        $this->sources = new Sources($files, $registry, $components, $views, $this->browserClasses);
         $this->lastUses = Uses::none() + ['chunks' => []];
     }
 
@@ -142,10 +142,7 @@ final class Bundle
 
     public function version(): string
     {
-        return $this->version ??= substr(hash('sha256', implode("\n", array_map(
-            fn (string $file) => $file.':'.@filemtime($file),
-            $this->sources->all()
-        )).$this->runtimeVersion().json_encode($this->chunks->routes())
+        return $this->version ??=substr(hash('sha256', $this->sources->stamp().$this->runtimeVersion().json_encode($this->chunks->routes())
             /** Obfuscated names come from the key: either changing makes another build. */
             .($this->obfuscate ? 'obfuscate:'.hash('sha256', $this->signer->key()) : '')
             /** Clone mode marks the templates' static parts: another build than create mode's. */
@@ -278,6 +275,7 @@ final class Bundle
             $report('published', microtime(true) - $started);
         }
 
+        $this->sources->record(['chunks' => $this->chunks->map()]);
         $report('built', $this->summary($minified, $runtime, $publishing));
 
         return $this->compiled->path($this->version(), '', true);
@@ -323,6 +321,7 @@ final class Bundle
         /** Nitro's files only (app-*, classes.json, the minified cache): the directory's own, such as a .gitignore, stay. */
         $this->compiled->clear();
         $this->browserClasses->clear();
+        $this->sources->clear();
 
         $this->files->deleteDirectory($this->directory.DIRECTORY_SEPARATOR.'minified');
         $this->static->publish([]);

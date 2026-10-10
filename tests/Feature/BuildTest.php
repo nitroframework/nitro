@@ -447,6 +447,52 @@ class BuildTest extends TestCase
     }
 
     /**
+     * A build records the files it was built from (sources.php): the version after it is the one
+     * worked out from scratch, and an edit since makes another, as without the list. nitro:clear
+     * forgets it.
+     */
+    #[DataProvider('frameworks')]
+    public function test_a_build_records_its_sources_and_an_edit_since_still_makes_a_new_version(string $framework): void
+    {
+        $this->boot($framework);
+        $recorded = self::COMPILED.'/sources.php';
+        $version = function () {
+            $this->app->forgetScopedInstances();
+
+            return $this->app->make(Bundle::class)->version();
+        };
+
+        try {
+            $this->assertSame(0, $this->console()->call('nitro:build'));
+            $this->assertFileExists($recorded);
+            $built = $version();
+
+            rename($recorded, $recorded.'.aside');
+            $this->assertSame($built, $version(), 'the same version as from scratch');
+            rename($recorded.'.aside', $recorded);
+
+            $file = __DIR__.'/../Fixtures/Components/Doubles.php';
+            $mtime = filemtime($file);
+            touch($file, $mtime + 10);
+            clearstatcache();
+
+            try {
+                $this->assertNotSame($built, $version(), 'an edit after the build');
+            } finally {
+                touch($file, $mtime);
+                clearstatcache();
+            }
+
+            $this->assertSame($built, $version());
+        } finally {
+            @unlink($recorded.'.aside');
+            $this->console()->call('nitro:clear');
+        }
+
+        $this->assertFileDoesNotExist($recorded);
+    }
+
+    /**
      * nitro:build says how it goes, a line a step with its time; it minifies every chunk in one
      * Node process, and a chunk unchanged since the last build comes from the cache.
      */
