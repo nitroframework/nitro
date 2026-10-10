@@ -6,7 +6,12 @@
 import * as P from '../../php.js';
 import { ModelData } from '../../php/core.js';
 
-const isPlainObject = (value) => value !== null && typeof value === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+/** A plain object, from this page's JavaScript or another's (an iframe's): its prototype is Object.prototype of some realm, or none. */
+const isPlainObject = (value) => {
+    if (value === null || typeof value !== 'object' || Object.prototype.toString.call(value) !== '[object Object]') return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === null || Object.getPrototypeOf(prototype) === null;
+};
 
 export function toPlain(value) {
     if (Array.isArray(value)) return value.map(toPlain);
