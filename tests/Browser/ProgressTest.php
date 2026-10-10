@@ -6,7 +6,7 @@ use Nitro\Tests\Support\Node;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The progress bar (nitro-progress) through visits of every length, one after another as fast as
+ * The progress bar through visits of every length, one after another as fast as
  * a visitor clicks: it never goes back while shown, a bar starts from its start, and none is left
  * over. With a minimum duration, a bar that shows runs at least that long and reaches 100%.
  */

@@ -94,4 +94,5 @@ return [
     'props' => $compiled.' (a definition field; a child tag\'s values)',
     'enum' => $compiled.' (a prop\'s field); also a property\'s kind (PropertyMeta)',
     'model' => $generic.': nitro:model (Globals), a property\'s kind (PropertyMeta)',
+    'nprogress' => 'NProgress\'s name, not Nitro\'s: the config file (config/nprogress.php) and the bar\'s element id (#nprogress), kept so NProgress\'s configs and styles apply',
 ];

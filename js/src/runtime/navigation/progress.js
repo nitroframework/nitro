@@ -1,12 +1,12 @@
 /**
- * The progress bar (nitro-progress) while a nitro:navigate visit loads, and, when configured,
+ * The progress bar (bar.js) while a nitro:navigate visit loads, and, when configured,
  * while #[Server] calls run. Settings come from config/nprogress.php through @nitroScripts.
  *
  * A bar runs for at least minimumDuration once it shows: a visit faster than that keeps it
  * moving until then, so it is seen to complete rather than flash. A visit faster than `delay`
  * still shows none.
  */
-import { createProgress } from 'nitro-progress';
+import { createProgress } from './bar.js';
 
 export class Progress {
     /** @param {object|null} options  the settings, null when the bar is off */

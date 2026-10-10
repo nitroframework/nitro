@@ -14,9 +14,6 @@ runs:
         node-version: '22'
         cache: npm
         cache-dependency-path: nitro/package-lock.json
-    # package-lock.json names nitro-progress by SSH; it is public, so HTTPS needs no key.
-    - shell: bash
-      run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
     - name: Composer cache
       uses: actions/cache@v4
       with:

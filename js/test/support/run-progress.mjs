@@ -1,5 +1,5 @@
 // The progress bar through visits (stdin: {options, scenarios: {name: [[ms, event], ...]}}): the
-// real nitro-progress and runtime/progress.js in jsdom, the bar sampled every few ms. stdout: what went
+// real runtime/navigation/bar.js and progress.js in jsdom, the bar sampled every few ms. stdout: what went
 // wrong, by scenario: the bar going back while it is shown, a bar appearing part way (not from
 // its start), a bar left on the page; with a minimum duration, a bar gone sooner or before 100%.
 import { JSDOM } from 'jsdom';

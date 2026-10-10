@@ -3,7 +3,12 @@
 All notable changes to `nitro/nitro` will be documented in this file. Before the rename below,
 the package was `nitro/fusion` and the entries say Fusion.
 
-## Unreleased
+## v2.0.1 (2026-10-10)
+
+- The progress bar is part of Nitro's runtime (`js/src/runtime/navigation/bar.js`), under Nitro's
+  license; `nitro-progress` is no longer a dependency.
+
+## v2.0.0 (2026-10-10)
 
 - Fusion is now Nitro: the package `nitro/nitro`, the namespace `Nitro\` (`Nitro\Fusion\X` is
   `Nitro\X`), the facade and `window.Nitro`, `<nitro:counter />` and `nitro:click`, `@nitroScripts`,

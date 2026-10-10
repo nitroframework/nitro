@@ -149,7 +149,7 @@ final class Scripts
             'minimumDuration' => (int) $config['minimum_duration'],
             'color' => (string) $config['color'],
             'height' => (string) $config['height'],
-            'position' => $config['position'] === 'bottom' ? 'bottom' : 'top',
+            'position' => (string) $config['position'],
             'glow' => filter_var($config['glow'], FILTER_VALIDATE_BOOL),
             'glowWidth' => (string) $config['glow_width'],
             'spinner' => filter_var($config['spinner'], FILTER_VALIDATE_BOOL),
