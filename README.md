@@ -1,16 +1,16 @@
-# Nitro: a full-stack framework for Laravel
+# Nitro: PHP components for Laravel that run in the browser
 
 [![Latest version](https://img.shields.io/packagist/v/nitro/nitro)](https://packagist.org/packages/nitro/nitro)
 [![Tests](https://github.com/nitroframework/nitro/actions/workflows/tests.yml/badge.svg)](https://github.com/nitroframework/nitro/actions/workflows/tests.yml)
 [![Total downloads](https://img.shields.io/packagist/dt/nitro/nitro)](https://packagist.org/packages/nitro/nitro)
 [![License](https://img.shields.io/packagist/l/nitro/nitro)](LICENSE.md)
 
-**Nitro** is a full-stack framework for **Laravel**. Write components and pages in **PHP and
-Blade**, the way you already write Laravel code; Nitro compiles them to **JavaScript that runs in
-the browser**, and calls the server only when you ask it to.
+**Write a component's logic in PHP and its view in Blade, Vue, React, Solid or Svelte. Nitro
+compiles the PHP to JavaScript that runs in the browser, and calls the server only when you ask it
+to.**
 
-Interactive Laravel apps without writing JavaScript, without a request on every click, and
-without a separate frontend.
+Nitro is a full-stack framework for Laravel: interactive pages with no request on every click, no
+separate frontend and no API to write.
 
 ## Why Nitro
 
@@ -18,13 +18,14 @@ without a separate frontend.
   no round trip to the server.
 - **The server when you need it.** Mark a method `#[Server]` and it runs on the server, with the
   database, mail, the session and the component's signed state.
-- **Fast first page, good for SEO.** The server renders the first page with Blade, so it shows
-  at once and search engines read it all.
-- **Fine-grained rendering.** A change updates only the DOM nodes that show it: no virtual DOM,
-  no HTML diffing.
+- **Your choice of view.** Blade, Vue, React, Solid or Svelte, with the same PHP class behind it.
+- **Fast first page, good for SEO.** Blade views are rendered on the server, so the page shows at
+  once and search engines read it all; Vue, React, Solid and Svelte views can be too, with
+  Nitro's SSR service.
+- **Fine-grained rendering.** In a Blade view, a change updates only the DOM nodes that show it:
+  no virtual DOM, no HTML diffing. Vue, React, Solid and Svelte views render their own way.
 - **Single-page navigation.** Links load the next page's data and render it in the browser, with
   prefetching, a progress bar and view transitions.
-- **Nothing new to learn.** Properties, methods, attributes and Blade: Laravel as you know it.
 
 ## Installation
 
@@ -115,6 +116,7 @@ Links marked `nitro:navigate` move between pages without a full reload.
 
 - **[Components](REFERENCE.md#components)**: properties, browser and `#[Server]` methods,
   `#[Computed]`, lifecycle hooks, events
+- **Views**: Blade, or Vue, React, Solid and Svelte through Vite, with optional server rendering
 - **[Forms and validation](REFERENCE.md#properties)**: `nitro:model`, `#[Validate]`, errors in the
   view
 - **[Pages and navigation](REFERENCE.md#pages)**: `Route::nitro()`, layouts, titles, the page's
@@ -134,10 +136,11 @@ Links marked `nitro:navigate` move between pages without a full reload.
 
 | | Nitro | Livewire | Inertia |
 | --- | --- | --- | --- |
-| You write | PHP and Blade | PHP and Blade | Vue, React or Svelte |
+| Logic | PHP | PHP | JavaScript, with PHP controllers |
+| Views | Blade, Vue, React, Solid, Svelte | Blade | Vue, React, Svelte |
 | An interaction runs | in the browser | on the server (one request) | in the browser |
 | Server code | `#[Server]` methods | every method | controllers |
-| First page | rendered by the server | rendered by the server | rendered by the server with SSR |
+| First page | rendered by the server (Blade), or with SSR | rendered by the server | rendered in the browser, or with SSR |
 
 Nitro can run on the same page as Livewire: its tags, attributes, scripts and endpoints all use
 the `nitro:` prefix.
