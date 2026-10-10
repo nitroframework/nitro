@@ -16,6 +16,12 @@
             });
         });
     </script>
+    @if (request()->is('libraries*'))
+        {{-- Third-party libraries, and the directives that bind them (resources/js/libraries.js): only the pages that have them. --}}
+        @foreach (['jquery', 'select2', 'flatpickr', 'tom-select', 'choices', 'trix', 'quill', 'sortable', 'nouislider', 'imask', 'libraries'] as $library)
+            <script src="/_test/lib/{{ $library }}.js"></script>
+        @endforeach
+    @endif
     @if (request()->is('engines', 'parity', 'talk'))
         {{-- Vue and the fixture's Vue views (nitroVue() registers them on nitro:starting): only the page that has them. --}}
         <script src="/_test/vue.js"></script>

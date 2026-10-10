@@ -133,6 +133,15 @@ async function open(path, options = {}) {
             /** Browsers have these; jsdom does not. */
             window.TextEncoder = TextEncoder;
             window.TextDecoder = TextDecoder;
+            /** A form-associated custom element's validity and value (Trix's <trix-editor>): jsdom's ElementInternals has neither. */
+            const attachInternals = window.HTMLElement.prototype.attachInternals;
+            window.HTMLElement.prototype.attachInternals = function () {
+                const internals = attachInternals ? attachInternals.call(this) : {};
+                for (const method of ['setValidity', 'setFormValue', 'checkValidity', 'reportValidity']) {
+                    if (typeof internals[method] !== 'function') internals[method] = () => true;
+                }
+                return internals;
+            };
             /** jsdom has no layout: an IntersectionObserver the test drives (window.observe(el, inView)). */
             const observers = [];
             window.IntersectionObserver = class {
@@ -2411,6 +2420,228 @@ await scenario('browser APIs', async () => {
     await until('closed', () => text($('.open')) === 'closed');
     await wait(1100);
     check('and not reconnected', window.sockets.length === 1);
+    window.close();
+});
+
+/**
+ * Third-party libraries bound with the app's nitro: attributes (fixture resources/js/libraries.js):
+ * select2 (one and a multiple, jQuery), Flatpickr, Tom Select, Choices and a widget that rebuilds
+ * its own markup. Each starts once with the property's value; the visitor's choice reaches the
+ * property; a change from code, from the server's answer, reaches the library; a render leaves it
+ * alone; an @if and a new row start and stop theirs; a visit away tears every one down, and back
+ * starts each once.
+ */
+/**
+ * @nitroScript (fixture Sparkline, twice on /libraries, one in an @if): once for each instance as
+ * it goes live, with $refs, $el, $nitro and $component; not again on a render; what it returns
+ * runs as the instance leaves (an @if, a visit), and a new instance runs it again.
+ */
+await scenario('@nitroScript', async () => {
+    const window = await open('/libraries');
+    const { document } = window;
+    const sparks = () => [...document.querySelectorAll('.spark')];
+    const drawn = (i) => sparks()[i]?.querySelector('canvas').dataset.drawn;
+    const runs = () => window.sparks?.runs ?? 0;
+    const cleanups = () => window.sparks?.cleanups ?? 0;
+
+    await until('it runs once for each instance', () => runs() === 2);
+    check('$component.get(), $nitro and $el', drawn(0) === '[1,2]' && sparks()[0].querySelector('canvas').dataset.direct === '2:root', `${drawn(0)} ${sparks()[0].querySelector('canvas').dataset.direct}`);
+    check('the second its own', drawn(1) === '[1,2]');
+
+    click(window, sparks()[0].querySelector('.spark-add'));
+    await until('$component.watch(): the change reaches it', () => drawn(0) === '[1,2,1]' && text(sparks()[0].querySelector('.spark-total')) === '4');
+    check('the other instance untouched', drawn(1) === '[1,2]');
+    check('a render runs it not again', runs() === 2, String(runs()));
+
+    click(window, document.querySelector('.toggle'));
+    await until('its instance leaves with the @if: what it returned runs', () => sparks().length === 1 && cleanups() === 1);
+    click(window, document.querySelector('.toggle'));
+    await until('a new instance runs it again', () => sparks().length === 2 && runs() === 3);
+    await until('with its own state', () => drawn(1) === '[1,2]');
+
+    click(window, document.querySelector('.away'));
+    await until('a visit away: each one cleaned up', () => window.location.pathname === '/counter' && cleanups() === 3, 5000);
+    window.close();
+});
+
+await scenario('third-party libraries', async () => {
+    const window = await open('/libraries');
+    const { document } = window;
+    const $ = (selector) => document.querySelector(selector);
+    const values = () => text($('.values'));
+    const created = (name) => window.libraries.created[name] ?? 0;
+    const destroyed = (name) => window.libraries.destroyed[name] ?? 0;
+    const live = (name) => created(name) - destroyed(name);
+    const select2s = () => document.querySelectorAll('select.select2-hidden-accessible').length;
+    const s2 = (selector) => window.jQuery($(selector)).val();
+    const picker = () => $('.fp')._flatpickr;
+    const tom = () => $('.ts').tomselect;
+    const choices = () => window.choicesOf.get($('.ch'));
+    const fake = () => $('.fake .fake-option.on')?.dataset.value;
+    const more = () => text($('.more'));
+    const trixValue = () => $('.trix input[type=hidden]')?.value;
+    const quill = () => window.quillOf.get($('.quill'));
+    const sortable = () => window.sortableOf.get($('.sortable'));
+    const sorted = () => [...document.querySelectorAll('.sortable li')].map((li) => li.dataset.id).join('');
+    const slider = () => Math.round(Number($('.slider').noUiSlider.get()));
+    const masked = () => $('.masked').value;
+    const NEW = ['trix', 'quill', 'sortable', 'slider', 'mask'];
+
+    await until('every library starts', () => created('select2') === 4 && created('flatpickr') === 1 && created('tom-select') === 1 && created('choices') === 1 && created('fake-widget') === 1, 5000);
+    check('the page as the server rendered it', values() === 'b|x|2026-01-15|red|m|one|a|0', values());
+    check('each library shows the property\'s value',
+        s2('.s2') === 'b' && JSON.stringify(s2('.s2-multi')) === '["x"]' && $('.fp').value === '2026-01-15' && tom().getValue() === 'red' && choices().getValue(true) === 'm' && fake() === 'one' && s2('.s2-if') === 'b' && s2('.s2-row') === 'a',
+        JSON.stringify([s2('.s2'), s2('.s2-multi'), $('.fp').value, tom().getValue(), choices().getValue(true), fake(), s2('.s2-if'), s2('.s2-row')]));
+    check('one select2 each, its markup beside its select', select2s() === 4 && document.querySelectorAll('.select2-container').length === 4, String(select2s()));
+    await until('Trix, Quill, SortableJS, noUiSlider and IMask start', () => NEW.every((name) => created(name) === 1));
+    check('each with the property\'s value', more() === 'Hello|Hi|abc|30|1234123412341234' && trixValue() === '<div>Hello</div>' && quill().root.innerHTML === '<p>Hi</p>' && sorted() === 'abc' && slider() === 30 && masked() === '1234 1234 1234 1234',
+        JSON.stringify([more(), trixValue(), quill().root.innerHTML, sorted(), slider(), masked()]));
+
+    /** The visitor chooses, in each library: the property follows. */
+    window.jQuery($('.s2')).val('c').trigger('change');
+    await until('select2: the choice reaches the property', () => values().startsWith('c|'));
+    await until('and the other select2 bound to it follows (watch)', () => s2('.s2-if') === 'c');
+    window.jQuery($('.s2-multi')).val(['x', 'y']).trigger('change');
+    await until('select2 multiple: an array', () => values().startsWith('c|x,y|'));
+    picker().setDate('2026-03-03', true);
+    await until('Flatpickr', () => values().includes('|2026-03-03|'));
+    tom().setValue('blue');
+    await until('Tom Select', () => values().includes('|blue|'));
+    choices().setChoiceByValue('l');
+    $('.ch').dispatchEvent(new window.CustomEvent('change', { bubbles: true }));
+    await until('Choices', () => values().includes('|l|'));
+    click(window, $('.fake .fake-option[data-value="two"]'));
+    await until('a widget with events of its own', () => values().includes('|two|'));
+    $('.trix trix-editor').editor.setSelectedRange(5);
+    $('.trix trix-editor').editor.insertString(' world');
+    await until('Trix: the typed text reaches the property', () => more().startsWith('Hello world|'));
+    quill().insertText(quill().getLength() - 1, ' there', 'user');
+    await until('Quill', () => more().includes('|Hi there|'));
+    sortable().sort(['c', 'a', 'b'], false);
+    sortable().options.onEnd({});
+    await until('SortableJS: the new order', () => more().includes('|cab|'));
+    $('.slider').noUiSlider.set(70);
+    await until('noUiSlider', () => more().includes('|70|'));
+    $('.masked').value = '5555666677778888';
+    $('.masked').dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until('IMask: the digits, the input masked', () => more().endsWith('|5555666677778888') && masked() === '5555 6666 7777 8888');
+    check('none of them started again', NEW.every((name) => created(name) === 1), JSON.stringify(window.libraries.created));
+    check('no library started again', created('select2') === 4 && created('flatpickr') === 1 && created('tom-select') === 1 && created('choices') === 1 && created('fake-widget') === 1, JSON.stringify(window.libraries.created));
+
+    /** A render of something else leaves each library as it is. */
+    click(window, $('.bump'));
+    await until('rendered', () => values().endsWith('|1'));
+    check('after a render, each keeps its value and its markup',
+        s2('.s2') === 'c' && $('.fp').value === '2026-03-03' && tom().getValue() === 'blue' && choices().getValue(true) === 'l' && fake() === 'two' && select2s() === 4,
+        JSON.stringify([s2('.s2'), $('.fp').value, tom().getValue(), choices().getValue(true), fake(), select2s()]));
+    check('and none started again', created('select2') === 4 && destroyed('select2') === 0, JSON.stringify(window.libraries));
+
+    /** Code changes the properties, in the browser: each library follows, and says nothing back. */
+    click(window, $('.local-reset'));
+    await until('a browser method sets them', () => values().startsWith('a||2026-01-01|red|s|three|'));
+    await until('each library shows the new value',
+        () => s2('.s2') === 'a' && s2('.s2-if') === 'a' && JSON.stringify(s2('.s2-multi')) === '[]' && $('.fp').value === '2026-01-01' && tom().getValue() === 'red' && choices().getValue(true) === 's' && fake() === 'three');
+    await until('and the others follow', () => more() === 'Reset|Reset|cba|10|1111222233334444' && trixValue() === '<div>Reset</div>' && quill().root.innerHTML === '<p>Reset</p>' && sorted() === 'cba' && slider() === 10 && masked() === '1111 2222 3333 4444');
+    await wait(100);
+    check('without a loop back (the values stay)', values().startsWith('a||2026-01-01|red|s|three|'), values());
+
+    /** The server's answer changes them: each library follows, none starts again. */
+    click(window, $('.server-reset'));
+    await until('a #[Server] method sets them', () => values().startsWith('b|y,z|2026-02-02|green|m|two|'), 5000);
+    await until('each library shows the server\'s value',
+        () => s2('.s2') === 'b' && s2('.s2-if') === 'b' && JSON.stringify(s2('.s2-multi')) === '["y","z"]' && $('.fp').value === '2026-02-02' && tom().getValue() === 'green' && choices().getValue(true) === 'm' && fake() === 'two');
+    await until('the others too', () => more() === 'Server|Server|bac|90|9999888877776666' && trixValue() === '<div>Server</div>' && quill().root.innerHTML === '<p>Server</p>' && sorted() === 'bac' && slider() === 90 && masked() === '9999 8888 7777 6666');
+    check('a server call starts none again', created('select2') === 4 && created('flatpickr') === 1 && created('tom-select') === 1 && created('choices') === 1, JSON.stringify(window.libraries.created));
+
+    /** An @if: its library is torn down with it, and starts again, once, with the value now. */
+    click(window, $('.toggle'));
+    await until('@if false: its select2 is torn down', () => $('.s2-if') === null && destroyed('select2') === 1);
+    check('three left', select2s() === 3, String(select2s()));
+    window.jQuery($('.s2')).val('c').trigger('change');
+    await until('changed while it is gone', () => values().startsWith('c|'));
+    click(window, $('.toggle'));
+    await until('@if true: started again', () => $('.s2-if') !== null && created('select2') === 5);
+    await until('with the value now', () => s2('.s2-if') === 'c');
+    check('four again', select2s() === 4, String(select2s()));
+
+    /** A new row of a list: its select2 starts, bound to its own row. */
+    click(window, $('.add-row'));
+    await until('a row\'s select2 starts', () => document.querySelectorAll('.s2-row').length === 2 && created('select2') === 6);
+    const rowSelects = () => [...document.querySelectorAll('.s2-row')];
+    check('with its row\'s value', window.jQuery(rowSelects()[1]).val() === 'c' && window.jQuery(rowSelects()[0]).val() === 'a');
+    window.jQuery(rowSelects()[1]).val('b').trigger('change');
+    await until('its choice reaches its row only', () => values().includes('|a,b|'));
+    check('five, each beside its own select', select2s() === 5 && document.querySelectorAll('.select2-container').length === 5, String(select2s()));
+
+    /** A visit away tears every one down; back, each starts once, with the page's values. */
+    click(window, $('.away'));
+    await until('away', () => window.location.pathname === '/counter' && $('.libraries') === null, 5000);
+    await until('every library torn down', () => ['select2', 'flatpickr', 'tom-select', 'choices', 'fake-widget', ...NEW].every((name) => live(name) === 0));
+    check('nothing of theirs left in the page', document.querySelectorAll('.select2-container, .flatpickr-calendar, .ts-wrapper, .choices').length === 0, String(document.querySelectorAll('.select2-container, .flatpickr-calendar, .ts-wrapper, .choices').length));
+    window.Nitro.visit('/libraries');
+    await until('back', () => $('.libraries') !== null, 5000);
+    await until('each started once', () => live('select2') === 4 && live('flatpickr') === 1 && live('tom-select') === 1 && live('choices') === 1 && live('fake-widget') === 1 && NEW.every((name) => live(name) === 1), 5000);
+    check('one editor, list and slider each', document.querySelectorAll('trix-editor').length === 1 && document.querySelectorAll('.ql-editor').length === 1 && document.querySelectorAll('.noUi-base').length === 1 && sorted() === 'abc', sorted());
+    check('one each in the page', select2s() === 4 && document.querySelectorAll('.select2-container').length === 4 && document.querySelectorAll('.ts-wrapper').length === 1 && document.querySelectorAll('.choices').length === 1, String(select2s()));
+    check('with the page\'s values', s2('.s2') === 'b' && $('.fp').value === '2026-01-15' && tom().getValue() === 'red' && choices().getValue(true) === 'm' && fake() === 'one',
+        JSON.stringify([s2('.s2'), $('.fp').value, tom().getValue(), choices().getValue(true), fake()]));
+    window.jQuery($('.s2')).val('a').trigger('change');
+    await until('and bound as before', () => values().startsWith('a|'));
+
+    /** Toggled fast, several times in one go: the @if's select2 ends as the last toggle says, once. */
+    for (let i = 0; i < 5; i++) click(window, $('.toggle'));
+    await until('five toggles: hidden', () => $('.s2-if') === null && live('select2') === 3);
+    for (let i = 0; i < 3; i++) click(window, $('.toggle'));
+    await until('three more: shown, once', () => $('.s2-if') !== null && live('select2') === 4 && select2s() === 4);
+
+    /** The browser's back button: the page from the visits kept, each library once again. */
+    click(window, $('.away'));
+    await until('away again', () => window.location.pathname === '/counter' && live('select2') === 0, 5000);
+    window.history.back();
+    await until('back with the back button', () => $('.libraries') !== null, 5000);
+    await until('each started once', () => live('select2') === 4 && live('flatpickr') === 1 && live('tom-select') === 1 && live('choices') === 1 && live('fake-widget') === 1, 5000);
+    check('one each in the page, after back', select2s() === 4 && document.querySelectorAll('.ts-wrapper').length === 1 && document.querySelectorAll('.choices').length === 1, String(select2s()));
+    window.close();
+});
+
+/**
+ * The ways into a page with libraries that are not its first load: a visit from another page of the
+ * same layout (which has the libraries already), and a visit from a page without them into a page
+ * whose layout loads them, so that the libraries and their bindings arrive after Nitro started.
+ */
+await scenario('libraries after a visit in the same layout', async () => {
+    const window = await open('/libraries-lobby');
+    const { document } = window;
+    const live = (name) => (window.libraries.created[name] ?? 0) - (window.libraries.destroyed[name] ?? 0);
+    click(window, document.querySelector('.to-libraries'));
+    await until('visited', () => document.querySelector('.libraries') !== null, 5000);
+    await until('each library starts once', () => live('select2') === 4 && ['flatpickr', 'tom-select', 'choices', 'fake-widget', 'trix', 'quill', 'sortable', 'slider', 'mask'].every((name) => live(name) === 1), 5000);
+    window.jQuery(document.querySelector('.s2')).val('c').trigger('change');
+    await until('bound', () => text(document.querySelector('.values')).startsWith('c|'));
+    window.close();
+});
+
+await scenario('libraries after a visit into a layout that loads them', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    check('not loaded on this page', window.jQuery === undefined && window.libraries === undefined);
+    window.Nitro.visit('/tools');
+    await until('the page, in its layout', () => document.querySelector('.libraries') !== null && window.location.pathname === '/tools', 5000);
+    const live = (name) => (window.libraries?.created[name] ?? 0) - (window.libraries?.destroyed[name] ?? 0);
+    await until('the libraries load, their bindings register late, and each starts once on the page there', () => live('select2') === 4 && ['flatpickr', 'tom-select', 'choices', 'fake-widget', 'trix', 'quill', 'sortable', 'slider', 'mask'].every((name) => live(name) === 1), 8000);
+    window.jQuery(document.querySelector('.s2')).val('a').trigger('change');
+    await until('bound both ways', () => text(document.querySelector('.values')).startsWith('a|'));
+    document.querySelector('.server-reset').click();
+    await until('the server\'s answer reaches them', () => window.jQuery(document.querySelector('.s2')).val() === 'b' && text(document.querySelector('.more')).startsWith('Server|'), 5000);
+
+    /** Away, and in again: the libraries are loaded once, the bindings registered once, each starts once. */
+    window.Nitro.visit('/counter');
+    await until('away', () => window.location.pathname === '/counter' && document.querySelector('.libraries') === null, 5000);
+    await until('every library torn down', () => live('select2') === 0 && live('trix') === 0);
+    window.Nitro.visit('/tools');
+    await until('in again', () => document.querySelector('.libraries') !== null, 5000);
+    await until('each starts once again', () => live('select2') === 4 && ['flatpickr', 'tom-select', 'choices', 'fake-widget', 'trix', 'quill', 'sortable', 'slider', 'mask'].every((name) => live(name) === 1), 5000);
+    check('one select2 each', document.querySelectorAll('select.select2-hidden-accessible').length === 4);
     window.close();
 });
 

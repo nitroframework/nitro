@@ -44,7 +44,7 @@ return [
     /** Clone mode (the default), unless a test turns create mode on (NITRO_RENDERING: the browser tests' create-mode run). */
     'rendering' => getenv('NITRO_RENDERING') ?: 'clone',
     /** The application's own nitro: attributes (the showcase uses them; the layout and the browser tests register their directives). */
-    'attributes' => ['tooltip', 'tell'],
+    'attributes' => ['tooltip', 'tell', 'select2', 'flatpickr', 'tom-select', 'choices', 'fake-widget', 'trix', 'quill', 'sortable', 'slider', 'mask'],
     /** Views in JavaScript: the framework ones, and "plain" (vanilla JavaScript, which the layout registers) for the browser tests. */
     'views' => [
         'vue' => ['adapter' => Nitro\View\Adapters\VueAdapter::class, 'path' => resource_path('views/vue'), 'extensions' => ['vue']],

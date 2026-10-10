@@ -11,6 +11,8 @@ use Nitro\Tests\Fixtures\Pages\Gallery;
 use Nitro\Tests\Fixtures\Pages\Greeting;
 use Nitro\Tests\Fixtures\Pages\Inbox;
 use Nitro\Tests\Fixtures\Pages\Journal;
+use Nitro\Tests\Fixtures\Pages\Libraries;
+use Nitro\Tests\Fixtures\Pages\LibrariesLobby;
 use Nitro\Tests\Fixtures\Pages\Lifecycle;
 use Nitro\Tests\Fixtures\Pages\Links;
 use Nitro\Tests\Fixtures\Pages\Live;
@@ -24,6 +26,7 @@ use Nitro\Tests\Fixtures\Pages\Shelf;
 use Nitro\Tests\Fixtures\Pages\Showcase;
 use Nitro\Tests\Fixtures\Pages\StudentPage;
 use Nitro\Tests\Fixtures\Pages\Terms;
+use Nitro\Tests\Fixtures\Pages\ToolsLibraries;
 use Nitro\Tests\Fixtures\Pages\Transitions;
 
 Route::nitro('/students/{student}', StudentPage::class)->name('students.show');
@@ -82,6 +85,29 @@ Route::get('/_test/vue.js', fn () => response(
 Route::get('/_test/solid.js', fn () => response(file_get_contents(base_path('../../../js/test/e2e/.built/solid.js')), 200, ['Content-Type' => 'text/javascript']));
 Route::get('/_test/svelte.js', fn () => response(file_get_contents(base_path('../../../js/test/e2e/.built/svelte.js')), 200, ['Content-Type' => 'text/javascript']));
 Route::get('/_test/react.js', fn () => response(file_get_contents(base_path('../../../js/test/e2e/.built/react.js')), 200, ['Content-Type' => 'text/javascript']));
+
+/** Third-party libraries for the browser tests (Nitro's devDependencies), and the directives that bind them. */
+Route::get('/_test/lib/{file}', function (string $file) {
+    $files = [
+        'jquery.js' => 'node_modules/jquery/dist/jquery.js',
+        'select2.js' => 'node_modules/select2/dist/js/select2.full.js',
+        'flatpickr.js' => 'node_modules/flatpickr/dist/flatpickr.js',
+        'tom-select.js' => 'node_modules/tom-select/dist/js/tom-select.complete.js',
+        'choices.js' => 'node_modules/choices.js/public/assets/scripts/choices.js',
+        'trix.js' => 'node_modules/trix/dist/trix.umd.js',
+        'quill.js' => 'node_modules/quill/dist/quill.js',
+        'sortable.js' => 'node_modules/sortablejs/Sortable.js',
+        'nouislider.js' => 'node_modules/nouislider/dist/nouislider.js',
+        'imask.js' => 'node_modules/imask/dist/imask.js',
+        'libraries.js' => 'tests/Fixtures/app/resources/js/libraries.js',
+    ];
+    abort_unless(isset($files[$file]), 404);
+
+    return response(file_get_contents(base_path('../../../'.$files[$file])), 200, ['Content-Type' => 'text/javascript']);
+});
+Route::nitro('/libraries', Libraries::class);
+Route::nitro('/libraries-lobby', LibrariesLobby::class);
+Route::nitro('/tools', ToolsLibraries::class);
 Route::get('/islands', fn () => view('islands'));
 Route::get('/scripts-first', fn () => view('scripts-first'));
 

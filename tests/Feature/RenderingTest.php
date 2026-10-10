@@ -176,6 +176,19 @@ class RenderingTest extends TestCase
         $this->assertSame(200, $this->get('/journal')->getStatusCode(), 'then the page in full');
     }
 
+    /** @nitroScript is the browser's: the server renders nothing of it, its HTML the same around it. */
+    #[DataProvider('frameworks')]
+    public function test_a_script_is_never_rendered_on_the_server(string $framework): void
+    {
+        $this->boot($framework);
+        $html = (string) $this->get('/libraries')->getContent();
+
+        $this->assertSame(2, substr_count($html, 'class="spark"'), 'the components render');
+        $this->assertStringNotContainsString('window.sparks', $html);
+        $this->assertStringNotContainsString('nitroScript', $html);
+        $this->assertStringContainsString('window.sparks', $this->app->make(\Nitro\Build\Bundle::class)->compile(), 'the bundle has it');
+    }
+
     /** PHP's functions, Str and preg_* in a view and its methods (the browser's render is TemplateParityTest's). */
     #[DataProvider('frameworks')]
     public function test_php_functions_str_and_preg_render(string $framework): void
