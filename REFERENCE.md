@@ -952,7 +952,17 @@ A progress bar runs at the top of the window during a visit. Publish its configu
 | `minimum`, `maximum`, `trickle`, `trickle_speed`, `speed`, `easing`, `fade_speed` | Its motion |
 
 The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. The runtime emits
-`nitro:request` and `nitro:response` around each `#[Server]` call.
+`nitro:navigating` and `nitro:navigated` around each visit, and `nitro:request` and
+`nitro:response` around each `#[Server]` call.
+
+To use another bar, such as NProgress itself, set `show` to `false` and drive it from those events:
+
+```js
+import NProgress from 'nprogress';
+
+window.addEventListener('nitro:navigating', () => NProgress.start());
+window.addEventListener('nitro:navigated', () => NProgress.done());
+```
 
 ## Page data
 
