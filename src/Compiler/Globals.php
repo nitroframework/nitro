@@ -17,6 +17,13 @@ final class Globals
     public const DIRECTIVES = ['teleport', 'endteleport', 'deferred', 'placeholder', 'enddeferred'];
 
     /**
+     * @nitroScript ... @endNitroScript: a component's own JavaScript, run once for each instance as
+     * it goes live. Read whole (never Blade, never HTML) by the template's Lexer; never rendered on
+     * the server (NitroServiceProvider takes it out before Blade compiles the view).
+     */
+    public const SCRIPT = ['nitroScript', 'endNitroScript'];
+
+    /**
      * Variables every template can read, and what they compile to.
      *   $errors  the component's validation errors (from its last #[Server] call)
      */

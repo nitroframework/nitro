@@ -64,6 +64,9 @@ final class TemplateCompiler
      */
     public bool $runsAppScript = false;
 
+    /** @var list<string> the view's @nitroScript blocks: JavaScript, run once for each instance as it goes live */
+    public array $scripts = [];
+
     private readonly Context $context;
 
     public readonly Tree $tree;
@@ -251,6 +254,31 @@ final class TemplateCompiler
     }
 
     /** The view's tokens, each sent to its part; then the checks that everything opened was closed. */
+    /**
+     * @nitroScript: the component's JavaScript, kept for its definition (a <script> tag around it,
+     * for an editor's sake, taken off). Anywhere in the root element but in a block: it runs once
+     * for each instance, which an @if or a @foreach would make a question.
+     */
+    private function script(Token $token): void
+    {
+        $context = $this->context;
+
+        $elements = array_filter($context->stack, fn (array $open) => $open['kind'] === 'element');
+
+        if ($elements === [] || array_filter($context->stack, fn (array $open) => ! in_array($open['kind'], ['root', 'element'], true)) !== []) {
+            throw $context->error('@'.Globals::SCRIPT[0].' goes in the component\'s root element, outside @if, @foreach and the other blocks: it runs once for each instance of the component');
+        }
+
+        $code = trim($token->value);
+
+        if (preg_match('#^<script\b[^>]*>(.*)</script>$#is', $code, $tag) === 1) {
+            $code = trim($tag[1]);
+        }
+
+        $this->scripts[] = $code;
+        $this->runsAppScript = true;
+    }
+
     private function read(string $source, ?string $file): string
     {
         $context = $this->context;
@@ -267,6 +295,7 @@ final class TemplateCompiler
                 Token::ECHO => $this->expressionTable->echo($token->value, false),
                 Token::RAW => $this->expressionTable->echo($token->value, true),
                 Token::DIRECTIVE => $this->directives->directive($token),
+                Token::SCRIPT => $this->script($token),
                 default => throw $context->error("Unknown token {$token->kind}"),
             };
 

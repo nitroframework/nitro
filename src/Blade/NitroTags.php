@@ -3,6 +3,7 @@
 namespace Nitro\Blade;
 
 use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Globals;
 use Nitro\Compiler\Template\ChildTag;
 
 /**
@@ -31,6 +32,18 @@ final class NitroTags
 
     /** Where a <nitro: tag is not markup: Blade comments, @verbatim, @php blocks, <?php ?>, echoes. */
     private const NOT_MARKUP = '/\{\{--.*?--\}\}|@verbatim\b.*?@endverbatim\b|@php\b(?!\s*\().*?@endphp\b|<\?php\b.*?(?:\?>|\z)|\{!!.*?!!\}|\{\{.*?\}\}/s';
+
+    /**
+     * A view without its @nitroScript blocks (Globals::SCRIPT): JavaScript the browser runs, which
+     * the server neither renders nor reads as Blade. Before compile(), so a tag written in the
+     * script is not a child; @verbatim Blade has set aside already.
+     */
+    public static function withoutScripts(string $source): string
+    {
+        [$open, $close] = Globals::SCRIPT;
+
+        return (string) preg_replace('/(?<![\w@])@'.$open.'\b.*?@'.$close.'\b/s', '', $source);
+    }
 
     public static function compile(string $source): string
     {

@@ -7,7 +7,7 @@
         "prop": ["locked", "default", "enum", "url", "remember"],
         "url": ["as", "history", "keep", "except"],
         "model": "$model",
-        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "persist", "sync", "markup", "client"]
+        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client"]
     },
     "view": {
         "state": ["id", "engine", "view", "properties", "computed", "methods", "server", "errors"],

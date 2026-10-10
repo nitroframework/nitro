@@ -18,6 +18,9 @@ final class Token
     /** Text from @verbatim: output as it is, never scanned for tags. */
     public const VERBATIM = 'verbatim';
 
+    /** JavaScript from @nitroScript: the component's own, run in the browser, never output. */
+    public const SCRIPT = 'script';
+
     public function __construct(
         public readonly string $kind,
         public readonly string $value,

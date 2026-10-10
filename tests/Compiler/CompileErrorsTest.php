@@ -103,6 +103,9 @@ class CompileErrorsTest extends TestCase
             'unknown nitro attribute' => ['<div nitro:clik="save"></div>', 'Unknown attribute nitro:clik', 1],
             'unknown modifier' => ['<form nitro:submit.prevnt="save"></form>', 'Unknown modifier .prevnt', 1],
             'two letters are no key' => ['<input nitro:keydown.ctrl.kk="open">', 'Unknown modifier .kk', 1],
+            'a script in a block' => ["<div>\n@if (true)\n@nitroScript run(); @endNitroScript\n@endif\n</div>", "@nitroScript goes in the component's root element", 3],
+            'a script outside the root' => ['@nitroScript run(); @endNitroScript<div></div>', "@nitroScript goes in the component's root element", 1],
+            'an unclosed script' => ['<div>@nitroScript run();</div>', 'Unclosed @nitroScript', 1],
             'a capital is no key' => ['<input nitro:keydown.K="open">', 'Unknown modifier .K', 1],
             'unknown navigate modifier' => ["<div>\n<a href=\"/x\" nitro:navigate.keypres>x</a></div>", 'Unknown modifier .keypres on nitro:navigate (it takes .keypress, .preserve-scroll, .transition)', 2],
             'prefetch on navigate' => ['<div><a href="/x" nitro:navigate.visible>x</a></div>', 'Unknown modifier .visible on nitro:navigate', 1],
@@ -351,6 +354,22 @@ class CompileErrorsTest extends TestCase
         $this->assertSame(['c' => 'nitro:poll', 'on' => ['e' => 'poll', 'm' => [], 'code' => 3]], $div['h'][2]['a'][0]);
         $this->assertStringContainsString('$this.$refresh()', $expressions[3]);
         $this->assertSame(['c' => 'nitro:confirm', 'h' => [['c' => 'Sure?']]], $div['h'][3]['a'][1]);
+    }
+
+    /**
+     * @nitroScript: its JavaScript kept whole (never read as Blade or HTML: a < and a {{ in it are
+     * code), a <script> tag around it taken off, nothing of it in the view.
+     */
+    public function test_a_script_is_kept_for_the_component(): void
+    {
+        $templates = new TemplateCompiler(fn () => false);
+        $templates->compile("<div>\n<p>x</p>\n@nitroScript\n<script>\nif (a < b) chart.draw(`{{ a }}`);\nreturn () => chart.destroy();\n</script>\n@endNitroScript\n</div>", $this->scope());
+
+        $this->assertSame(["if (a < b) chart.draw(`{{ a }}`);\nreturn () => chart.destroy();"], $templates->scripts);
+        $this->assertTrue($templates->runsAppScript, 'its code reaches the component by the PHP\'s names');
+
+        [$tree] = $this->compiled("<div>\n<p>x</p>\n@nitroScript run(); @endNitroScript\n</div>");
+        $this->assertStringNotContainsString('run()', json_encode($tree), 'nothing of it in the view');
     }
 
     /** A key written as its letter or digit, beside the named ones: passed to the runtime as written. */

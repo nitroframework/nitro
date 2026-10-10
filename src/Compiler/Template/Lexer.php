@@ -4,6 +4,7 @@ namespace Nitro\Compiler\Template;
 
 use Closure;
 use Nitro\Compiler\CompileException;
+use Nitro\Compiler\Globals;
 
 /**
  * Splits a Blade template into tokens the way Blade reads it: comments are dropped, @verbatim
@@ -120,6 +121,17 @@ final class Lexer
             $this->flush();
             $this->tokens[] = new Token(Token::VERBATIM, substr($this->source, $this->position + 9, $end - $this->position - 9), $this->line);
             $this->advance($end + 12);
+            $this->textLine = $this->line;
+
+            return;
+        }
+
+        if ($name === Globals::SCRIPT[0]) {
+            [$open, $close] = Globals::SCRIPT;
+            $end = $this->find('@'.$close, $this->position + strlen($open) + 1, "Unclosed @{$open}");
+            $this->flush();
+            $this->tokens[] = new Token(Token::SCRIPT, substr($this->source, $this->position + strlen($open) + 1, $end - $this->position - strlen($open) - 1), $this->line);
+            $this->advance($end + strlen($close) + 1);
             $this->textLine = $this->line;
 
             return;

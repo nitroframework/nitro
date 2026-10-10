@@ -207,10 +207,12 @@ export class Runtime {
 
     /**
      * Components now in the page: mounted() once they are all there (a child's is there for its
-     * parent's), then their broadcast listeners, then their deferred properties asked for.
+     * parent's), then their @nitroScript blocks, then their broadcast listeners, then their
+     * deferred properties asked for.
      */
     live(components) {
         components.forEach((component) => component.hook('mounted'));
+        components.forEach((component) => component.runScripts());
         components.forEach((component) => this.broadcasts.subscribe(component));
         components.forEach((component) => this.loadDeferred(component));
     }

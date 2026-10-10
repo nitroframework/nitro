@@ -366,6 +366,8 @@ class NitroServiceProvider extends ServiceProvider
     private function blade(): void
     {
         $this->forgetStaleViews();
+        /** @nitroScript blocks are the browser's (Globals::SCRIPT): out before the tags are read. */
+        Blade::precompiler(NitroTags::withoutScripts(...));
         Blade::precompiler(NitroTags::compile(...));
 
         Blade::directive('nitroScripts', fn () => '<?php echo app(\Nitro\Rendering\Scripts::class)->html(); ?>');

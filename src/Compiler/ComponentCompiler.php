@@ -261,6 +261,14 @@ final class ComponentCompiler
             ];
         }
 
+        /** Its @nitroScript blocks: $nitro.name by the browser's names, as $this->js() code has them. */
+        if ($templates !== null && $templates->scripts !== []) {
+            $definition['scripts'] = array_map(
+                fn (string $code) => $this->names?->script($code, array_keys($meta->properties), [...$meta->browserMethods, ...$meta->serverMethods]) ?? $code,
+                $templates->scripts,
+            );
+        }
+
         /** The stores it uses: by the property holding each, the store's name. */
         if ($meta->stores !== []) {
             $definition['stores'] = [];

@@ -248,6 +248,22 @@ export class Component {
         this.runJs();
     }
 
+    /**
+     * @nitroScript: the view's own JavaScript, once for this instance as it goes live, with $nitro
+     * (as $this->js() has it), $refs, $el and $component (its handle, by the PHP's names). A
+     * function it returns runs when the component leaves the page.
+     */
+    runScripts() {
+        for (const code of this.definition.scripts ?? []) {
+            try {
+                const cleanup = new Function('$nitro', '$refs', '$el', '$component', code).call(this.ctx, this.ctx, this.refs(), this.el, this.handle());
+                if (typeof cleanup === 'function') this.cleanups.push(cleanup);
+            } catch (error) {
+                this.runtime.report(this, error);
+            }
+        }
+    }
+
     /** The component as JavaScript outside its view reaches it, by the PHP's names (handle.js): a handle of its own for each caller. */
     handle() {
         return handleOf(this.runtime, this.definition, this.ctx, this.id);
