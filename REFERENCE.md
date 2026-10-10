@@ -1482,8 +1482,7 @@ can receive a value the browser chose, and a `#[Locked]` property it sets from t
 as trustworthy as where it came from. Pass children what the parent keeps `#[Locked]`, or check the
 value in the child's `mount()`, when the child relies on it.
 
-The endpoint runs in the `web` middleware group, with sessions and CSRF protection. See
-[ARCHITECTURE.md](ARCHITECTURE.md) for how state, signing and calls work.
+The endpoint runs in the `web` middleware group, with sessions and CSRF protection.
 
 ## How Nitro is tested
 

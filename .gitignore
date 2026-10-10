@@ -1,6 +1,11 @@
 /vendor/
 /node_modules/
 /.phpunit.cache/
+# Internal notes, kept out of the repository.
+/ARCHITECTURE.md
+/CHANGELOG.md
+/CLAUDE.md
+/TASKS.md
 # What the tests write (TestCase makes the folders): logs, uploads, compiled views, manifests, builds.
 /tests/Fixtures/app/storage/
 /tests/Fixtures/app/public/nitro/

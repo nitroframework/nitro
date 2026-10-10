@@ -5,8 +5,6 @@
 /.gitattributes export-ignore
 /.github export-ignore
 /.gitignore export-ignore
-/ARCHITECTURE.md export-ignore
-/CHANGELOG.md export-ignore
 /CLAUDE.md export-ignore
 /composer.lock export-ignore
 /js/build.mjs export-ignore

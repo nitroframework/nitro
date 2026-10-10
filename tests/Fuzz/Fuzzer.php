@@ -129,7 +129,7 @@ final class Fuzzer
         return match (true) {
             $value === null => 'null',
             is_bool($value) => $value ? 'true' : 'false',
-            /** -0.0 is 0 in the browser (ARCHITECTURE.md, Known limits). */
+            /** -0.0 is 0 in the browser (a known limit). */
             is_float($value) && $value == 0 => 'n:0',
             is_int($value), is_float($value) => 'n:'.$value,
             is_string($value) => 's:'.$json($value),
