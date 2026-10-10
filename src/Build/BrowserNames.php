@@ -50,6 +50,12 @@ final class BrowserNames
         return $this->obfuscator()?->property($name) ?? $name;
     }
 
+    /** A method's name in the browser (a #[Server] call names it so). */
+    public function method(string $name): string
+    {
+        return $this->obfuscator()?->method($name) ?? $name;
+    }
+
     /**
      * $this->js() code, reading $nitro.<name> by the browser's names.
      *

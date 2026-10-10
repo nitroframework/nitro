@@ -56,6 +56,7 @@ return [
     'debounce' => $modifier, 'once' => $modifier.'; also the once data, reviewed with 17.13', 'prefetch' => 'an attribute (nitro:prefetch: Globals::ATTRIBUTES), and the runtime\'s prefetching',
     'delay' => $modifier, 'duration' => $modifier, 'origin' => $modifier, 'out-in' => $modifier, 'in-out' => $modifier,
     'remove' => $modifier, 'attr' => $modifier, 'loading' => $modifier, 'poll' => $modifier, 'visible' => $modifier,
+    'params' => 'a #[Server] call\'s arguments in its request (written by the runtime and InteractsWithNitro, read by UpdateController; the request has no protocol entry yet: TASKS) and an event\'s (the protocol\'s answer.dispatch)',
     'wait' => $modifier.' (nitro:prefetch.wait.150ms)', 'keep' => $modifier.' (nitro:prefetch.keep.60s); also #[Url]\'s keep',
     'navigate' => $modifier, 'init' => $modifier.' (a trigger: Globals::TRIGGERS)',
     '$reload' => 'a handler action ($reload: Globals::ACTIONS): what plugins hear a reload of the page\'s properties as',

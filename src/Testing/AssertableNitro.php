@@ -14,8 +14,9 @@ use PHPUnit\Framework\Assert as PHPUnit;
 
 /**
  * A Nitro page in a test response, as Inertia's AssertableInertia: the page's name and state
- * (its public properties, as the browser receives them), from a rendered page or from a
- * nitro:navigate visit's page data.
+ * (its public properties, as the browser receives them) and its validation errors, from a
+ * rendered page, a nitro:navigate visit's page data, or a #[Server] call's answer
+ * (InteractsWithNitro::callNitro()).
  *
  *   $response->assertNitro(fn (AssertableNitro $page) => $page
  *       ->page('pages::orders.index')
@@ -27,9 +28,14 @@ final class AssertableNitro
     /**
      * @param  array<string, mixed>  $data
      * @param  list<string>  $deferred
+     * @param  array<string, list<string>>  $errors  by property (path)
      */
-    private function __construct(private readonly string $name, private readonly array $data, private readonly array $deferred = [])
-    {
+    private function __construct(
+        private readonly string $name,
+        private readonly array $data,
+        private readonly array $deferred = [],
+        private readonly array $errors = [],
+    ) {
     }
 
     /** @param  TestResponse<\Symfony\Component\HttpFoundation\Response>  $response */
@@ -38,7 +44,8 @@ final class AssertableNitro
         $content = (string) $response->getContent();
         $page = json_decode($content, true);
 
-        if (is_array($page) && ($page['nitro'] ?? null) === 1) {
+        /** A visit's page data, or a #[Server] call's answer: each carries the signed state. */
+        if (is_array($page) && (($page['nitro'] ?? null) === 1 || isset($page['snapshot']))) {
             return self::fromEnvelope($page['snapshot'] ?? null);
         }
 
@@ -57,7 +64,7 @@ final class AssertableNitro
         /** An obfuscated build names the page and its properties by aliases: the page and the properties they stand for. */
         $snapshot = app(Snapshots::class)->ownNames(new Snapshot((string) $state['name'], (string) ($state['id'] ?? ''), (array) ($state['data'] ?? []), (array) ($state['memo'] ?? [])));
 
-        return new self($snapshot->name, $snapshot->data, array_values((array) ($snapshot->memo['deferred'] ?? [])));
+        return new self($snapshot->name, $snapshot->data, array_values((array) ($snapshot->memo['deferred'] ?? [])), (array) ($snapshot->memo['errors'] ?? []));
     }
 
     /** The page is the given one (its name, such as "pages::orders.index"). */
@@ -125,6 +132,38 @@ final class AssertableNitro
         PHPUnit::assertSame([], $this->deferred, "The Nitro page [{$this->name}] defers [".implode(', ', $this->deferred).'].');
 
         return $this;
+    }
+
+    /** Validation messages for these properties (paths: "form.email"); for any, when none are given. */
+    public function hasErrors(string ...$keys): self
+    {
+        if ($keys === []) {
+            PHPUnit::assertNotEmpty($this->errors, "The Nitro page [{$this->name}] has no validation errors.");
+        }
+
+        foreach ($keys as $key) {
+            PHPUnit::assertArrayHasKey($key, $this->errors, "The Nitro page [{$this->name}] has no error for [{$key}]; it has: [".implode(', ', array_keys($this->errors)).'].');
+        }
+
+        return $this;
+    }
+
+    /** No validation messages. */
+    public function hasNoErrors(): self
+    {
+        PHPUnit::assertSame([], $this->errors, "The Nitro page [{$this->name}] has validation errors: [".implode(', ', array_keys($this->errors)).'].');
+
+        return $this;
+    }
+
+    /**
+     * The validation messages, by property.
+     *
+     * @return array<string, list<string>>
+     */
+    public function errors(): array
+    {
+        return $this->errors;
     }
 
     /** The page's state, or one value of it (dot notation). */
