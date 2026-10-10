@@ -3,6 +3,11 @@
 All notable changes to `nitro/nitro` will be documented in this file. Before the rename below,
 the package was `nitro/fusion` and the entries say Fusion.
 
+## v2.0.2 (2026-10-11)
+
+- The documentation is at https://www.nitrophp.com: the README links its pages, and
+  `composer.json` names it as the homepage.
+
 ## v2.0.1 (2026-10-10)
 
 - The progress bar is part of Nitro's runtime (`js/src/runtime/navigation/bar.js`), under Nitro's
