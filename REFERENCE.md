@@ -96,6 +96,41 @@ PHP, as `<nitro:counter :start="5" />` does. A `<nitro:...>` tag written in PHP 
 `<?php ?>`, an echo or a string in them), in a Blade comment or in `@verbatim` is text, not a
 component.
 
+### Modules and packages
+
+A module of the app, or a package, keeps its components, pages and stores in folders of its own,
+under a namespace it registers in its service provider's `register()`:
+
+```php
+config()->set('nitro.namespaces.billing', [
+    'components' => ['namespace' => 'Billing\Ui\Components', 'path' => __DIR__.'/Ui/Components', 'views' => 'billing::components'],
+    'pages' => ['namespace' => 'Billing\Ui\Pages', 'path' => __DIR__.'/Ui/Pages', 'views' => 'billing::pages'],
+    'stores' => ['namespace' => 'Billing\Ui\Stores', 'path' => __DIR__.'/Ui/Stores'],
+    'views' => ['vue' => __DIR__.'/resources/views/vue'],
+]);
+```
+
+Its names carry the namespace: `<nitro:billing::invoice-table />`, the page
+`pages::billing::invoices.index`, the store `stores::billing::basket`. Blade views named
+`billing::...` come from the Blade namespace the provider loads (`loadViewsFrom`); without
+`views`, a component's view is `billing::invoice-table`. A class belongs to the most specific
+folder that holds it, so pages may sit inside the components' folder. A namespace is named in
+kebab case, and not `pages` or `stores`.
+
+`#[View(vue: 'billing::invoice-chart')]` is `invoice-chart.vue` in the namespace's `vue` folder.
+The browser finds it among the views given with `namespaced()` (from `nitro/vue`, `nitro/react`,
+`nitro/solid` or `nitro/svelte`):
+
+```js
+nitroVue({
+    ...import.meta.glob('../views/vue/**/*.vue'),
+    ...namespaced('billing', import.meta.glob('../../modules/Billing/resources/views/vue/**/*.vue')),
+});
+```
+
+`php artisan make:nitro billing::InvoiceTable` (and `--page`, `--store`) writes into the
+namespace's folders.
+
 ### Where code runs
 
 | Code | Runs |
@@ -1365,6 +1400,7 @@ of views and browser methods.
 | `components` | `App\Nitro\Components` | Namespace, path and view path of components |
 | `pages` | `App\Nitro\Pages` | Namespace, path and view path of pages |
 | `stores` | `App\Nitro\Stores` | Namespace and path of stores |
+| `namespaces` | `[]` | A module's or a package's components, pages and stores, in folders of their own (see [Modules and packages](#modules-and-packages)) |
 | `layout` | `components.layouts.app` | The layout of pages without `#[Layout]` |
 | `head` | `'%s'`, no description or image | `@nitroHead`'s defaults: the title format, the description and the link-preview image |
 | `persistent_middleware` | auth, can, verified, ... | Page middleware checked again on each `#[Server]` call |
