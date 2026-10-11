@@ -32,6 +32,9 @@
  * nitro:current="active" on a link adds the class while the link points at the current page
  * (nitro:current.exact: the same path only).
  *
+ * A link to a part of the current page (#hash), nitro:navigate or not, and back and forward
+ * between parts of it only scroll: the page is not asked for again (pageOf()).
+ *
  * The scroll position is kept in each history entry: back and forward restore it, and
  * nitro:navigate.preserve-scroll keeps the current one (filters, tabs). Each visit sends the
  * bundle's version (X-Nitro-Version): after a deploy the server answers 409 and the page loads in
@@ -43,8 +46,8 @@
  * #[Url] properties are kept in the query string (syncUrl()); the server reads them back when it
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
-import * as P from '../../php.js';
 import { ATTRIBUTES, selector } from '../protocol.js';
+import { appendQuery, omitted, pageOf, webUrl } from './addresses.js';
 import { PageCache } from './pages.js';
 import { Prefetcher } from './prefetch.js';
 import { Swap } from './swap.js';
@@ -53,24 +56,6 @@ import { readState } from '../component/snapshot.js';
 import { remembered as rememberedOf, restoreRemembered } from '../component/remember.js';
 import { visit } from '../server/request.js';
 
-/**
- * A URL the browser may be sent to: http(s) only. A redirect can come from what a visitor typed
- * (a "return to" URL); javascript: or data: there would run script on the page.
- */
-export function webUrl(href, base) {
-    let url;
-    try {
-        url = new URL(href, base);
-    } catch {
-        return null;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        console.error(`Nitro: not sending the browser to ${url.protocol} URLs`);
-        return null;
-    }
-    return url;
-}
-
 export class Navigator {
     constructor(runtime, window) {
         this.runtime = runtime;
@@ -78,6 +63,8 @@ export class Navigator {
         this.document = window.document;
         this.swap = new Swap(runtime, window);
         this.visiting = null;
+        /** The page shown (pageOf()): kept as visits and #[Url] change the address. */
+        this.shown = pageOf(window.location.href);
         /** The link a press already started a visit for, until its click has come and gone. */
         this.pressed = null;
 
@@ -93,6 +80,15 @@ export class Navigator {
         window.addEventListener('popstate', (e) => {
             /** The entry left is no longer the current one: a #[Remember] save waiting to retry would land on this one. */
             window.clearTimeout(this.rememberTimer);
+            /**
+             * Only the #hash changed (a link to a part of this page, back or forward between two):
+             * the same page, scrolled to where that entry was, or to the part it names.
+             */
+            if (pageOf(window.location.href) === this.shown) {
+                const scroll = e.state?.nitroScroll;
+                scroll ? window.scrollTo(scroll.x, scroll.y) : this.scroll(new URL(window.location.href));
+                return;
+            }
             this.visit(window.location.href, false, { scroll: e.state?.nitroScroll ?? null });
         });
 
@@ -122,6 +118,8 @@ export class Navigator {
         if (!modifiers) return null;
         if (link.target && link.target !== '_self') return null;
         const url = new URL(link.href, this.window.location.href);
+        /** A part of this page (#hash): the browser scrolls to it, as any link to it. */
+        if (url.hash !== '' && pageOf(url.href) === pageOf(this.window.location.href)) return null;
         return url.origin === this.window.location.origin ? { link, url, modifiers } : null;
     }
 
@@ -397,6 +395,7 @@ export class Navigator {
 
     /** On the new page: the remembered scroll position, the current one kept, or the #hash or the top. */
     arrive(target, options) {
+        this.shown = pageOf(this.window.location.href);
         if (options.scroll) {
             this.window.scrollTo(options.scroll.x, options.scroll.y);
         } else if (!options.preserveScroll) {
@@ -437,6 +436,7 @@ export class Navigator {
         }
         if (url.href === this.window.location.href) return;
         this.window.history[push ? 'pushState' : 'replaceState'](this.window.history.state ?? {}, '', url.href);
+        this.shown = pageOf(url.href);
     }
 
     /** nitro:current: mark the links pointing at this page. */
@@ -457,25 +457,4 @@ export class Navigator {
 function navigateModifiers(link) {
     const attribute = [...link.attributes].find((a) => a.name === 'nitro:navigate' || a.name.startsWith('nitro:navigate.'));
     return attribute ? attribute.name.split('.').slice(1) : null;
-}
-
-/**
- * Whether a #[Url] value stays out of the URL: null; or equal to except when it has one, else to
- * the declared default (unless keep). Compared as encoded, so types count (1 is not "1").
- */
-function omitted(value, prop) {
-    if (value === null) return true;
-    const encoded = JSON.stringify(P.encode(value));
-    if ('except' in prop.url) return encoded === JSON.stringify(prop.url.except);
-    return !prop.url.keep && 'default' in prop && encoded === JSON.stringify(prop.default);
-}
-
-/** A value as PHP reads it back from a query string: key=v, key[]=v for lists, key[k]=v for maps. */
-function appendQuery(params, key, value) {
-    if (P.isArray(value)) {
-        const list = Array.isArray(value);
-        for (const [k, v] of P.entries(value)) appendQuery(params, list ? `${key}[]` : `${key}[${k}]`, v);
-        return;
-    }
-    params.append(key, value === true ? '1' : value === false ? '0' : P.toStr(value));
 }

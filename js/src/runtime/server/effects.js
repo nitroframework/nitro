@@ -3,7 +3,7 @@
  * JavaScript to run ($this->js()), a reload of the page's properties, a redirect.
  */
 import * as P from '../../php.js';
-import { webUrl } from '../navigation/navigate.js';
+import { webUrl } from '../navigation/addresses.js';
 
 export function applyEffects(runtime, component, effects) {
     for (const { event, params, to, self } of effects.dispatches ?? []) {

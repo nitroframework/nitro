@@ -1872,6 +1872,53 @@ await scenario('prefetch and back/forward', async () => {
     window.close();
 });
 
+/** A link to a part of the page (#hash), plain or nitro:navigate, and back between parts: scrolled, never visited. */
+await scenario('links to a part of the page', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const runtime = window.Nitro;
+    const page = byName(document, 'pages::counter');
+    const requests = [];
+    const fetch = window.fetch;
+    window.fetch = (...args) => {
+        requests.push(String(args[0]?.url ?? args[0]));
+        return fetch(...args);
+    };
+    /** jsdom does not scroll: what scrolls is recorded. */
+    const scrolls = [];
+    window.scrollTo = (x, y) => scrolls.push(`${x},${y}`);
+    const partOf = (id) => {
+        const part = document.createElement('h2');
+        part.id = id;
+        part.scrollIntoView = () => scrolls.push(`#${id}`);
+        document.body.append(part);
+    };
+    const link = (href, navigate) => {
+        const a = document.createElement('a');
+        a.href = href;
+        if (navigate) a.setAttribute('nitro:navigate', '');
+        document.body.append(a);
+        return a;
+    };
+    partOf('first');
+    partOf('second');
+
+    click(window, link('#first', false));
+    await until('a plain link to a part: the address names it', () => window.location.hash === '#first');
+    click(window, link('/counter#second', true));
+    await until('a nitro:navigate link to a part of this page: the address names it', () => window.location.hash === '#second');
+
+    window.history.back();
+    await until('back: to the part before', () => window.location.hash === '#first' && scrolls.includes('#first'));
+    window.history.back();
+    await until('back again: the page as it was, at the top', () => window.location.hash === '' && scrolls.at(-1) === '0,0');
+    await wait(150);
+
+    check('none of it asked the server', requests.length === 0, requests.join(' '));
+    check('the page was neither reloaded nor rendered again', window.Nitro === runtime && byName(document, 'pages::counter') === page);
+    window.close();
+});
+
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;

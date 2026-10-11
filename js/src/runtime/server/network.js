@@ -6,7 +6,7 @@
 import * as P from '../../php.js';
 import { HEADERS, SIGNALS } from '../protocol.js';
 import { fingerprintsField } from '../component/snapshot.js';
-import { webUrl } from '../navigation/navigate.js';
+import { webUrl } from '../navigation/addresses.js';
 import { applyEffects } from './effects.js';
 import { call, reload, timingOf } from './request.js';
 
