@@ -190,12 +190,12 @@ export function hydrateRaw(vdom, anchor, target) {
                         ? target.insertBefore(rawNode, target.childNodes[anchor.current + 1])
                         : target.appendChild(rawNode);
                     anchor.current++;
-                } else if (rawNodeType === 1) {
-                    if (currentTargetNode.outerHTML !== rawNode.outerHTML) {
-                        currentTargetNode.outerHTML = rawNode.outerHTML;
-                    }
                 }
-                // matched, continue
+                /**
+                 * Matched: the server's element is taken over as it is. Its HTML is the same string the
+                 * view gives, parsed by the same browser; what differs inside it, a script on the page
+                 * changed (a heading's anchor link, a highlighter's markup), and is not undone.
+                 */
             }
             anchor.current++;
         }

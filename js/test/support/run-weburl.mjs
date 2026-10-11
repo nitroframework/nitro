@@ -1,5 +1,5 @@
-// The runtime's URL guard (navigate.js webUrl): stdin {allowed, refused}; stdout the URLs it got wrong.
-import { webUrl } from '../../src/runtime/navigation/navigate.js';
+// The runtime's URL guard (navigation/addresses.js webUrl): stdin {allowed, refused}; stdout the URLs it got wrong.
+import { webUrl } from '../../src/runtime/navigation/addresses.js';
 import { readStdin } from './common.mjs';
 
 const input = await readStdin();

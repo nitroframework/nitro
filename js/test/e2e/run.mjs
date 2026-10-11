@@ -1919,6 +1919,34 @@ await scenario('links to a part of the page', async () => {
     window.close();
 });
 
+/**
+ * {!! !!} HTML that a script on the page changed before Nitro started (an anchor link added to a
+ * heading, as docs pages do): taken over as it is, the same element, the change kept.
+ */
+await scenario('raw HTML a script changed before the runtime started', async () => {
+    const window = await open('/excerpt', {
+        beforeParse(window) {
+            window.document.addEventListener('nitro:starting', () => {
+                const body = window.document.querySelector('.excerpt article p.body');
+                if (!body) return;
+                body.dataset.mark = 'the server\'s';
+                const anchor = window.document.createElement('a');
+                anchor.className = 'anchor';
+                anchor.textContent = '#';
+                body.append(anchor);
+            });
+        },
+    });
+    const { document } = window;
+    await until('the excerpt started', () => window.Nitro?.components().some((component) => component.el.classList.contains('excerpt')));
+    const body = document.querySelector('.excerpt article p.body');
+
+    check('the element the server sent is the one on the page', body?.dataset.mark === 'the server\'s', body?.outerHTML);
+    check('what the script added to it is kept', body?.querySelector('a.anchor')?.textContent === '#', body?.outerHTML);
+    check('the #[Html] text is the server\'s', body?.firstChild?.nodeValue === 'Hello <world>', body?.outerHTML);
+    window.close();
+});
+
 await scenario('navigate to and from a Blade view', async () => {
     const window = await open('/counter');
     const { document } = window;
