@@ -1,14 +1,14 @@
 * text=auto eol=lf
 
 # Not installed with the package. js/functions (the PHP function ports compiled into the
-# bundle), dist/nitro.js and resources/minify.cjs are used at runtime and stay.
+# bundle), dist/nitro.js and resources/minify.cjs are used at runtime and stay; js/src too, as the
+# render service's adapters import from it (tests/Architecture/InstalledFilesTest).
 /.gitattributes export-ignore
 /.github export-ignore
 /.gitignore export-ignore
 /CLAUDE.md export-ignore
 /composer.lock export-ignore
 /js/build.mjs export-ignore
-/js/src export-ignore
 /js/test export-ignore
 /js/tools export-ignore
 /package.json export-ignore
