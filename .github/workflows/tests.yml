@@ -52,3 +52,29 @@ jobs:
       - name: Tests
         working-directory: nitro
         run: vendor/bin/phpunit ${{ matrix.args }}
+
+  # Nitro in a new Laravel app, installed as Composer ships it (tests/App/run.php), on the oldest
+  # PHP Nitro supports and the newest.
+  app:
+    name: In a new app (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nitro
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, zip, curl
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: A new app with Nitro, tested
+        working-directory: nitro
+        run: php tests/App/run.php "$RUNNER_TEMP/nitro-app"
