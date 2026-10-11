@@ -12,6 +12,12 @@
             "role": "Developer"
         }
     ],
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/nitroframework"
+        }
+    ],
     "support": {
         "docs": "https://www.nitrophp.com/docs",
         "issues": "https://github.com/nitroframework/nitro/issues",

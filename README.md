@@ -150,6 +150,12 @@ the `nitro:` prefix.
 The documentation is at **[nitrophp.com](https://www.nitrophp.com)**: guides, every feature, and
 live examples. The complete reference is also in [REFERENCE.md](REFERENCE.md).
 
+## Sponsoring
+
+Nitro is free and open source. If it saves you or your company time, you can support its
+development, documentation and support through
+[GitHub Sponsors](https://github.com/sponsors/nitroframework). Thank you!
+
 ## Contributing
 
 ```bash
