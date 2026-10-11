@@ -31,6 +31,9 @@ import { flushSync } from 'react-dom';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { connect, register } from './core.js';
 
+/** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
+export { namespaced } from './core.js';
+
 const NitroContext = createContext(null);
 
 /** Register the React engine with Nitro: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */

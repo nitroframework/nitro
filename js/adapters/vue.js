@@ -27,6 +27,9 @@
 import { computed, createApp, createSSRApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
 import { connect, register } from './core.js';
 
+/** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
+export { namespaced } from './core.js';
+
 const KEY = Symbol('nitro');
 
 /** Register the Vue engine with Nitro: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */

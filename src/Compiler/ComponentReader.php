@@ -204,9 +204,9 @@ final class ComponentReader
 
         /** A page is a chunk of its own unless it names a group or #[LazyLoad(false)]; a component only with #[LazyLoad]. */
         $group = match (true) {
-            $lazy === null => $page ? Naming::bare($name) : null,
+            $lazy === null => $page ? Naming::group($name) : null,
             $lazy->group === false => null,
-            default => $lazy->group ?: Naming::bare($name),
+            default => $lazy->group ?: Naming::group($name),
         };
 
         if (is_string($group) && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $group) !== 1) {

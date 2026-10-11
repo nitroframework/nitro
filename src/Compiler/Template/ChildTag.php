@@ -3,6 +3,7 @@
 namespace Nitro\Compiler\Template;
 
 use Nitro\Compiler\CompileException;
+use Nitro\Support\Naming;
 use Nitro\Support\Protocol;
 
 /**
@@ -18,8 +19,8 @@ final class ChildTag
     /** <nitro:dynamic-component :is="...">: the component :is names, decided as the view renders. */
     public const DYNAMIC = 'dynamic-component';
 
-    /** What a tag may name, as a regex: "post-card", "posts.post-card" (the server and the browser compiler read tags with it). */
-    public const NAME = '[a-z0-9][a-z0-9\-.]*';
+    /** What a tag may name, as a regex: "post-card", "posts.post-card", "issues::post-card" (the server and the browser compiler read tags with it). */
+    public const NAME = '(?:'.Naming::NAMESPACE.Naming::SEPARATOR.')?[a-z0-9][a-z0-9\-.]*';
 
     /** <nitro:name ...> or <nitro:name ... />; not <nitro:slot> (a slot of the child around it). */
     public const PATTERN = '/<nitro:(?!slot[\s\/>])('.self::NAME.')((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';

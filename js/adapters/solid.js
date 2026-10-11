@@ -34,6 +34,9 @@ import { createMutable, createStore, reconcile } from 'solid-js/store';
 import { hydrate, render } from 'solid-js/web';
 import { connect, register } from './core.js';
 
+/** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
+export { namespaced } from './core.js';
+
 const NitroContext = createContext(null);
 
 /** Register the Solid engine with Nitro: `views` is what import.meta.glob() gives. */

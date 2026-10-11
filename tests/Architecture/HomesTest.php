@@ -118,6 +118,15 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Compiler/Template/ChildTag.php' => 'NAME, which PATTERN and every closing tag read'],
                 'why' => 'The tag\'s name was matched by four patterns: the Blade precompiler, the template compiler, its closing tags and the build\'s',
             ],
+            'a name\'s kind and namespace' => [
+                /** "pages::", "stores::" and a namespace's "issues::": written and read in one place each side. */
+                'patterns' => ["/'(pages|stores)::|\\$(name|view)\w*\s*,\s*'::'|'::'\s*,\s*\\$(name|view)|\.namespaceSeparator/"],
+                'homes' => [
+                    'src/Support/Naming.php' => 'writes names and reads them: their kind, their namespace, the name within it',
+                    'js/adapters/core.js' => 'findView() and namespaced(): a namespace\'s views in the browser and the render service',
+                ],
+                'why' => 'A name split by hand where it is used reads "pages::issues::list" as the page "issues::list" in one place and the namespace "pages" in another',
+            ],
             'where components are' => [
                 /** nitro.components, nitro.pages and nitro.stores: read once, and asked of the registry. */
                 'patterns' => ["/get\('nitro\.(components|pages|stores)'\)|config\('nitro\.(components|pages|stores)/", "/\['namespace'\]/"],

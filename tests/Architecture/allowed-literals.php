@@ -25,6 +25,7 @@ return [
     'static' => $language, 'strval' => $language, 'trim' => $language, 'json' => $language, 'php' => $language,
     'mixed' => $language,
     'echo' => $generic.': Laravel Echo, a Blade echo token, a broadcast prefix',
+    '::' => $generic.': PHP\'s Class::member in the compiler; a namespace\'s end in a name (Support/Naming::SEPARATOR)',
 
     'Content-Type' => $web, 'POST' => $web, 'application/json' => $web, 'UTF-8' => $web, 'sha256' => $web.' (the hash algorithm)',
     'input' => $web, 'textarea' => $web, 'script' => $web, 'style' => $web, 'meta' => $web, 'title' => $web, 'img' => $web, 'pre' => $web, 'div' => $web.' (a JavaScript view\'s wrapper is js/protocol.json\'s view.wrapper)',

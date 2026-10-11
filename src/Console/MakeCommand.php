@@ -5,20 +5,22 @@ namespace Nitro\Console;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
+use LogicException;
+use Nitro\Support\Naming;
 use Nitro\Support\Registry;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * php artisan make:nitro Counter (a component), Posts/Index --page, Cart --store: the class, and
  * for a component or a page its Blade view, where nitro.components, nitro.pages and nitro.stores
- * say. Written from resources/stubs, or the app's own stubs/nitro.*.stub; an existing file is
- * left as it is without --force.
+ * say (issues::CommentBox: where nitro.namespaces.issues says). Written from resources/stubs, or
+ * the app's own stubs/nitro.*.stub; an existing file is left as it is without --force.
  */
 #[AsCommand(name: 'make:nitro')]
 class MakeCommand extends Command
 {
     protected $signature = 'make:nitro
-        {name : The class, such as Counter or Posts/Index}
+        {name : The class, such as Counter, Posts/Index or issues::CommentBox}
         {--page : A page: routed, with a layout and a title}
         {--store : A store: state several components share, with no view}
         {--force : Write over files that are there}';
@@ -34,15 +36,28 @@ class MakeCommand extends Command
         }
 
         $kind = $this->option('page') ? 'page' : ($this->option('store') ? 'store' : 'component');
-        $segments = $this->segments((string) $this->argument('name'));
+        [$in, $local] = Naming::split((string) $this->argument('name'));
+        $segments = $this->segments($local);
 
         if ($segments === []) {
-            $this->components->error('Name the class with letters, digits and folders: Counter, Posts/Index.');
+            $this->components->error('Name the class with letters, digits and folders: Counter, Posts/Index, issues::CommentBox.');
 
             return self::FAILURE;
         }
 
-        [$fullClass, $classFile] = $registry->placeOf($kind, $segments);
+        if ($in !== null && ! $registry->hasNamespace($in)) {
+            $this->components->error("There is no namespace [{$in}] in nitro.namespaces.");
+
+            return self::FAILURE;
+        }
+
+        try {
+            [$fullClass, $classFile] = $registry->placeOf($kind, $segments, $in);
+        } catch (LogicException $exception) {
+            $this->components->error($exception->getMessage());
+
+            return self::FAILURE;
+        }
         $class = Str::afterLast($fullClass, '\\');
         $namespace = Str::beforeLast($fullClass, '\\');
         $name = $registry->name($fullClass);
@@ -54,9 +69,19 @@ class MakeCommand extends Command
         ])];
 
         if ($kind !== 'store') {
-            /** Where Laravel looks for views first: config/view.php's paths. */
-            $viewsRoot = rtrim((string) $this->laravel->make('view')->getFinder()->getPaths()[0], '/\\');
-            $written[$viewsRoot.DIRECTORY_SEPARATOR.str_replace('.', DIRECTORY_SEPARATOR, $registry->view($name)).'.blade.php'] = $this->stub($files, 'view', []);
+            /** Where Laravel looks for views first: config/view.php's paths, or the Blade namespace's (loadViewsFrom). */
+            [$bladeNamespace, $view] = Naming::split($registry->view($name));
+            $finder = $this->laravel->make('view')->getFinder();
+            $roots = $bladeNamespace === null ? $finder->getPaths() : ($finder->getHints()[$bladeNamespace] ?? []);
+
+            if ($roots === []) {
+                $this->components->error("Blade has no views named [{$bladeNamespace}::]: load them in the provider (\$this->loadViewsFrom(..., '{$bladeNamespace}')).");
+
+                return self::FAILURE;
+            }
+
+            $viewsRoot = rtrim((string) $roots[0], '/\\');
+            $written[$viewsRoot.DIRECTORY_SEPARATOR.str_replace('.', DIRECTORY_SEPARATOR, $view).'.blade.php'] = $this->stub($files, 'view', []);
         }
 
         /** Its folders, for a page's URL. */

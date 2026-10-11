@@ -13,7 +13,8 @@
         "state": ["id", "engine", "view", "properties", "computed", "methods", "server", "errors"],
         "names": ["properties", "methods", "server", "computed"],
         "wrapper": "div",
-        "bladeEngine": "blade"
+        "bladeEngine": "blade",
+        "namespaceSeparator": "::"
     },
     "attributes": {
         "id": "nitro:id",

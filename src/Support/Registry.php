@@ -4,6 +4,8 @@ namespace Nitro\Support;
 
 use Closure;
 use FilesystemIterator;
+use InvalidArgumentException;
+use LogicException;
 use Nitro\Component;
 use Nitro\Store;
 use RecursiveDirectoryIterator;
@@ -12,9 +14,11 @@ use ReflectionClass;
 
 /**
  * Component and page names and classes: discovered in the configured directories
- * (App\Nitro\Components and App\Nitro\Pages by default), or registered by hand. Pages are
- * named "pages::...". `nitro:build` caches the list, with the times its directories last changed:
- * a file added, removed or renamed since (a component made after a build) and it is found again.
+ * (App\Nitro\Components and App\Nitro\Pages by default, and each namespace's of
+ * nitro.namespaces), or registered by hand. Pages are named "pages::...", a namespace's
+ * components "issues::...". `nitro:build` caches the list, with the times its directories last
+ * changed: a file added, removed or renamed since (a component made after a build) and it is
+ * found again.
  */
 final class Registry
 {
@@ -27,10 +31,10 @@ final class Registry
     private bool $discovered = false;
 
     /**
-     * Where components, pages and stores are, each with its kind: the one list every question
-     * about a place asks.
+     * Where components, pages and stores are, each with its kind and the namespace that owns it (null: the
+     * app's): the one list every question about a place asks.
      *
-     * @var list<array{kind: 'component'|'page'|'store', at: array{namespace: string, path: string, views?: string}}>
+     * @var list<array{kind: 'component'|'page'|'store', owner: ?string, at: array{namespace: string, path: string, views?: string}}>
      */
     private readonly array $locations;
 
@@ -38,6 +42,7 @@ final class Registry
      * @param  array{namespace: string, path: string, views: string}  $componentsAt  where components are
      * @param  array{namespace: string, path: string, views: string}  $pagesAt  where pages are
      * @param  array{namespace: string, path: string}|null  $storesAt  where stores are
+     * @param  array<string, array{components?: array{namespace: string, path: string, views?: string}, pages?: array{namespace: string, path: string, views?: string}, stores?: array{namespace: string, path: string}}>  $namespaces  each namespace's, by its name (nitro.namespaces)
      */
     public function __construct(
         array $componentsAt,
@@ -46,12 +51,27 @@ final class Registry
         ?array $storesAt = null,
         /** @var (Closure(): array<string, class-string<Component>>)|null components written in their views (ViewColocatedViews) */
         private readonly ?Closure $colocated = null,
+        array $namespaces = [],
     ) {
-        $this->locations = [
-            ['kind' => 'component', 'at' => $componentsAt],
-            ['kind' => 'page', 'at' => $pagesAt],
-            ...($storesAt === null ? [] : [['kind' => 'store', 'at' => $storesAt]]),
+        $locations = [
+            ['kind' => 'component', 'owner' => null, 'at' => $componentsAt],
+            ['kind' => 'page', 'owner' => null, 'at' => $pagesAt],
+            ...($storesAt === null ? [] : [['kind' => 'store', 'owner' => null, 'at' => $storesAt]]),
         ];
+
+        foreach ($namespaces as $in => $places) {
+            if (! Naming::isNamespace((string) $in)) {
+                throw new InvalidArgumentException("nitro.namespaces: [{$in}] cannot name a namespace. A namespace's name is kebab-case (issues, billing-admin), and not pages or stores.");
+            }
+
+            foreach (['components' => 'component', 'pages' => 'page', 'stores' => 'store'] as $key => $kind) {
+                if (isset($places[$key])) {
+                    $locations[] = ['kind' => $kind, 'owner' => (string) $in, 'at' => $places[$key]];
+                }
+            }
+        }
+
+        $this->locations = $locations;
     }
 
     /**
@@ -86,13 +106,10 @@ final class Registry
             return $name;
         }
 
-        /** A store's place first, then a page's, then a component's. */
-        foreach (['store', 'page', 'component'] as $kind) {
-            $location = $this->location($kind);
+        $location = $this->locationOf($class);
 
-            if ($location !== null && self::holds($location, $class)) {
-                return Naming::name($class, $location['namespace'], $kind === 'page', $kind === 'store');
-            }
+        if ($location !== null) {
+            return Naming::name($class, $location['at']['namespace'], $location['kind'] === 'page', $location['kind'] === 'store', $location['owner']);
         }
 
         return Naming::name($class, substr($class, 0, (int) strrpos($class, '\\')));
@@ -107,9 +124,7 @@ final class Registry
             return Naming::isPage((string) array_search($class, $this->components, true));
         }
 
-        $pages = $this->location('page');
-
-        return $pages !== null && self::holds($pages, $class);
+        return ($this->locationOf($class)['kind'] ?? null) === 'page';
     }
 
     /** Whether a class is a store (it extends Store). */
@@ -118,14 +133,21 @@ final class Registry
         return is_subclass_of(ltrim($class, '\\'), Store::class);
     }
 
-    /** The view a component or page renders, from its name ("" for a store, which has none). */
+    /**
+     * The view a component or page renders, from its name ("" for a store, which has none). A
+     * namespace that names no views for its kind has them in the Blade namespace of its name:
+     * "issues::comment-box".
+     */
     public function view(string $name): string
     {
         if (Naming::isStore($name)) {
             return '';
         }
 
-        return Naming::view($name, $this->location(Naming::isPage($name) ? 'page' : 'component')['views'] ?? '');
+        $in = Naming::namespaceOf($name);
+        $location = $this->location(Naming::isPage($name) ? 'page' : 'component', $in);
+
+        return Naming::view($name, $location['views'] ?? ($in === null ? '' : Naming::within($in, '')));
     }
 
     /**
@@ -134,11 +156,14 @@ final class Registry
      *
      * @param  'component'|'page'|'store'  $kind
      * @param  non-empty-list<string>  $segments
+     * @param  string|null  $in  a namespace of nitro.namespaces; null: the app's
      * @return array{0: string, 1: string} the class, and its file
      */
-    public function placeOf(string $kind, array $segments): array
+    public function placeOf(string $kind, array $segments, ?string $in = null): array
     {
-        $location = $this->location($kind) ?? throw new \LogicException('No place for stores is configured (nitro.stores).');
+        $location = $this->location($kind, $in) ?? throw new LogicException($in === null
+            ? 'No place for stores is configured (nitro.stores).'
+            : "No place for {$kind}s of [{$in}] is configured (nitro.namespaces.{$in}).");
 
         return [
             trim($location['namespace'], '\\').'\\'.implode('\\', $segments),
@@ -146,16 +171,22 @@ final class Registry
         ];
     }
 
+    /** Whether nitro.namespaces has this namespace. */
+    public function hasNamespace(string $in): bool
+    {
+        return in_array($in, array_column($this->locations, 'owner'), true);
+    }
+
     /**
-     * Where a kind is (null: stores, when none is configured).
+     * Where a kind of a namespace is (null: the app's); null when none is configured.
      *
      * @param  'component'|'page'|'store'  $kind
      * @return array{namespace: string, path: string, views?: string}|null
      */
-    private function location(string $kind): ?array
+    private function location(string $kind, ?string $in = null): ?array
     {
         foreach ($this->locations as $location) {
-            if ($location['kind'] === $kind) {
+            if ($location['kind'] === $kind && $location['owner'] === $in) {
                 return $location['at'];
             }
         }
@@ -164,13 +195,28 @@ final class Registry
     }
 
     /**
-     * Whether a class is in a location's PHP namespace.
+     * The location a class is in: of those whose PHP namespace holds it, the most specific, so
+     * a namespace's pages in RepoHub\Issues\Ui\Pages are pages, not components of its
+     * RepoHub\Issues\Ui. A store is in a place for stores, any other class in another (stores
+     * may share a folder with components).
      *
-     * @param  array{namespace: string, path: string, views?: string}  $location
+     * @return array{kind: 'component'|'page'|'store', owner: ?string, at: array{namespace: string, path: string, views?: string}}|null
      */
-    private static function holds(array $location, string $class): bool
+    private function locationOf(string $class): ?array
     {
-        return str_starts_with($class, trim($location['namespace'], '\\').'\\');
+        $store = $this->isStoreClass($class);
+        $found = null;
+        $length = -1;
+
+        foreach ($this->locations as $location) {
+            $namespace = trim($location['at']['namespace'], '\\').'\\';
+
+            if (($location['kind'] === 'store') === $store && str_starts_with($class, $namespace) && strlen($namespace) > $length) {
+                [$found, $length] = [$location, strlen($namespace)];
+            }
+        }
+
+        return $found;
     }
 
     private function discover(): void
@@ -192,25 +238,28 @@ final class Registry
             }
         }
 
-        foreach ($this->locations as ['kind' => $kind, 'at' => $location]) {
-            if (! is_dir($location['path'])) {
+        foreach ($this->locations as $location) {
+            ['kind' => $kind, 'owner' => $in, 'at' => $at] = $location;
+
+            if (! is_dir($at['path'])) {
                 continue;
             }
 
-            [$page, $store] = [$kind === 'page', $kind === 'store'];
-            $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($location['path'], FilesystemIterator::SKIP_DOTS));
+            $store = $kind === 'store';
+            $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($at['path'], FilesystemIterator::SKIP_DOTS));
 
             foreach ($files as $file) {
                 if ($file->getExtension() !== 'php') {
                     continue;
                 }
 
-                $relative = substr($file->getPathname(), strlen(rtrim($location['path'], '\\/')) + 1, -4);
-                $class = trim($location['namespace'], '\\').'\\'.str_replace(['/', '\\'], '\\', $relative);
+                $relative = substr($file->getPathname(), strlen(rtrim($at['path'], '\\/')) + 1, -4);
+                $class = trim($at['namespace'], '\\').'\\'.str_replace(['/', '\\'], '\\', $relative);
 
-                /** A store only where stores are, and only a store there. */
-                if (class_exists($class) && is_subclass_of($class, Component::class) && is_subclass_of($class, Store::class) === $store && (new ReflectionClass($class))->isInstantiable()) {
-                    $this->components[Naming::name($class, $location['namespace'], $page, $store)] ??= $class;
+                /** A store only where stores are, and only a store there; a class in a location inside this one is that one's. */
+                if (class_exists($class) && is_subclass_of($class, Component::class) && is_subclass_of($class, Store::class) === $store && (new ReflectionClass($class))->isInstantiable()
+                    && $this->locationOf($class) === $location) {
+                    $this->components[Naming::name($class, $at['namespace'], $kind === 'page', $store, $in)] ??= $class;
                 }
             }
         }
@@ -235,7 +284,7 @@ final class Registry
     {
         $directories = [];
 
-        foreach (array_filter(array_column(array_column($this->locations, 'at'), 'path')) as $path) {
+        foreach (array_unique(array_filter(array_column(array_column($this->locations, 'at'), 'path'))) as $path) {
             if (! is_dir($path)) {
                 continue;
             }

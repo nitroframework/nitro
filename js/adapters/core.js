@@ -65,15 +65,35 @@ export function register(name, views, mount) {
     else document.addEventListener('nitro:starting', ({ detail }) => detail.Nitro.engine(name, engine), { once: true });
 }
 
+/** What ends a namespace in a view's name: 'issues::list'. */
+const SEPARATOR = protocol.view.namespaceSeparator;
+
 /**
- * A view's module, by its name ('cart/badge' is .../cart/badge.vue): in the browser, and in the
- * render service. By its name alone: which files are views (their extensions) is the app's
- * import.meta.glob()'s choice.
+ * A namespace's views (a module's, a package's), for an adapter: its import.meta.glob(), keyed
+ * so that #[View(vue: 'issues::list')] finds list.vue among them and only them.
+ *
+ *     nitroVue({ ...import.meta.glob('../views/vue/**\/*.vue'),
+ *                ...namespaced('issues', import.meta.glob('../../modules/Issues/resources/views/vue/**\/*.vue')) });
+ */
+export function namespaced(namespace, views) {
+    return Object.fromEntries(Object.entries(views).map(([path, view]) => [namespace + SEPARATOR + path, view]));
+}
+
+/**
+ * A view's module, by its name ('cart/badge' is .../cart/badge.vue; 'issues::list' is list.vue
+ * among the views namespaced() keyed for 'issues'): in the browser, and in the render service.
+ * By its name alone: which files are views (their extensions) is the app's import.meta.glob()'s
+ * choice.
  */
 export function findView(views, view, engine) {
+    const at = view.indexOf(SEPARATOR);
+    const prefix = at === -1 ? '' : view.slice(0, at + SEPARATOR.length);
+    const name = view.slice(prefix.length);
+
     const path = Object.keys(views).find((key) => {
-        const match = /^(.*)\.(\w+)$/.exec(key);
-        return match !== null && (match[1].endsWith(`/${view}`) || match[1] === view);
+        if (prefix === '' ? key.includes(SEPARATOR) : !key.startsWith(prefix)) return false;
+        const match = /^(.*)\.(\w+)$/.exec(key.slice(prefix.length));
+        return match !== null && (match[1].endsWith(`/${name}`) || match[1] === name);
     });
 
     if (path === undefined) {

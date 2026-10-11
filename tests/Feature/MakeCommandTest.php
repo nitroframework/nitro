@@ -119,6 +119,32 @@ class MakeCommandTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->dir.'/app');
     }
 
+    /** issues::CommentBox: in the namespace's folders, its view in the Blade namespace the module loads. */
+    public function test_a_component_of_a_namespace(): void
+    {
+        $this->app->make('config')->set('nitro.namespaces.issues', [
+            'components' => ['namespace' => 'Issues\\Ui', 'path' => $this->dir.'/modules/Issues/Ui', 'views' => 'issues::components'],
+        ]);
+        $this->app->make('view')->addNamespace('issues', $this->dir.'/modules/Issues/views');
+        $this->app->forgetScopedInstances();
+
+        [$code, $output] = $this->make('issues::CommentBox');
+
+        $this->assertSame(0, $code, $output);
+        $this->assertStringContainsString("namespace Issues\\Ui;\n", $this->file('modules/Issues/Ui/CommentBox.php'));
+        $this->assertParses('modules/Issues/Ui/CommentBox.php');
+        $this->file('modules/Issues/views/components/comment-box.blade.php');
+        $this->assertStringContainsString('<nitro:issues::comment-box />', $output);
+
+        [$code, $output] = $this->make('issues::Orders/Index', '--page');
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('No place for pages of [issues] is configured (nitro.namespaces.issues)', $output);
+
+        [$code, $output] = $this->make('billing::Invoice');
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('There is no namespace [billing] in nitro.namespaces', $output);
+    }
+
     /** The app's own stubs/nitro.*.stub, when it has one, in place of Nitro's. */
     public function test_the_apps_own_template(): void
     {

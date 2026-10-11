@@ -56,6 +56,28 @@ return [
     ],
 
     /*
+    | Namespaces: components, pages and stores in folders of their own, a
+    | module's or a package's, named with the namespace's name. A component
+    | of 'issues' is <nitro:issues::comment-box />, a page
+    | "pages::issues::list", a store "stores::issues::cart"; its Vue view
+    | #[View(vue: 'issues::list')] is list.vue in its views.vue path.
+    |
+    | A module or package adds its own in its service provider's register():
+    |
+    |     config()->set('nitro.namespaces.issues', [
+    |         'components' => ['namespace' => 'Issues\\Ui\\Components', 'path' => __DIR__.'/Ui/Components', 'views' => 'issues::components'],
+    |         'pages' => ['namespace' => 'Issues\\Ui\\Pages', 'path' => __DIR__.'/Ui/Pages', 'views' => 'issues::pages'],
+    |         'views' => ['vue' => __DIR__.'/../resources/views/vue'],
+    |     ]);
+    |
+    | Each part is optional. Blade views named "issues::..." are the Blade
+    | namespace the provider loads (loadViewsFrom); without 'views', a
+    | component's is "issues::comment-box".
+    */
+
+    'namespaces' => [],
+
+    /*
     |--------------------------------------------------------------------------
     | Pages
     |--------------------------------------------------------------------------

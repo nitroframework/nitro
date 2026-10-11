@@ -5,6 +5,7 @@ namespace Nitro\View;
 use Nitro\Compiler\CompileException;
 use Nitro\Compiler\ComponentMeta;
 use Nitro\Component;
+use Nitro\Support\Naming;
 use Nitro\Support\Protocol;
 use Nitro\View\ServerRendering\NullRenderer;
 use Nitro\View\ServerRendering\ServerRenderer;
@@ -22,6 +23,9 @@ use Nitro\View\ServerRendering\ViewState;
  */
 class ScriptEngine implements ViewEngine
 {
+    /** @var array<string, list<string>> each namespace's paths, by its name */
+    private array $namespaces = [];
+
     /**
      * @param  list<string>  $paths  where its views are, in the order looked in (nitro.views)
      * @param  list<string>  $extensions  their file extensions, in the order looked for
@@ -45,10 +49,36 @@ class ScriptEngine implements ViewEngine
         return ucfirst($this->name);
     }
 
-    /** @return list<string> */
-    public function paths(): array
+    /**
+     * Where its views are: the app's, or a namespace's ("issues::list" is list in those).
+     *
+     * @return list<string>
+     */
+    public function paths(?string $namespace = null): array
     {
-        return $this->paths;
+        return $namespace === null ? $this->paths : $this->namespaces[$namespace] ?? [];
+    }
+
+    /**
+     * The namespaces that have views for it (nitro.namespaces.*.views).
+     *
+     * @return list<string>
+     */
+    public function namespaces(): array
+    {
+        return array_keys($this->namespaces);
+    }
+
+    /**
+     * A namespace's views for it, from nitro.namespaces.
+     *
+     * @internal
+     *
+     * @param  list<string>  $paths
+     */
+    public function addNamespace(string $namespace, array $paths): void
+    {
+        $this->namespaces[$namespace] = $paths;
     }
 
     /** @return list<string> */
@@ -57,13 +87,18 @@ class ScriptEngine implements ViewEngine
         return $this->extensions;
     }
 
-    /** The view's file: in the first of its paths that has it. */
+    /** The view's file: in the first of its paths that has it (a namespace's, for "issues::list"). */
     public function file(ComponentMeta $meta): string
     {
         $tried = [];
+        [$namespace, $view] = Naming::split($meta->view);
 
-        foreach ($this->paths as $path) {
-            $base = rtrim($path, '/\\').DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $meta->view);
+        if ($namespace !== null && ! isset($this->namespaces[$namespace])) {
+            throw new CompileException("View [{$meta->view}] of {$meta->class} not found: [{$namespace}] has no {$this->name} views (nitro.namespaces.{$namespace}.views.{$this->name}).", $meta->file);
+        }
+
+        foreach ($this->paths($namespace) as $path) {
+            $base = rtrim($path, '/\\').DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $view);
 
             foreach ($this->extensions as $extension) {
                 if (is_file($tried[] = $base.'.'.$extension)) {

@@ -4,6 +4,7 @@ namespace Nitro\View;
 
 use FilesystemIterator;
 use Nitro\Compiler\CompileException;
+use Nitro\Support\Naming;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
@@ -73,8 +74,10 @@ final class ColocatedViews
         $this->components = [];
 
         foreach ($this->engines->scripts() as $engine) {
-            foreach ($engine->paths() as $path) {
-                $this->scan($engine, rtrim($path, '/\\'));
+            foreach ([null, ...$engine->namespaces()] as $namespace) {
+                foreach ($engine->paths($namespace) as $path) {
+                    $this->scan($engine, rtrim($path, '/\\'), $namespace);
+                }
             }
         }
 
@@ -83,9 +86,10 @@ final class ColocatedViews
 
     /**
      * One of an engine's paths: its views that hold their component's PHP (as the engine writes
-     * it), a component each (a name another path had already is its).
+     * it), a component each (a name another path had already is its). A namespace's are named
+     * in it: issues/cart/badge.vue is "issues::cart.badge", its class under Namespaced\Issues.
      */
-    private function scan(ScriptEngine $engine, string $root): void
+    private function scan(ScriptEngine $engine, string $root, ?string $namespace = null): void
     {
         if (! is_dir($root)) {
             return;
@@ -104,14 +108,15 @@ final class ColocatedViews
             }
 
             $view = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1, -strlen($file->getExtension()) - 1));
+            $name = Naming::within($namespace, str_replace('/', '.', $view));
 
-            if (isset($this->components[str_replace('/', '.', $view)])) {
+            if (isset($this->components[$name])) {
                 continue;
             }
 
-            $class = self::NAMESPACE.'\\'.self::studly($engine->name()).'\\'.implode('\\', array_map(self::studly(...), explode('/', $view)));
-            $this->components[str_replace('/', '.', $view)] = $class;
-            $this->load($class, $engine->name(), $view, $file->getPathname(), $block);
+            $class = self::NAMESPACE.'\\'.($namespace === null ? '' : 'Namespaced\\'.self::studly($namespace).'\\').self::studly($engine->name()).'\\'.implode('\\', array_map(self::studly(...), explode('/', $view)));
+            $this->components[$name] = $class;
+            $this->load($class, $engine->name(), Naming::within($namespace, $view), $file->getPathname(), $block);
         }
     }
 

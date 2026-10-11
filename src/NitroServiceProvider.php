@@ -106,6 +106,19 @@ class NitroServiceProvider extends ServiceProvider
                 $engines->add($this->scriptEngine($app, (string) $name, (array) $view));
             }
 
+            /** Each namespace's views, for their engines: nitro.namespaces.issues.views.vue. */
+            foreach ((array) $app->make('config')->get('nitro.namespaces') as $namespace => $places) {
+                foreach ((array) ($places['views'] ?? []) as $name => $paths) {
+                    $engine = $engines->named((string) $name);
+
+                    if (! $engine instanceof ScriptEngine) {
+                        throw new InvalidArgumentException("nitro.namespaces.{$namespace}.views.{$name}: there is no [{$name}] in nitro.views. A namespace's views are for the engines nitro.views lists (vue, react, solid, svelte, or the app's own).");
+                    }
+
+                    $engine->addNamespace((string) $namespace, array_values((array) $paths));
+                }
+            }
+
             return $engines;
         });
 
@@ -117,6 +130,7 @@ class NitroServiceProvider extends ServiceProvider
             $app->bootstrapPath(Registry::CACHE),
             $app->make('config')->get('nitro.stores'),
             fn () => $app->make(ColocatedViews::class)->components(),
+            (array) $app->make('config')->get('nitro.namespaces'),
         ));
 
         /** Components written in their JavaScript views: their classes go with the compiled bundle. */

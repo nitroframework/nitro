@@ -32,6 +32,9 @@
 import { flushSync, getContext, hydrate, mount, unmount } from 'svelte';
 import { connect, register } from './core.js';
 
+/** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
+export { namespaced } from './core.js';
+
 const KEY = Symbol('nitro');
 
 /** Register the Svelte engine with Nitro: `views` is what import.meta.glob() gives. */
