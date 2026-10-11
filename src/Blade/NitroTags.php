@@ -74,9 +74,9 @@ final class NitroTags
                 continue;
             }
 
-            if (preg_match('/\G<\/nitro:([a-z0-9][a-z0-9\-.]*)\s*>/i', $source, $end, 0, $at)) {
-                $out .= '{!! '.self::TAGS.'->end('.var_export(strtolower($end[1]), true).') !!}';
-                $cursor = $at + strlen($end[0]);
+            if (($closing = ChildTag::closing($source, $at)) !== null) {
+                $out .= '{!! '.self::TAGS.'->end('.var_export($closing[0], true).') !!}';
+                $cursor = $at + $closing[1];
 
                 continue;
             }

@@ -27,18 +27,31 @@ final class Registry
     private bool $discovered = false;
 
     /**
+     * Where components, pages and stores are, each with its kind: the one list every question
+     * about a place asks.
+     *
+     * @var list<array{kind: 'component'|'page'|'store', at: array{namespace: string, path: string, views?: string}}>
+     */
+    private readonly array $locations;
+
+    /**
      * @param  array{namespace: string, path: string, views: string}  $componentsAt  where components are
      * @param  array{namespace: string, path: string, views: string}  $pagesAt  where pages are
      * @param  array{namespace: string, path: string}|null  $storesAt  where stores are
      */
     public function __construct(
-        private readonly array $componentsAt,
-        private readonly array $pagesAt,
+        array $componentsAt,
+        array $pagesAt,
         private readonly ?string $cache = null,
-        private readonly ?array $storesAt = null,
+        ?array $storesAt = null,
         /** @var (Closure(): array<string, class-string<Component>>)|null components written in their views (ViewColocatedViews) */
         private readonly ?Closure $colocated = null,
     ) {
+        $this->locations = [
+            ['kind' => 'component', 'at' => $componentsAt],
+            ['kind' => 'page', 'at' => $pagesAt],
+            ...($storesAt === null ? [] : [['kind' => 'store', 'at' => $storesAt]]),
+        ];
     }
 
     /**
@@ -73,13 +86,12 @@ final class Registry
             return $name;
         }
 
-        if ($this->storesAt !== null && str_starts_with($class, trim($this->storesAt['namespace'], '\\').'\\')) {
-            return Naming::name($class, $this->storesAt['namespace'], store: true);
-        }
+        /** A store's place first, then a page's, then a component's. */
+        foreach (['store', 'page', 'component'] as $kind) {
+            $location = $this->location($kind);
 
-        foreach ([[$this->pagesAt, true], [$this->componentsAt, false]] as [$location, $page]) {
-            if (str_starts_with($class, trim($location['namespace'], '\\').'\\')) {
-                return Naming::name($class, $location['namespace'], $page);
+            if ($location !== null && self::holds($location, $class)) {
+                return Naming::name($class, $location['namespace'], $kind === 'page', $kind === 'store');
             }
         }
 
@@ -95,7 +107,9 @@ final class Registry
             return Naming::isPage((string) array_search($class, $this->components, true));
         }
 
-        return str_starts_with($class, trim($this->pagesAt['namespace'], '\\').'\\');
+        $pages = $this->location('page');
+
+        return $pages !== null && self::holds($pages, $class);
     }
 
     /** Whether a class is a store (it extends Store). */
@@ -111,7 +125,7 @@ final class Registry
             return '';
         }
 
-        return Naming::view($name, (Naming::isPage($name) ? $this->pagesAt : $this->componentsAt)['views']);
+        return Naming::view($name, $this->location(Naming::isPage($name) ? 'page' : 'component')['views'] ?? '');
     }
 
     /**
@@ -124,16 +138,39 @@ final class Registry
      */
     public function placeOf(string $kind, array $segments): array
     {
-        $location = match ($kind) {
-            'page' => $this->pagesAt,
-            'store' => $this->storesAt ?? throw new \LogicException('No place for stores is configured (nitro.stores).'),
-            default => $this->componentsAt,
-        };
+        $location = $this->location($kind) ?? throw new \LogicException('No place for stores is configured (nitro.stores).');
 
         return [
             trim($location['namespace'], '\\').'\\'.implode('\\', $segments),
             rtrim($location['path'], '/\\').DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $segments).'.php',
         ];
+    }
+
+    /**
+     * Where a kind is (null: stores, when none is configured).
+     *
+     * @param  'component'|'page'|'store'  $kind
+     * @return array{namespace: string, path: string, views?: string}|null
+     */
+    private function location(string $kind): ?array
+    {
+        foreach ($this->locations as $location) {
+            if ($location['kind'] === $kind) {
+                return $location['at'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a class is in a location's PHP namespace.
+     *
+     * @param  array{namespace: string, path: string, views?: string}  $location
+     */
+    private static function holds(array $location, string $class): bool
+    {
+        return str_starts_with($class, trim($location['namespace'], '\\').'\\');
     }
 
     private function discover(): void
@@ -155,17 +192,12 @@ final class Registry
             }
         }
 
-        $locations = [[$this->componentsAt, false, false], [$this->pagesAt, true, false]];
-
-        if ($this->storesAt !== null) {
-            $locations[] = [$this->storesAt, false, true];
-        }
-
-        foreach ($locations as [$location, $page, $store]) {
+        foreach ($this->locations as ['kind' => $kind, 'at' => $location]) {
             if (! is_dir($location['path'])) {
                 continue;
             }
 
+            [$page, $store] = [$kind === 'page', $kind === 'store'];
             $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($location['path'], FilesystemIterator::SKIP_DOTS));
 
             foreach ($files as $file) {
@@ -203,7 +235,7 @@ final class Registry
     {
         $directories = [];
 
-        foreach (array_filter([$this->componentsAt['path'], $this->pagesAt['path'], $this->storesAt['path'] ?? null]) as $path) {
+        foreach (array_filter(array_column(array_column($this->locations, 'at'), 'path')) as $path) {
             if (! is_dir($path)) {
                 continue;
             }

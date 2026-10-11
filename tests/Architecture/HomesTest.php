@@ -112,6 +112,21 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Support/Registry.php' => 'its cache'],
                 'why' => 'Its path in three files (TASKS 17.17)',
             ],
+            'what a <nitro:...> tag may name' => [
+                /** A tag's name read by a pattern of its own: the server, the browser compiler and the build would disagree on a name. */
+                'patterns' => ['/<(\\\\\/)?nitro:\(\[/', '/\[a-z0-9\]\[a-z0-9\\\\-\.\]\*/'],
+                'homes' => ['src/Compiler/Template/ChildTag.php' => 'NAME, which PATTERN and every closing tag read'],
+                'why' => 'The tag\'s name was matched by four patterns: the Blade precompiler, the template compiler, its closing tags and the build\'s',
+            ],
+            'where components are' => [
+                /** nitro.components, nitro.pages and nitro.stores: read once, and asked of the registry. */
+                'patterns' => ["/get\('nitro\.(components|pages|stores)'\)|config\('nitro\.(components|pages|stores)/", "/\['namespace'\]/"],
+                'homes' => [
+                    'src/NitroServiceProvider.php' => 'gives the configured places to the registry',
+                    'src/Support/Registry.php' => 'its list of locations: names, discovery, views, where a new class goes',
+                ],
+                'why' => 'Each of the registry\'s questions read the places itself, each with its own list of them',
+            ],
             'the browser data block' => [
                 'patterns' => ["/'once'\s*=>\s*\(object\)/"],
                 'homes' => ['src/State/SharedData.php' => 'forBrowser()'],

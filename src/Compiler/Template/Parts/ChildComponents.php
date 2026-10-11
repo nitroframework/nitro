@@ -172,11 +172,8 @@ final class ChildComponents extends Part
         $context = $this->context;
         $this->compiler->tree->flushText();
 
-        if (! preg_match('/\G<\/nitro:([a-z0-9][a-z0-9\-.]*)\s*>/i', $text, $match, 0, $at)) {
-            throw $context->error('Malformed </nitro:...> tag');
-        }
-
-        $name = strtolower($match[1]);
+        $closing = ChildTag::closing($text, $at) ?? throw $context->error('Malformed </nitro:...> tag');
+        $name = $closing[0];
         $top = end($context->stack);
         $expected = $name === 'slot' ? 'slot' : 'child';
 
@@ -194,6 +191,6 @@ final class ChildComponents extends Part
         $context->locals = $top['locals'];
         $context->sources = $top['sources'];
 
-        return $at + strlen($match[0]);
+        return $at + $closing[1];
     }
 }

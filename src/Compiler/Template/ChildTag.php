@@ -15,11 +15,14 @@ use Nitro\Support\Protocol;
  */
 final class ChildTag
 {
-    /** <nitro:name ...> or <nitro:name ... />; not <nitro:slot> (a slot of the child around it). */
     /** <nitro:dynamic-component :is="...">: the component :is names, decided as the view renders. */
     public const DYNAMIC = 'dynamic-component';
 
-    public const PATTERN = '/<nitro:(?!slot[\s\/>])([a-z0-9][a-z0-9\-.]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';
+    /** What a tag may name, as a regex: "post-card", "posts.post-card" (the server and the browser compiler read tags with it). */
+    public const NAME = '[a-z0-9][a-z0-9\-.]*';
+
+    /** <nitro:name ...> or <nitro:name ... />; not <nitro:slot> (a slot of the child around it). */
+    public const PATTERN = '/<nitro:(?!slot[\s\/>])('.self::NAME.')((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)(\/?)>/i';
 
     /** <nitro:slot name="footer"> */
     public const SLOT_PATTERN = '/<nitro:slot\s+name\s*=\s*(?:"([\w\-]+)"|\'([\w\-]+)\')\s*>/i';
@@ -52,6 +55,29 @@ final class ChildTag
          */
         public readonly ?string $hydrate = null,
     ) {
+    }
+
+    /**
+     * The closing tag at $offset of $text (</nitro:name>, </nitro:slot>): its name, in lower
+     * case, and its length; null when none starts there.
+     *
+     * @return array{0: string, 1: int}|null
+     */
+    public static function closing(string $text, int $offset): ?array
+    {
+        return preg_match('/\G<\/nitro:('.self::NAME.')\s*>/i', $text, $match, 0, $offset) === 1 ? [strtolower($match[1]), strlen($match[0])] : null;
+    }
+
+    /**
+     * The names the tags in $source give, each once: what a view places.
+     *
+     * @return list<string>
+     */
+    public static function names(string $source): array
+    {
+        preg_match_all('/<nitro:('.self::NAME.')/i', $source, $tags);
+
+        return array_values(array_unique($tags[1]));
     }
 
     /** Whether $code is one PHP expression (what a bound attribute's value is put in place as). */

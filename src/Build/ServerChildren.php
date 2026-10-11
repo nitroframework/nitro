@@ -42,9 +42,7 @@ final class ServerChildren
         $source = (string) file_get_contents($this->views->of($meta)->file($meta));
         $found = false;
 
-        preg_match_all('/<nitro:([\w.\-]+)/', $source, $tags);
-
-        foreach (array_unique($tags[1]) as $name) {
+        foreach (ChildTag::names($source) as $name) {
             /** It may name any component, one with mount() or #[Server] methods too. */
             if ($name === ChildTag::DYNAMIC) {
                 $found = true;
