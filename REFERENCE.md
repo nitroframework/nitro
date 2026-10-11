@@ -137,6 +137,7 @@ namespace's folders.
 | --- | --- |
 | `mount()`, `boot()`, `hydrate()`, `dehydrate()` | on the server |
 | `#[Server]` methods | on the server, called from the browser |
+| `#[Html]` methods | on the server, whenever it sends the state |
 | Every other method, `#[Computed]` methods, `updated*()` hooks | in the browser |
 | The view | on the server for the first render, then in the browser |
 
@@ -244,6 +245,13 @@ class Cart extends Component
   enum, fails the build.
 - **`#[Computed]` methods** are read as properties (`$this->total`). The value is worked out once
   and kept until the state changes. They take no parameters and are not part of the state.
+- **`#[Html]` methods** make HTML on the server for the view to place: rendered Markdown,
+  highlighted code, a diff. Read as properties (`{!! $this->body !!}`, `v-html="body"`), they run
+  whenever the server sends the state (the first page, a visit, after each `#[Server]` call). Their
+  HTML goes to the browser beside the signed state, never in it and never back: a call returns
+  only a fingerprint of each, and the server leaves out the HTML that still matches. Public, no
+  parameters, `: string`, not also `#[Server]` or `#[Computed]`, not on a store. Cache a slow one by
+  what it is made from, and make its HTML safe (it is placed as it is).
 - **`$this->validate([...])`** in a `#[Server]` method: failures appear as `$errors`.
 - **`$this->reset('prop', ...)`** puts properties back to their defaults; **`$this->redirect($url)`**
   goes to another page.
