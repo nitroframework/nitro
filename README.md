@@ -1,3 +1,5 @@
+<p align="center"><a href="https://www.nitrophp.com"><img src="art/logo.png" width="128" alt="Nitro"></a></p>
+
 # Nitro: PHP components for Laravel that run in the browser
 
 [![Latest version](https://img.shields.io/packagist/v/nitro/nitro)](https://packagist.org/packages/nitro/nitro)
