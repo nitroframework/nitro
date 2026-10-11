@@ -6,15 +6,14 @@ use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Livewire is installed in the fixture app for every test; here both render on one page, each
- * with its own tags, attributes, state and scripts.
+ * The fixture app with Livewire beside Nitro (bootstrap/livewire.php): both render on one page,
+ * each with its own tags, attributes, state and scripts.
  */
 class LivewireCoexistenceTest extends TestCase
 {
-    #[DataProvider('frameworks')]
-    public function test_livewire_and_nitro_components_share_a_page(string $framework): void
+    public function test_livewire_and_nitro_components_share_a_page(): void
     {
-        $this->boot($framework);
+        $this->boot('livewire');
 
         $response = $this->get('/both');
         $html = (string) $response->getContent();

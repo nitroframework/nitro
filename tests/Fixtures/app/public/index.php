@@ -15,7 +15,7 @@ if ($path !== '/' && is_file(__DIR__.$path)) {
 
 require dirname(__DIR__, 4).'/vendor/autoload.php';
 
-$app = require dirname(__DIR__).'/bootstrap/laravel.php';
+$app = require dirname(__DIR__).'/bootstrap/livewire.php';
 
 $kernel = $app->make(Kernel::class);
 $response = $kernel->handle($request = Request::capture());

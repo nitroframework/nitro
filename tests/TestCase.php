@@ -8,6 +8,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Bootstrap\HandleExceptions;
+use Illuminate\Foundation\Bootstrap\RegisterProviders;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Facade;
 use Nitro\Nitro;
@@ -45,11 +46,12 @@ abstract class TestCase extends BaseTestCase
 
         /** Once a run: views compiled by an earlier version of Nitro call what may have moved since. */
         if (! self::$viewsCleared) {
-            array_map('unlink', glob(self::APP.'/storage/framework/views/*.php') ?: []);
+            array_map('unlink', glob(self::APP.'/storage/framework/views*/*.php') ?: []);
             self::$viewsCleared = true;
         }
 
-        foreach (glob(self::APP.'/bootstrap/cache/*.php') ?: [] as $file) {
+        /** No caches, and no scripts nitro:build published (a test that builds and is stopped part way leaves them). */
+        foreach ([...glob(self::APP.'/bootstrap/cache/*.php') ?: [], ...glob(self::APP.'/public/nitro/*.js') ?: []] as $file) {
             @unlink($file);
         }
 
@@ -62,6 +64,8 @@ abstract class TestCase extends BaseTestCase
     {
         $this->app = null;
         HandleExceptions::flushState($this);
+        /** withProviders() keeps its list for the whole process: cleared after each test, as Laravel's TestCase does. */
+        RegisterProviders::flushState();
         Facade::clearResolvedInstances();
         Facade::setFacadeApplication(null);
         Container::setInstance(null);
@@ -99,7 +103,8 @@ abstract class TestCase extends BaseTestCase
     {
         self::useManifestsOf($framework);
         $app = $this->app = require self::APP.'/bootstrap/'.$framework.'.php';
-        $app->make(HttpKernel::class)->bootstrap();
+        /** As an app's tests: booted by the console kernel, the HTTP kernel made at the first request. */
+        $app->make(ConsoleKernel::class)->bootstrap();
 
         $schema = $app->make('db')->connection()->getSchemaBuilder();
         $schema->create('students', function (Blueprint $table) {
