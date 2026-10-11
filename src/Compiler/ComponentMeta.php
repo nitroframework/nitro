@@ -79,7 +79,25 @@ final class ComponentMeta
         public readonly array $sync = [],
         /** @var array<string, Cached> mount() or #[Server] methods whose result is kept (#[Cached]), by method */
         public readonly array $cached = [],
+        /** @var list<string> #[Html] methods: made on the server, read as $this->name, sent beside the state */
+        public readonly array $html = [],
     ) {
+    }
+
+    public function isHtml(string $name): bool
+    {
+        return in_array($name, $this->html, true);
+    }
+
+    /**
+     * The names read as $this->name that are not properties: #[Computed] (worked out in the
+     * browser) and #[Html] (made on the server).
+     *
+     * @return list<string>
+     */
+    public function derived(): array
+    {
+        return [...$this->computed, ...$this->html];
     }
 
     /**
@@ -130,7 +148,7 @@ final class ComponentMeta
      */
     public function assertNamesFree(array $reserved, string $engine): void
     {
-        $own = [...array_keys($this->properties), ...$this->browserMethods, ...$this->serverMethods, ...$this->computed];
+        $own = [...array_keys($this->properties), ...$this->browserMethods, ...$this->serverMethods, ...$this->derived()];
         $taken = array_values(array_intersect($own, $reserved));
 
         if ($taken !== []) {
@@ -189,7 +207,8 @@ final class ComponentMeta
             file: $this->file,
             constants: $this->constants,
             locked: $this->locked(),
-            computed: $this->computed,
+            /** Both read as $this->name: the browser serves #[Html] from what the server sent (component.js computed()). */
+            computed: $this->derived(),
         );
     }
 }

@@ -5,6 +5,7 @@
  */
 import * as P from '../../php.js';
 import { HEADERS, SIGNALS } from '../protocol.js';
+import { fingerprintsField } from '../component/snapshot.js';
 import { webUrl } from '../navigation/navigate.js';
 import { applyEffects } from './effects.js';
 import { call, reload, timingOf } from './request.js';
@@ -106,6 +107,8 @@ export class Network {
         const storesSent = new Map([...stores].map(([name, store]) => [name, new Map(store.data)]));
         const body = {
             snapshot: component.snapshot,
+            /** Its #[Html] values' fingerprints, not the HTML: the server leaves out what still matches. */
+            ...fingerprintsField(component),
             store: component.isStore && component.snapshot === null ? component.name : undefined,
             partials: partials.length > 0 ? partials : undefined,
             updates: component.updates(),

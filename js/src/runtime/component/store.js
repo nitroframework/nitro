@@ -10,7 +10,7 @@
 import * as P from '../../php.js';
 import { ErrorBag } from './errors.js';
 import { defineProperties } from './context.js';
-import { defaultsOf, readState, sameValue, updatesOf } from './snapshot.js';
+import { defaultsOf, keepEnvelope, readState, sameValue, updatesOf } from './snapshot.js';
 
 export class Store {
     /**
@@ -27,7 +27,7 @@ export class Store {
         this.isStore = true;
         const state = envelope ? readState(envelope) : null;
         this.data = state ? new Map(state.data) : defaultsOf(definition);
-        this.snapshot = envelope ?? null;
+        keepEnvelope(this, envelope ?? null);
         this.serverData = new Map(this.data);
         this.errors = state?.errors ?? new ErrorBag();
         this.partials = [];
@@ -158,7 +158,7 @@ export class Store {
             }
         }
 
-        this.snapshot = envelope;
+        keepEnvelope(this, envelope);
         this.serverData = new Map(data);
         if (JSON.stringify([...errors.messages]) !== JSON.stringify([...this.errors.messages])) changed = true;
         this.errors = errors;

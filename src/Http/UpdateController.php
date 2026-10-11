@@ -146,7 +146,8 @@ final class UpdateController
         $context = $component->nitro();
 
         return new JsonResponse([
-            'snapshot' => $this->snapshots()->envelope($next, $meta->name),
+            /** Without the #[Html] the browser holds still (it sends their fingerprints). */
+            'snapshot' => $this->snapshots()->envelope($next, $meta->name, Snapshots::known($payload)),
             'children' => $children === null ? null : (object) $children,
             /** The stores it uses, as its method left them (a store's own call: its snapshot is the state). */
             'stores' => $meta->stores === [] ? null : (object) array_intersect_key(app(Stores::class)->snapshots(app(ComponentRenderer::class)->pageMemo()), array_flip(array_map(fn (string $class) => $this->names()->component($this->components()->meta($class)->name), $meta->stores))),

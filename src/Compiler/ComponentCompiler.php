@@ -224,7 +224,7 @@ final class ComponentCompiler
         ]);
 
         /** The browser's names for the methods (an obfuscated build: aliases, but for the hooks it calls by name). */
-        $this->names?->assertDistinct([...$meta->browserMethods, ...$meta->serverMethods], 'method');
+        $this->names?->assertDistinct([...$meta->browserMethods, ...$meta->serverMethods, ...$meta->html], 'method');
         $this->names?->assertDistinct(array_keys($meta->properties), 'property');
         $methods = array_combine(array_map($scope->browserMethod(...), array_keys($methods)), $methods);
 
@@ -240,6 +240,11 @@ final class ComponentCompiler
             /** the browser's name of a property ('*' for every one) => when (updating, updated) => the method. */
             'propertyHooks' => (object) $this->propertyHooksFor($propertyHooks, $scope),
         ];
+
+        /** Its #[Html] values, by the browser's names: read from what the server sent, never worked out here. */
+        if ($meta->html !== []) {
+            $definition['html'] = array_map($scope->browserMethod(...), $meta->html);
+        }
 
         /** A view the app's build compiles: its engine, and its name (the engine loads it). */
         if ($templates === null) {
@@ -257,7 +262,7 @@ final class ComponentCompiler
                 'properties' => (object) array_combine($properties, array_map($scope->browserProperty(...), $properties)),
                 'methods' => (object) array_combine($public, array_map($scope->browserMethod(...), $public)),
                 'server' => (object) array_combine($meta->serverMethods, array_map($scope->browserMethod(...), $meta->serverMethods)),
-                'computed' => (object) array_combine($meta->computed, array_map($scope->browserMethod(...), $meta->computed)),
+                'computed' => (object) array_combine($meta->derived(), array_map($scope->browserMethod(...), $meta->derived())),
             ];
         }
 

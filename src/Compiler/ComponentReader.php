@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Nitro\Attributes\Cached;
 use Nitro\Attributes\Computed;
 use Nitro\Attributes\Description;
+use Nitro\Attributes\Html;
 use Nitro\Attributes\Layout;
 use Nitro\Attributes\LazyLoad;
 use Nitro\Attributes\Locked;
@@ -108,6 +109,7 @@ final class ComponentReader
         $listeners = [];
         $parameters = [];
         $computed = [];
+        $html = [];
         $cached = [];
 
         foreach ($reflection->getMethods() as $method) {
@@ -133,6 +135,13 @@ final class ComponentReader
 
             if ($method->getAttributes(Computed::class) !== []) {
                 $computed[] = self::computed($method, $properties, $file);
+            }
+
+            /** #[Html]: runs on the server only, so it is never compiled for the browser. */
+            if ($method->getAttributes(Html::class) !== []) {
+                $html[] = self::html($method, $properties, $isStore, $file);
+
+                continue;
             }
 
             /** An attribute that works as a feature runs around a #[Server] call: on a browser method, it would never run. */
@@ -240,7 +249,36 @@ final class ComponentReader
             self::kept($reflection, Persist::class, '#[Persist]', $properties, $isStore, $file),
             self::kept($reflection, Sync::class, '#[Sync]', $properties, $isStore, $file),
             $cached,
+            $html,
         );
+    }
+
+    /**
+     * An #[Html] method: read as a property, so it takes nothing; run on the server only, so it is
+     * not also #[Server] or #[Computed], nor a lifecycle hook; and it gives a string of HTML.
+     *
+     * @param  array<string, PropertyMeta>  $properties
+     */
+    private static function html(ReflectionMethod $method, array $properties, bool $isStore, string $file): string
+    {
+        $name = $method->getName();
+        $returns = $method->getReturnType();
+        $problem = match (true) {
+            $isStore => 'is for a view, and a store has none: put it on the component that shows it',
+            ! $method->isPublic() => 'must be public',
+            $method->getAttributes(Server::class) !== [] || $method->getAttributes(Computed::class) !== [] => 'is #[Html] only: it runs on the server already, and is read as $this->'.$name,
+            ComponentHooks::isReserved($name) || ComponentHooks::isBrowserHook($name) || PropertyHooks::parse($name, array_keys($properties)) !== null => 'cannot be a lifecycle hook',
+            $method->getNumberOfRequiredParameters() > 0 => 'cannot take parameters: it is read as $this->'.$name,
+            isset($properties[$name]) => 'has the name of a public property',
+            ! $returns instanceof ReflectionNamedType || $returns->getName() !== 'string' => "must return string: declare it, {$name}(): string",
+            default => null,
+        };
+
+        if ($problem !== null) {
+            throw new CompileException("#[Html] {$name}() {$problem}", $file, $method->getStartLine());
+        }
+
+        return $name;
     }
 
     /**

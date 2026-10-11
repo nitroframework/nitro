@@ -11,7 +11,7 @@ import * as P from '../../php.js';
 import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
 import { componentHook, propertyHooks } from './hooks.js';
 import { ATTRIBUTES, SIGNALS } from '../protocol.js';
-import { defaultsOf, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
+import { defaultsOf, keepEnvelope, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
 import { contextOf, enumCase } from './context.js';
 import { ErrorBag } from './errors.js';
 import { Watchers } from './watchers.js';
@@ -32,7 +32,9 @@ export class Component {
         this.id = id;
         this.name = name;
         this.data = new Map(data);
-        this.snapshot = snapshot;
+        /** Its #[Html] values, apart from the signed snapshot: name => {fingerprint, value} (keepEnvelope()). */
+        this.html = new Map();
+        keepEnvelope(this, snapshot);
         this.serverData = new Map(data);
         /** Partial reloads since the snapshot: signed envelopes of some properties, sent with the next #[Server] call. */
         this.partials = [];
@@ -169,8 +171,12 @@ export class Component {
         this.schedule();
     }
 
-    /** $this->total for a #[Computed] total(): worked out once until the state changes. */
+    /**
+     * $this->total for a #[Computed] total(): worked out once until the state changes. $this->code
+     * for an #[Html] code(): the HTML the server sent ("" until it has).
+     */
     computed(name) {
+        if (this.definition.html?.includes(name)) return this.html.get(name)?.value ?? '';
         if (!this.memo.has(name)) this.memo.set(name, this.ctx[name]());
         return this.memo.get(name);
     }
@@ -418,9 +424,11 @@ export class Component {
     adopt(envelope) {
         const state = readState(envelope);
         if (state.id !== this.id || state.name !== this.name) return;
-        this.snapshot = envelope;
+        const html = keepEnvelope(this, envelope);
         this.serverData = new Map(state.data);
         this.runtime.unsavedChanged(this);
+        /** Its #[Html], which only the server makes: rendered now that it is here. */
+        if (html.length > 0) html.forEach((name) => this.changed(name));
     }
 
     /**

@@ -37,4 +37,7 @@ export const TIMING = protocol.timing;
 /** The element a JavaScript view renders into, on the server (ScriptEngine) and in the browser. */
 export const VIEW_WRAPPER = protocol.view.wrapper;
 
+/** The field beside a signed state that holds its #[Html] values, and, in a call, their fingerprints. */
+export const HTML_FIELD = protocol.snapshot.html;
+
 export default protocol;

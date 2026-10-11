@@ -47,7 +47,8 @@ final class ViewState implements JsonSerializable
 
         $computed = [];
 
-        foreach ($meta->computed as $name) {
+        /** #[Html] too: the view reads both as values; the render service needs the HTML for the first page. */
+        foreach ($meta->derived() as $name) {
             $computed[$name] = Wire::encode($component->{$name});
         }
 

@@ -14,6 +14,7 @@ use Nitro\Compiler\Obfuscator;
 use Nitro\Compiler\StateProperties;
 use Nitro\Component;
 use Nitro\Merge;
+use Nitro\Support\Protocol;
 use Nitro\Support\Signer;
 use Nitro\Support\Wire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -44,7 +45,15 @@ final class Snapshot
         public readonly string $id,
         public readonly array $data,
         public readonly array $memo,
+        /** @var array<string, string> #[Html] method => its HTML: sent beside the state, never signed, never read back */
+        public readonly array $html = [],
     ) {
+    }
+
+    /** What the browser keeps of an #[Html] value and sends back in its place: it is left out when it still matches. */
+    public static function fingerprint(string $html): string
+    {
+        return hash('xxh128', $html);
     }
 
     /** The component's state as it is: the caller runs its dehydrate hooks first (Features::dehydrate()). */
@@ -85,6 +94,12 @@ final class Snapshot
         }
 
         $context = $component->nitro();
+        $html = [];
+
+        foreach ($meta->html as $name) {
+            $value = $component->{$name};
+            $html[$name] = is_string($value) ? $value : throw new LogicException("Nitro component [{$meta->name}]: #[Html] {$name}() gave ".get_debug_type($value).', not a string of HTML.');
+        }
 
         return new self($context->name, $context->id, $data, array_filter([
             ...$memo,
@@ -92,7 +107,7 @@ final class Snapshot
             'errors' => $context->errors->toArray(),
             'deferred' => $context->deferred,
             'scroll' => $context->scroll,
-        ], fn ($value) => $value !== [] && $value !== null));
+        ], fn ($value) => $value !== [] && $value !== null), $html);
     }
 
     private static function modelReference(Model $model, string $component, string $property): array
@@ -195,14 +210,34 @@ final class Snapshot
      * The envelope sent to the browser, naming the component as the browser knows it ($name), and
      * with an obfuscated build's names ($names), its properties by theirs: in its state, and where
      * its memo names them (models, errors, deferred properties, merge rules).
+     *
+     * Its #[Html] values go beside the signed state (js/protocol.json's snapshot.html), each with
+     * its fingerprint, by the browser's names; those the browser has already ($known: name =>
+     * fingerprint, as a call sends them) are left out.
+     *
+     * @param  array<string, string>  $known
      */
-    public function toJson(Signer $signer, ?string $name = null, ?Obfuscator $names = null): string
+    public function toJson(Signer $signer, ?string $name = null, ?Obfuscator $names = null, array $known = []): string
     {
         [$data, $memo] = $names === null ? [$this->data, $this->memo] : $this->renamed($names->property(...), $names->path(...));
         /** issued: when it was signed, for nitro.state.lifetime. */
         $state = Wire::json(['name' => $name ?? $this->name, 'id' => $this->id, 'data' => $data, 'memo' => $memo, 'issued' => time()]);
+        $html = [];
 
-        return json_encode(['state' => $state, 'checksum' => $signer->sign(self::PURPOSE, $state)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        foreach ($this->html as $method => $value) {
+            $browserName = $names?->method($method) ?? $method;
+            $fingerprint = self::fingerprint($value);
+
+            if (($known[$browserName] ?? null) !== $fingerprint) {
+                $html[$browserName] = [$fingerprint, $value];
+            }
+        }
+
+        return json_encode([
+            'state' => $state,
+            'checksum' => $signer->sign(self::PURPOSE, $state),
+            ...($html === [] ? [] : [Protocol::get('snapshot')['html'] => $html]),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**

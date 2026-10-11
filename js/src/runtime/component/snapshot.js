@@ -6,7 +6,45 @@
 import * as P from '../../php.js';
 import { merge as mergeValues } from './merge.js';
 import { ErrorBag } from './errors.js';
-import { SIGNALS } from '../protocol.js';
+import { HTML_FIELD, SIGNALS } from '../protocol.js';
+
+/**
+ * Keep an envelope from the server: its signed part, as the snapshot sent back unchanged with the
+ * next call; apart from it, the #[Html] values beside it ({name: [fingerprint, html]}), which
+ * never go back. One the server left out (the browser has it already) keeps the value it has.
+ * The one place an envelope is kept: components and stores ask it. Returns the #[Html] names
+ * whose HTML changed.
+ */
+export function keepEnvelope(holder, envelope) {
+    holder.html ??= new Map();
+
+    if (!envelope) {
+        holder.snapshot = null;
+        return [];
+    }
+
+    const { [HTML_FIELD]: html, ...signed } = envelope;
+    const changed = [];
+    holder.snapshot = signed;
+
+    for (const [name, [fingerprint, value]] of Object.entries(html ?? {})) {
+        if (holder.html.get(name)?.fingerprint !== fingerprint) changed.push(name);
+        holder.html.set(name, { fingerprint, value });
+    }
+
+    return changed;
+}
+
+/** What a call sends in place of the #[Html] values a component holds: their fingerprints, so the server leaves out those that still match. */
+export function fingerprints(holder) {
+    return holder.html?.size > 0 ? Object.fromEntries([...holder.html].map(([name, { fingerprint }]) => [name, fingerprint])) : undefined;
+}
+
+/** The fingerprints as a call's field, to spread into its body: {html: {...}}, or nothing without #[Html]. */
+export function fingerprintsField(holder) {
+    const sent = fingerprints(holder);
+    return sent === undefined ? {} : { [HTML_FIELD]: sent };
+}
 
 /** The state inside a signed envelope: {name, id, data: Map, errors}. */
 export function readState(envelope) {
@@ -82,7 +120,7 @@ export function snapshotInto(component, envelope, sent) {
 
     if (JSON.stringify([...errors.messages]) !== JSON.stringify([...component.errors.messages])) component.dirty.add(SIGNALS.errors);
 
-    component.snapshot = envelope;
+    for (const name of keepEnvelope(component, envelope)) component.dirty.add(name);
     component.serverData = new Map(data);
     component.data = fresh;
     component.errors = errors;
@@ -133,7 +171,7 @@ export function reloadInto(component, envelope, only, sent, partial = null) {
                 component.dirty.add(name);
             }
         }
-        component.snapshot = envelope;
+        for (const name of keepEnvelope(component, envelope)) component.dirty.add(name);
         component.serverData = new Map(data);
         component.partials = [];
         component.data = fresh;

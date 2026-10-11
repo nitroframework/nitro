@@ -4,6 +4,7 @@ namespace Nitro\State;
 
 use Nitro\Build\BrowserNames;
 use Nitro\Compiler\Components;
+use Nitro\Support\Protocol;
 use Nitro\Support\Signer;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -24,20 +25,41 @@ final class Snapshots
     ) {
     }
 
-    /** The envelope for the browser, as JSON, for the component or store named $name. */
-    public function json(Snapshot $snapshot, string $name): string
+    /**
+     * The envelope for the browser, as JSON, for the component or store named $name; without the
+     * #[Html] values the browser has already ($known: its names => fingerprints).
+     *
+     * @param  array<string, string>  $known
+     */
+    public function json(Snapshot $snapshot, string $name, array $known = []): string
     {
-        return $snapshot->toJson($this->signer, $this->names->component($name), $this->names->obfuscator());
+        return $snapshot->toJson($this->signer, $this->names->component($name), $this->names->obfuscator(), $known);
     }
 
     /**
      * The envelope for the browser, for a JSON response.
      *
+     * @param  array<string, string>  $known
      * @return array<string, mixed>
      */
-    public function envelope(Snapshot $snapshot, string $name): array
+    public function envelope(Snapshot $snapshot, string $name, array $known = []): array
     {
-        return json_decode($this->json($snapshot, $name), true, flags: JSON_THROW_ON_ERROR);
+        return json_decode($this->json($snapshot, $name, $known), true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The fingerprints of the #[Html] values a call says the browser has (its payload's
+     * snapshot.html field): its names => strings, anything else dropped (they only ever leave
+     * HTML out, so nothing in them is trusted).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, string>
+     */
+    public static function known(array $payload): array
+    {
+        $fingerprints = $payload[Protocol::get('snapshot')['html']] ?? null;
+
+        return is_array($fingerprints) ? array_filter($fingerprints, fn ($fingerprint, $name) => is_string($name) && is_string($fingerprint), ARRAY_FILTER_USE_BOTH) : [];
     }
 
     /**

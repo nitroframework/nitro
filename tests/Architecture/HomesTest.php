@@ -118,6 +118,17 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Compiler/Template/ChildTag.php' => 'NAME, which PATTERN and every closing tag read'],
                 'why' => 'The tag\'s name was matched by four patterns: the Blade precompiler, the template compiler, its closing tags and the build\'s',
             ],
+            '#[Html] beside the signed state' => [
+                /** The HTML that goes beside a snapshot, and the fingerprints that come back in its place: one home each side. */
+                'patterns' => ["/get\('snapshot'\)\['html'\]|HTML_FIELD|snapshot\.html\b/"],
+                'homes' => [
+                    'src/State/Snapshot.php' => 'writes the HTML beside the signed state, leaving out what the browser has',
+                    'src/State/Snapshots.php' => 'reads the fingerprints a call sends',
+                    'js/src/runtime/component/snapshot.js' => 'keeps the HTML apart from the snapshot, and gives the fingerprints a call sends',
+                    'js/src/runtime/protocol.js' => 'names the field, from js/protocol.json',
+                ],
+                'why' => 'HTML kept with the snapshot anywhere else would go back to the server with every call: megabytes for a long file',
+            ],
             'a name\'s kind and namespace' => [
                 /** "pages::", "stores::" and a namespace's "issues::": written and read in one place each side. */
                 'patterns' => ["/'(pages|stores)::|\\$(name|view)\w*\s*,\s*'::'|'::'\s*,\s*\\$(name|view)|\.namespaceSeparator/"],

@@ -7,7 +7,7 @@
         "prop": ["locked", "default", "enum", "url", "remember"],
         "url": ["as", "history", "keep", "except"],
         "model": "$model",
-        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client"]
+        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client", "html"]
     },
     "view": {
         "state": ["id", "engine", "view", "properties", "computed", "methods", "server", "errors"],
@@ -32,6 +32,7 @@
         "state": "data-nitro-state"
     },
     "snapshot": {
+        "html": "html",
         "state": ["name", "id", "data", "memo", "issued"],
         "memo": ["route", "slots", "models", "errors", "deferred", "scroll", "merge", "partial"],
         "merge": ["mode", "path", "match"],

@@ -55,12 +55,12 @@ abstract class Component
     }
 
     /**
-     * $this->total for a #[Computed] total(): worked out once per render (a method run outside a
-     * render, a #[Server] one, always gets it afresh).
+     * $this->total for a #[Computed] total() or an #[Html] code(): worked out once per render (a
+     * method run outside a render, a #[Server] one, always gets it afresh).
      */
     final public function __get(string $name): mixed
     {
-        if (! app(Components::class)->meta(static::class)->isComputed($name)) {
+        if (! in_array($name, app(Components::class)->meta(static::class)->derived(), true)) {
             trigger_error('Undefined property: '.static::class.'::$'.$name, E_USER_WARNING);
 
             return null;
@@ -81,7 +81,7 @@ abstract class Component
 
     final public function __isset(string $name): bool
     {
-        return app(Components::class)->meta(static::class)->isComputed($name) && $this->__get($name) !== null;
+        return in_array($name, app(Components::class)->meta(static::class)->derived(), true) && $this->__get($name) !== null;
     }
 
     /**
