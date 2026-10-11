@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Contracts\Foundation\CachesRoutes;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
@@ -227,16 +228,31 @@ class NitroServiceProvider extends ServiceProvider
             : ['staticDirectory' => null, 'staticPath' => 'nitro'];
     }
 
+    /**
+     * Nitro's middleware in the web group: the page's data block and @portal content filled in any
+     * web answer (FinishPage), and with the dev overlay on, each answer's time on the server and its
+     * database's (ServerTiming). Pushed to the router's group now and whenever an HTTP kernel is
+     * made: a kernel made after boot (as in an app's tests) sets the router's groups from its own.
+     */
+    private function webMiddleware(): void
+    {
+        $push = function () {
+            foreach ([FinishPage::class, ServerTiming::class] as $middleware) {
+                $this->app->make('router')->pushMiddlewareToGroup('web', $middleware);
+            }
+        };
+
+        $push();
+        $this->app->afterResolving(HttpKernel::class, $push);
+    }
+
     public function boot(): void
     {
         $this->routes();
         $this->blade();
         $this->testing();
 
-        /** The @portal placeholders in any web response get the content teleported to them. */
-        $this->app->make('router')->pushMiddlewareToGroup('web', FinishPage::class);
-        /** With the dev overlay on: each answer's time on the server and its database's. */
-        $this->app->make('router')->pushMiddlewareToGroup('web', ServerTiming::class);
+        $this->webMiddleware();
 
         /**
          * Route::nitro('/posts/{post}', Pages\Posts\Show::class), or 'pages::posts.show':

@@ -2,6 +2,7 @@
 
 namespace Nitro\Tests\Feature;
 
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -28,6 +29,20 @@ final class PageDataTest extends TestCase
 
         preg_match('/<script type="application\/json" data-nitro-state>(.*?)<\/script>/s', $html, $block);
         $this->assertStringNotContainsString('&quot;', $block[1], 'readable JSON: no HTML escaping');
+    }
+
+    /** A Laravel app's tests make the HTTP kernel after the providers boot, and the kernel sets the web group anew. */
+    #[DataProvider('frameworks')]
+    public function test_the_block_is_filled_when_the_http_kernel_is_made_after_boot(string $framework): void
+    {
+        $this->boot($framework);
+        $this->app->forgetInstance(HttpKernel::class);
+        $page = $this->get('/scripts-first');
+        $html = (string) $page->getContent();
+
+        $this->assertStringNotContainsString('<!--nitro:state-->', $html);
+        $this->assertSame(1, substr_count($html, '<script type="application/json" data-nitro-state>'));
+        $this->assertTrue($page->headers->has('Server-Timing'), 'the rest of Nitro\'s web middleware, as well');
     }
 
     #[DataProvider('frameworks')]
