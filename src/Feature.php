@@ -2,6 +2,9 @@
 
 namespace Nitro;
 
+use Closure;
+use Throwable;
+
 /**
  * Something that runs around every component on the server: list the class in nitro.features
  * and override the hooks it needs. Features are made by the container, once per request (so a
@@ -50,8 +53,32 @@ abstract class Feature
      */
     public function calling(Component $component, string $method, array $arguments): void {}
 
+    /**
+     * Around a #[Server] method, after calling(): $run() runs it (and the features listed after
+     * this one) and gives what it returned. Return that, or something else; return without
+     * $run() to answer without the method (a value of your own, a cache's). The first listed
+     * is the outermost, as middleware are.
+     *
+     * @param  list<mixed>  $arguments
+     * @param  Closure(): mixed  $run
+     */
+    public function call(Component $component, string $method, array $arguments, Closure $run): mixed
+    {
+        return $run();
+    }
+
     /** After a #[Server] method returned (not when it threw), with what it returned. */
     public function called(Component $component, string $method, mixed $result): void {}
+
+    /**
+     * A #[Server] method threw, and the component's own exception() did not handle it (it has
+     * none, or that threw too). True: handled, the call answers with the state as it is, and the
+     * features after this one do not hear it. When none handles it, it is thrown as before.
+     */
+    public function exception(Component $component, string $method, Throwable $exception): bool
+    {
+        return false;
+    }
 
     /** Every request, before the component's state goes to the browser, after its dehydrate(). Once per request. */
     public function dehydrate(Component $component): void {}

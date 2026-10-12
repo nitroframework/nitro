@@ -4,7 +4,9 @@ namespace Nitro\Tests\Feature;
 
 use Nitro\Support\Wire;
 use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Features\Around;
 use Nitro\Tests\Fixtures\Features\Blocker;
+use Nitro\Tests\Fixtures\Features\Catcher;
 use Nitro\Tests\Fixtures\Features\Recorder;
 use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -118,6 +120,69 @@ class FeaturesTest extends TestCase
         $this->assertContains('feature boot Cart GET', Store::$log);
         $this->assertContains('feature mounting Cart GET', Store::$log);
         $this->assertContains('feature dehydrate Cart GET', Store::$log);
+    }
+
+    /** call(): around the method, the first listed outermost; what it returns is the answer. */
+    #[DataProvider('frameworks')]
+    public function test_a_feature_runs_around_the_method(string $framework): void
+    {
+        $this->boot($framework);
+        $this->features([Recorder::class, Around::class]);
+
+        $response = $this->save(['note' => 'second entry']);
+
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $this->assertSame(['feature calling save() Journal POST', 'around: before save', 'around: after save', 'feature called save -> null Journal POST'], array_values(array_filter(Store::$log, fn (string $line) => str_contains($line, 'save'))));
+        $this->assertContains('second entry', $this->state($response)['data']['saved'], 'the method ran');
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_a_feature_can_answer_without_the_method(string $framework): void
+    {
+        $this->boot($framework);
+        $this->features([Recorder::class, Around::class]);
+
+        $response = $this->save(['note' => 'draft']);
+
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $this->assertNotContains('draft', $this->state($response)['data']['saved'], 'the method did not run');
+        $this->assertContains('feature called save -> "kept as a draft" Journal POST', Store::$log, 'called() hears the answer');
+    }
+
+    /** exception(): after the component's own, for a method that threw; the first feature to handle it ends it. */
+    #[DataProvider('frameworks')]
+    public function test_a_feature_can_handle_what_a_method_throws(string $framework): void
+    {
+        $this->boot($framework);
+        $flaky = fn () => array_values(array_filter($this->snapshots((string) $this->get('/fallbacks')->getContent()), fn (array $s) => $s['state']['name'] === 'flaky'))[0]['envelope'];
+
+        $this->assertSame(500, $this->update(['snapshot' => $flaky(), 'call' => ['method' => 'save', 'params' => []]])->getStatusCode(), 'without one: thrown, as before');
+
+        $this->features([Catcher::class]);
+        Store::$log = [];
+        $response = $this->update(['snapshot' => $flaky(), 'call' => ['method' => 'save', 'params' => []]]);
+
+        $this->assertSame(200, $response->getStatusCode(), 'handled: the call answers with the state as it is');
+        $this->assertSame(['caught Flaky::save: The flaky service is down.'], Store::$log);
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_the_components_own_exception_comes_first(string $framework): void
+    {
+        $this->boot($framework);
+        $this->features([Catcher::class]);
+        $snapshot = $this->snapshots((string) $this->get('/lifecycle')->getContent())[0]['envelope'];
+        Store::$log = [];
+
+        $response = $this->update(['snapshot' => $snapshot, 'updates' => [], 'call' => ['method' => 'explode', 'params' => []]]);
+
+        $this->assertSame('handled: it broke', $this->state($response)['data']['failure']);
+        $this->assertSame([], Store::$log, 'handled by the component: the features do not hear it');
+    }
+
+    private function state(Response $response): array
+    {
+        return Wire::fromJson($this->json($response)['snapshot']['state']);
     }
 
     #[DataProvider('frameworks')]

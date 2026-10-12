@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nitro\Component;
 use Nitro\Feature;
 use Nitro\Support\ComponentHooks;
+use Throwable;
 
 /**
  * The server lifecycle of components: each hook runs the component's own method of that name
@@ -108,11 +109,42 @@ final class Features
         }
     }
 
+    /**
+     * The method, through every feature's call(): the first listed outermost, the method itself
+     * ($method) innermost.
+     *
+     * @param  list<mixed>  $arguments
+     * @param  Closure(): mixed  $method
+     */
+    public function call(Component $component, string $name, array $arguments, Closure $method): mixed
+    {
+        $run = $method;
+
+        foreach (array_reverse($this->features()) as $feature) {
+            $inner = $run;
+            $run = fn () => $feature->call($component, $name, $arguments, $inner);
+        }
+
+        return $run();
+    }
+
     public function called(Component $component, string $method, mixed $result): void
     {
         foreach ($this->features() as $feature) {
             $feature->called($component, $method, $result);
         }
+    }
+
+    /** Whether a feature handled what the method threw; the first that does, the last to hear it. */
+    public function exception(Component $component, string $method, Throwable $exception): bool
+    {
+        foreach ($this->features() as $feature) {
+            if ($feature->exception($component, $method, $exception)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Once per request (a visit may take a component's snapshot twice). */

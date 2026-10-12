@@ -303,20 +303,29 @@ final class UpdateController
         $features->calling($component, $method, $arguments);
 
         try {
-            $returned = app(MethodCache::class)->call($component, $meta, $method, $arguments, fn () => $component->{$method}(...$arguments));
+            /** Through the features' call(), around the method (and #[Cached], which may answer for it). */
+            $returned = $features->call($component, $method, $arguments, fn () => app(MethodCache::class)->call($component, $meta, $method, $arguments, fn () => $component->{$method}(...$arguments)));
         } catch (ValidationException $exception) {
             $context->errors = $exception->validator->errors();
 
             return null;
         } catch (Throwable $exception) {
-            if (! method_exists($component, ComponentHooks::EXCEPTION)) {
-                throw $exception;
+            /** The component's exception() first: handled, unless it throws again; then the features'. The call answers with the state as it is. */
+            if (method_exists($component, ComponentHooks::EXCEPTION)) {
+                try {
+                    Features::hook($component, ComponentHooks::EXCEPTION, $exception);
+
+                    return null;
+                } catch (Throwable $again) {
+                    $exception = $again;
+                }
             }
 
-            /** exception(): handled, unless it throws again. The call answers with the state as the hook left it. */
-            Features::hook($component, ComponentHooks::EXCEPTION, $exception);
+            if ($features->exception($component, $method, $exception)) {
+                return null;
+            }
 
-            return null;
+            throw $exception;
         }
 
         $features->called($component, $method, $returned);
