@@ -29,7 +29,7 @@
 import { createContext, createElement, useContext, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, hydrateRoot } from 'react-dom/client';
-import { connect, register } from './core.js';
+import { connect, engine as engineOf, register } from './core.js';
 
 /** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
 export { namespaced } from './core.js';
@@ -37,8 +37,13 @@ export { namespaced } from './core.js';
 const NitroContext = createContext(null);
 
 /** Register the React engine with Nitro: `views` is what import.meta.glob() gives. `wrap(element)` may put providers around each view. */
-export function nitroReact(views, { wrap } = {}) {
-    register('react', views, (View, el, handle, options) => mount(View, el, handle, wrap, options));
+export function nitroReact(views, options) {
+    register('react', engine(views, options));
+}
+
+/** The React engine, not registered: what lazy() (nitro/lazy) registers once React is loaded. */
+export function engine(views, { wrap } = {}) {
+    return engineOf('react', views, (View, el, handle, options) => mount(View, el, handle, wrap, options));
 }
 
 /** Inside a Nitro component's React view: the component, as its view gets it in its props. */

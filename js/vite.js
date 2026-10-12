@@ -6,7 +6,8 @@
  *
  *     export default defineConfig({ plugins: [laravel(...), nitro(), vue(), react(), ...] });
  *
- *  - 'nitro/{vue,react,solid,svelte}' name Nitro's adapters; 'nitro/ssr' and
+ *  - 'nitro/{vue,react,solid,svelte}' name Nitro's adapters, and 'nitro/lazy' loads one with the
+ *    first view that needs it (lazy('vue', () => import('nitro/vue'), views)); 'nitro/ssr' and
  *    'nitro/{vue,react,solid,svelte}/server' the render service's parts, for the app's SSR
  *    entry (vite build --ssr)
  *  - one Vue, React, Solid and Svelte: the adapters' imports resolve to the app's own
@@ -34,6 +35,7 @@ export default function nitro() {
                     exactly('nitro/solid', 'solid'),
                     /** A .svelte.js module: it uses runes, so the app's Svelte plugin compiles it. */
                     exactly('nitro/svelte', 'svelte.svelte'),
+                    exactly('nitro/lazy', 'lazy'),
                     exactly('nitro/vue/server', 'server/vue'),
                     exactly('nitro/react/server', 'server/react'),
                     exactly('nitro/solid/server', 'server/solid'),

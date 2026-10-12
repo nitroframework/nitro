@@ -30,7 +30,7 @@
  * render), so a Svelte release changes nothing here.
  */
 import { flushSync, getContext, hydrate, mount, unmount, untrack } from 'svelte';
-import { connect, register } from './core.js';
+import { connect, engine as engineOf, register } from './core.js';
 
 /** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
 export { namespaced } from './core.js';
@@ -39,7 +39,12 @@ const KEY = Symbol('nitro');
 
 /** Register the Svelte engine with Nitro: `views` is what import.meta.glob() gives. */
 export function nitroSvelte(views) {
-    register('svelte', views, mountView);
+    register('svelte', engine(views));
+}
+
+/** The Svelte engine, not registered: what lazy() (nitro/lazy) registers once Svelte is loaded. */
+export function engine(views) {
+    return engineOf('svelte', views, mountView);
 }
 
 /** Inside a Nitro component's Svelte view: the component, as its view gets it in its props. */

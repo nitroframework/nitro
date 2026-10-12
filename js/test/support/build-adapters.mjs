@@ -4,7 +4,7 @@
 //              (vue.global.js, served before it)
 //   react.js   React, its adapter and the .jsx views (JSX compiled by esbuild)
 //   solid.js   Solid, its adapter and the .jsx views (JSX compiled by Solid's Babel preset, as
-//              vite-plugin-solid compiles it)
+//              vite-plugin-solid compiles it), registered with lazy() (nitro/lazy)
 //   svelte.js  Svelte, its adapter (a .svelte.js module: runes) and the .svelte views, compiled by
 //              Svelte's own compiler, as vite-plugin-svelte compiles them
 //   ssr.mjs    the render service with every framework's views, compiled for the server
@@ -120,8 +120,23 @@ function entryFor(adapter, register, directory, extension) {
     return [
         `import { ${register} } from ${JSON.stringify(join(root, adapter))};`,
         ...files.map((file, i) => `import * as view${i} from ${JSON.stringify(join(directory, file))};`),
-        `${register}({ ${files.map((file, i) => `${JSON.stringify(`./${file}`)}: view${i}`).join(', ')} });`,
+        `${register}(${views(files)});`,
     ].join('\n');
+}
+
+/** The same, registered with lazy() (nitro/lazy): the adapter imported with the first view that loads. */
+function lazyEntryFor(name, directory, extension) {
+    const files = readdirSync(directory).filter((file) => file.endsWith(extension));
+    return [
+        `import { lazy } from ${JSON.stringify(join(root, 'js/adapters/lazy.js'))};`,
+        ...files.map((file, i) => `import * as view${i} from ${JSON.stringify(join(directory, file))};`),
+        `lazy('${name}', () => import('nitro/${name}'), ${views(files)});`,
+    ].join('\n');
+}
+
+/** The views as import.meta.glob() gives them, by their paths. */
+function views(files) {
+    return `{ ${files.map((file, i) => `${JSON.stringify(`./${file}`)}: view${i}`).join(', ')} }`;
 }
 
 const browser = { format: 'iife', platform: 'browser', target: ['es2020'], conditions: ['browser'] };
@@ -131,7 +146,8 @@ const service = { format: 'esm', platform: 'node', target: ['node20'], packages:
 const builds = [
     { name: 'vue.js', entry: entryFor('js/adapters/vue.js', 'nitroVue', join(fixtureViews, 'vue'), '.vue'), plugins: [aliases, globalVue, sfc()], ...browser },
     { name: 'react.js', entry: entryFor('js/adapters/react.js', 'nitroReact', join(fixtureViews, 'react'), '.jsx'), plugins: [aliases], ...browser },
-    { name: 'solid.js', entry: entryFor('js/adapters/solid.js', 'nitroSolid', join(fixtureViews, 'solid'), '.jsx'), plugins: [aliases, solidJsx('dom')], ...browser },
+    /** Solid through lazy(), so the browser tests run a lazily loaded framework against the others. */
+    { name: 'solid.js', entry: lazyEntryFor('solid', join(fixtureViews, 'solid'), '.jsx'), plugins: [aliases, solidJsx('dom')], ...browser },
     { name: 'svelte.js', entry: entryFor('js/adapters/svelte.svelte.js', 'nitroSvelte', join(fixtureViews, 'svelte'), '.svelte'), plugins: [aliases, svelte('client')], ...browser },
     { name: 'ssr.mjs', entry: serviceEntry(), plugins: [aliases, sfc(true), solidJsx('ssr'), svelte('server')], ...service },
 ];

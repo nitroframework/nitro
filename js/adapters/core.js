@@ -46,21 +46,23 @@ const SIGNALS = protocol.signals;
 const SLOW_AFTER = 200;
 
 /**
- * Register an adapter's engine with Nitro: now, or once Nitro is starting (a script that runs
- * before the runtime). `views` is what import.meta.glob() gives: loaders, or modules with
- * { eager: true }.
+ * An adapter's engine, as Nitro.engine() takes one: { load, mount }. `views` is what
+ * import.meta.glob() gives: loaders, or modules with { eager: true }.
  *
  * @param {string} name           the engine's name, as #[View(vue: ...)] names it
  * @param {object} views          path => loader, or path => module
  * @param {Function} mount        (view, el, handle, { hydrate }) => { update(names), unmount() }:
  *                                hydrate when el holds the view's server-rendered HTML
  */
-export function register(name, views, mount) {
-    const engine = {
+export function engine(name, views, mount) {
+    return {
         load: (view) => findView(views, view, name),
         mount: (view, el, handle, options = {}) => mount(view, el, handle, { hydrate: Boolean(options.hydrate) }),
     };
+}
 
+/** Register an engine with Nitro: now, or once Nitro is starting (a script that runs before the runtime). */
+export function register(name, engine) {
     if (window.Nitro?.engine) window.Nitro.engine(name, engine);
     else document.addEventListener('nitro:init', ({ detail }) => detail.Nitro.engine(name, engine), { once: true });
 }

@@ -32,7 +32,7 @@
 import { createComponent, createContext, mergeProps, useContext } from 'solid-js';
 import { createMutable, createStore, reconcile } from 'solid-js/store';
 import { hydrate, render } from 'solid-js/web';
-import { connect, register } from './core.js';
+import { connect, engine as engineOf, register } from './core.js';
 
 /** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
 export { namespaced } from './core.js';
@@ -41,7 +41,12 @@ const NitroContext = createContext(null);
 
 /** Register the Solid engine with Nitro: `views` is what import.meta.glob() gives. */
 export function nitroSolid(views) {
-    register('solid', views, mount);
+    register('solid', engine(views));
+}
+
+/** The Solid engine, not registered: what lazy() (nitro/lazy) registers once Solid is loaded. */
+export function engine(views) {
+    return engineOf('solid', views, mount);
 }
 
 /** Inside a Nitro component's Solid view: the component, as its view gets it in its props. */

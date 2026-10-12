@@ -25,7 +25,7 @@
  * inject, markRaw; vue/server-renderer's renderToString), so a Vue release changes nothing here.
  */
 import { computed, createApp, createSSRApp, effectScope, inject, markRaw, reactive, ref, shallowRef, watch } from 'vue';
-import { connect, register } from './core.js';
+import { connect, engine as engineOf, register } from './core.js';
 
 /** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
 export { namespaced } from './core.js';
@@ -33,8 +33,13 @@ export { namespaced } from './core.js';
 const KEY = Symbol('nitro');
 
 /** Register the Vue engine with Nitro: `views` is what import.meta.glob() gives. `setup(app)` runs on each Vue app before it mounts (its plugins). */
-export function nitroVue(views, { setup } = {}) {
-    register('vue', views, (view, el, handle, options) => mount(view, el, handle, setup, options));
+export function nitroVue(views, options) {
+    register('vue', engine(views, options));
+}
+
+/** The Vue engine, not registered: what lazy() (nitro/lazy) registers once Vue is loaded. */
+export function engine(views, { setup } = {}) {
+    return engineOf('vue', views, (view, el, handle, options) => mount(view, el, handle, setup, options));
 }
 
 /** In a Nitro component's Vue view: the component, as refs and functions. */
