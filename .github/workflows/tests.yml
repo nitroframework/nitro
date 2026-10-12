@@ -14,7 +14,7 @@ jobs:
     name: Guards, PHPStan, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: nitro
       - uses: ./nitro/.github/actions/setup
@@ -45,7 +45,7 @@ jobs:
           - name: browser
             args: --testsuite browser
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: nitro
       - uses: ./nitro/.github/actions/setup
@@ -63,7 +63,7 @@ jobs:
       matrix:
         php: ['8.3', '8.5']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: nitro
           fetch-depth: 0
@@ -72,7 +72,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: mbstring, intl, pdo_sqlite, sqlite3, zip, curl
           coverage: none
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: A new app with Nitro, tested

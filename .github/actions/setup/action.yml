@@ -9,13 +9,13 @@ runs:
         php-version: '8.5'
         extensions: mbstring, intl, pdo_sqlite, sqlite3
         coverage: none
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: '22'
         cache: npm
         cache-dependency-path: nitro/package-lock.json
     - name: Composer cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/composer
         key: composer-${{ hashFiles('nitro/composer.lock') }}
