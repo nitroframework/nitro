@@ -26,10 +26,10 @@
  * Svelte's: one $state object the view's props are read from, changed in place as the component
  * changes, and followed back to the component when the view changes it.
  *
- * Svelte's public API only (mount, hydrate, unmount, getContext, flushSync, $state, $effect.root; svelte/server's
+ * Svelte's public API only (mount, hydrate, unmount, getContext, flushSync, untrack, $state, $effect.root; svelte/server's
  * render), so a Svelte release changes nothing here.
  */
-import { flushSync, getContext, hydrate, mount, unmount } from 'svelte';
+import { flushSync, getContext, hydrate, mount, unmount, untrack } from 'svelte';
 import { connect, register } from './core.js';
 
 /** A namespace's views (a module's, a package's): namespaced('issues', import.meta.glob(...)). */
@@ -115,11 +115,29 @@ function writeBack(props, handle, component) {
  */
 export function view(handle, before = () => {}) {
     const component = connect(handle, { status: reactive });
-    const props = reactive({ ...component.read(), ...component.functions });
-    /** Changed in place, value by value: what reads a value that did not change is left alone. What the view bound goes first, so it is not overwritten. */
+    const initial = component.read();
+    const props = reactive({ ...initial, ...component.functions });
+    /** Each property as the component last gave it to the view. */
+    const given = Object.fromEntries(handle.properties.map((name) => [name, JSON.stringify(initial[name])]));
+
+    /**
+     * Changed in place, value by value: what reads a value that did not change is left alone. What
+     * the view bound goes first, so it is not overwritten; a property the view changed that its
+     * effect has not written back yet (two fields filled at once, as autofill fills them) keeps
+     * the view's value, and its effect writes it back after.
+     */
     component.subscribe(() => {
         before();
-        Object.assign(props, component.read());
+        const values = component.read();
+        untrack(() => {
+            for (const name of handle.properties) {
+                const viewed = JSON.stringify(props[name]);
+                const value = JSON.stringify(values[name]);
+                if (viewed !== given[name] && viewed !== value) delete values[name];
+                else given[name] = value;
+            }
+        });
+        Object.assign(props, values);
     });
 
     return { props, context: new Map([[KEY, props]]), component };

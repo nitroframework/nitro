@@ -2389,6 +2389,13 @@ await scenario('parity', async () => {
 
         /** A nitro:navigate link: written in Blade, link() in the others (their syntax can't always write the attribute). */
         check(is('a nitro:navigate link, its modifier on it'), $('.away')?.getAttribute('href') === '/counter' && $('.away').hasAttribute('nitro:navigate') && $('.away').hasAttribute('nitro:prefetch'), $('.away')?.outerHTML);
+
+        /** Two fields filled at once, as autofill fills them: both reach the component. */
+        typeIn($('.title'), 'Auto');
+        typeIn($('.email'), 'auto@b.c');
+        await until(is('two fields filled at once: the view keeps both'), () => $('.title').value === 'Auto' && $('.email').value === 'auto@b.c' && text($('.email-shown')) === 'auto@b.c');
+        click(window, $('.save'));
+        await until(is('and the server gets both'), () => text($('.said')) === 'saved Auto at 4 for auto@b.c', 3000);
     }
 
     check('the five are their own: each changed only itself', [...document.querySelectorAll('.parities .count')].map(text).join() === '4,4,4,4,4');
