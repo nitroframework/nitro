@@ -8,12 +8,11 @@ use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Routing\Router;
-use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
-use Nitro\Blade\NitroTags;
+use Nitro\Blade\Directives;
 use Nitro\Build\BrowserNames;
 use Nitro\Build\Bundle;
 use Nitro\Build\ServerChildren;
@@ -206,12 +205,7 @@ class NitroServiceProvider extends ServiceProvider
         });
     }
 
-    /**
-     * Nitro's config file under the app's: the app's values win, key by key at every depth, so a
-     * config published before a key existed has it all the same, and the code reads every value
-     * from config alone (the files in config/ are the one place its defaults are). A list
-     * (middleware, paths, rules) is the app's whole, not merged entry by entry.
-     */
+    /** Nitro's config file under the app's (Config::underlay()), unless the config is cached. */
     private function underlayConfig(string $path, string $key): void
     {
         if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
@@ -219,24 +213,7 @@ class NitroServiceProvider extends ServiceProvider
         }
 
         $config = $this->app->make('config');
-        $config->set($key, self::underlay(require $path, (array) $config->get($key, [])));
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $defaults
-     * @param  array<array-key, mixed>  $values
-     * @return array<array-key, mixed>
-     */
-    private static function underlay(array $defaults, array $values): array
-    {
-        foreach ($values as $name => $value) {
-            $default = $defaults[$name] ?? null;
-            $defaults[$name] = is_array($value) && is_array($default) && ! array_is_list($value) && ! array_is_list($default)
-                ? self::underlay($default, $value)
-                : $value;
-        }
-
-        return $defaults;
+        $config->set($key, Config::underlay(require $path, (array) $config->get($key, [])));
     }
 
     /**
@@ -274,7 +251,7 @@ class NitroServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->routes();
-        $this->blade();
+        Directives::register($this->app->make('blade.compiler'), (string) $this->app->make('config')->get('view.compiled'));
         $this->testing();
 
         $this->webMiddleware();
@@ -371,55 +348,4 @@ class NitroServiceProvider extends ServiceProvider
         });
     }
 
-    /**
-     * Compiled Blade views hold what Nitro's directives and <nitro:> tags compile to: the parts
-     * they call by name. Laravel compiles a view again only when its own file changes, so views
-     * compiled by another version of Nitro (an upgrade) are dropped once, to be compiled again.
-     * The version is that of the two files that write them: this provider and NitroTags.
-     */
-    private function forgetStaleViews(): void
-    {
-        $compiled = (string) $this->app->make('config')->get('view.compiled');
-
-        if ($compiled === '' || ! is_dir($compiled)) {
-            return;
-        }
-
-        $stamp = $compiled.DIRECTORY_SEPARATOR.'nitro.version';
-        $version = md5((string) md5_file(__FILE__).md5_file(__DIR__.'/Blade/NitroTags.php'));
-
-        if (@file_get_contents($stamp) === $version) {
-            return;
-        }
-
-        foreach (glob($compiled.DIRECTORY_SEPARATOR.'*.php') ?: [] as $view) {
-            @unlink($view);
-        }
-
-        @file_put_contents($stamp, $version);
-    }
-
-    private function blade(): void
-    {
-        $this->forgetStaleViews();
-        /** @nitroScript blocks are the browser's (Globals::SCRIPT): out before the tags are read. */
-        Blade::precompiler(NitroTags::withoutScripts(...));
-        Blade::precompiler(NitroTags::compile(...));
-
-        Blade::directive('nitroScripts', fn () => '<?php echo app(\Nitro\Rendering\Scripts::class)->html(); ?>');
-
-        /** @nitroHead in the layout's <head>: the page's <title> and its tags for search engines and link previews. */
-        Blade::directive('nitroHead', fn () => '<?php echo app(\Nitro\Rendering\PageHead::class)->html(); ?>');
-        Blade::directive('nitro', fn (string $expression) => "<?php echo app(\\Nitro\\Rendering\\Placement::class)->mount({$expression}); ?>");
-
-        /** Viewi's portals, as Livewire's @teleport: @portal('name') is where content goes, @teleport('name') what goes there. */
-        Blade::directive('portal', fn (string $expression) => "<?php echo app(\\Nitro\\Rendering\\Portals::class)->portal({$expression}); ?>");
-        Blade::directive('teleport', fn (string $expression) => "<?php echo app(\\Nitro\\Rendering\\Portals::class)->startTeleport({$expression}); ?>");
-        Blade::directive('endteleport', fn () => '<?php echo app(\Nitro\Rendering\Portals::class)->endTeleport(); ?>');
-
-        /** @deferred('stats') ... @placeholder ... @enddeferred: what a page shows once its deferred properties are loaded, and meanwhile. */
-        Blade::directive('deferred', fn (string $expression) => "<?php if (! \$this->nitro()->deferring([{$expression}])): ?>");
-        Blade::directive('placeholder', fn () => '<?php else: ?>');
-        Blade::directive('enddeferred', fn () => '<?php endif; ?>');
-    }
 }

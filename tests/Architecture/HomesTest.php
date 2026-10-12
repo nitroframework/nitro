@@ -297,6 +297,11 @@ final class HomesTest extends TestCase
                 'homes' => ['js/protocol.json' => 'its signals: what a view is told changed, besides properties (SIGNALS in runtime/protocol.js)'],
                 'why' => 'Spelled across the runtime and the adapters (TASKS 17.9)',
             ],
+            'Nitro in Blade' => [
+                'patterns' => ["/(Blade::|->)directive\\('|(Blade::|->)precompiler\\(/"],
+                'homes' => ['src/Blade/Directives.php' => 'the precompilers, the directives, and views compiled by another version dropped'],
+                'why' => 'The directives were registered in the provider, so the compiled views\' version hashed the provider: any change to its wiring dropped every compiled view',
+            ],
             'view file extensions in the adapters' => [
                 'patterns' => ["/\['jsx',\s*'tsx'/"],
                 'homes' => [],

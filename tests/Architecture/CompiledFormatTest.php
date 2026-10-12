@@ -135,7 +135,7 @@ final class CompiledFormatTest extends TestCase
     public function test_each_nitro_directive_renders_on_both_sides(): void
     {
         $code = Scanner::code();
-        preg_match_all("/Blade::directive\('(\w+)'/", $code['src/NitroServiceProvider.php'], $registered);
+        preg_match_all("/->directive\('(\w+)'/", $code['src/Blade/Directives.php'], $registered);
         preg_match_all("/^\s*'(\w+)'(?:, '\w+')* =>/m", $code['src/Compiler/Template/Parts/Directives.php'], $compiled);
 
         foreach (Globals::DIRECTIVES as $directive) {
