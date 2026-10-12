@@ -169,13 +169,7 @@ export class Navigator {
 
     /** The current scroll position, kept in the current history entry. */
     rememberScroll() {
-        const state = withNitro(this.window.history.state, { nitroScroll: { x: this.window.scrollX, y: this.window.scrollY } });
-        if (state === null) return;
-        try {
-            this.window.history.replaceState(state, '', this.window.location.href);
-        } catch {
-            // too many history updates (Safari's limit): the next scroll keeps it
-        }
+        this.keep({ nitroScroll: { x: this.window.scrollX, y: this.window.scrollY } });
     }
 
     /**
@@ -194,11 +188,13 @@ export class Navigator {
         let current = this.document.querySelector(selector('page'));
 
         /** A visit from a link or Nitro.visit() can be stopped; back and forward cannot (the address has moved). */
-        if (!this.runtime.hooks.announce(HOOK.beforeNavigate, { url: url.href, cancelable: push })) {
-            this.runtime.hooks.announce(HOOK.afterNavigate, { url: url.href, cancelled: true });
+        if (!this.runtime.hooks.announce(HOOK.beforeNavigate, { url: url.href, cancelable: push, history: !push })) {
+            this.runtime.hooks.announce(HOOK.afterNavigate, { url: url.href, cancelled: true, history: !push });
             return;
         }
-        const visit = (this.visiting = {});
+        /** A visit still under way is replaced: it is over too, as stopped. */
+        if (this.visiting && !this.visiting.over) this.runtime.hooks.announce(HOOK.afterNavigate, { url: this.visiting.url, cancelled: true, history: this.visiting.history });
+        const visit = (this.visiting = { url: url.href, history: !push, over: false });
         /** A #[LazyLoad] page's chunk loads while its data does. */
         this.runtime.preload(url.pathname);
 
@@ -410,13 +406,15 @@ export class Navigator {
 
     /** The current entry is the page shown's: its id, beside whatever else is in its state. */
     stamp() {
-        const state = withNitro(this.window.history.state, { nitroPage: this.page });
-        if (state === null || this.window.history.state?.nitroPage === this.page) return;
+        if (this.window.history.state?.nitroPage !== this.page) this.keep({ nitroPage: this.page });
+    }
+
+    /** Nitro's keys written into the current entry's state; not into another script's string, nor past Safari's limit (the next write keeps them). */
+    keep(keys) {
+        const state = withNitro(this.window.history.state, keys);
         try {
-            this.window.history.replaceState(state, '', this.window.location.href);
-        } catch {
-            // too many history updates (Safari's limit): the next write marks it
-        }
+            if (state !== null) this.window.history.replaceState(state, '', this.window.location.href);
+        } catch {}
     }
 
     /** On the new page: the remembered scroll position, the current one kept, or the #hash or the top. */
@@ -430,7 +428,8 @@ export class Navigator {
             this.scroll(target);
         }
         this.current();
-        this.runtime.hooks.announce(HOOK.afterNavigate, { url: this.window.location.href, cancelled: false });
+        if (this.visiting) this.visiting.over = true;
+        this.runtime.hooks.announce(HOOK.afterNavigate, { url: this.window.location.href, cancelled: false, history: Boolean(this.visiting?.history) });
     }
 
     /** To the #hash's element, or the top. */

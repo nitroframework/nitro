@@ -27,13 +27,16 @@ export class Progress {
         this.minimum = Math.max(0, Number(options.minimumDuration ?? 0));
         this.bar = createProgress(window, options);
 
-        /** A visit cancelled after the bar heard it start: as it was before (another visit may be under way). */
+        /**
+         * Back and forward show no bar (and end one a visit they replace left running). A visit
+         * stopped after the bar heard it start: as it was before (another visit may be under way).
+         */
         let before = false;
-        runtime.hook(HOOK.beforeNavigate, () => this.update(() => {
-            before = this.navigating;
-            this.navigating = true;
+        runtime.hook(HOOK.beforeNavigate, ({ history }) => this.update(() => {
+            before = history ? false : this.navigating;
+            this.navigating = !history;
         }));
-        runtime.hook(HOOK.afterNavigate, ({ cancelled }) => this.update(() => (this.navigating = cancelled ? before : false)));
+        runtime.hook(HOOK.afterNavigate, ({ cancelled, history }) => history || this.update(() => (this.navigating = cancelled ? before : false)));
         if (options.serverCalls) {
             runtime.hook(HOOK.beforeRequest, ({ kind }) => kind === REQUEST_KINDS.call && this.update(() => this.calls++));
             runtime.hook(HOOK.afterRequest, ({ kind }) => kind === REQUEST_KINDS.call && this.update(() => (this.calls = Math.max(0, this.calls - 1))));

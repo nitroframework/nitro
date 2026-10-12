@@ -23,10 +23,11 @@
  *                           cancelled when a beforeRequest listener stopped it.
  *                           { component, method, kind, status, cancelled, ms, bytes, serverMs, dbMs }
  *                                                                      nitro:after-request (a call's: nitro:response)
- *   beforeNavigate          a nitro:navigate visit starts. { url, cancelable }: preventDefault() stops a
- *                           visit from a link or Nitro.visit(); back and forward cannot be (the
- *                           address has moved)                         nitro:before-navigate (was nitro:navigating)
- *   afterNavigate           the visit is over: its page shown, or cancelled. { url, cancelled }
+ *   beforeNavigate          a nitro:navigate visit starts. { url, cancelable, history }: preventDefault()
+ *                           stops a visit from a link or Nitro.visit(); back and forward (history)
+ *                           cannot be (the address has moved)          nitro:before-navigate (was nitro:navigating)
+ *   afterNavigate           the visit is over: its page shown, or cancelled (stopped, or replaced by
+ *                           a newer visit). { url, cancelled, history }
  *                                                                      nitro:after-navigate (was nitro:navigated)
  *   flash                   flash data came, for the page. { flash }  nitro:flash
  *   error                   something failed. { component, message, status, body }    nitro:error

@@ -2920,6 +2920,38 @@ await scenario('hooks: stopping a request and a visit', async () => {
     gallery.close();
 });
 
+await scenario('the progress bar and back', async () => {
+    const window = await open('/counter');
+    const Nitro = window.Nitro;
+    const afters = [];
+    Nitro.hook('afterNavigate', (visit) => afters.push(visit));
+    let busy = false;
+    const watch = window.setInterval(() => (busy = busy || Nitro.progress.busy), 5);
+
+    Nitro.visit('/board');
+    await until('a visit', () => showing(window, '/board'), 5000);
+    check('a link\'s visit shows the bar', busy === true);
+    busy = false;
+    window.history.back();
+    await until('back', () => showing(window, '/counter'), 5000);
+    await wait(100);
+    check('back shows none', busy === false);
+
+    /** Back while a visit is still loading: that visit is over, and so is its bar. */
+    const held = hold(window, (target) => target.pathname === '/greeting');
+    Nitro.visit('/greeting');
+    await until('a visit under way', () => held.count === 1 && Nitro.progress.busy);
+    window.history.forward();
+    await until('forward meanwhile', () => showing(window, '/board'), 5000);
+    check('the bar is done', !Nitro.progress.busy);
+    check('the replaced visit had its afterNavigate, cancelled', afters.some((visit) => visit.url.endsWith('/greeting') && visit.cancelled === true), JSON.stringify(afters.map((visit) => [visit.url.slice(-9), visit.cancelled, visit.history])));
+    held.release();
+    await wait(300);
+    check('and stays done when its answer comes', !Nitro.progress.busy && showing(window, '/board'));
+    window.clearInterval(watch);
+    window.close();
+});
+
 // ------------------------------------------------------------------ an unfriendly page
 /**
  * What real pages do around Nitro: people clicking twice, leaving before an answer, visits that
