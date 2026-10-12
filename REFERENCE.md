@@ -370,6 +370,10 @@ class Order extends Component
 | `mounted()` | in the browser, once the component is live |
 | `destroyed()` | in the browser, when it leaves the page |
 
+A component leaves the page when its element leaves the document, whoever takes it out: its view
+(`@if`, a removed item), a visit, or another script (a dialog closed by its library). An element
+moved elsewhere has not left. To hide a component and keep it, hide it (CSS) rather than remove it.
+
 `$this->js('...')` runs JavaScript after the next render, with `$nitro` (the component), `$refs`
 (its `nitro:ref` elements) and `$el`.
 
@@ -406,7 +410,9 @@ class AuditCalls extends Feature
 | `hydrate($component)` | a `#[Server]` call, once the state is restored |
 | `updated($component, $changed)` | a `#[Server]` call, once the browser's changes are set; `false` keeps the method from running |
 | `calling($component, $method, $arguments)` | before a `#[Server]` method |
-| `called($component, $method, $result)` | after a `#[Server]` method returned |
+| `call($component, $method, $arguments, $run)` | around a `#[Server]` method: `$run()` runs it; return what it gave, or something else, or answer without calling `$run()` |
+| `called($component, $method, $result)` | after a `#[Server]` method returned, with the answer |
+| `exception($component, $method, $exception)` | a `#[Server]` method threw and the component's own `exception()` did not handle it; `true`: handled |
 | `dehydrate($component)` | before the state goes to the browser, once per request |
 
 - **Order:** each hook runs after the component's own method of that name (`boot()`, `hydrate()`,
@@ -416,6 +422,20 @@ class AuditCalls extends Feature
 - **Stores** run them too: they are components.
 - **`updated()`** runs for every feature, even after one returned `false`; an error it adds to
   `$component->nitro()->errors` reaches the browser as a validation message.
+- **`call()`** nests as middleware do: the first feature listed is the outermost, the method (and
+  `#[Cached]`, which may answer for it) the innermost. A cache, a lock, a transaction or a timing
+  goes around `$run()`; a value returned without it answers in the method's place:
+
+  ```php
+  public function call(Component $component, string $method, array $arguments, Closure $run): mixed
+  {
+      return DB::transaction($run);
+  }
+  ```
+- **`exception()`** runs after the component's own `exception()`: when it has none, or when that
+  throws again. The first feature to return `true` handles it, and the call answers with the state
+  as it is; when none does, the error is thrown as it would be without features (an error page, or
+  the component's fallback).
 
 #### Attributes that work as features
 
@@ -619,45 +639,76 @@ Nitro.directive('tooltip', ({ el, value, modifiers, component }) => {
   `.top`, `.300ms`) and `component`. `component.dispatch(event, ...params)` dispatches an event as
   `$this->dispatch()` does, so `#[On]` methods, browser or `#[Server]`, hear it.
 - **Registering:** a script that runs after `@nitroScripts` calls `Nitro.directive()` directly;
-  one that runs before it (a module in the `<head>`) registers in a `nitro:starting` listener on
+  one that runs before it (a module in the `<head>`) registers in a `nitro:init` listener on
   `document`, which fires before any component starts. A directive registered later still runs on
   the elements already on the page.
 - **An unlisted `nitro:` attribute** fails the build. A name of Nitro's own (`nitro:click`,
   `nitro:model`, ...) cannot be listed.
 
+### Hooks
+
+The runtime's moments, in the browser. `Nitro.hook(name, listener)` listens to one and returns a
+function that removes the listener; most also fire a window event, for code that only listens.
+
+```js
+Nitro.hook('beforeRequest', ({ headers }) => {
+    headers['X-Tenant'] = document.body.dataset.tenant;
+});
+Nitro.hook('store.initialized', (store) => {
+    store.onChange(() => console.log(store.name, store.get('items')));
+});
+```
+
+| Hook | When, and what the listener gets | Window event |
+| --- | --- | --- |
+| `init` | before the page's components start: register directives, engines and plugins. `{ Nitro }` | `nitro:init`, on `document` |
+| `initialized` | the first page's components are all live. `{ Nitro }` | `nitro:initialized`, on `document` |
+| `component.init` | a component made, before its first render: `{ name, el, dispatch(event, ...params) }` | |
+| `component.initialized` | a component started in the page (its first render): the same | |
+| `component.rendered` | the same, after each render of the component | |
+| `component.destroyed` | a component left the page, whoever took it out: the same | |
+| `store.initialized` | a store made in this tab: `{ name, persist, sync, get(property), values(), set(property, value), onChange(listener) }` | |
+| `store.updated` | a store's values changed (here, from the server, from another tab): the same | |
+| `beforeRequest` | before a request: a `#[Server]` call (`kind: 'call'`), a partial reload (`'reload'`, method `$reload`), an upload (`'upload'`, `$upload`). `{ component, method, kind, headers }`; a header added is sent, Nitro's own cannot be changed. `preventDefault()` sends nothing: a call resolves `null`, what changed stays for the next one | `nitro:before-request` |
+| `afterRequest` | its answer came: `{ component, method, kind, status, cancelled, ms, bytes, serverMs, dbMs }` (status 0: none came; `cancelled`: a `beforeRequest` listener stopped it; `serverMs` and `dbMs` in development) | `nitro:after-request` |
+| `beforeNavigate` | a `nitro:navigate` visit starts: `{ url, cancelable }`. `preventDefault()` stops a visit from a link or `Nitro.visit()`; back and forward cannot be stopped (`cancelable` is false: the address has moved) | `nitro:before-navigate` |
+| `afterNavigate` | the visit is over: `{ url, cancelled }` (its page shown, or stopped) | `nitro:after-navigate` |
+| `flash` | flash data came, for the page: `{ flash }` | `nitro:flash` |
+| `error` | something failed: `{ component, message, status, body }` | `nitro:error` |
+| `expired` | the state is no longer good (419): the page loads again unless a listener calls `preventDefault()`. `{ component, status }` | `nitro:expired` |
+
+- **A listener** gets components and stores as above; a window event's detail has the component's
+  name. A `component.initialized` or `store.initialized` listener hears those already there too.
+- **Each before has its after**, a stopped one too (`cancelled: true`), so what counts requests or
+  visits in flight stays right. A stoppable hook's window event (under its new name) can be
+  stopped with `preventDefault()` as well.
+- **An upload stopped** resolves `{ cancelled: true }` and fires `nitro-upload-cancel` on its input.
+- **A listener that throws** is reported (`error`); the others still run.
+- **Names** are the browser's: in an obfuscated build, methods and properties go by their aliases.
+- **A store's values** are JSON-safe, as the server sends them (an associative array as
+  `{"$m": [[key, value], ...]}`). `set()` is the browser's own change, checked by the server on the
+  next call; a `#[Locked]` property refuses it.
+- **Earlier names** are heard through 2.x: `nitro:starting` (now `nitro:init`), `nitro:navigating`
+  and `nitro:navigated` (now `nitro:before-navigate`, `nitro:after-navigate`), and, for a
+  `#[Server]` call, `nitro:request` and `nitro:response`.
+
 ### Plugins
 
-A plugin hooks into the runtime in the browser. `Nitro.use()` calls it once with the plugin API:
+A plugin is a function `Nitro.use()` calls once, with the plugin API:
 
 ```js
 Nitro.use(({ on, directive }) => {
-    on('request', ({ headers }) => {
+    on('beforeRequest', ({ headers }) => {
         headers['X-Tenant'] = document.body.dataset.tenant;
-    });
-    on('store', (store) => {
-        store.onChange(() => console.log(store.name, store.get('items')));
     });
 });
 ```
 
-| Hook | Called with |
-| --- | --- |
-| `component` | a component that started in the page: `{ name, el, dispatch(event, ...params) }` |
-| `render` | the same, after each render of the component |
-| `store` | a store made in this tab: `{ name, persist, sync, get(property), set(property, value), onChange(listener) }` |
-| `request` | before a `#[Server]` call (or a partial reload, as `$reload`): `{ component, method, headers }`; a header added is sent, Nitro's own cannot be changed |
-| `response` | when its answer came: `{ component, method, status }` (0: none came) |
-
-- **`on()`** returns a function that removes the listener. A `component` or `store` listener
-  hears those already there too, so a plugin can be used after the page started.
-- **A store's values** are JSON-safe, as the server sends them (an associative array as
-  `{"$m": [[key, value], ...]}`). `set()` is the browser's own change, checked by the server on the
-  next call; a `#[Locked]` property refuses it.
-- **Names** are the browser's: in an obfuscated build, methods and properties go by their aliases.
-- **A listener that throws** is reported (`nitro:error`); the others still run.
+- **`on()`** is `Nitro.hook()`. The names plugins used before the hooks are heard too:
+  `component`, `render`, `store`, `request` and `response`.
 - **`directive()`** is `Nitro.directive()` (see [Your own attributes](#your-own-attributes)).
 - A plugin used twice runs once. Register plugins as directives are: directly after
-  `@nitroScripts`, or in a `nitro:starting` listener.
+  `@nitroScripts`, or in a `nitro:init` listener.
 - `#[Persist]` and `#[Sync]` are Nitro's own plugins, built on this API only.
 
 ## Stores
@@ -994,17 +1045,17 @@ A progress bar runs at the top of the window during a visit. Publish its configu
 | `minimum_duration` | Once shown, it runs at least this long (ms, 250 by default), so a fast visit is seen to complete rather than flash |
 | `minimum`, `maximum`, `trickle`, `trickle_speed`, `speed`, `easing`, `fade_speed` | Its motion |
 
-The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. The runtime emits
-`nitro:navigating` and `nitro:navigated` around each visit, and `nitro:request` and
-`nitro:response` around each `#[Server]` call.
+The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. It follows the
+`beforeNavigate` and `afterNavigate` hooks around each visit, and `beforeRequest` and
+`afterRequest` around each `#[Server]` call (see [Hooks](#hooks)).
 
-To use another bar, such as NProgress itself, set `show` to `false` and drive it from those events:
+To use another bar, such as NProgress itself, set `show` to `false` and drive it from those hooks:
 
 ```js
 import NProgress from 'nprogress';
 
-window.addEventListener('nitro:navigating', () => NProgress.start());
-window.addEventListener('nitro:navigated', () => NProgress.done());
+Nitro.hook('beforeNavigate', () => NProgress.start());
+Nitro.hook('afterNavigate', () => NProgress.done());
 ```
 
 ## Page data
@@ -1159,8 +1210,9 @@ Nitro::flash('toast', 'Post published');
 ```
 
 It goes with this request's page, visit or `#[Server]` answer, or, after a redirect, with the
-page the redirect leads to. Then it is gone, and back does not bring it again. The browser emits
-`nitro:flash` with it (`event.detail.flash`). Flash data needs the session (the `web` middleware).
+page the redirect leads to. Then it is gone, and back does not bring it again. The browser
+announces it with the `flash` hook (and `nitro:flash`, `event.detail.flash`). Flash data needs the
+session (the `web` middleware).
 
 ## Transitions
 
@@ -1504,8 +1556,8 @@ needs them.
 Within its type, an unlocked property takes any value the browser sends; `#[Validate]` rules on
 it are checked before a `#[Server]` method runs (see [Properties](#properties)).
 
-On a 419 the page reloads with fresh state; a `nitro:expired` listener can `preventDefault()` to
-do something else.
+On a 419 the page reloads with fresh state; an `expired` hook (or `nitro:expired`) listener can
+`preventDefault()` to do something else.
 
 ```php
 // config/nitro.php
