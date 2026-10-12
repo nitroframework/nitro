@@ -671,8 +671,8 @@ Nitro.hook('store.initialized', (store) => {
 | `store.updated` | a store's values changed (here, from the server, from another tab): the same | |
 | `beforeRequest` | before a request: a `#[Server]` call (`kind: 'call'`), a partial reload (`'reload'`, method `$reload`), an upload (`'upload'`, `$upload`). `{ component, method, kind, headers }`; a header added is sent, Nitro's own cannot be changed. `preventDefault()` sends nothing: a call resolves `null`, what changed stays for the next one | `nitro:before-request` |
 | `afterRequest` | its answer came: `{ component, method, kind, status, cancelled, ms, bytes, serverMs, dbMs }` (status 0: none came; `cancelled`: a `beforeRequest` listener stopped it; `serverMs` and `dbMs` in development) | `nitro:after-request` |
-| `beforeNavigate` | a `nitro:navigate` visit starts: `{ url, cancelable }`. `preventDefault()` stops a visit from a link or `Nitro.visit()`; back and forward cannot be stopped (`cancelable` is false: the address has moved) | `nitro:before-navigate` |
-| `afterNavigate` | the visit is over: `{ url, cancelled }` (its page shown, or stopped) | `nitro:after-navigate` |
+| `beforeNavigate` | a `nitro:navigate` visit starts: `{ url, cancelable, history }`. `preventDefault()` stops a visit from a link or `Nitro.visit()`; back and forward (`history`) cannot be stopped (`cancelable` is false: the address has moved) | `nitro:before-navigate` |
+| `afterNavigate` | the visit is over: `{ url, cancelled, history }` (its page shown; or cancelled: stopped, or replaced by a newer visit before its page came) | `nitro:after-navigate` |
 | `flash` | flash data came, for the page: `{ flash }` | `nitro:flash` |
 | `error` | something failed: `{ component, message, status, body }` | `nitro:error` |
 | `expired` | the state is no longer good (419): the page loads again unless a listener calls `preventDefault()`. `{ component, status }` | `nitro:expired` |
@@ -1047,7 +1047,8 @@ A progress bar runs at the top of the window during a visit. Publish its configu
 
 The bar's markup is `#nprogress .bar`, so existing NProgress styles apply. It follows the
 `beforeNavigate` and `afterNavigate` hooks around each visit, and `beforeRequest` and
-`afterRequest` around each `#[Server]` call (see [Hooks](#hooks)).
+`afterRequest` around each `#[Server]` call (see [Hooks](#hooks)). Back and forward show no bar:
+they come back to a page already seen, and one that replaces a visit still loading ends its bar.
 
 To use another bar, such as NProgress itself, set `show` to `false` and drive it from those hooks:
 
