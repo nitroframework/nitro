@@ -1,41 +1,28 @@
 /**
- * Plugins: Nitro.use(plugin) calls the plugin once with an API to listen to the runtime.
+ * Plugins: Nitro.use(plugin) calls the plugin once with an API to hook into the runtime.
  *
  *     Nitro.use(({ on, directive }) => {
- *         on('request', ({ headers }) => { headers['X-Tenant'] = tenant(); });
- *         on('store', (store) => store.onChange(() => console.log(store.name, store.get('items'))));
+ *         on('beforeRequest', ({ headers }) => { headers['X-Tenant'] = tenant(); });
+ *         on('store.initialized', (store) => store.onChange(() => console.log(store.name, store.get('items'))));
  *     });
  *
- * Events, each on(name, listener) returning a function that removes the listener:
+ * on(hook, listener) is Nitro.hook(): the hooks and what each gives are in hooks.js; the names
+ * before 2.x's hooks (component, render, store, request, response) are heard too.
  *
- *  - component (component)           a component started in the page (its first render)
- *  - render (component)               after each render of a component
- *  - store (store)                    a store was made in this tab (once the page's components started)
- *  - request ({ component, method, headers })   before a component's request is sent: a #[Server] call (its
- *                                               method), a reload ($reload), an upload ($upload); headers may be added to
- *  - response ({ component, method, status, ms, bytes, serverMs, dbMs })   when its answer arrived (status 0:
- *                                               none came): how long it took, its size when known, and in
- *                                               development the server's time and its database's (Server-Timing)
- *
- * A component is { name, el, dispatch(event, ...params) }; a store { name, persist, sync,
- * get(property), values(), set(property, value), onChange(listener) }, its values JSON-safe as the server
- * sends them (an associative array as {"$m": [[key, value], ...]}); set() is the browser's own
- * change, which the server checks on the next call. A listener registered for component or store
- * hears those already there too. Property names are the browser's (an obfuscated build's aliases).
+ * What plugins (and hooks' listeners) see: a component is { name, el, dispatch(event, ...params) };
+ * a store { name, persist, sync, get(property), values(), set(property, value), onChange(listener) },
+ * its values JSON-safe as the server sends them (an associative array as {"$m": [[key, value], ...]});
+ * set() is the browser's own change, which the server checks on the next call. Property names are
+ * the browser's (an obfuscated build's aliases).
  *
  * Nitro's #[Persist] and #[Sync] are plugins (js/src/plugins).
  */
 import * as P from '../php.js';
 
-const EVENTS = ['component', 'render', 'store', 'request', 'response'];
-
 export class Plugins {
     constructor(runtime) {
         this.runtime = runtime;
         this.used = new Set();
-        /** event => Set of listeners */
-        this.listeners = new Map(EVENTS.map((event) => [event, new Set()]));
-        this.started = new WeakSet();
         this.facades = new WeakMap();
     }
 
@@ -44,63 +31,9 @@ export class Plugins {
         if (this.used.has(plugin)) return;
         this.used.add(plugin);
         plugin({
-            on: (event, listener) => this.on(event, listener),
+            on: (hook, listener) => this.runtime.hooks.hook(hook, listener, 'Nitro.use(): on()'),
             directive: (name, directive) => this.runtime.directive(name, directive),
         });
-    }
-
-    on(event, listener) {
-        if (!this.listeners.has(event)) throw new Error(`Nitro.use(): there is no event "${event}" (${EVENTS.join(', ')})`);
-        if (typeof listener !== 'function') throw new Error(`Nitro.use(): on('${event}', ...) takes a function`);
-        this.listeners.get(event).add(listener);
-
-        /** Registered after the page started: the components and stores already there. */
-        if (event === 'component') {
-            for (const component of this.runtime.components()) {
-                if (this.started.has(component) && !component.destroyed) this.call(listener, component, this.facade(component));
-            }
-        }
-        if (event === 'store') {
-            for (const store of this.runtime.stores.values()) this.call(listener, store, this.facade(store));
-        }
-
-        return () => this.listeners.get(event).delete(listener);
-    }
-
-    /** After a component's render (runtime.afterRender): component the first time, then render. */
-    rendered(component) {
-        if (!this.started.has(component)) {
-            this.started.add(component);
-            this.emit('component', component, this.facade(component));
-        }
-        this.emit('render', component, this.facade(component));
-    }
-
-    /** A store made in this tab: heard once the render that made it is over (its values then set re-render as any change). */
-    madeStore(store) {
-        queueMicrotask(() => this.emit('store', store, this.facade(store)));
-    }
-
-    /** The headers a #[Server] call is sent with, as the request listeners leave them. */
-    request(target, method, headers) {
-        this.emit('request', target, { component: this.facade(target), method, headers });
-        return headers;
-    }
-
-    response(target, method, status, timing = {}) {
-        this.emit('response', target, { component: this.facade(target), method, status, ...timing });
-    }
-
-    emit(event, target, payload) {
-        for (const listener of this.listeners.get(event)) this.call(listener, target, payload);
-    }
-
-    call(listener, target, payload) {
-        try {
-            listener(payload);
-        } catch (error) {
-            this.runtime.report(target, error);
-        }
     }
 
     /** What plugins see of a component or a store. */

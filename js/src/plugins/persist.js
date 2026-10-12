@@ -4,10 +4,12 @@
  * (the server checks them on the next call, as any change); each change is kept again. Without
  * localStorage (private modes, blocked storage), the store simply starts from the server's state.
  *
- * A plugin, built on the plugin API only (runtime/plugins.js).
+ * A plugin, built on the plugin API only (runtime/plugins.js), naming its hook by the hooks' names.
  */
+import { HOOK } from '../runtime/hooks.js';
+
 export function persist({ on }) {
-    on('store', (store) => {
+    on(HOOK.storeInitialized, (store) => {
         if (store.persist.length === 0) return;
         const storage = storageOf();
         if (!storage) return;

@@ -7,10 +7,12 @@
  * still shows none.
  */
 import { createProgress } from './bar.js';
+import { HOOK, REQUEST_KINDS } from '../hooks.js';
 
 export class Progress {
     /** @param {object|null} options  the settings, null when the bar is off */
-    constructor(window, options) {
+    constructor(runtime, options) {
+        const window = runtime.window;
         /** A visit replaces the one before it (one navigated for several navigating): a flag, not a count. */
         this.navigating = false;
         this.calls = 0;
@@ -25,11 +27,16 @@ export class Progress {
         this.minimum = Math.max(0, Number(options.minimumDuration ?? 0));
         this.bar = createProgress(window, options);
 
-        window.addEventListener('nitro:navigating', () => this.update(() => (this.navigating = true)));
-        window.addEventListener('nitro:navigated', () => this.update(() => (this.navigating = false)));
+        /** A visit cancelled after the bar heard it start: as it was before (another visit may be under way). */
+        let before = false;
+        runtime.hook(HOOK.beforeNavigate, () => this.update(() => {
+            before = this.navigating;
+            this.navigating = true;
+        }));
+        runtime.hook(HOOK.afterNavigate, ({ cancelled }) => this.update(() => (this.navigating = cancelled ? before : false)));
         if (options.serverCalls) {
-            window.addEventListener('nitro:request', () => this.update(() => this.calls++));
-            window.addEventListener('nitro:response', () => this.update(() => (this.calls = Math.max(0, this.calls - 1))));
+            runtime.hook(HOOK.beforeRequest, ({ kind }) => kind === REQUEST_KINDS.call && this.update(() => this.calls++));
+            runtime.hook(HOOK.afterRequest, ({ kind }) => kind === REQUEST_KINDS.call && this.update(() => (this.calls = Math.max(0, this.calls - 1))));
         }
     }
 

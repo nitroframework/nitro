@@ -32,13 +32,13 @@ class ProgressTest extends TestCase
                 'trickle' => $options['trickle'], 'trickleSpeed' => $options['trickle_speed'],
             ],
             'scenarios' => [
-                'faster than the delay' => [[0, 'nitro:navigating'], [10, 'nitro:navigated']],
-                'a quick visit' => [[0, 'nitro:navigating'], [60, 'nitro:navigated']],
-                'a slow visit' => [[0, 'nitro:navigating'], [900, 'nitro:navigated']],
-                'visits back to back' => [[0, 'nitro:navigating'], [300, 'nitro:navigated'], [20, 'nitro:navigating'], [300, 'nitro:navigated']],
-                'a click while the bar fades' => [[0, 'nitro:navigating'], [200, 'nitro:navigated'], [250, 'nitro:navigating'], [300, 'nitro:navigated']],
-                'a click as the bar finishes' => [[0, 'nitro:navigating'], [200, 'nitro:navigated'], [5, 'nitro:navigating'], [500, 'nitro:navigated']],
-                'clicks in a row' => [[0, 'nitro:navigating'], [80, 'nitro:navigated'], [40, 'nitro:navigating'], [80, 'nitro:navigated'], [40, 'nitro:navigating'], [80, 'nitro:navigated']],
+                'faster than the delay' => [[0, 'beforeNavigate'], [10, 'afterNavigate']],
+                'a quick visit' => [[0, 'beforeNavigate'], [60, 'afterNavigate']],
+                'a slow visit' => [[0, 'beforeNavigate'], [900, 'afterNavigate']],
+                'visits back to back' => [[0, 'beforeNavigate'], [300, 'afterNavigate'], [20, 'beforeNavigate'], [300, 'afterNavigate']],
+                'a click while the bar fades' => [[0, 'beforeNavigate'], [200, 'afterNavigate'], [250, 'beforeNavigate'], [300, 'afterNavigate']],
+                'a click as the bar finishes' => [[0, 'beforeNavigate'], [200, 'afterNavigate'], [5, 'beforeNavigate'], [500, 'afterNavigate']],
+                'clicks in a row' => [[0, 'beforeNavigate'], [80, 'afterNavigate'], [40, 'beforeNavigate'], [80, 'afterNavigate'], [40, 'beforeNavigate'], [80, 'afterNavigate']],
             ],
         ]);
 

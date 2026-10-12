@@ -62,7 +62,7 @@ export function register(name, views, mount) {
     };
 
     if (window.Nitro?.engine) window.Nitro.engine(name, engine);
-    else document.addEventListener('nitro:starting', ({ detail }) => detail.Nitro.engine(name, engine), { once: true });
+    else document.addEventListener('nitro:init', ({ detail }) => detail.Nitro.engine(name, engine), { once: true });
 }
 
 /** What ends a namespace in a view's name: 'issues::list'. */

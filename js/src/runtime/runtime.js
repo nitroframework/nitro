@@ -16,6 +16,7 @@ import { PageMount } from './navigation/page-mount.js';
 import { Directives } from './directives.js';
 import { Engines } from './view/engines.js';
 import { Plugins } from './plugins.js';
+import { HOOK, Hooks } from './hooks.js';
 import { Events } from './dom/events.js';
 import { Triggers } from './dom/triggers.js';
 import { islandsIn, whenToStart } from './dom/islands.js';
@@ -23,6 +24,7 @@ import { Broadcasts } from './server/echo.js';
 import { applyLoading, STYLE } from './dom/loading.js';
 import { applyDirty, STYLE as DIRTY_STYLE } from './dom/dirty.js';
 import { Model } from './dom/model.js';
+import { Removals } from './dom/removals.js';
 import { Navigator } from './navigation/navigate.js';
 import { Network } from './server/network.js';
 import { SharedData } from './component/shared.js';
@@ -56,9 +58,13 @@ export class Runtime {
         this.directives = new Directives(this);
         this.engines = new Engines(this);
         this.plugins = new Plugins(this);
+        /** The runtime's moments, announced in one place (hooks.js): Nitro.hook(), plugins, window events. */
+        this.hooks = new Hooks(this);
         /** #[On('echo:...')]: broadcast events, through the application's Laravel Echo. */
         this.broadcasts = new Broadcasts(this, window);
         this.model = new Model(this, this.document);
+        /** Components whose element something else took off the page, let go (dom/removals.js). */
+        this.removals = new Removals(this, window);
         this.network = new Network(this, config);
         this.navigator = new Navigator(this, window);
         this.bus = { dispatch: (event, params, source) => this.dispatch(event, params, source) };
@@ -84,6 +90,11 @@ export class Runtime {
     /** Nitro.use(plugin): a plugin, called with the API to hook into the runtime (plugins.js). */
     use(plugin) {
         this.plugins.use(plugin);
+    }
+
+    /** Nitro.hook(name, listener): a listener for one of the runtime's moments (hooks.js); a function that removes it. */
+    hook(name, listener) {
+        return this.hooks.hook(name, listener);
     }
 
     /** Nitro.visit(url): a nitro:navigate visit, as $visit() in a handler does. */
@@ -172,6 +183,7 @@ export class Runtime {
             this.styled = true;
         }
 
+        this.removals.watch();
         /** nitro:prefetch.visible links outside components too (the layout's). */
         this.navigator.prefetcher.watch(root);
         const islands = islandsIn(root);
@@ -327,7 +339,7 @@ export class Runtime {
         applyDirty(component);
         this.triggers.sync(component);
         this.directives.sync(component);
-        this.plugins.rendered(component);
+        this.hooks.rendered(component);
     }
 
     /** The state the server last signed changed (a response, a reload): nitro:dirty follows. */
@@ -407,15 +419,15 @@ export class Runtime {
         if (!target.to && !target.self) this.emit(event, { params: args, component: source?.name ?? null });
     }
 
-    /** A window event; with cancelable, whether no listener called preventDefault(). */
-    emit(name, detail, cancelable = false) {
-        return this.window.dispatchEvent(new this.window.CustomEvent(name, { detail, cancelable }));
+    /** An event of the application's ($this->dispatch()) on the window. The runtime's own moments are hooks (hooks.js). */
+    emit(name, detail) {
+        return this.window.dispatchEvent(new this.window.CustomEvent(name, { detail }));
     }
 
     report(component, error) {
         this.window.console.error(component ? `Nitro [${component.name}]:` : 'Nitro:', error);
-        this.emit('nitro:error', {
-            component: component?.name ?? null,
+        this.hooks.announce(HOOK.error, {
+            component: component ?? null,
             message: String(error?.message ?? error),
             ...(error?.status !== undefined ? { status: error.status, body: error.body } : {}),
         });

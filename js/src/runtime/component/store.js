@@ -10,6 +10,7 @@
 import * as P from '../../php.js';
 import { ErrorBag } from './errors.js';
 import { defineProperties } from './context.js';
+import { HOOK } from '../hooks.js';
 import { defaultsOf, keepEnvelope, readState, sameValue, updatesOf } from './snapshot.js';
 
 export class Store {
@@ -119,6 +120,7 @@ export class Store {
                     this.runtime.report(this, error);
                 }
             }
+            this.runtime.hooks.announceTarget(HOOK.storeUpdated, this);
         });
     }
 

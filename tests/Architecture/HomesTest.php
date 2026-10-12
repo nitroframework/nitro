@@ -118,6 +118,49 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Compiler/Template/ChildTag.php' => 'NAME, which PATTERN and every closing tag read'],
                 'why' => 'The tag\'s name was matched by four patterns: the Blade precompiler, the template compiler, its closing tags and the build\'s',
             ],
+            'the runtime\'s moments (hooks)' => [
+                /** Each moment announced in one place: its listeners, its window event, its earlier name. */
+                'patterns' => [
+                    "/['\"`]nitro:(init|starting|before-request|request|after-request|response|before-navigate|navigating|after-navigate|navigated|flash|error|expired)['\"`]/",
+                    '/\.dispatchEvent\(new [\w.]*CustomEvent\(|\.emit\(/',
+                ],
+                'homes' => [
+                    'js/src/runtime/hooks.js' => 'the hooks: their names, listeners and window events',
+                    'js/src/runtime/runtime.js' => 'emit(): the application\'s own events ($this->dispatch())',
+                    'js/adapters/core.js' => 'an adapter loaded before Nitro waits for nitro:init, as Nitro.hook() is not there yet',
+                    'js/src/runtime/server/upload.js' => 'nitro-upload-* on the file input: its own DOM events, not the runtime\'s moments',
+                ],
+                'why' => 'The moments were announced from five files, two ways for one call: one home keeps their names, order and payloads one',
+            ],
+            'the page\'s globals' => [
+                /** ARCHITECTURE.md, "What Nitro shares": the window is every script's. */
+                'patterns' => ['/\bwindow\.[A-Za-z_$][\w$]*\s*=(?!=)|\bglobalThis\.[A-Za-z_$][\w$]*\s*=(?!=)/'],
+                'homes' => ['js/src/index.js' => 'window.Nitro, Nitro\'s one global'],
+                'why' => 'Another global is a name another script on the page may use too',
+            ],
+            'browser storage and tab channels' => [
+                /** Each key and channel name starts with "nitro:", beside the app's and other scripts' own. */
+                'patterns' => ['/\b(localStorage|sessionStorage|BroadcastChannel)\b/'],
+                'homes' => [
+                    'js/src/runtime/runtime.js' => 'nitro:stale, the page stale() loaded again',
+                    'js/src/plugins/persist.js' => 'nitro:persist:{store}, #[Persist]',
+                    'js/src/plugins/sync.js' => 'nitro:sync:{store}, #[Sync]',
+                ],
+                'why' => 'Storage and channels are shared with every script of the site: a key without nitro: can be another\'s',
+            ],
+            'state that outlives a request' => [
+                /** Under a long-lived worker (Octane) a static property lasts for every request after: only what is read from the code. */
+                'patterns' => ['/(private|protected|public)\s+static\s+[?\w|\\\\]*\s*\$\w+|->singleton\(/'],
+                'homes' => [
+                    'src/Compiler/MethodSource.php' => 'parsed methods, by file and modification time',
+                    'src/Compiler/BrowserClasses.php' => 'which classes are #[Browser]',
+                    'src/Compiler/Functions.php' => 'the PHP functions the browser has',
+                    'src/Lifecycle/AttributeHandlers.php' => 'a class\'s feature attributes',
+                    'src/Support/Protocol.php' => 'js/protocol.json',
+                    'src/View/Adapters/SharedCore.php' => 'the names the adapters share',
+                ],
+                'why' => 'A request\'s data kept there would reach the next visitor; Nitro\'s parts are scoped, one per request',
+            ],
             '#[Html] beside the signed state' => [
                 /** The HTML that goes beside a snapshot, and the fingerprints that come back in its place: one home each side. */
                 'patterns' => ["/get\('snapshot'\)\['html'\]|HTML_FIELD|snapshot\.html\b/"],

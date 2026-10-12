@@ -55,6 +55,7 @@ Route::nitro('/transitions', Transitions::class)->name('transitions');
 Route::nitro('/live', Live::class)->name('live');
 Route::nitro('/devices', Devices::class)->name('devices');
 Route::nitro('/timeline', MountedTimeline::class)->name('timeline');
+Route::nitro('/tabs', \Nitro\Tests\Fixtures\Pages\Tabs::class)->name('tabs');
 
 Route::nitro('/orders', Orders::class)->name('orders');
 Route::nitro('/inbox', Inbox::class)->name('inbox');

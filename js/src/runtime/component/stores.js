@@ -36,7 +36,7 @@ export class Stores {
             if (!definition) throw new Error(`Nitro: store [${name}] is not compiled`);
             this.instances.set(name, new Store(this.runtime, definition, name, this.states.get(name) ?? null));
             this.states.delete(name);
-            this.runtime.plugins.madeStore(this.instances.get(name));
+            this.runtime.hooks.madeStore(this.instances.get(name));
         }
         return this.instances.get(name);
     }

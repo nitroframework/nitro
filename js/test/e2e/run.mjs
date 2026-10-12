@@ -293,7 +293,11 @@ const M = (method) => names.methods[method] ?? method;
 const chunkId = (group) => names.chunks[group] ?? group;
 const byName = (root, name) => root.querySelector(`[nitro\:name="${N(name)}"]`);
 
+/** NITRO_E2E_ONLY="name|other name": only the scenarios whose name has one of these (while working on them). */
+const only = process.env.NITRO_E2E_ONLY ? process.env.NITRO_E2E_ONLY.split('|') : null;
+
 async function scenario(name, run) {
+    if (only && !only.some((part) => name.includes(part))) return;
     try {
         await run();
     } catch (error) {
@@ -1027,7 +1031,7 @@ await scenario('plugins', async () => {
         }
     };
     check('a plugin is a function', refused(() => window.Nitro.use({})) === 'Nitro.use(): a plugin is a function, called with the plugin API');
-    check('only its events', refused(() => window.Nitro.use(({ on }) => on('mount', () => {}))).startsWith('Nitro.use(): there is no event "mount"'));
+    check('only its hooks', refused(() => window.Nitro.use(({ on }) => on('mount', () => {}))).startsWith('Nitro.use(): on(): there is no hook "mount"'));
     window.close();
 });
 
@@ -2175,6 +2179,14 @@ await scenario('view engines', async () => {
     await until('a ref written in Vue goes to the component', () => text(vue('.count')) === '5' && text(vue('.doubled')) === '10');
     check('the component has it', window.Nitro.components().find((c) => c.name === N('vue-counter')).unsaved().includes(P_('count')));
 
+    /** The Blade page around it renders again: Vue's elements are Vue's, untouched. */
+    const vueCount = vue('.count');
+    click(window, $('.more'));
+    await until('the page renders around the views', () => $('.plain-made') !== null);
+    click(window, $('.more'));
+    await until('and again', () => $('.plain-made') === null);
+    check('Vue\'s elements are the same, with what Vue shows', vue('.count') === vueCount && text(vueCount) === '5', text(vue('.count')));
+
     /** A #[Server] method: its status while it runs, the errors, its value. */
     click(window, vue('.save'));
     await until('save.processing while it runs', () => vue('.busy') !== null && vue('.save').disabled);
@@ -2717,6 +2729,572 @@ await scenario('libraries after a visit into a layout that loads them', async ()
     await until('in again', () => document.querySelector('.libraries') !== null, 5000);
     await until('each starts once again', () => live('select2') === 4 && ['flatpickr', 'tom-select', 'choices', 'fake-widget', 'trix', 'quill', 'sortable', 'slider', 'mask'].every((name) => live(name) === 1), 5000);
     check('one select2 each', document.querySelectorAll('select.select2-hidden-accessible').length === 4);
+    window.close();
+});
+
+// ------------------------------------------------------------------ helpers for the scenarios below
+
+/** The window's requests that match, held until release(): answers that arrive late. */
+function hold(window, matches) {
+    const held = [];
+    const fetch = window.fetch;
+    window.fetch = (input, init) => {
+        const target = new URL(input?.url ?? input, window.location.href);
+        if (!matches(target, init)) return fetch(input, init);
+        return new Promise((resolve, reject) => held.push(() => fetch(input, init).then(resolve, reject)));
+    };
+    return {
+        get count() { return held.length; },
+        release() { held.splice(0).forEach((send) => send()); },
+    };
+}
+
+const button = (root, label) => [...root.querySelectorAll('button')].find((el) => text(el) === label);
+const idle = (window) => window.Nitro.components().every((component) => !component.loading?.size);
+const pages = { '/counter': 'pages::counter', '/board': 'pages::board', '/greeting': 'pages::greeting' };
+/** The page shown is the one the address names. */
+const showing = (window, path) => window.location.pathname === path && byName(window.document, pages[path]) !== null
+    && Object.entries(pages).every(([other, name]) => other === path || byName(window.document, name) === null);
+
+// ------------------------------------------------------------------ hooks
+/** Each moment by its hook (Nitro.hook(), a plugin's on()) and its window event; the names before 2.x's hooks heard too. */
+await scenario('hooks, and their earlier names', async () => {
+    const heard = [];
+    const window = await open('/counter', {
+        beforeParse(window) {
+            for (const event of ['nitro:init', 'nitro:starting']) window.document.addEventListener(event, (e) => heard.push(`${event}:${typeof e.detail?.Nitro?.hook}`));
+        },
+    });
+    const { document } = window;
+    const Nitro = window.Nitro;
+    check('init, on the document, by both names, with Nitro', heard.includes('nitro:init:function') && heard.includes('nitro:starting:function'), heard.join(' '));
+
+    const hooks = [];
+    for (const name of ['component.initialized', 'component.rendered', 'beforeRequest', 'afterRequest', 'beforeNavigate', 'afterNavigate', 'error']) {
+        Nitro.hook(name, (payload) => hooks.push({ name, payload }));
+    }
+    check('a late component.initialized listener hears the components already there', hooks.some((h) => h.name === 'component.initialized' && h.payload.name === N('pages::counter')), hooks.map((h) => h.name).join(' '));
+    const plugin = [];
+    Nitro.use(({ on }) => {
+        for (const name of ['component', 'render', 'request', 'response', 'beforeRequest']) on(name, (payload) => plugin.push(name));
+    });
+    const events = [];
+    for (const event of ['nitro:before-request', 'nitro:request', 'nitro:after-request', 'nitro:response', 'nitro:before-navigate', 'nitro:navigating', 'nitro:after-navigate', 'nitro:navigated']) {
+        window.addEventListener(event, (e) => events.push(`${event}:${e.detail?.component ?? e.detail?.url ?? ''}`));
+    }
+
+    const counter = document.querySelector('.counter');
+    click(window, button(counter, '+'));
+    await until('a render', () => hooks.some((h) => h.name === 'component.rendered') && plugin.includes('render'));
+
+    click(window, button(counter, 'Save'));
+    await until('a #[Server] call, before and after', () => hooks.some((h) => h.name === 'afterRequest') && plugin.includes('response'), 5000);
+    const before = hooks.find((h) => h.name === 'beforeRequest')?.payload;
+    const after = hooks.find((h) => h.name === 'afterRequest')?.payload;
+    check('beforeRequest: the component as plugins see it, the method, its kind, headers to add to', before?.component?.name === N('pages::counter') && before.method === M('save') && before.kind === 'call' && typeof before.headers === 'object', JSON.stringify(before));
+    check('afterRequest: its status and timing', after?.kind === 'call' && after.status === 200 && typeof after.ms === 'number' && typeof after.bytes === 'number', JSON.stringify(after));
+    check('a plugin hears both names, earlier and new', plugin.includes('request') && plugin.includes('beforeRequest'), plugin.join(' '));
+    check('the window events, both names, with the component\'s name', ['nitro:before-request', 'nitro:request', 'nitro:after-request', 'nitro:response'].every((event) => events.includes(`${event}:${N('pages::counter')}`)), events.join(' '));
+
+    /** A listener that fails is reported (error), and the others still run. */
+    expectedErrors.push(/a failing listener/);
+    const failing = Nitro.hook('component.rendered', () => {
+        throw new Error('a failing listener');
+    });
+    const renders = hooks.filter((h) => h.name === 'component.rendered').length;
+    click(window, button(counter, '+'));
+    await until('reported as error', () => hooks.some((h) => h.name === 'error' && /a failing listener/.test(h.payload.message)));
+    check('the other listeners still heard it', hooks.filter((h) => h.name === 'component.rendered').length > renders);
+    failing();
+
+    Nitro.visit('/board');
+    await until('a visit, before and after', () => hooks.some((h) => h.name === 'afterNavigate'), 5000);
+    check('the visit\'s hooks have its address', hooks.find((h) => h.name === 'beforeNavigate')?.payload.url.endsWith('/board') && hooks.find((h) => h.name === 'afterNavigate')?.payload.url.endsWith('/board'));
+    check('its window events, both names', ['nitro:before-navigate', 'nitro:navigating', 'nitro:after-navigate', 'nitro:navigated'].every((event) => events.some((e) => e.startsWith(`${event}:`) && e.endsWith('/board'))), events.join(' '));
+
+    check('an unknown hook is refused, naming the hooks', (() => {
+        try {
+            Nitro.hook('rendered', () => {});
+            return false;
+        } catch (error) {
+            return /there is no hook "rendered" \(init, /.test(error.message);
+        }
+    })());
+    window.close();
+});
+
+await scenario('hooks: initialized, a component\'s init and destroyed, a store updated', async () => {
+    const heard = [];
+    const window = await open('/embed', {
+        beforeParse(window) {
+            window.document.addEventListener('nitro:initialized', (e) => heard.push(`initialized:${e.detail.Nitro.components().length}`));
+        },
+    });
+    const { document } = window;
+    const Nitro = window.Nitro;
+    check('initialized once, with the page\'s components live', heard.length === 1 && Number(heard[0].split(':')[1]) > 0, heard.join(' '));
+
+    const moments = [];
+    for (const name of ['component.init', 'component.initialized', 'component.destroyed']) Nitro.hook(name, (component) => moments.push(`${name}:${component.name}`));
+    moments.length = 0;
+    const list = byName(document, 'todo-list');
+    type(window, list.querySelector('input[type=text]'), 'Hooked');
+    list.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await until('a component made in the browser: init, then initialized', () => moments.includes(`component.initialized:${N('todo-item')}`), 5000);
+    check('init before initialized', moments.indexOf(`component.init:${N('todo-item')}`) > -1 && moments.indexOf(`component.init:${N('todo-item')}`) < moments.indexOf(`component.initialized:${N('todo-item')}`), moments.join(' '));
+    click(window, list.querySelectorAll('li.todo .remove')[0]);
+    await until('removed by its view: destroyed', () => moments.includes(`component.destroyed:${N('todo-item')}`));
+    moments.length = 0;
+    list.remove();
+    await until('taken out by a script: destroyed, children too', () => moments.includes(`component.destroyed:${N('todo-list')}`) && moments.includes(`component.destroyed:${N('todo-item')}`));
+    window.close();
+
+    const shop = await open('/shop');
+    const updated = [];
+    shop.Nitro.hook('store.updated', (store) => updated.push(store.name));
+    click(shop, shop.document.querySelectorAll('.shop-shelf .buy')[0]);
+    await until('a store changed: updated', () => updated.includes(N('stores::cart')), 3000);
+    shop.close();
+});
+
+await scenario('hooks: stopping a request and a visit', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const Nitro = window.Nitro;
+    const counter = document.querySelector('.counter');
+    const save = button(counter, 'Save');
+    const sent = requestsOf(window);
+    const after = [];
+    Nitro.hook('afterRequest', (request) => after.push(request));
+    const saved = [];
+    window.addEventListener('counter-saved', (event) => saved.push(event.detail.params));
+
+    click(window, button(counter, '+'));
+    await until('counted', () => text(counter.querySelector('.count')) === '1');
+    const stop = Nitro.hook('beforeRequest', (request) => request.cancelable && request.preventDefault());
+    click(window, save);
+    await until('stopped: its afterRequest says so', () => after.some((request) => request.cancelled === true));
+    await wait(100);
+    check('nothing sent', !sent.some((path) => path.endsWith('/update')), sent.join(' '));
+    check('nothing saved, the page usable', saved.length === 0 && !save.hasAttribute('disabled') && idle(window));
+    stop();
+    click(window, save);
+    await until('the next call goes, with what changed meanwhile', () => saved.length === 1 && JSON.stringify(saved[0]) === '[1]', 5000);
+
+    const visits = [];
+    Nitro.hook('afterNavigate', (visit) => visits.push(visit));
+    const hold = Nitro.hook('beforeNavigate', (visit) => visit.preventDefault());
+    Nitro.visit('/board');
+    await until('a visit stopped: its afterNavigate says so', () => visits.some((visit) => visit.cancelled === true));
+    check('still on the page', showing(window, '/counter'), window.location.href);
+    hold();
+    Nitro.visit('/board');
+    await until('the next visit goes', () => showing(window, '/board'), 5000);
+    const backs = [];
+    const refuse = Nitro.hook('beforeNavigate', (visit) => {
+        backs.push(visit.cancelable);
+        visit.preventDefault();
+    });
+    window.history.back();
+    await until('back is not stopped: the address has moved', () => showing(window, '/counter'), 5000);
+    check('and says it cannot be', backs.length > 0 && backs.every((cancelable) => cancelable === false), JSON.stringify(backs));
+    refuse();
+    window.close();
+
+    /** An upload stopped: nothing sent, the input told. */
+    const gallery = await open('/gallery');
+    const xhr = [];
+    const send = gallery.XMLHttpRequest.prototype.send;
+    gallery.XMLHttpRequest.prototype.send = function (body) {
+        xhr.push(1);
+        return send.call(this, body);
+    };
+    gallery.Nitro.hook('beforeRequest', (request) => request.kind === 'upload' && request.preventDefault());
+    const input = gallery.document.querySelector('input.photo');
+    const told = [];
+    input.addEventListener('nitro-upload-cancel', () => told.push('cancel'));
+    Object.defineProperty(input, 'files', { configurable: true, value: [new gallery.File(['x'], 'kept.txt', { type: 'text/plain' })] });
+    change(gallery, input);
+    await until('the input told it was stopped', () => told.length === 1);
+    check('nothing uploaded', xhr.length === 0 && gallery.document.querySelector('.preview') === null);
+    gallery.close();
+});
+
+// ------------------------------------------------------------------ an unfriendly page
+/**
+ * What real pages do around Nitro: people clicking twice, leaving before an answer, visits that
+ * overlap, other scripts moving or removing parts of the page, extensions adding their own markup,
+ * a network that fails or a server that answers with an error page.
+ */
+
+await scenario('a double click on a #[Server] button', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const counter = document.querySelector('.counter');
+    const save = button(counter, 'Save');
+    const saved = [];
+    window.addEventListener('counter-saved', (event) => saved.push(event.detail.params));
+
+    click(window, button(counter, '+'));
+    await until('counted', () => text(counter.querySelector('.count')) === '1');
+    click(window, save);
+    click(window, save);
+    await until('the calls are answered', () => saved.length > 0 && idle(window), 5000);
+    await wait(150);
+
+    check('each answer saved what was shown', saved.every((params) => JSON.stringify(params) === '[1]'), JSON.stringify(saved));
+    check('the count is the one saved', text(counter.querySelector('.count')) === '1', text(counter.querySelector('.count')));
+    check('the button is usable again', !save.hasAttribute('disabled'));
+    const ids = [...document.querySelectorAll('[nitro\\:id]')].map((el) => el.getAttribute('nitro:id'));
+    check('no component twice', new Set(ids).size === ids.length, ids.join(' '));
+    window.close();
+});
+
+await scenario('a #[Server] call answered after its page was left', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const held = hold(window, (target) => target.pathname.endsWith('/update'));
+
+    click(window, button(document.querySelector('.counter'), 'Save'));
+    await until('the call is on its way', () => held.count === 1);
+    window.Nitro.visit('/board');
+    await until('on the next page', () => showing(window, '/board'));
+    const board = byName(document, 'pages::board');
+    held.release();
+    await wait(400);
+
+    check('the late answer leaves the page shown as it is', showing(window, '/board') && byName(document, 'pages::board') === board, window.location.href);
+    check('the page left has no component here', !window.Nitro.components().some((component) => component.name === N('pages::counter')), window.Nitro.components().map((component) => component.name).join(' '));
+    window.close();
+});
+
+await scenario('a redirect answered after its page was left', async () => {
+    const window = await open('/greeting');
+    const { document } = window;
+    const held = hold(window, (target) => target.pathname.endsWith('/update'));
+
+    /** Its #[Server] method redirects to /counter, once answered. */
+    click(window, document.querySelector('.celebrate-elsewhere'));
+    await until('the call is on its way', () => held.count === 1);
+    window.Nitro.visit('/board');
+    await until('on another page meanwhile', () => showing(window, '/board'));
+    held.release();
+    await wait(500);
+
+    check('the visitor stays where they went', showing(window, '/board'), window.location.href);
+    window.close();
+});
+
+await scenario('an upload answered after its page was left', async () => {
+    const window = await open('/gallery');
+    const { document } = window;
+    const gallery = window.Nitro.components().find((component) => component.name === N('pages::gallery'));
+    /** Uploads go by XMLHttpRequest (it reports progress): held until let go. */
+    const held = [];
+    const send = window.XMLHttpRequest.prototype.send;
+    window.XMLHttpRequest.prototype.send = function (body) {
+        held.push(() => send.call(this, body));
+    };
+    const input = document.querySelector('input.photo');
+    Object.defineProperty(input, 'files', { configurable: true, value: [new window.File(['x'], 'late.txt', { type: 'text/plain' })] });
+    change(window, input);
+    await until('the upload is on its way', () => held.length === 1);
+
+    window.Nitro.visit('/board');
+    await until('on another page meanwhile', () => showing(window, '/board'));
+    held.splice(0).forEach((go) => go());
+    await wait(500);
+
+    check('the page shown is as it was', showing(window, '/board'));
+    check('nothing set in the component that left', gallery.destroyed && gallery.data.get(P_('photo')) === null, String(gallery.data.get(P_('photo'))));
+    window.close();
+});
+
+await scenario('two visits, the first answered last', async () => {
+    const window = await open('/counter');
+    const held = hold(window, (target) => target.pathname === '/board');
+
+    window.Nitro.visit('/board');
+    await until('the first visit is on its way', () => held.count === 1);
+    window.Nitro.visit('/greeting');
+    await until('the second arrives', () => showing(window, '/greeting'));
+    held.release();
+    await wait(400);
+
+    check('the page is the last one asked for', showing(window, '/greeting'), window.location.href);
+    window.history.back();
+    await until('back: the page before them', () => showing(window, '/counter'));
+    window.close();
+});
+
+await scenario('back while a visit is on its way', async () => {
+    const window = await open('/counter');
+    window.Nitro.visit('/greeting');
+    await until('visited', () => showing(window, '/greeting'));
+    const held = hold(window, (target) => target.pathname === '/board');
+
+    window.Nitro.visit('/board');
+    await until('the visit is on its way', () => held.count === 1);
+    window.history.back();
+    await until('back: the page before', () => showing(window, '/counter'));
+    held.release();
+    await wait(400);
+
+    check('the late answer does not take the page over', showing(window, '/counter'), window.location.href);
+    window.close();
+});
+
+await scenario('a script moves a component', async () => {
+    const window = await open('/embed');
+    const { document } = window;
+    const list = byName(document, 'todo-list');
+    /** As a modal library moves its content to the end of <body>. */
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    document.body.append(modal);
+    modal.append(list);
+
+    type(window, list.querySelector('input[type=text]'), 'Moved');
+    list.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await until('it renders where it now is', () => modal.querySelectorAll('li.todo').length === 3, 5000);
+    click(window, button(list, 'Save all'));
+    await wait(50);
+    await until('its #[Server] call answers', () => idle(window), 5000);
+    check('and it stays there, whole', list.parentNode === modal && modal.querySelectorAll('li.todo').length === 3, modal.innerHTML.slice(0, 300));
+    window.close();
+});
+
+await scenario('a script removes a component', async () => {
+    const window = await open('/embed');
+    const { document } = window;
+    const list = window.Nitro.components().find((component) => component.name === N('todo-list'));
+    /** What its view shows, rendered still into its element though that is off the page. */
+    const toggled = () => [...list.el.querySelectorAll('li.todo')].map((todo) => todo.classList.contains('done')).join(',');
+    const before = toggled();
+
+    /** As a script closing a dialog removes it. */
+    list.el.remove();
+    await wait(100);
+    window.Nitro.dispatch('todo-toggled', [1]);
+    await wait(100);
+
+    check('a component taken off the page is let go', list.destroyed === true && !window.Nitro.components().includes(list), `destroyed: ${list.destroyed}`);
+    check('so it no longer hears events', toggled() === before, `${before} -> ${toggled()}`);
+    window.close();
+});
+
+await scenario('what a component had running, when a script takes it out', async () => {
+    const window = await open('/clock');
+    const clock = byName(window.document, 'clock');
+    await until('it polls the server', () => Number(text(clock.querySelector('.synced'))) >= 1, 3000);
+    await until('no call on its way', () => idle(window));
+    const sent = requestsOf(window);
+    clock.remove();
+    await wait(700);
+    check('its polls stop: nothing asked of the server', sent.length === 0, sent.join(' '));
+    window.close();
+
+    const live = await open('/live');
+    const listening = () => [...live.echoChannels.values()].reduce((n, channel) => n + [...channel.listeners.values()].flat().length + channel.notifications.length, 0);
+    await until('it listens to its channels', () => listening() > 0);
+    byName(live.document, 'pages::live').remove();
+    await wait(100);
+    check('its broadcast listeners go with it', listening() === 0, String(listening()));
+    live.close();
+});
+
+await scenario('markup an extension adds inside a component', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const counter = document.querySelector('.counter');
+    /** As Grammarly and password managers add their elements and attributes. */
+    counter.insertBefore(document.createElement('grammarly-extension'), counter.querySelector('ul'));
+    counter.querySelector('input[type=number]').setAttribute('data-gramm', 'false');
+
+    for (let i = 0; i < 6; i++) click(window, button(counter, '+'));
+    await until('it renders as before', () => text(counter.querySelector('.count')) === '6' && text(counter.querySelector('strong')) === 'High!', 5000);
+    check('its lists too', counter.querySelectorAll('ul li').length === 6 && counter.querySelectorAll('input.entry').length === 6, counter.innerHTML.slice(0, 400));
+    check('one count, one heading', counter.querySelectorAll('.count').length === 1 && counter.querySelectorAll('strong').length === 1);
+    window.close();
+});
+
+/** The window's requests to the server: what a test can check went out, or not. */
+function requestsOf(window) {
+    const sent = [];
+    const fetch = window.fetch;
+    window.fetch = (input, init) => {
+        sent.push(new URL(input?.url ?? input, window.location.href).pathname);
+        return fetch(input, init);
+    };
+    return sent;
+}
+
+await scenario('#[Url] with history: back and forward step through it', async () => {
+    const window = await open('/tabs');
+    const { document } = window;
+    window.scrollTo = () => {};
+    const shown = () => text(document.querySelector('.shown'));
+    const at = (tab) => shown() === tab && (window.location.search === (tab === 'one' ? '' : `?tab=${tab}`));
+
+    click(window, document.querySelector('.tab-two'));
+    await until('a tab: its own entry', () => at('two'));
+    click(window, document.querySelector('.tab-three'));
+    await until('another', () => at('three'));
+    window.history.back();
+    await until('back: the tab before, shown', () => at('two'), 5000);
+    window.history.back();
+    await until('back again: the first', () => at('one'), 5000);
+    window.history.forward();
+    await until('forward', () => at('two'), 5000);
+    window.close();
+
+    /** The rest of the query is the page's or another script's: kept. */
+    const other = await open('/tabs?ref=mail');
+    click(other, other.document.querySelector('.tab-three'));
+    await until('the tab in the address', () => new other.URL(other.location.href).searchParams.get('tab') === 'three');
+    check('beside what was there', new other.URL(other.location.href).searchParams.get('ref') === 'mail', other.location.href);
+    other.close();
+});
+
+await scenario('the address changed by another script', async () => {
+    const window = await open('/counter?utm_source=mail');
+    const { document } = window;
+    const page = byName(document, 'pages::counter');
+    window.scrollTo = () => {};
+    /** As analytics does: the campaign parameters taken out of the address, in place. */
+    window.history.replaceState(window.history.state, '', '/counter');
+    const sent = requestsOf(window);
+    const part = document.createElement('h2');
+    part.id = 'later';
+    part.scrollIntoView = () => {};
+    document.body.append(part);
+    const link = document.createElement('a');
+    link.href = '#later';
+    document.body.append(link);
+
+    click(window, link);
+    await until('a link to a part', () => window.location.hash === '#later');
+    window.history.back();
+    await until('back', () => window.location.hash === '');
+    await wait(300);
+    check('back between parts of the page asks nothing', sent.length === 0, sent.join(' '));
+    check('the page is the one shown', byName(document, 'pages::counter') === page);
+    window.close();
+});
+
+await scenario('history entries another script makes', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const page = byName(document, 'pages::counter');
+    window.scrollTo = () => {};
+    const sent = requestsOf(window);
+    /** As a tabs library does: its own entry, with its own state, for the same page. */
+    const heard = [];
+    window.addEventListener('popstate', (event) => heard.push(event.state?.tab ?? null));
+    window.history.pushState({ tab: 2 }, '', '/counter?tab=2');
+
+    window.history.back();
+    await until('back to the entry before it', () => window.location.search === '' && heard.length === 1);
+    window.history.forward();
+    await until('and forward to it', () => window.location.search === '?tab=2' && heard.length === 2);
+    await wait(300);
+    check('its state is its own', heard[1] === 2, JSON.stringify(heard));
+    check('the page is the one shown, not asked for again', byName(document, 'pages::counter') === page && sent.length === 0, sent.join(' '));
+
+    /** Nitro writes its own keys beside the script's. */
+    window.dispatchEvent(new window.Event('scroll'));
+    await wait(250);
+    check('the script\'s state is kept beside Nitro\'s', window.history.state?.tab === 2, JSON.stringify(window.history.state));
+    window.history.replaceState('a string', '', window.location.href);
+    window.dispatchEvent(new window.Event('scroll'));
+    await wait(250);
+    check('a state that is not an object is left as it is', window.history.state === 'a string', JSON.stringify(window.history.state));
+    window.close();
+});
+
+await scenario('what a script adds to rendered elements', async () => {
+    /** Before Nitro starts, as a script at the end of <body> does. */
+    const window = await open('/counter', {
+        beforeParse(window) {
+            window.document.addEventListener('nitro:starting', () => {
+                const save = [...window.document.querySelectorAll('.counter button')].find((el) => el.textContent.trim() === 'Save');
+                save?.setAttribute('data-track', 'save');
+                save?.classList.add('tracked');
+            });
+        },
+    });
+    const { document } = window;
+    const counter = document.querySelector('.counter');
+    const save = button(counter, 'Save');
+    check('what a script added before Nitro started is kept', save.getAttribute('data-track') === 'save' && save.classList.contains('tracked'), save.outerHTML);
+    const count = counter.querySelector('.count');
+    /** As a tooltip library, a theme switcher and an analytics script do. */
+    count.classList.add('tipped');
+    count.setAttribute('data-tip', 'The count');
+    count.style.outline = '1px solid red';
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    count.after(badge);
+
+    click(window, button(counter, '+'));
+    click(window, button(counter, '+'));
+    await until('rendered again', () => text(count) === '2' && counter.querySelectorAll('ul li').length === 2);
+    const items = [...counter.querySelectorAll('ul li')];
+    items[0].classList.add('seen');
+    click(window, button(counter, '+'));
+    await until('and again: the last item moves on', () => counter.querySelectorAll('ul li').length === 3 && counter.querySelectorAll('ul li')[2].classList.contains('last'));
+
+    check('the element is the same one', counter.querySelector('.count') === count);
+    check('a class a script added stays', count.classList.contains('tipped') && count.classList.contains('count'), count.className);
+    check('an attribute a script added stays', count.getAttribute('data-tip') === 'The count');
+    check('a style a script set stays', count.style.outline === '1px solid red', count.getAttribute('style'));
+    check('a node a script added stays', badge.isConnected && badge.previousElementSibling === count, counter.innerHTML.slice(0, 300));
+    check('the view\'s own classes change beside a script\'s', items[0].classList.contains('seen') && !items[0].classList.contains('last') && items[1].classList.contains('even') && !items[1].classList.contains('last'), items.map((item) => item.className).join('|'));
+    window.close();
+});
+
+await scenario('a network that fails, a server error page, an expired session', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const counter = document.querySelector('.counter');
+    const save = button(counter, 'Save');
+    const errors = [];
+    window.addEventListener('nitro:error', (event) => errors.push(event.detail));
+    const expired = [];
+    window.addEventListener('nitro:expired', (event) => {
+        expired.push(event.detail);
+        event.preventDefault();
+    });
+    const serverFetch = window.fetch;
+    const answering = (answer) => {
+        window.fetch = (input, init) => (String(input?.url ?? input).includes('/update') ? answer() : serverFetch(input, init));
+    };
+    expectedErrors.push(new RegExp(`${M('save')}\\(\\): the server (could not be reached|answered (500|419))`));
+
+    answering(() => Promise.reject(new TypeError('Failed to fetch')));
+    click(window, save);
+    await until('a network failure is reported', () => errors.length === 1 && idle(window));
+    check('as one the server did not get', errors[0]?.status === 0, JSON.stringify(errors[0]));
+    check('the button is usable again', !save.hasAttribute('disabled'));
+
+    answering(async () => new Response('<h1>Server Error</h1>', { status: 500, headers: { 'Content-Type': 'text/html' } }));
+    click(window, save);
+    await until('an error page is reported', () => errors.length === 2 && idle(window));
+    check('with its status', errors[1]?.status === 500, JSON.stringify(errors[1]));
+    check('the page is as it was', document.querySelector('.counter') === counter && !save.hasAttribute('disabled'));
+
+    answering(async () => new Response('', { status: 419 }));
+    const runtime = window.Nitro;
+    click(window, save);
+    await until('an expired session is told to the page', () => expired.length === 1 && idle(window));
+    check('which can keep it from loading again', window.Nitro === runtime && window.location.pathname === '/counter');
+
+    window.fetch = serverFetch;
+    const saved = [];
+    window.addEventListener('counter-saved', (event) => saved.push(event.detail.params));
+    click(window, button(counter, '+'));
+    click(window, save);
+    await until('the next call works', () => saved.length === 1 && JSON.stringify(saved[0]) === '[1]', 5000);
     window.close();
 });
 

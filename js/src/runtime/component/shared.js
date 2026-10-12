@@ -5,6 +5,7 @@
  */
 import { globals } from '../../laravel/laravel.js';
 import * as P from '../../php.js';
+import { HOOK } from '../hooks.js';
 
 export class SharedData {
     constructor(runtime) {
@@ -80,7 +81,7 @@ export class SharedData {
 
     announceFlash(flash) {
         const data = P.decode(flash ?? []);
-        if (data instanceof Map && data.size > 0) this.runtime.emit('nitro:flash', { flash: plain(data) });
+        if (data instanceof Map && data.size > 0) this.runtime.hooks.announce(HOOK.flash, { flash: plain(data) });
     }
 }
 

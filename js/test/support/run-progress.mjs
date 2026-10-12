@@ -1,4 +1,4 @@
-// The progress bar through visits (stdin: {options, scenarios: {name: [[ms, event], ...]}}): the
+// The progress bar through visits (stdin: {options, scenarios: {name: [[ms, hook], ...]}}): the
 // real runtime/navigation/bar.js and progress.js in jsdom, the bar sampled every few ms. stdout: what went
 // wrong, by scenario: the bar going back while it is shown, a bar appearing part way (not from
 // its start), a bar left on the page; with a minimum duration, a bar gone sooner or before 100%.
@@ -9,7 +9,13 @@ const input = await readStdin();
 const dom = new JSDOM('<!DOCTYPE html><body></body>', { pretendToBeVisual: true });
 Object.assign(globalThis, { window: dom.window, document: dom.window.document });
 const { Progress } = await import('../../src/runtime/navigation/progress.js');
-const progress = new Progress(dom.window, input.options);
+/** The runtime as the bar sees it: its window, and its hooks (beforeNavigate, afterNavigate), announced by the steps. */
+const listeners = new Map();
+const runtime = {
+    window: dom.window,
+    hook: (name, listener) => listeners.set(name, [...(listeners.get(name) ?? []), listener]),
+};
+const progress = new Progress(runtime, input.options);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = {};
@@ -55,9 +61,9 @@ for (const [name, steps] of Object.entries(input.scenarios)) {
         }
         lastEl = el ?? null;
     }, 2);
-    for (const [ms, event] of steps) {
+    for (const [ms, hook] of steps) {
         await sleep(ms);
-        dom.window.dispatchEvent(new dom.window.Event(event));
+        for (const listener of listeners.get(hook) ?? []) listener({});
     }
     await sleep(1500);
     clearInterval(sample);

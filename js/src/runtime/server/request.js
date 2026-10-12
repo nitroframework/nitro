@@ -1,10 +1,11 @@
 /**
  * Every request the runtime sends to the server: a visit's page (and a prefetch), a reload of a
  * page's properties, a #[Server] call, an upload. The one place that sends (the guards keep it
- * so): Nitro's headers on each, the plugins' (Nitro.use(): on('request')) on each a component
+ * so): Nitro's headers on each, those beforeRequest's listeners add (hooks.js) on each a component
  * sends, and expired state (419) handled alike for a call and an upload.
  */
 import { session } from '../../laravel/blade.js';
+import { HOOK, REQUEST_KINDS } from '../hooks.js';
 import { HEADERS, PATHS, TIMING } from '../protocol.js';
 
 /** Nitro's headers when it asks a page for its data (a visit, a reload): a Nitro page answers with it, not its HTML. */
@@ -35,11 +36,13 @@ export function visit(runtime, url, data, id = null) {
     });
 }
 
-/** A reload of the page's properties (all of them when none are named), for the component that asks. */
+/** A reload of the page's properties (all of them when none are named), for the component that asks; null when a beforeRequest listener stopped it. */
 export function reload(runtime, component, href, only) {
-    /** Plugins hear it as a call of $reload, and may add headers; Nitro's own are set after theirs. */
+    /** beforeRequest's listeners hear it as $reload, and may add headers; Nitro's own are set after theirs. */
+    const theirs = runtime.hooks.beforeRequest(component, '$reload', REQUEST_KINDS.reload);
+    if (theirs === null) return null;
     const headers = {
-        ...runtime.plugins.request(component, '$reload', {}),
+        ...theirs,
         ...pageHeaders(runtime),
         [HEADERS.partial]: component.id,
     };
@@ -49,11 +52,11 @@ export function reload(runtime, component, href, only) {
 
 /**
  * The component's state is no longer good (another session, an expired lifetime, a logout, a new
- * APP_KEY): the page loads again, with fresh state. A nitro:expired listener can preventDefault()
- * to do something else.
+ * APP_KEY): the page loads again, with fresh state. An expired listener can preventDefault() to do
+ * something else.
  */
 function expired(runtime, component, status) {
-    if (status === 419 && runtime.emit('nitro:expired', { component: component.name, status: 419 }, true)) runtime.window.location.reload();
+    if (status === 419 && runtime.hooks.announce(HOOK.expired, { component, status: 419 })) runtime.window.location.reload();
 }
 
 /**
@@ -72,10 +75,11 @@ export function timingOf(runtime, response, started, text = null) {
     return timing;
 }
 
-/** A #[Server] call (method null: $refresh) with its body. */
+/** A #[Server] call (method null: $refresh) with its body; null when a beforeRequest listener stopped it. */
 export async function call(runtime, component, method, body) {
-    /** Plugins may add headers (Nitro.use(): on('request')); Nitro's own are set after theirs. */
-    const headers = runtime.plugins.request(component, method, {});
+    /** beforeRequest's listeners may add headers; Nitro's own are set after theirs. */
+    const headers = runtime.hooks.beforeRequest(component, method, REQUEST_KINDS.call);
+    if (headers === null) return null;
     const response = await runtime.window.fetch(`${runtime.config.endpoint}/${PATHS.update}`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -93,21 +97,28 @@ export async function call(runtime, component, method, body) {
 
 /**
  * An upload for the component (XMLHttpRequest, which reports upload progress; fetch() does not):
- * progress(0-100) as it goes, done(status, text) when it ends (status 0: the server could not be
- * reached). Plugins hear it as a call of $upload, and may add headers.
+ * progress(0-100) as it goes, done(status, text, cancelled) when it ends (status 0: the server could
+ * not be reached, or, cancelled, a beforeRequest listener stopped it). beforeRequest's listeners
+ * hear it as $upload, and may add headers.
  */
 export function sendFiles(runtime, component, form, progress, done) {
-    const request = new runtime.window.XMLHttpRequest();
     const started = runtime.window.performance.now();
+    const theirs = runtime.hooks.beforeRequest(component, '$upload', REQUEST_KINDS.upload);
+    if (theirs === null) {
+        runtime.hooks.afterRequest(component, '$upload', REQUEST_KINDS.upload, 0, { cancelled: true });
+        done(0, '', true);
+        return;
+    }
+    const request = new runtime.window.XMLHttpRequest();
     request.open('POST', `${runtime.config.endpoint}/${PATHS.upload}`, true);
-    const headers = { ...runtime.plugins.request(component, '$upload', {}), ...endpointHeaders(runtime) };
+    const headers = { ...theirs, ...endpointHeaders(runtime) };
     for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
     request.upload.onprogress = (e) => {
         if (e.lengthComputable) progress(Math.round((e.loaded * 100) / e.total));
     };
     const end = (status, text) => {
         const answer = status === 0 ? null : { headers: { get: (name) => request.getResponseHeader(name) } };
-        runtime.plugins.response(component, '$upload', status, timingOf(runtime, answer, started, typeof text === 'string' ? text : null));
+        runtime.hooks.afterRequest(component, '$upload', REQUEST_KINDS.upload, status, timingOf(runtime, answer, started, typeof text === 'string' ? text : null));
         expired(runtime, component, status);
         done(status, text);
     };

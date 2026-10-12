@@ -7,6 +7,7 @@ import * as P from '../../php.js';
 import { HEADERS, SIGNALS } from '../protocol.js';
 import { fingerprintsField } from '../component/snapshot.js';
 import { webUrl } from '../navigation/addresses.js';
+import { REQUEST_KINDS } from '../hooks.js';
 import { applyEffects } from './effects.js';
 import { call, reload, timingOf } from './request.js';
 
@@ -60,9 +61,10 @@ export class Network {
             throw new ServerCallError('$reload: the server could not be reached', 0, String(error?.message ?? error));
         } finally {
             if (!deferred) this.runtime.loading(component, '$reload', false);
-            this.runtime.plugins.response(component, '$reload', response?.status ?? 0, timingOf(this.runtime, response, started));
+            this.runtime.hooks.afterRequest(component, '$reload', REQUEST_KINDS.reload, response?.status ?? 0, { ...timingOf(this.runtime, response, started), cancelled: response === null });
         }
-        if (component.destroyed) return;
+        /** A beforeRequest listener stopped it: nothing was sent. */
+        if (response === null || component.destroyed) return;
 
         /** Deployed since the page loaded: load it in full, with the new components. */
         if (response.status === 409) {
@@ -118,21 +120,35 @@ export class Network {
         };
 
         this.runtime.loading(component, method, true);
-        this.runtime.emit('nitro:request', { component: component.name, method });
         const started = this.runtime.window.performance.now();
         let response;
         try {
             response = await call(this.runtime, component, method, body);
         } catch (error) {
-            throw new ServerCallError(`${method ?? '$refresh'}(): the server could not be reached`, 0, String(error?.message ?? error));
-        } finally {
             this.runtime.loading(component, method, false);
-            this.runtime.emit('nitro:response', { component: component.name, method, status: response?.status ?? 0 });
-            if (!response) this.runtime.plugins.response(component, method, 0, timingOf(this.runtime, response, started));
+            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, 0, timingOf(this.runtime, null, started));
+            throw new ServerCallError(`${method ?? '$refresh'}(): the server could not be reached`, 0, String(error?.message ?? error));
+        }
+        this.runtime.loading(component, method, false);
+
+        /** A beforeRequest listener stopped it: nothing was sent, what changed here stays for the next call. */
+        if (response === null) {
+            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, 0, { ...timingOf(this.runtime, null, started), cancelled: true });
+            return null;
         }
 
-        const text = await response.text();
-        this.runtime.plugins.response(component, method, response.status, timingOf(this.runtime, response, started, text));
+        /** afterRequest once the answer is read, whatever happens reading it: each beforeRequest has its after. */
+        let text = '';
+        try {
+            text = await response.text();
+        } finally {
+            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, response.status, timingOf(this.runtime, response, started, text));
+        }
+        /**
+         * It left the page meanwhile (a visit, its view, a script): the answer is for a page no
+         * longer shown, its state and its effects (a redirect, events) too (ARCHITECTURE.md, "What Nitro shares").
+         */
+        if (component.destroyed && !leaving) return null;
         if (!response.ok) {
             /** With fallbacks on, a call that failed answers with the component's fallback: it shows in its place. */
             const fallback = fallbackIn(text);

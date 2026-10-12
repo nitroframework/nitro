@@ -1,8 +1,9 @@
 /**
  * The overlay: a badge in a corner, and a drawer with a tab for each thing it shows. Everything
- * lives in a shadow root (the page's CSS and its own never meet) and is kept as it comes (the
- * plugin's events, nitro:error); what the open tab shows is rendered again when it changes.
+ * lives in a shadow root (the page's CSS and its own never meet) and is kept as it comes (its
+ * plugin's hooks); what the open tab shows is rendered again when it changes.
  */
+import { HOOK } from '../runtime/hooks.js';
 import { pageDataSizes } from '../runtime/page-data.js';
 import { ATTRIBUTES, selector } from '../runtime/protocol.js';
 import { STYLE } from './style.js';
@@ -27,23 +28,23 @@ export class Overlay {
 
     install() {
         this.nitro.use(({ on }) => {
-            on('component', () => this.changed());
-            on('render', () => this.changed('Components'));
-            on('store', (store) => {
+            on(HOOK.componentInitialized, () => this.changed());
+            on(HOOK.componentRendered, () => this.changed('Components'));
+            on(HOOK.storeInitialized, (store) => {
                 this.stores.set(store.name, store);
                 store.onChange(() => this.changed('Stores'));
                 this.changed('Stores');
             });
-            on('response', (response) => {
+            on(HOOK.afterRequest, (response) => {
                 this.requests.unshift({ at: new Date(), ...response, component: response.component?.name ?? null });
                 this.requests.length = Math.min(this.requests.length, KEEP);
                 this.changed('Requests');
             });
-        });
-        this.window.addEventListener('nitro:error', (event) => {
-            this.errors.unshift({ at: new Date(), ...event.detail });
-            this.errors.length = Math.min(this.errors.length, KEEP);
-            this.changed('Errors');
+            on(HOOK.error, (error) => {
+                this.errors.unshift({ at: new Date(), ...error, component: error.component?.name ?? null });
+                this.errors.length = Math.min(this.errors.length, KEEP);
+                this.changed('Errors');
+            });
         });
 
         const host = this.document.createElement('nitro-devtools');

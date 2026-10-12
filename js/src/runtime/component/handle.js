@@ -131,8 +131,10 @@ export function handleOf(runtime, definition, $this, id) {
             const [browser, keys] = property(path);
             const current = valueAt(browser, keys);
             const owner = component();
-            if (!owner) return Promise.reject(new Error('Nitro: the component has left the page'));
+            const left = () => new Error('Nitro: the component has left the page');
+            if (!owner) return Promise.reject(left());
             return send(runtime, owner, [browser, ...keys].join('.'), Array.from(files ?? []), { multiple: P.isArray(current), progress }).then((result) => {
+                if (result.left) throw left();
                 if (result.failed) throw new Error(`Nitro: uploading ${path}: ${result.message}`);
                 if (result.refused) return null;
                 return toPlain(valueAt(browser, keys));

@@ -10,6 +10,7 @@
 import * as P from '../../php.js';
 import { RUNTIME_ATTRIBUTES } from '../view/attributes.js';
 import { componentHook, propertyHooks } from './hooks.js';
+import { HOOK } from '../hooks.js';
 import { ATTRIBUTES, SIGNALS } from '../protocol.js';
 import { defaultsOf, keepEnvelope, readState, reloadInto, sameValue, snapshotInto, updatesOf } from './snapshot.js';
 import { contextOf, enumCase } from './context.js';
@@ -76,6 +77,7 @@ export class Component {
             this.runtime.stores.named(store).subscribe(this, property);
         }
         this.view = this.createView();
+        this.runtime.hooks.announceTarget(HOOK.componentInit, this);
     }
 
     /** What a render reports back: handlers, children, nodes it puts in the page and takes out. */
@@ -493,5 +495,6 @@ export class Component {
             }
         }
         this.view.dispose();
+        this.runtime.hooks.announceTarget(HOOK.componentDestroyed, this);
     }
 }

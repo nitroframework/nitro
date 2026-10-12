@@ -4,10 +4,12 @@
  * change (the server checks it on their next call); a tab does not echo back what it was sent.
  * A tab opened later starts from the server's state (with #[Persist] too: from the kept values).
  *
- * A plugin, built on the plugin API only (runtime/plugins.js).
+ * A plugin, built on the plugin API only (runtime/plugins.js), naming its hook by the hooks' names.
  */
+import { HOOK } from '../runtime/hooks.js';
+
 export function sync({ on }) {
-    on('store', (store) => {
+    on(HOOK.storeInitialized, (store) => {
         if (store.sync.length === 0 || typeof window.BroadcastChannel !== 'function') return;
         const channel = new window.BroadcastChannel(`nitro:sync:${store.name}`);
         const values = () => JSON.stringify(Object.fromEntries(store.sync.map((property) => [property, store.get(property)])));

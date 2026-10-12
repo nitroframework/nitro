@@ -10,8 +10,8 @@
  * message, as validate() would.
  *
  *   upload()   nitro:model on a file input: its files, and on the input nitro-upload-start,
- *              nitro-upload-progress ({progress: 0-100}), nitro-upload-finish and
- *              nitro-upload-error ({status, message})
+ *              nitro-upload-progress ({progress: 0-100}), nitro-upload-finish,
+ *              nitro-upload-error ({status, message}) and nitro-upload-cancel
  *   send()     the files given, with callbacks: what a JavaScript view's upload() uses
  *              (runtime/view/script.js)
  */
@@ -30,15 +30,17 @@ export function upload(runtime, component, el, path) {
         progress: (progress) => fire('nitro-upload-progress', { progress }),
         finish: () => fire('nitro-upload-finish'),
         error: (status, message) => fire('nitro-upload-error', { status, message }),
+        cancel: () => fire('nitro-upload-cancel'),
     });
 }
 
 /**
  * Upload files into a property. Resolves with how it went: { ok: true }, { refused: true } (the
- * server's rules turned them down: the property's $errors say why) or { failed: true, status,
- * message } (the request itself failed).
+ * server's rules turned them down: the property's $errors say why), { failed: true, status,
+ * message } (the request itself failed), { cancelled: true } (a beforeRequest listener stopped it)
+ * or { left: true } (the component left the page first).
  *
- * @param {object} on   multiple (a list property), and start(), progress(0-100), finish(), error(status, message)
+ * @param {object} on   multiple (a list property), and start(), progress(0-100), finish(), error(status, message), cancel()
  */
 export function send(runtime, component, path, files, on = {}) {
     const root = String(path).split('.')[0];
@@ -57,8 +59,19 @@ export function send(runtime, component, path, files, on = {}) {
     on.start?.();
 
     return new Promise((resolve) => {
-        const done = (status, text) => {
+        const done = (status, text, cancelled = false) => {
             runtime.loading(component, root, false);
+            /** It left the page meanwhile: nothing is set or reported (ARCHITECTURE.md, "What Nitro shares"). */
+            if (component.destroyed) {
+                resolve({ left: true });
+                return;
+            }
+            /** A beforeRequest listener stopped it: nothing sent, nothing set. */
+            if (cancelled) {
+                on.cancel?.();
+                resolve({ cancelled: true });
+                return;
+            }
             let answer = null;
             try {
                 answer = JSON.parse(text);

@@ -25,6 +25,7 @@ return [
     'static' => $language, 'strval' => $language, 'trim' => $language, 'json' => $language, 'php' => $language,
     'mixed' => $language,
     'echo' => $generic.': Laravel Echo, a Blade echo token, a broadcast prefix',
+    'call' => $generic.': an update body\'s field (UpdateController, InteractsWithNitro); a request\'s kind (runtime/hooks.js REQUEST_KINDS)',
     '::' => $generic.': PHP\'s Class::member in the compiler; a namespace\'s end in a name (Support/Naming::SEPARATOR)',
 
     'Content-Type' => $web, 'POST' => $web, 'application/json' => $web, 'UTF-8' => $web, 'sha256' => $web.' (the hash algorithm)',
@@ -32,7 +33,7 @@ return [
     'html' => $web, 'class' => $web, 'id' => $web, 'value' => $web, 'name' => $web, 'type' => $web,
     'click' => $web, 'change' => $web, 'blur' => $web, 'focusin' => $web,
 
-    './core.js' => 'a module import', '../php.js' => 'a module import',
+    './core.js' => 'a module import', '../php.js' => 'a module import', '../runtime/hooks.js' => 'a module import',
 
     'default' => $generic, 'data' => $generic, 'key' => $generic, 'path' => $generic, 'url' => $generic, 'uri' => $generic,
     'request' => $generic, 'component' => $generic, 'store' => $generic, 'attributes' => $generic, 'files' => $generic,

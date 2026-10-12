@@ -7,6 +7,7 @@ import * as P from './php.js';
 import * as B from './laravel/blade.js';
 import { Progress } from './runtime/navigation/progress.js';
 import { Runtime } from './runtime/runtime.js';
+import { HOOK } from './runtime/hooks.js';
 import { configOf, globalsOf, readStates } from './runtime/page-data.js';
 import { persist } from './plugins/persist.js';
 import { sync } from './plugins/sync.js';
@@ -28,7 +29,7 @@ readStates(document);
 const Nitro = new Runtime(window, config);
 Nitro.P = P;
 Nitro.B = B;
-Nitro.progress = new Progress(window, config.progress);
+Nitro.progress = new Progress(Nitro, config.progress);
 window.Nitro = Nitro;
 
 /** Nitro's own plugins: #[Persist] and #[Sync] on stores. */
@@ -44,9 +45,10 @@ let started = false;
 const start = () => {
     if (!started) {
         started = true;
-        /** Scripts that ran before the runtime register their Nitro.directive()s now, before any component starts. */
-        document.dispatchEvent(new CustomEvent('nitro:starting', { detail: { Nitro } }));
-        Nitro.start();
+        /** init: scripts that ran before the runtime register their directives, engines and plugins now, before any component starts. */
+        Nitro.hooks.announce(HOOK.init, { Nitro });
+        /** initialized: the page's components all live (not when it loads again for another build). */
+        Nitro.start().then(() => Nitro.reloading || Nitro.hooks.announce(HOOK.initialized, { Nitro }));
     }
 };
 

@@ -32,8 +32,9 @@
  * nitro:current="active" on a link adds the class while the link points at the current page
  * (nitro:current.exact: the same path only).
  *
- * A link to a part of the current page (#hash), nitro:navigate or not, and back and forward
- * between parts of it only scroll: the page is not asked for again (pageOf()).
+ * A link to a part of the current page (#hash) and back and forward between its parts only scroll.
+ * Each history entry records the page it was shown for (nitroPage, beside any other script's
+ * state): back and forward visit only an entry of another page, whatever changed the address.
  *
  * The scroll position is kept in each history entry: back and forward restore it, and
  * nitro:navigate.preserve-scroll keeps the current one (filters, tabs). Each visit sends the
@@ -46,6 +47,7 @@
  * #[Url] properties are kept in the query string (syncUrl()); the server reads them back when it
  * renders the page, so a reload, a shared link and back/forward show the same state.
  */
+import { HOOK, REQUEST_KINDS } from '../hooks.js';
 import { ATTRIBUTES, selector } from '../protocol.js';
 import { appendQuery, omitted, pageOf, webUrl } from './addresses.js';
 import { PageCache } from './pages.js';
@@ -63,8 +65,9 @@ export class Navigator {
         this.document = window.document;
         this.swap = new Swap(runtime, window);
         this.visiting = null;
-        /** The page shown (pageOf()): kept as visits and #[Url] change the address. */
-        this.shown = pageOf(window.location.href);
+        /** The page shown: the id its history entries record (nitroPage; see above). */
+        this.page = newPageId();
+        this.stamp();
         /** The link a press already started a visit for, until its click has come and gone. */
         this.pressed = null;
 
@@ -76,16 +79,15 @@ export class Navigator {
         this.pages = new PageCache();
         /** Pages asked for ahead of the click: into this.pages (prefetch.js). */
         this.prefetcher = new Prefetcher(this);
-        window.addEventListener('nitro:request', () => this.pages.clear());
+        runtime.hook(HOOK.beforeRequest, ({ kind }) => kind === REQUEST_KINDS.call && this.pages.clear());
         window.addEventListener('popstate', (e) => {
             /** The entry left is no longer the current one: a #[Remember] save waiting to retry would land on this one. */
             window.clearTimeout(this.rememberTimer);
-            /**
-             * Only the #hash changed (a link to a part of this page, back or forward between two):
-             * the same page, scrolled to where that entry was, or to the part it names.
-             */
-            if (pageOf(window.location.href) === this.shown) {
-                const scroll = e.state?.nitroScroll;
+            /** An entry of this page (#part), or another script's made on it: scrolled to where it was, or to its part. */
+            const page = pageIdOf(e.state);
+            if (page === null || page === this.page) {
+                if (page === null) this.stamp();
+                const scroll = withNitro(e.state, {})?.nitroScroll;
                 scroll ? window.scrollTo(scroll.x, scroll.y) : this.scroll(new URL(window.location.href));
                 return;
             }
@@ -154,8 +156,8 @@ export class Navigator {
     saveRemembered() {
         this.window.clearTimeout(this.rememberTimer);
         const remembered = rememberedOf(this.runtime);
-        const state = { ...(this.window.history.state ?? {}) };
-        if (remembered === null && !state.nitroRemember) return;
+        const state = withNitro(this.window.history.state, {});
+        if (state === null || (remembered === null && !state.nitroRemember)) return;
         remembered === null ? delete state.nitroRemember : (state.nitroRemember = remembered);
         try {
             this.window.history.replaceState(state, '', this.window.location.href);
@@ -167,7 +169,8 @@ export class Navigator {
 
     /** The current scroll position, kept in the current history entry. */
     rememberScroll() {
-        const state = { ...(this.window.history.state ?? {}), nitroScroll: { x: this.window.scrollX, y: this.window.scrollY } };
+        const state = withNitro(this.window.history.state, { nitroScroll: { x: this.window.scrollX, y: this.window.scrollY } });
+        if (state === null) return;
         try {
             this.window.history.replaceState(state, '', this.window.location.href);
         } catch {
@@ -190,8 +193,12 @@ export class Navigator {
         /** The page Nitro renders into; none on a page that is not Nitro's (its HTML comes then). */
         let current = this.document.querySelector(selector('page'));
 
+        /** A visit from a link or Nitro.visit() can be stopped; back and forward cannot (the address has moved). */
+        if (!this.runtime.hooks.announce(HOOK.beforeNavigate, { url: url.href, cancelable: push })) {
+            this.runtime.hooks.announce(HOOK.afterNavigate, { url: url.href, cancelled: true });
+            return;
+        }
         const visit = (this.visiting = {});
-        this.runtime.emit('nitro:navigating', { url: url.href });
         /** A #[LazyLoad] page's chunk loads while its data does. */
         this.runtime.preload(url.pathname);
 
@@ -203,7 +210,7 @@ export class Navigator {
         if (early) current = early.el;
         /** The history entry is pushed once: by the early render, or when the page arrives. */
         const go = (target) => {
-            if (early) this.window.history.replaceState(this.window.history.state ?? {}, '', target.href);
+            if (early) this.window.history.replaceState(this.window.history.state, '', target.href);
             else if (push) this.leave(target);
         };
 
@@ -340,10 +347,11 @@ export class Navigator {
         if (push) {
             this.saveRemembered();
             this.rememberScroll();
+            this.stamp();
         }
         const early = await this.transition(options, () => this.runtime.pageMount.renderEarly(current, name, definition, props));
         if (!early) return null;
-        if (push) this.window.history.pushState({}, '', url.href);
+        if (push) this.push(url.href);
         else restoreRemembered(this.runtime, this.window.history.state?.nitroRemember);
         /** A client page's title and head, as the server would have sent them (worked out at build time). */
         if (definition.client) {
@@ -390,19 +398,39 @@ export class Navigator {
     leave(target) {
         this.saveRemembered();
         this.rememberScroll();
-        this.window.history.pushState({}, '', target.href);
+        this.stamp();
+        this.push(target.href);
+    }
+
+    /** A new entry for a new page shown (a visit, or #[Url] with history): its own id. */
+    push(href, state = null) {
+        this.page = newPageId();
+        this.window.history.pushState(withNitro(state, { nitroPage: this.page }) ?? { nitroPage: this.page }, '', href);
+    }
+
+    /** The current entry is the page shown's: its id, beside whatever else is in its state. */
+    stamp() {
+        const state = withNitro(this.window.history.state, { nitroPage: this.page });
+        if (state === null || this.window.history.state?.nitroPage === this.page) return;
+        try {
+            this.window.history.replaceState(state, '', this.window.location.href);
+        } catch {
+            // too many history updates (Safari's limit): the next write marks it
+        }
     }
 
     /** On the new page: the remembered scroll position, the current one kept, or the #hash or the top. */
     arrive(target, options) {
-        this.shown = pageOf(this.window.location.href);
+        /** Back or forward: the entry's page, shown again. */
+        this.page = pageIdOf(this.window.history.state) ?? this.page;
+        this.stamp();
         if (options.scroll) {
             this.window.scrollTo(options.scroll.x, options.scroll.y);
         } else if (!options.preserveScroll) {
             this.scroll(target);
         }
         this.current();
-        this.runtime.emit('nitro:navigated', { url: this.window.location.href });
+        this.runtime.hooks.announce(HOOK.afterNavigate, { url: this.window.location.href, cancelled: false });
     }
 
     /** To the #hash's element, or the top. */
@@ -435,8 +463,9 @@ export class Navigator {
             if (prop.url.history) push = true;
         }
         if (url.href === this.window.location.href) return;
-        this.window.history[push ? 'pushState' : 'replaceState'](this.window.history.state ?? {}, '', url.href);
-        this.shown = pageOf(url.href);
+        /** With history: an entry back and forward visit, as they visit a page. */
+        if (push) this.push(url.href, this.window.history.state);
+        else this.window.history.replaceState(this.window.history.state, '', url.href);
     }
 
     /** nitro:current: mark the links pointing at this page. */
@@ -452,6 +481,17 @@ export class Navigator {
         }
     }
 }
+
+const newPageId = () => Math.random().toString(36).slice(2, 12);
+
+/** A history state with Nitro's keys beside another script's; null for one that is not an object (left as it is). */
+function withNitro(state, keys) {
+    if (state !== null && state !== undefined && (typeof state !== 'object' || Array.isArray(state))) return null;
+    return { ...(state ?? {}), ...keys };
+}
+
+/** The page an entry was shown for; null for an entry Nitro has not marked. */
+const pageIdOf = (state) => (typeof withNitro(state, {})?.nitroPage === 'string' ? state.nitroPage : null);
 
 /** A nitro:navigate link's modifiers (keypress, preserve-scroll, transition); null for another link. */
 function navigateModifiers(link) {
