@@ -138,11 +138,10 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         childScope.untracked = true;
     }
 
-    const root = rootEl !== null;
-    renderAttributeValue(instance, node, element, scope, root, hydrate && !created);
+    renderAttributeValue(instance, node, element, scope);
     const codes = attributeCodes(node);
     if (codes.length && !ignored) {
-        track(instance, codes, scope, () => renderAttributeValue(instance, node, element, scope, root, false));
+        track(instance, codes, scope, () => renderAttributeValue(instance, node, element, scope));
     }
 
     /** Nitro: nitro:<event> handlers, made with the variables the element renders with. */

@@ -37,32 +37,49 @@ export function attributeValues(instance, node, scope) {
     return values;
 }
 
-/** Make the element's attributes these; hydrating, remove the others (Viewi's toRemove). */
-export function renderAttributeValue(instance, node, element, scope, root, removeOthers) {
+/**
+ * Make the element's attributes the view's, changing only what the view changed since its last
+ * render of it (ARCHITECTURE.md, "What Nitro shares"): an attribute a script added, or one whose
+ * value in the view is as before, is left as it is; class by its tokens, so a script's classes stay
+ * beside the view's. The element's first render here (made here, or the server's, hydrated) sets
+ * what the view has and removes nothing.
+ */
+export function renderAttributeValue(instance, node, element, scope) {
     if (scope.disposed) {
         return;
     }
     const values = attributeValues(instance, node, scope);
+    const before = element._attributes;
 
-    if (removeOthers) {
-        for (const name of element.getAttributeNames()) {
-            if (values.has(name) || name.startsWith('data-nitro-') || (root && RUNTIME_ATTRIBUTES.has(name))) continue;
-            element.removeAttribute(name);
-        }
-    } else {
-        /** Those it has no longer (@disabled turned false). */
-        for (const attribute of node.a ?? []) {
-            if (!values.has(attribute.c) && element.hasAttribute(attribute.c)) element.removeAttribute(attribute.c);
-        }
+    /** Those it has no longer (@disabled turned false). */
+    for (const [name, value] of before ?? []) {
+        if (values.has(name)) continue;
+        if (name === 'class') renderClasses(element, value, '');
+        else element.removeAttribute(name);
     }
 
     for (const [attrName, valueContent] of values) {
-        if (valueContent === element.getAttribute(attrName)) continue;
-        if (attrName.startsWith('xlink:')) element.setAttributeNS(XLINK, attrName, valueContent);
+        const was = before?.get(attrName);
+        if (was === valueContent) continue;
+        if (attrName === 'class' && element.hasAttribute('class')) renderClasses(element, was ?? null, valueContent);
+        else if (valueContent === element.getAttribute(attrName)) continue;
+        else if (attrName.startsWith('xlink:')) element.setAttributeNS(XLINK, attrName, valueContent);
         else element.setAttribute(attrName, valueContent);
     }
+    element._attributes = values;
 
     syncFormState(element);
+}
+
+/**
+ * The view's classes as it renders them (was: its classes before, null for none), then any others
+ * the element has, a script's: the view's string exactly when there are none.
+ */
+function renderClasses(element, was, now) {
+    const own = new Set([...(was ?? '').split(/\s+/), ...now.split(/\s+/)]);
+    const theirs = [...element.classList].filter((token) => !own.has(token));
+    const value = theirs.length === 0 ? now : [now.trim(), ...theirs].filter(Boolean).join(' ');
+    if (value !== element.getAttribute('class')) element.setAttribute('class', value);
 }
 
 function syncFormState(el) {
