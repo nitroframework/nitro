@@ -179,6 +179,31 @@ class NitroServiceProvider extends ServiceProvider
             $app->make('router'),
             $app->make('config')->get('nitro.persistent_middleware'),
         ));
+
+        $this->routeMacro();
+    }
+
+    /**
+     * Route::nitro('/posts/{post}', Pages\Posts\Show::class), or 'pages::posts.show': a page;
+     * mount() is the action, so its parameters bind like a controller's. Defined when Nitro is
+     * registered, so a provider that boots before Nitro's can route pages in its boot().
+     */
+    private function routeMacro(): void
+    {
+        Router::macro('nitro', function (string $uri, string $page) {
+            $registry = app(Registry::class);
+            $class = class_exists($page) ? ltrim($page, '\\') : ($registry->class($page) ?? throw new InvalidArgumentException("Route::nitro(): there is no page [{$page}]."));
+
+            if ($registry->isStoreClass($class)) {
+                throw new InvalidArgumentException("Route::nitro() routes pages: {$class} is a store, which components use through a property of its type.");
+            }
+
+            if (! $registry->isPageClass($class)) {
+                throw new InvalidArgumentException("Route::nitro() routes pages: {$class} is a component. Pages live in the pages namespace (nitro.pages); components are placed in views with <nitro:...>.");
+            }
+
+            return Route::get($uri, method_exists($class, ComponentHooks::MOUNT) ? [$class, ComponentHooks::MOUNT] : [$class, 'callAction']);
+        });
     }
 
     /**
@@ -253,25 +278,6 @@ class NitroServiceProvider extends ServiceProvider
         $this->testing();
 
         $this->webMiddleware();
-
-        /**
-         * Route::nitro('/posts/{post}', Pages\Posts\Show::class), or 'pages::posts.show':
-         * a page; mount() is the action, so its parameters bind like a controller's.
-         */
-        Router::macro('nitro', function (string $uri, string $page) {
-            $registry = app(Registry::class);
-            $class = class_exists($page) ? ltrim($page, '\\') : ($registry->class($page) ?? throw new InvalidArgumentException("Route::nitro(): there is no page [{$page}]."));
-
-            if ($registry->isStoreClass($class)) {
-                throw new InvalidArgumentException("Route::nitro() routes pages: {$class} is a store, which components use through a property of its type.");
-            }
-
-            if (! $registry->isPageClass($class)) {
-                throw new InvalidArgumentException("Route::nitro() routes pages: {$class} is a component. Pages live in the pages namespace (nitro.pages); components are placed in views with <nitro:...>.");
-            }
-
-            return Route::get($uri, method_exists($class, ComponentHooks::MOUNT) ? [$class, ComponentHooks::MOUNT] : [$class, 'callAction']);
-        });
 
         if ($this->app->runningInConsole()) {
             /** nitro:build is its own step (as `vite build` is), not part of `optimize`. */
