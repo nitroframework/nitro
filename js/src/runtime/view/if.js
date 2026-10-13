@@ -3,7 +3,7 @@
  * whether it is the one that shows changes; while it stays, its own bindings keep it current.
  * Nitro's @error is a branch too: its $message follows the messages.
  */
-import { removeBefore } from './anchor.js';
+import { inPlace, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { render } from './render.js';
 import { createScope, dispose } from './scope.js';
@@ -37,7 +37,7 @@ export function renderIf(instance, node, scopeContainer, ifConditions, index) {
         nextValue = nextValue && !ifConditions.values[i];
     }
     const scope = scopeContainer.scope.parent;
-    if (!scope || scope.disposed) {
+    if (!scope || scope.disposed || !inPlace(scopeContainer.anchorNode)) {
         return;
     }
     let args = scope.arguments;

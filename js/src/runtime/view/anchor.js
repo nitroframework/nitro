@@ -28,14 +28,32 @@ export function createAnchorNode(instance, target, insert = false, anchor = unde
     if (anchor) {
         anchor.current++;
     }
+    if (insert && !anchor && !target.parentNode) {
+        return anchorNode;
+    }
     (insert || (anchor && target.childNodes.length > anchor.current))
         ? (anchor ? target : target.parentNode).insertBefore(anchorNode, anchor ? target.childNodes[anchor.current] : target)
         : target.appendChild(anchorNode);
     return anchorNode;
 }
 
+/**
+ * Nitro: whether a block is still where it was rendered: its end anchor in an element, with its
+ * begin anchor before it. A script that took the element over (its innerHTML replaced) took the
+ * block's place with it; the block is then left to that script, not rendered, nor removed.
+ */
+export function inPlace(anchorNode) {
+    if (!anchorNode?.parentNode) return false;
+    for (let node = anchorNode.previousSibling; node; node = node.previousSibling) {
+        if (node._anchor === anchorNode._anchor) return true;
+    }
+    return false;
+}
+
 /** The nodes between a block's begin anchor and its end anchor, removed (Viewi's remove loops). */
 export function removeBefore(instance, anchorNode) {
+    /** Nitro: without its begin anchor, walking back would remove what is not the block's. */
+    if (!inPlace(anchorNode)) return;
     /** Gathered first: a node that leaves animated stays in the page meanwhile. */
     const nodes = [];
     for (let node = anchorNode.previousSibling; node && node._anchor !== anchorNode._anchor; node = node.previousSibling) {
@@ -59,7 +77,8 @@ export function removeNode(instance, node) {
     node.remove();
 }
 
-/** Where a node goes: before the target (insert) or at its end. */
+/** Where a node goes: before the target (insert) or at its end; nowhere when the target left the page's tree. */
 export function append(target, node, insert) {
+    if (insert && !target.parentNode) return node;
     return insert ? target.parentNode.insertBefore(node, target) : target.appendChild(node);
 }

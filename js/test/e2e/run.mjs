@@ -3157,6 +3157,28 @@ await scenario('markup an extension adds inside a component', async () => {
     window.close();
 });
 
+await scenario('a script replaces what a component rendered', async () => {
+    const window = await open('/counter');
+    const { document } = window;
+    const counter = document.querySelector('.counter');
+    click(window, button(counter, '+'));
+    await until('one item', () => counter.querySelectorAll('ul li').length === 1);
+
+    /** As a picker, an editor or a chart library takes over an element: its inside, Nitro's blocks' bounds with it. */
+    const list = counter.querySelector('ul');
+    list.innerHTML = '<li class="mine">mine</li>';
+    const raw = counter.querySelector('.raw');
+    raw.innerHTML = '<b class="mine">mine</b>';
+
+    for (let i = 0; i < 6; i++) click(window, button(counter, '+'));
+    await until('the rest of the component renders', () => text(counter.querySelector('.count')) === '7' && text(counter.querySelector('strong')) === 'High!', 5000);
+
+    check('its other parts follow the state', /Doubled: 14/.test(text(counter)) && counter.querySelectorAll('input.entry').length === 7, text(counter).slice(0, 200));
+    check('what the script put in place stays, alone', list.innerHTML === '<li class="mine">mine</li>' && raw.innerHTML === '<b class="mine">mine</b>', list.innerHTML + ' | ' + raw.innerHTML);
+    check('nothing around them is removed', counter.querySelector('input[type=number]') !== null && counter.querySelector('.set') !== null, counter.innerHTML.slice(0, 300));
+    window.close();
+});
+
 /** The window's requests to the server: what a test can check went out, or not. */
 function requestsOf(window) {
     const sent = [];

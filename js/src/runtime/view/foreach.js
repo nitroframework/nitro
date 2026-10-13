@@ -11,7 +11,7 @@
  */
 import * as B from '../../laravel/blade.js';
 import * as P from '../../php.js';
-import { createAnchorNode, nextAnchorNodeId, removeBefore } from './anchor.js';
+import { createAnchorNode, inPlace, nextAnchorNodeId, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { render } from './render.js';
 import { createScope, dispose } from './scope.js';
@@ -26,7 +26,7 @@ export function setLoopArguments(args, directive, key, value, loop) {
 }
 
 export function renderForeach(instance, node, anchors, currentArrayScope, scope, ifConditions) {
-    if (scope.disposed) {
+    if (scope.disposed || !inPlace(anchors.anchorNode)) {
         return;
     }
     const directive = node.i[0];

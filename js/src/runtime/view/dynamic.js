@@ -6,7 +6,7 @@
  * @param {Function} content  (target, scope, hydrate, insert) => void: renders the block
  * @param {Function|null} choose  (scope) => what the content depends on; the same, nothing renders
  */
-import { createAnchorNode, getAnchor, removeBefore } from './anchor.js';
+import { createAnchorNode, getAnchor, inPlace, removeBefore } from './anchor.js';
 import { createScope, dispose, track } from './scope.js';
 
 export function renderDynamic(target, instance, scope, hydrate, insert, codes, content, choose = null) {
@@ -17,7 +17,7 @@ export function renderDynamic(target, instance, scope, hydrate, insert, codes, c
     const anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end dynamic
 
     track(instance, codes, scope, () => {
-        if (scope.disposed) {
+        if (scope.disposed || !inPlace(anchorNode)) {
             return;
         }
         if (choose) {

@@ -1,12 +1,12 @@
 /**
  * Viewi's renderRaw (core/render/renderRaw): {!! $html !!} parsed again between its anchors.
  */
-import { removeBefore } from './anchor.js';
+import { inPlace, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { rawParentName } from './render.js';
 
 export function renderRaw(instance, node, scope, anchorNode) {
-    if (scope.disposed) {
+    if (scope.disposed || !inPlace(anchorNode)) {
         return;
     }
     // remove

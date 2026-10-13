@@ -1,5 +1,5 @@
 /** Children, slots, portals (@teleport) and raw HTML, as render() renders them. Part of render.js. */
-import { append, createAnchorNode, getAnchor, removeBefore, removeNode } from './anchor.js';
+import { append, createAnchorNode, getAnchor, inPlace, removeBefore, removeNode } from './anchor.js';
 import { evaluate } from './call.js';
 import { childPlaceholder, hydrateChild, hydrateRaw } from './hydrate.js';
 import { renderRaw } from './raw.js';
@@ -31,7 +31,7 @@ function renderDynamicChild(target, instance, node, scope, hydrate, insert) {
     container.anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end dynamic
     track(instance, [node.is], scope, () => {
         const name = evaluate(instance, node.is, scope);
-        if (name === container.name) return;
+        if (name === container.name || !inPlace(container.anchorNode)) return;
         dispose(instance, container.scope);
         removeBefore(instance, container.anchorNode);
         container.scope = createScope(scope, 'dynamic');
@@ -119,6 +119,7 @@ function disposeSlot(region) {
 /** The parent gave new slots (it rendered the child again): each slot region renders them. */
 export function refreshSlots(instance) {
     for (const region of instance.slotRegions) {
+        if (!inPlace(region.anchorNode)) continue;
         disposeSlot(region);
         removeBefore(instance, region.anchorNode);
         fillSlot(region.anchorNode, instance, region, false, true);
