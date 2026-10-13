@@ -23,6 +23,15 @@ use Throwable;
  */
 final class BladeEngine implements ViewEngine
 {
+    /** The view factory's properties Factory::flushState() resets. */
+    public const RENDER_STATE = [
+        'renderCount', 'renderedOnce',
+        'sections', 'sectionStack',
+        'pushes', 'prepends', 'pushStack',
+        'componentStack', 'componentData', 'currentComponentData', 'slots', 'slotStack',
+        'fragments', 'fragmentStack',
+    ];
+
     private ?BladeInliner $inliner = null;
 
     public function __construct(private readonly ViewFactory $views, private readonly BladeCompiler $blade)
@@ -99,11 +108,34 @@ final class BladeEngine implements ViewEngine
 
         $loops = $this->isolateLoops();
 
+        /**
+         * The Blade components in the view read $errors from the shared data, as Laravel shares
+         * the session's: here the component's, as its compiled view reads them in the browser.
+         */
+        $shared = $this->views->getShared();
+        $this->views->share('errors', $errors);
+
         try {
             return $this->evaluate($component, $compiler->getCompiledPath($path), $data);
         } finally {
             $this->restoreLoops($loops);
+            $this->restoreSharedErrors($shared);
         }
+    }
+
+    /** @param  array<string, mixed>  $shared  the shared data before the view: its $errors, or none */
+    private function restoreSharedErrors(array $shared): void
+    {
+        if (array_key_exists('errors', $shared)) {
+            $this->views->share('errors', $shared['errors']);
+
+            return;
+        }
+
+        (function (): void {
+            /** @var ViewFactory $this */
+            unset($this->shared['errors']);
+        })->call($this->views);
     }
 
     /** Include the compiled view with $this bound to the component. */
@@ -111,6 +143,7 @@ final class BladeEngine implements ViewEngine
     {
         $level = ob_get_level();
         ob_start();
+        $state = $this->renderState();
 
         /**
          * Counted as a render, as View::render() counts one: a Blade component in the view renders
@@ -130,13 +163,51 @@ final class BladeEngine implements ViewEngine
                 ob_end_clean();
             }
 
+            /**
+             * A Blade component in the view that failed made Laravel flush the factory
+             * (View::render()): the views around this one go on with the state they had.
+             */
+            $this->restoreRenderState($state);
+
             throw $exception;
-        } finally {
-            $this->views->decrementRender();
         }
+
+        $this->views->decrementRender();
 
         /** A component is its root element: whitespace around it (the view file's last newline) is not part of it. */
         return trim((string) ob_get_clean());
+    }
+
+    /**
+     * What View::render() flushes when a view fails (Factory::flushState()): the render count,
+     * the @once marks, sections, stacks, the component tags open and fragments. Blade keeps them
+     * in protected properties, with no API to swap them.
+     *
+     * @return array<string, mixed>
+     */
+    private function renderState(): array
+    {
+        return (function (): array {
+            $state = [];
+
+            foreach (BladeEngine::RENDER_STATE as $property) {
+                if (property_exists($this, $property)) {
+                    $state[$property] = $this->{$property};
+                }
+            }
+
+            return $state;
+        })->call($this->views);
+    }
+
+    /** @param  array<string, mixed>  $state */
+    private function restoreRenderState(array $state): void
+    {
+        (function () use ($state): void {
+            foreach ($state as $property => $value) {
+                $this->{$property} = $value;
+            }
+        })->call($this->views);
     }
 
     /**

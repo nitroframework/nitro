@@ -66,6 +66,10 @@ abstract class TestCase extends BaseTestCase
         HandleExceptions::flushState($this);
         /** withProviders() keeps its list for the whole process: cleared after each test, as Laravel's TestCase does. */
         RegisterProviders::flushState();
+        /** Blade components keep views made of strings (Blade::render()) in static caches, under a namespace the app registered: as Laravel's TestCase does. */
+        \Illuminate\View\Component::flushCache();
+        \Illuminate\View\Component::forgetComponentsResolver();
+        \Illuminate\View\Component::forgetFactory();
         Facade::clearResolvedInstances();
         Facade::setFacadeApplication(null);
         Container::setInstance(null);
