@@ -1,18 +1,21 @@
-// Template parity: stdin {bundle, cases: [{id, name, componentId, state, errors, ssr}]}. Each
-// component's compiled template is rendered to DOM in Node (runtime/render.js); that DOM must be
-// the one the browser makes of the server's HTML.
+// Template parity: stdin {bundle, cases: [{id, name, componentId, state, errors, ssr, next?}]}.
+// Each component's compiled template is rendered to DOM in Node (runtime/render.js); that DOM
+// must be the one the browser makes of the server's HTML. A case with next ({state, errors, ssr,
+// changed}) then changes to that state: the view updates what reads what changed, and must be the
+// server's HTML of the new state.
 import { JSDOM } from 'jsdom';
 import * as P from '../../src/php.js';
 import * as B from '../../src/laravel/blade.js';
 import { ErrorBag } from '../../src/runtime/component/errors.js';
 import { View } from '../../src/runtime/view/view.js';
+import { defineView } from '../../src/runtime/view/calls.js';
 import { enumCase } from '../../src/runtime/component/context.js';
 import { readStdin } from './common.mjs';
 
 const input = await readStdin();
 const definitions = {};
 const stores = {};
-const Nitro = { define: (name, d) => (definitions[name] = d), store: (name, d) => (stores[name] = d), lazy: () => {}, markupPages: () => {}, classes: Object.create(null), P, B };
+const Nitro = { define: (name, d) => (definitions[name] = d), store: (name, d) => (stores[name] = d), view: defineView, lazy: () => {}, markupPages: () => {}, classes: Object.create(null), P, B };
 new Function('window', input.bundle)({ Nitro });
 
 /** A store as a view reads it: its properties, its methods and #[Computed] values (read only while rendering). */
@@ -45,6 +48,10 @@ function normalize(root, server) {
     for (const el of [root, ...root.querySelectorAll('*')]) {
         if (!el.getAttributeNames) continue;
         for (const name of el.getAttributeNames()) if (name.startsWith('nitro:h-')) el.removeAttribute(name);
+        /** Attributes in one order: theirs means nothing in HTML, and one a render adds goes last. */
+        const attributes = el.getAttributeNames().sort().map((name) => [name, el.getAttribute(name)]);
+        for (const [name] of attributes) el.removeAttribute(name);
+        for (const [name, value] of attributes) el.setAttribute(name, value);
     }
     const children = server ? root.querySelectorAll('[nitro\:id]') : root.querySelectorAll('[nitro\:placeholder]');
     for (const child of children) {
@@ -65,7 +72,11 @@ const failures = [];
 
 for (const c of input.cases) {
     const definition = definitions[c.name];
-    const data = P.decode(c.state);
+    if (!definition) {
+        failures.push({ id: c.id, name: c.name, expected: 'a definition in the bundle', actual: 'none' });
+        continue;
+    }
+    let data = P.decode(c.state);
     const ctx = Object.create(null);
     for (const name of Object.keys(definition.props)) {
         const prop = definition.props[name];
@@ -76,7 +87,7 @@ for (const c of input.cases) {
         const storeCtx = storeContext(stores[store.name], store.state);
         Object.defineProperty(ctx, property, { get: () => storeCtx });
     }
-    const errors = new ErrorBag(P.decode(c.errors));
+    let errors = new ErrorBag(P.decode(c.errors));
     Object.defineProperty(ctx, '$errors', { get: () => errors });
     ctx.$computed = (name) => ctx[name]();
 
@@ -118,6 +129,49 @@ for (const c of input.cases) {
             continue;
         }
         if (expected !== actual) failures.push({ id: c.id, name: `${c.name} (${way})`, expected, actual });
+    }
+
+    if (!c.next) continue;
+
+    /** Rendered (built with its bindings, or hydrated), then the state changes: what reads what changed renders. */
+    const first = { data, errors };
+    const nextExpected = both(parsed(c.next.ssr), true);
+    const change = (view, root) => {
+        data = P.decode(c.next.state);
+        errors = new ErrorBag(P.decode(c.next.errors));
+        /** False: what changed is read around the root (an @if at the top), and the component makes its root again. */
+        return view.update(new Set(c.next.changed)) ? root : view.create();
+    };
+    const updates = {
+        'updated': () => {
+            document.body.innerHTML = c.emptyPage;
+            const view = new View(definition, ctx, host, document);
+            const root = view.create();
+            const holder = document.createElement('div');
+            holder.appendChild(root);
+            return both(change(view, root), false);
+        },
+        'hydrated, then updated': () => {
+            document.body.innerHTML = c.page;
+            const el = parsed(c.ssr);
+            const holder = document.createElement('div');
+            holder.appendChild(el);
+            const view = new View(definition, ctx, host, document);
+            view.hydrate(el);
+            return both(change(view, el), true);
+        },
+    };
+
+    for (const [way, make] of Object.entries(updates)) {
+        ({ data, errors } = first);
+        let actual;
+        try {
+            actual = make();
+        } catch (error) {
+            failures.push({ id: c.id, name: `${c.name} (${way})`, expected: nextExpected, actual: `JS error: ${error.stack}` });
+            continue;
+        }
+        if (nextExpected !== actual) failures.push({ id: c.id, name: `${c.name} (${way})`, expected: nextExpected, actual });
     }
 }
 
