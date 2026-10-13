@@ -18,6 +18,7 @@ final class SizeTest extends TestCase
     private const ALLOWED = [
         'src/Browser/Canvas.php' => 'the canvas 2D context, one method for each of the browser\'s',
         'js/src/php/functions.js' => 'the catalog of PHP\'s functions in the browser',
+        'src/Compiler/Template/BladeInliner.php' => 'Blade\'s @include and component tags, worked out as Blade does (the user: "dont split")',
     ];
 
     public function test_a_file_stays_one_job_in_size(): void

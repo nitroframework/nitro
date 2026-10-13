@@ -549,12 +549,15 @@ through its compiled form, so it uses what both can do:
 | Slots | `<nitro:card>...<nitro:slot name="footer">...</nitro:slot></nitro:card>`; the card prints `{{ $slot }}` and `{{ $slots['footer'] }}` (`$slots->has('footer')`, `$slot->isEmpty()`) |
 | Teleport | `@teleport('modals') ... @endteleport` renders at `@portal('modals')` in the layout |
 | Deferred | `@deferred('stats') ... @placeholder ... @enddeferred` in a page (see [Page data](#page-data)) |
-| Laravel helpers | `route()`, `url()`, `asset()`, `__()` / `trans()`, and `config()` for the keys in `nitro.public_config` |
+| Laravel helpers | `route()`, `url()`, `asset()`, `__()` / `trans()`, `trans_choice()`, and `config()` for the keys in `nitro.public_config` |
+| Translations | `@lang('key', [...])` and `@choice('key', $count)`, printed as Blade prints them (raw), in the page's locale |
+| Other views | `@include`, `@includeIf`, `@includeWhen`, `@includeUnless`, `@includeFirst([...])` (the first view that exists, picked at build time), `@each('view', $items, 'item', 'empty')` |
 | PHP | operators, casts and PHP's functions: strings, mbstring, arrays, math, ctype, URLs, HTML entities, `preg_*`, `sprintf`, `json_encode` and more, tested against PHP |
 | `Str::` | 54 of Laravel's string helpers (`slug`, `limit`, `title`, `headline`, `camel`, `snake`, `mask`, `squish`, ...), tested against Laravel |
 
-`@include` and anonymous Blade components (`<x-panel>`) are inlined when the view is compiled.
-Anything else (`@php`, class-based Blade components, custom directives) cannot run in the browser,
+`@include` is inlined when the view is compiled. An anonymous Blade component (`<x-panel>`)
+compiles once for the attributes and slots its tags give, and ships once: a view using it forty
+times calls it forty times. Anything else (`@php`, class-based Blade components, custom directives) cannot run in the browser,
 and the build fails with the file and line.
 
 Slot content belongs to the parent: its handlers and `nitro:model` act on the parent component.

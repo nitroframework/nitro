@@ -15,6 +15,7 @@ import { Stores } from './component/stores.js';
 import { PageMount } from './navigation/page-mount.js';
 import { Directives } from './directives.js';
 import { Engines } from './view/engines.js';
+import { defineView } from './view/calls.js';
 import { Plugins } from './plugins.js';
 import { HOOK, Hooks } from './hooks.js';
 import { Events } from './dom/events.js';
@@ -75,6 +76,11 @@ export class Runtime {
     /** Called by app.js (and the chunks) for every compiled component. */
     define(name, definition) {
         this.definitions.set(name, definition);
+    }
+
+    /** Nitro.view(id, definition): a Blade component's view, compiled once, which the views using it call (view/calls.js). */
+    view(id, definition) {
+        defineView(id, definition);
     }
 
     /** Nitro.directive(name, directive): what runs a nitro:<name> attribute of the application's own (directives.js). */

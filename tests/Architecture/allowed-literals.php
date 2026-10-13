@@ -25,6 +25,7 @@ return [
     'static' => $language, 'strval' => $language, 'trim' => $language, 'json' => $language, 'php' => $language,
     'mixed' => $language,
     'echo' => $generic.': Laravel Echo, a Blade echo token, a broadcast prefix',
+    'count' => $generic.': PHP\'s count(), $errors->count() (Globals::ERROR_METHODS), Laravel\'s :count replacement (trans_choice)',
     'call' => $generic.': an update body\'s field (UpdateController, InteractsWithNitro); a request\'s kind (runtime/hooks.js REQUEST_KINDS)',
     'lazy' => $generic.': nitro:model.lazy\'s modifier (Globals, runtime/dom/model.js); the nitro/lazy module\'s file (js/vite.js)',
     '::' => $generic.': PHP\'s Class::member in the compiler; a namespace\'s end in a name (Support/Naming::SEPARATOR)',

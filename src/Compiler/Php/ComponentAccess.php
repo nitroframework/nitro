@@ -90,6 +90,43 @@ final class ComponentAccess extends Part
         return 'P.prop('.$this->transpiler->expr($expression->var).', '.$context->string($name).')';
     }
 
+    /**
+     * The arguments of $errors->has(), ->first(), ... and @error(): the field written out
+     * ('form.email'), built from a start written out ('items.'.$i), or given to an inlined
+     * component by its caller (name="email", read after its variables are replaced), by the
+     * browser's name for its property (an obfuscated build).
+     *
+     * @param  list<Arg|\PhpParser\Node\VariadicPlaceholder>  $args
+     * @return list<string>
+     */
+    public function errorArguments(array $args): array
+    {
+        $calls = $this->transpiler->calls;
+        $field = isset($args[0]) && $args[0] instanceof Arg ? $args[0]->value : null;
+
+        while ($field instanceof Expr\BinaryOp\Concat) {
+            $field = $field->left;
+        }
+
+        /** A Blade component's view: an input naming the field is given by the browser's name where it is called (Transpiler::$pathInputs). */
+        if ($field instanceof Expr\PropertyFetch && $field->var instanceof Expr\Variable && $field->var->name === 'this' && $field->name instanceof Node\Identifier && in_array($field->name->toString(), $this->context->scope->inputs, true)) {
+            $this->transpiler->pathInputs[$field->name->toString()] = true;
+        }
+
+        if (! $field instanceof Scalar\String_ || $this->context->scope->names === null) {
+            return $calls->args($args);
+        }
+
+        $start = $field->value;
+        $field->value = $this->context->scope->browserPath($start);
+
+        try {
+            return $calls->args($args);
+        } finally {
+            $field->value = $start;
+        }
+    }
+
     public function methodCall(Expr\MethodCall|Expr\NullsafeMethodCall $expression): string
     {
         $context = $this->context;
@@ -133,25 +170,7 @@ final class ComponentAccess extends Part
                 throw $context->error('$errors supports '.implode('(), ', Globals::ERROR_METHODS).'()', $expression);
             }
 
-            /**
-             * A field written out ('form.email'), or built from a start written out ('items.'.$i):
-             * its property by the browser's name (an obfuscated build).
-             */
-            $args = $calls->args($expression->args);
-            $field = isset($expression->args[0]) && $expression->args[0] instanceof Arg ? $expression->args[0]->value : null;
-
-            while ($field instanceof Expr\BinaryOp\Concat) {
-                $field = $field->left;
-            }
-
-            if ($field instanceof Scalar\String_ && $context->scope->names !== null) {
-                $start = $field->value;
-                $field->value = $context->scope->browserPath($start);
-                $args = $calls->args($expression->args);
-                $field->value = $start;
-            }
-
-            return Globals::TEMPLATE_VARIABLES['errors'].'.'.$method.'('.implode(', ', $args).')';
+            return Globals::TEMPLATE_VARIABLES['errors'].'.'.$method.'('.implode(', ', $this->errorArguments($expression->args)).')';
         }
 
         /** $photo->temporaryUrl(), ->getClientOriginalName(), ...: an Upload's, checked at run time as PHP would. */

@@ -100,19 +100,20 @@ final class Context
     public array $calledMethods = [];
 
     /**
-     * Inlined views (BladeInliner), innermost last: their variables (parsed), whether they see
-     * the variables around them (an include) or not (a component), and how many template
-     * variables were declared when the view began (those after are its own).
+     * Inlined views and a Blade component's view (BladeInliner), innermost last: their variables
+     * (parsed), whether they see the variables around them (an include) or not (a component), how
+     * many template variables were declared when the view began (those after are its own), and its
+     * imports (@use).
      *
-     * @var list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>
+     * @var list<array{vars: array<string, Expr>, isolated: bool, label: string, mark: int, imports: string}>
      */
     public array $frames = [];
 
-    /** @var array<int, list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>> by frame: the frames around it (its slots compile there) */
-    public array $frameParents = [];
+    /** The component's own view's imports (@use): its expressions outside any inlined view read them. */
+    public string $viewImports = '';
 
-    /** @var list<list<array{id: int, vars: array<string, Expr>, isolated: bool, label: string, mark: int}>> frames set aside while a slot compiles */
-    public array $setAside = [];
+    /** @var list<string> the Blade components' views the view calls (ComponentViews' ids) */
+    public array $calls = [];
 
     /** @var list<array{0: ?string, 1: int}> by line of the inlined source: the file and line it came from */
     public array $lineMap = [];

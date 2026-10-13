@@ -15,6 +15,7 @@ import { cleanup } from './hydrate.js';
 import { directiveCodes, refreshSlots, renderTag, teleported } from './render.js';
 import { conditionOf } from './if.js';
 import { createScope, dispose, keysOf, rootScope, run } from './scope.js';
+import { callRoot } from './calls.js';
 
 /** The component's root element, built anew (nothing tracked): the template parity test's. */
 export function render(definition, $this, host, document) {
@@ -54,10 +55,10 @@ export class View {
 
     /** The server's HTML under el, taken over: el is the root element. */
     hydrate(el) {
-        const [node, scope] = this.root();
         this.instance.anchors = new Map();
         try {
-            renderTag(null, this.instance, node, scope, true, false, el);
+            const [node, scope, instance] = this.root();
+            renderTag(null, instance, node, scope, true, false, el);
             cleanup(this.instance);
             this.instance.live = true;
         } finally {
@@ -67,9 +68,9 @@ export class View {
 
     /** A new root element. */
     create() {
-        const [node, scope] = this.root();
+        const [node, scope, instance] = this.root();
         const fragment = this.instance.document.createDocumentFragment();
-        const element = renderTag(fragment, this.instance, node, scope, false, false);
+        const element = renderTag(fragment, instance, node, scope, false, false);
         this.instance.live = true;
         return element;
     }
@@ -101,8 +102,9 @@ export class View {
     }
 
     /**
-     * The root tag, and the scope it renders in: the top of the view is its one element, maybe
-     * in an @if chain (whose conditions the root reads).
+     * The root tag, the scope it renders in and the instance it renders with: the top of the view
+     * is its one element, maybe in an @if chain (whose conditions the root reads), or a Blade
+     * component's (a call: its root, rendered with the call's instance).
      */
     root() {
         if (this.scope) dispose(this.instance, this.scope);
@@ -112,17 +114,23 @@ export class View {
         this.scope.untracked = !this.tracking;
 
         let found = null;
-        const visit = (nodes, scope) => {
+        /** inputs: in a call's view, what the call's inputs read in the component (a chain there chooses the root by them). */
+        const visit = (nodes, scope, instance, inputs = null) => {
             for (let i = 0; i < nodes.length; i++) {
                 const node = nodes[i];
                 if (node.t === 'm') continue;
                 if (node.t === 'x') {
-                    const text = node.e ? evaluate(this.instance, node.code, scope) : node.c ?? '';
+                    const text = node.e ? evaluate(instance, node.code, scope) : node.c ?? '';
                     if (String(text).trim() !== '') throw rootError();
                     continue;
                 }
                 if (node.t === 't' && found === null) {
-                    found = [node, scope];
+                    found = [node, scope, instance];
+                    continue;
+                }
+                if (node.t === 'v' && found === null) {
+                    const call = callRoot(instance, node, scope);
+                    visit(call.nodes, call.scope, call.instance, inputs ?? keysOf(instance, [node.i]));
                     continue;
                 }
                 if (node.t !== 'template' || !['if', 'else-if', 'else', 'error'].includes(node.i[0].c)) throw rootError();
@@ -132,16 +140,17 @@ export class View {
                 while (['else-if', 'else'].includes(nodes[last + 1]?.i?.[0]?.c)) last++;
                 const chain = nodes.slice(i, last + 1);
                 i = last;
-                for (const key of keysOf(this.instance, chain.flatMap((n) => directiveCodes(n)))) this.instance.rootSubs.add(key);
+                /** What chooses the root: the chain's reads, or in a call's view the call's inputs. */
+                for (const key of inputs ?? keysOf(instance, chain.flatMap((n) => directiveCodes(n)))) this.instance.rootSubs.add(key);
                 for (const branch of chain) {
-                    const condition = conditionOf(this.instance, branch.i[0], scope);
+                    const condition = conditionOf(instance, branch.i[0], scope);
                     if (!condition.value) continue;
-                    visit(branch.h ?? [], condition.args === scope.arguments ? scope : createScope(scope, branch.i[0].c, condition.args));
+                    visit(branch.h ?? [], condition.args === scope.arguments ? scope : createScope(scope, branch.i[0].c, condition.args), instance, inputs);
                     break;
                 }
             }
         };
-        visit(this.template, this.scope);
+        visit(this.template, this.scope, this.instance);
 
         if (found === null) throw rootError();
         return found;

@@ -47,9 +47,44 @@ final class ComponentParts
     }
 
     /**
+     * A named slot's attributes in the component's view ($footer->attributes, <x-slot:footer
+     * class="x">): a bag of its own, printed as $attributes is (AttributeBag), empty for a slot
+     * the tag does not give.
+     *
+     * @param  array<string, array{0: string, 1: int, 2?: string}>  $slots
+     * @return array{0: string, 1: array<string, string>} the view, and the variables holding the bags' values
+     */
+    public function slotAttributes(string $view, array $slots, string $path): array
+    {
+        preg_match_all('/\$(\w+)\s*->\s*attributes\b/', $view, $used);
+        $vars = [];
+
+        foreach (array_unique($used[1]) as $slot) {
+            [$attributes, $bound] = $this->tags->attributes($slots[$slot][2] ?? '');
+            [, $held] = $this->componentVariables($attributes, $bound, null);
+            $codes = [];
+
+            foreach (array_keys($held) as $i => $attribute) {
+                $vars["__sa_{$slot}_{$i}"] = $held[$attribute];
+                $codes[$attribute] = "\$__sa_{$slot}_{$i}";
+            }
+
+            $view = AttributeBag::render($view, $codes, [], $held, $path, $slot);
+        }
+
+        return [$view, $vars];
+    }
+
+    /** A slot's content, trimmed as Blade trims it: whitespace only (not trim()'s NUL bytes). */
+    public static function slotContent(string $content): string
+    {
+        return trim($content, " \t\n\r\x0B");
+    }
+
+    /**
      * The tag's content: its <x-slot> blocks (by name) and the rest (the default slot).
      *
-     * @return array{0: array<string, array{0: string, 1: int}>, 1: string}
+     * @return array{0: array<string, array{0: string, 1: int, 2: string}>, 1: string} by slot: its content, its line, its tag's attributes
      */
     public function namedSlots(string $content, string $component, ?string $file, int $line): array
     {
@@ -74,7 +109,7 @@ final class ComponentParts
 
                 $start = $found + strlen($tagMatch[0]);
                 [$inner, $end] = $this->slotContents($content, $start, $file, $line);
-                $slots[$slotName] = [trim($inner), $line + substr_count($content, "\n", 0, $start)];
+                $slots[$slotName] = [self::slotContent($inner), $line + substr_count($content, "\n", 0, $start), $tagMatch['attributes'] ?? ''];
                 $rest .= substr($content, $at, $found - $at);
                 $at = $end;
 
@@ -213,7 +248,8 @@ final class ComponentParts
         $held = [];
 
         foreach ($attributes as $attribute => $code) {
-            $held[$attribute] = isset($bound[$attribute]) ? "(is_string({$code}) ? htmlspecialchars({$code}, ENT_QUOTES, 'UTF-8', true) : ({$code}))" : $code;
+            /** The value taken once by an arrow function: copied into each check, it would be compiled once per check. */
+            $held[$attribute] = isset($bound[$attribute]) ? "(fn (\$__value) => is_string(\$__value) ? htmlspecialchars(\$__value, ENT_QUOTES, 'UTF-8', true) : \$__value)({$code})" : $code;
         }
 
         if ($props === null) {

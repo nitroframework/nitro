@@ -179,9 +179,72 @@ export function route(name, parameters = [], absolute = true) {
  * none), :placeholders replaced as Laravel does (:name, :Name, :NAME; longer keys first).
  */
 export function trans(key, replace = []) {
+    return replaced(line(key), entries(isArray(replace) ? replace : []).map(([k, v]) => [toStr(k), toStr(v)]));
+}
+
+/** The line of a key in the page's locale, the key itself when there is none. */
+function line(key) {
     key = toStr(key);
-    const line = Object.prototype.hasOwnProperty.call(globals.lang, key) ? globals.lang[key] : key;
+    return Object.prototype.hasOwnProperty.call(globals.lang, key) ? globals.lang[key] : key;
+}
+
+/**
+ * trans_choice($key, $number, $replace) / Blade's @choice: Translator::choice(), the line's
+ * segment for the number (MessageSelector: {0} / [2,*] conditions first, then the locale's plural
+ * rule), :count the number unless given. A countable number is its count.
+ */
+export function choice(key, number, replace = []) {
+    if (isArray(number)) number = entries(number).length;
     const pairs = entries(isArray(replace) ? replace : []).map(([k, v]) => [toStr(k), toStr(v)]);
+    if (!pairs.some(([k]) => k === 'count')) pairs.push(['count', toStr(number)]);
+    return replaced(choose(line(key), Number(number), globals.locale), pairs);
+}
+
+/** MessageSelector::choose(). */
+function choose(text, number, locale) {
+    const segments = text.split('|');
+    for (const part of segments) {
+        const match = /^[{[]([-?\d|*,.*]*)[}\]](.*)/s.exec(part);
+        if (!match) continue;
+        const [, condition, value] = match;
+        if (condition.includes(',')) {
+            const [from, to] = [condition.slice(0, condition.indexOf(',')), condition.slice(condition.indexOf(',') + 1)];
+            if ((to === '*' && number >= Number(from)) || (from === '*' && number <= Number(to)) || (number >= Number(from) && number <= Number(to))) return value.trim();
+        }
+        if (Number(condition) === number && condition !== '') return value.trim();
+    }
+    const stripped = segments.map((part) => part.replace(/^[{[][-?\d|*,.*]*[}\]]/, ''));
+    const index = pluralIndex(locale, Math.abs(number));
+    return stripped.length === 1 || stripped[index] === undefined ? stripped[0] : stripped[index];
+}
+
+/** The locales of each of MessageSelector::getPluralIndex()'s rules (any other: 0). */
+const PLURAL_GROUPS = [
+    [(n) => (n == 1 ? 0 : 1), 'af af_ZA bn bn_BD bn_IN bg bg_BG ca ca_AD ca_ES ca_FR ca_IT da da_DK de de_AT de_BE de_CH de_DE de_LI de_LU el el_CY el_GR en en_AG en_AU en_BW en_CA en_DK en_GB en_HK en_IE en_IN en_NG en_NZ en_PH en_SG en_US en_ZA en_ZM en_ZW eo eo_US es es_AR es_BO es_CL es_CO es_CR es_CU es_DO es_EC es_ES es_GT es_HN es_MX es_NI es_PA es_PE es_PR es_PY es_SV es_US es_UY es_VE et et_EE eu eu_ES eu_FR fa fa_IR fi fi_FI fo fo_FO fur fur_IT fy fy_DE fy_NL gl gl_ES gu gu_IN ha ha_NG he he_IL hu hu_HU is is_IS it it_CH it_IT ku ku_TR lb lb_LU ml ml_IN mn mn_MN mr mr_IN nah nb nb_NO ne ne_NP nl nl_AW nl_BE nl_NL nn nn_NO no om om_ET om_KE or or_IN pa pa_IN pa_PK pap pap_AN pap_AW pap_CW ps ps_AF pt pt_BR pt_PT so so_DJ so_ET so_KE so_SO sq sq_AL sq_MK sv sv_FI sv_SE sw sw_KE sw_TZ ta ta_IN ta_LK te te_IN tk tk_TM ur ur_IN ur_PK zu zu_ZA'],
+    [(n) => (n == 0 || n == 1 ? 0 : 1), 'am am_ET bh fil fil_PH fr fr_BE fr_CA fr_CH fr_FR fr_LU gun hi hi_IN hy hy_AM ln ln_CD mg mg_MG nso nso_ZA ti ti_ER ti_ET wa wa_BE xbr'],
+    [(n, i) => (i % 10 == 1 && i % 100 != 11 ? 0 : i % 10 >= 2 && i % 10 <= 4 && (i % 100 < 10 || i % 100 >= 20) ? 1 : 2), 'be be_BY bs bs_BA hr hr_HR ru ru_RU ru_UA sr sr_ME sr_RS uk uk_UA'],
+    [(n) => (n == 1 ? 0 : n >= 2 && n <= 4 ? 1 : 2), 'cs cs_CZ sk sk_SK'],
+    [(n) => (n == 1 ? 0 : n == 2 ? 1 : 2), 'ga ga_IE'],
+    [(n, i) => (i % 10 == 1 && i % 100 != 11 ? 0 : i % 10 >= 2 && (i % 100 < 10 || i % 100 >= 20) ? 1 : 2), 'lt lt_LT'],
+    [(n, i) => (i % 100 == 1 ? 0 : i % 100 == 2 ? 1 : i % 100 == 3 || i % 100 == 4 ? 2 : 3), 'sl sl_SI'],
+    [(n, i) => (i % 10 == 1 ? 0 : 1), 'mk mk_MK'],
+    [(n, i) => (n == 1 ? 0 : n == 0 || (i % 100 > 1 && i % 100 < 11) ? 1 : i % 100 > 10 && i % 100 < 20 ? 2 : 3), 'mt mt_MT'],
+    [(n, i) => (n == 0 ? 0 : i % 10 == 1 && i % 100 != 11 ? 1 : 2), 'lv lv_LV'],
+    [(n, i) => (n == 1 ? 0 : i % 10 >= 2 && i % 10 <= 4 && (i % 100 < 12 || i % 100 > 14) ? 1 : 2), 'pl pl_PL'],
+    [(n) => (n == 1 ? 0 : n == 2 ? 1 : n == 8 || n == 11 ? 2 : 3), 'cy cy_GB'],
+    [(n, i) => (n == 1 ? 0 : n == 0 || (i % 100 > 0 && i % 100 < 20) ? 1 : 2), 'ro ro_RO'],
+    [(n, i) => (n == 0 ? 0 : n == 1 ? 1 : n == 2 ? 2 : i % 100 >= 3 && i % 100 <= 10 ? 3 : i % 100 >= 11 && i % 100 <= 99 ? 4 : 5), 'ar ar_AE ar_BH ar_DZ ar_EG ar_IN ar_IQ ar_JO ar_KW ar_LB ar_LY ar_MA ar_OM ar_QA ar_SA ar_SD ar_SS ar_SY ar_TN ar_YE'],
+];
+const PLURAL_RULES = new Map(PLURAL_GROUPS.flatMap(([rule, locales]) => locales.split(' ').map((locale) => [locale, rule])));
+
+/** MessageSelector::getPluralIndex(): n the number, i its integer part (PHP's (int) $number % ...). */
+function pluralIndex(locale, number) {
+    const rule = PLURAL_RULES.get(locale);
+    return rule ? rule(number, Math.trunc(number)) : 0;
+}
+
+/** Translator::makeReplacements(): :key, :Key and :KEY, the longest first (strtr). */
+function replaced(line, pairs) {
     if (pairs.length === 0) return line;
 
     const map = new Map();

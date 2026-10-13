@@ -73,4 +73,4 @@ export const csrf = () => `<input type="hidden" name="_token" value="${session.t
 export const methodField = (method) => `<input type="hidden" name="_method" value="${toStr(method)}">`;
 
 /** Laravel's helpers (route, url, asset, trans, config), $this->shared() and $this->flashed(), for compiled code as B.route(...) and so on. */
-export { asset, config, flashed, globals, route, shared, trans, url } from './laravel.js';
+export { asset, choice, config, flashed, globals, route, shared, trans, url } from './laravel.js';

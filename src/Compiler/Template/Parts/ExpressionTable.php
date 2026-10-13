@@ -90,9 +90,32 @@ final class ExpressionTable extends Part
      */
     public function declareFrom(string $name, array $sources): int
     {
+        $name = $this->own($name);
         $this->context->sources[$name] = $sources;
 
         return $this->declare($name);
+    }
+
+    /**
+     * The name a variable an inlined view declares is held under. The view's own loop variable
+     * named as one around the view ($row in a component used in the page's loop over $row) is a
+     * variable of its own: the view reads it under another name. $loop stays one: Blade's $loop
+     * in the view's loop has the loop around it as its parent.
+     */
+    private function own(string $name): string
+    {
+        $context = $this->context;
+        $frame = array_key_last($context->frames);
+        $position = array_search($name, $context->locals, true);
+
+        if ($name === 'loop' || $frame === null || $position === false || $position >= $context->frames[$frame]['mark']) {
+            return $name;
+        }
+
+        $own = '__'.$name.'_'.count($context->locals);
+        $context->frames[$frame]['vars'][$name] = new \PhpParser\Node\Expr\Variable($own);
+
+        return $own;
     }
 
     /** The component methods the Transpiler saw called, collected (the compiler compiles those too). */

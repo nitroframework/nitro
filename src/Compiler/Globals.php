@@ -36,7 +36,7 @@ final class Globals
      * way). What they need ships with the page, only for what the compiled code names: route
      * names and translation keys as literals, config keys listed in nitro.public_config.
      */
-    public const HELPERS = ['route', 'url', 'asset', '__', 'trans', 'config'];
+    public const HELPERS = ['route', 'url', 'asset', '__', 'trans', 'trans_choice', 'config'];
 
     /** Methods of $errors, as on Laravel's MessageBag. */
     public const ERROR_METHODS = ['has', 'first', 'get', 'all', 'any', 'count'];

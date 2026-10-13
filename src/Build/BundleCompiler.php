@@ -12,6 +12,7 @@ use Nitro\Compiler\Components;
 use Nitro\Compiler\Functions;
 use Nitro\Compiler\Globals;
 use Nitro\Compiler\Obfuscator;
+use Nitro\Compiler\Template\ComponentViews;
 use Nitro\Compiler\Uses;
 use Nitro\NavigationMode;
 use Nitro\Support\Config;
@@ -73,6 +74,9 @@ final class BundleCompiler
         $chunks = [];
         $broken = [];
         $map = $this->chunks->map();
+
+        /** The Blade components' views the components call, compiled once for this bundle. */
+        app()->instance(ComponentViews::class, $views = new ComponentViews);
 
         foreach (array_keys($this->registry->all()) as $name) {
             if ($compiling !== null) {
@@ -142,6 +146,9 @@ final class BundleCompiler
             $main[] = '// #[Navigate(\'markup\')] and #[Navigate(\'client\')]: path => page, rendered at once on a visit'."\n"
                 .'Nitro.markupPages('.json_encode($markup, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).');';
         }
+
+        /** The Blade components' views, in the main bundle: any chunk's components may call them. */
+        array_unshift($main, ...$views->definitions());
 
         /** The #[Browser] classes' methods the components reach, in the main bundle: any chunk may call them. */
         $classes = $compiler->compileClasses();

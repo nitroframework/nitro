@@ -97,7 +97,7 @@ final class Lexer
     {
         $preceding = $this->position > 0 ? $this->source[$this->position - 1] : '';
         /** BladeInliner's markers sit wherever an inlined view begins or ends, after a word too. */
-        $inlined = preg_match('/\G@(?:(?:end)?nitro(?:Scope|Slot|Frame)|nitroAttr)\b/', $this->source, $_, 0, $this->position) === 1;
+        $inlined = preg_match('/\G@(?:(?:end)?nitro(?:Scope|Slot)|nitroAttr)\b/', $this->source, $_, 0, $this->position) === 1;
         $afterMarker = $this->position === $this->afterMarker;
 
         if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $match, 0, $this->position)) {

@@ -2,6 +2,7 @@
 
 namespace Nitro\Compiler\Php;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Nitro\Compiler\BrowserClasses;
 use Nitro\Compiler\Functions as JsFunctions;
@@ -15,7 +16,8 @@ use PhpParser\Node\Scalar;
 use ReflectionMethod;
 
 /**
- * Calls to functions: PHP's functions, Laravel's helpers and Str::, and a closure in a variable.
+ * Calls to functions: PHP's functions, Laravel's helpers and Str::, and a closure in a variable
+ * or any expression giving one.
  *
  * General PHP:
  *
@@ -35,6 +37,7 @@ use ReflectionMethod;
  *    string literal; it is recorded in $uses, and the page carries those routes, lines and values
  *  - url() and asset(): the page's base URLs
  *  - Str::slug() and the other Str helpers: ported to js/functions (Str_slug)
+ *  - Arr::toCssClasses() and Arr::toCssStyles(): the runtime's @class and @style
  *
  * Nitro: Nitro::browser() is the component's browser APIs ($this.$browser); see
  * ComponentAccess for the calls on it.
@@ -43,6 +46,9 @@ use ReflectionMethod;
  */
 final class Calls extends Part
 {
+    /** Laravel's Arr helpers behind Blade's @class and @style, and the runtime's functions for them. */
+    private const ARR_HELPERS = ['toCssClasses' => 'B.classes', 'toCssStyles' => 'B.styles'];
+
     /**
      * Arguments as JavaScript, in order.
      *
@@ -74,8 +80,9 @@ final class Calls extends Part
 
     public function funcCall(Expr\FuncCall $expression): string
     {
-        if ($expression->name instanceof Expr\Variable) {
-            return $this->transpiler->expr($expression->name).'('.implode(', ', $this->args($expression->args)).')';
+        /** A closure in a variable, or any expression giving one: $format($x), (fn ($v) => ...)($x). */
+        if ($expression->name instanceof Expr) {
+            return '('.$this->transpiler->expr($expression->name).')('.implode(', ', $this->args($expression->args)).')';
         }
 
         if (! $expression->name instanceof Name) {
@@ -154,6 +161,11 @@ final class Calls extends Part
 
         if ($class !== null && (BrowserClasses::is($class) || BrowserClasses::isEnum($class))) {
             return $this->browserClassCall($class, $expression);
+        }
+
+        /** Arr::toCssClasses() and toCssStyles(): @class and @style (Blade writes them so on a component's tag). */
+        if (in_array($class, ['Arr', Arr::class], true) && $expression->name instanceof Identifier && isset(self::ARR_HELPERS[$expression->name->toString()])) {
+            return self::ARR_HELPERS[$expression->name->toString()].'('.implode(', ', $this->args($expression->args)).')';
         }
 
         if (! in_array($class, ['Str', Str::class], true) || ! $expression->name instanceof Identifier) {
@@ -264,6 +276,14 @@ final class Calls extends Part
                 $this->context->uses['lang'][$literal('translation key')] = true;
 
                 return 'B.trans('.implode(', ', $args).')';
+            case 'trans_choice':
+                if (count($args) > 3) {
+                    throw $this->context->error("{$name}() in the browser uses the page's locale: pass the key, the number and the replacements", $expression);
+                }
+
+                $this->context->uses['lang'][$literal('translation key')] = true;
+
+                return 'B.choice('.implode(', ', $args).')';
             case 'config':
                 $this->context->uses['config'][$literal('config key')] = true;
 

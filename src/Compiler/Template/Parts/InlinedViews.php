@@ -2,25 +2,20 @@
 
 namespace Nitro\Compiler\Template\Parts;
 
-use Nitro\Compiler\Template\VariableSubstitution;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Stmt;
-use PhpParser\ParserFactory;
-use PhpParser\PhpVersion;
 
 /**
- * Views inlined into the component's view: Blade's @include and <x-component>, as Nitro compiles
- * them. BladeInliner expands them before the view is read, and marks where each one begins and
- * ends with directives of its own (@nitroScope, @nitroSlot, @nitroFrame, @nitroAttr); this
- * part reads those markers.
+ * Views inlined into the component's view (Blade's @include), and a Blade component's view
+ * compiled once (ComponentViews), as Nitro compiles them. BladeInliner marks them with
+ * directives of its own (@nitroScope, @nitroSlot, @nitroAttr); this part reads those markers.
  *
- *  - frames: each inlined view is a frame with the variables it was given (parsed as PHP, read
- *    through the frames around it); an @include sees the variables around it, a Blade component
- *    is isolated and sees only its @props, attributes and slots, as in Blade
- *  - a variable in an inlined view is replaced as the Transpiler parses it (replacement()): by
- *    what the view was given, kept if it is the view's own, or refused in a component
- *  - a component's slot is compiled where its tag is, with the frames around the tag, and its
- *    trailing whitespace trimmed, as Blade trims a slot's output
+ *  - frames: an inlined view is a frame with the variables it was given (parsed as PHP, read
+ *    through the frames around it), and sees the variables around it; a Blade component's view
+ *    is a frame of its own, isolated: it sees only its @props, attributes and slots, as in Blade
+ *  - a variable in a frame is replaced as the Transpiler parses it (replacement()): by what the
+ *    view was given, kept if it is the view's own, or refused in a component
+ *  - a component's slot (@nitroSlot, in its call) has its trailing whitespace trimmed, as Blade
+ *    trims a slot's output
  *  - @nitroAttr: a component's attribute, written as Laravel's ComponentAttributeBag prints it
  *
  * Blade's semantics, implemented by Nitro; the markers are Nitro's own and never written in a
@@ -31,9 +26,8 @@ use PhpParser\PhpVersion;
 final class InlinedViews extends Part
 {
     /**
-     * The markers @nitroScope({...}) ... @endnitroScope: an inlined view begins and ends;
-     * the markers @nitroSlot(id) ... @endnitroSlot (and @nitroFrame in a tag): what is read there belongs where the
-     * component's tag is, so its frames are those around the component.
+     * The markers @nitroScope({...}) ... @endnitroScope: an inlined view begins and ends (a
+     * component's view: it begins); @nitroSlot() ... @endnitroSlot: a slot's content.
      */
     public function inlined(string $name, ?string $args): void
     {
@@ -49,8 +43,7 @@ final class InlinedViews extends Part
                     $vars[$var] = $this->parseReplacement($php);
                 }
 
-                $context->frameParents[$frame['id']] = $context->frames;
-                $context->frames[] = ['id' => $frame['id'], 'vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($context->locals)];
+                $context->frames[] = ['vars' => $vars, 'isolated' => $frame['isolated'], 'label' => $frame['label'], 'mark' => count($context->locals), 'imports' => $frame['imports'] ?? ''];
 
                 break;
             case 'endnitroScope':
@@ -58,32 +51,26 @@ final class InlinedViews extends Part
 
                 break;
             case 'nitroSlot':
-            case 'nitroFrame':
-                $context->setAside[] = $context->frames;
-                $context->frames = $context->frameParents[(int) $args] ?? [];
-
-                if ($name === 'nitroSlot') {
-                    $context->slotText[] = strlen($context->text);
-                }
+                $context->slotText[] = strlen($context->text);
 
                 break;
             case 'endnitroSlot':
-            case 'endnitroFrame':
-                $context->frames = array_pop($context->setAside) ?? [];
-
-                /** Blade trims what a slot renders: its trailing whitespace (a component's last newline) goes. */
-                if ($name === 'endnitroSlot') {
-                    $start = array_pop($context->slotText) ?? 0;
-                    $context->text = substr($context->text, 0, $start).rtrim(substr($context->text, $start));
-                }
+                /** Blade trims what a slot renders: its trailing whitespace goes. */
+                $start = array_pop($context->slotText) ?? 0;
+                $context->text = substr($context->text, 0, $start).rtrim(substr($context->text, $start));
 
                 break;
         }
+
+        /** What is read from here on is written in the innermost view: its own imports (a file's, as in Blade). */
+        $context->transpiler->imports = $context->frames === [] ? $context->viewImports : $context->frames[array_key_last($context->frames)]['imports'];
     }
 
     /**
-     * An inlined view's variable: what it was given, kept (one of the template's own, or, in an
-     * included view, one of the view around it), or an error (a component sees only its own).
+     * An inlined view's variable: kept when the view declared it (a loop's, which hides anything
+     * of that name it was given, as in PHP), else what it was given, kept (one of the template's
+     * own, or, in an included view, one of the view around it), or an error (a component sees
+     * only its own).
      */
     public function replacement(string $name): ?Expr
     {
@@ -92,12 +79,12 @@ final class InlinedViews extends Part
         for ($i = count($context->frames) - 1; $i >= 0; $i--) {
             $frame = $context->frames[$i];
 
-            if (array_key_exists($name, $frame['vars'])) {
-                return $frame['vars'][$name];
-            }
-
             if (in_array($name, array_slice($context->locals, $frame['mark']), true)) {
                 return null;
+            }
+
+            if (array_key_exists($name, $frame['vars'])) {
+                return $frame['vars'][$name];
             }
 
             if ($frame['isolated']) {
@@ -105,9 +92,12 @@ final class InlinedViews extends Part
                     return null;
                 }
 
-                throw $context->error($name === 'this'
-                    ? "{$frame['label']}: a Blade component has no \$this (it renders on its own); give it what it needs as attributes"
-                    : "{$frame['label']} has no \${$name}: a Blade component sees its @props, its attributes and its slots, so pass \${$name} as an attribute");
+                /** @each's view sees $key and its item; a component its own. */
+                throw $context->error(match (true) {
+                    str_starts_with($frame['label'], '@each') => "{$frame['label']} has no \${$name}: the view @each renders sees only \$key and the item",
+                    $name === 'this' => "{$frame['label']}: a Blade component has no \$this (it renders on its own); give it what it needs as attributes",
+                    default => "{$frame['label']} has no \${$name}: a Blade component sees its @props, its attributes and its slots, so pass \${$name} as an attribute",
+                });
             }
         }
 
@@ -131,31 +121,23 @@ final class InlinedViews extends Part
         $name = str_replace(["\\'", '\\\\'], ["'", '\\'], $match[1]);
         $code = trim($match[2]);
         $true = $name === 'x-data' || str_starts_with($name, 'wire:') ? "''" : var_export($name, true);
-        $value = "html_entity_decode(trim((string) (({$code}) === true ? {$true} : ({$code}))), ENT_QUOTES)";
+
+        /** The value taken once by an arrow function: copied into each check, it would be compiled once per check. */
+        $value = "(fn (\$__value) => html_entity_decode(trim((string) (\$__value === true ? {$true} : \$__value)), ENT_QUOTES))({$code})";
 
         $context->tag->attributes[] = [
             'c' => $name,
-            'when' => $table->condition("({$code}) !== null && ({$code}) !== false"),
+            'when' => $table->condition("(fn (\$__value) => \$__value !== null && \$__value !== false)({$code})"),
             'h' => [['e' => 1, 'code' => $table->expression('P.toStr('.$table->expr($value).')')]],
         ];
     }
 
-    /** A value given to an inlined view, as PHP, read through the frames around it. */
+    /**
+     * A value given to an inlined view, as PHP, read through the frames around it and the view's
+     * imports (@use), as the Transpiler parses the view's own expressions.
+     */
     private function parseReplacement(string $php): Expr
     {
-        try {
-            $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php ('.$php.');') ?? [];
-        } catch (\PhpParser\Error $exception) {
-            throw $this->context->error('Invalid PHP: '.$exception->getRawMessage());
-        }
-
-        $stmts = VariableSubstitution::apply($stmts, fn (string $name) => $this->replacement($name));
-        $stmt = $stmts[0] ?? null;
-
-        if (! $stmt instanceof Stmt\Expression) {
-            throw $this->context->error('Expected an expression: '.$php);
-        }
-
-        return $stmt->expr;
+        return $this->context->transpiler->parseExpression($php, $this->context->line);
     }
 }

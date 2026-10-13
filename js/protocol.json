@@ -2,12 +2,12 @@
     "namespace": "nitro:",
     "compiled": {
         "root": "r",
-        "types": ["t", "c", "x", "m", "b", "p", "s", "template"],
+        "types": ["t", "c", "x", "m", "b", "p", "s", "v", "template"],
         "blocks": ["if", "else-if", "else", "foreach", "for", "while", "switch", "case", "default", "empty", "error"],
         "prop": ["locked", "default", "enum", "url", "remember"],
         "url": ["as", "history", "keep", "except"],
         "model": "$model",
-        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client", "html"]
+        "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client", "html", "inputs"]
     },
     "view": {
         "state": ["id", "engine", "view", "properties", "computed", "methods", "server", "errors"],

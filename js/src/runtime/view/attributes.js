@@ -7,6 +7,7 @@
  */
 import { modelAttribute } from '../dom/model.js';
 import { evaluate } from './call.js';
+import { attributesOf } from './calls.js';
 import { ATTRIBUTES } from '../protocol.js';
 
 /** The attributes the runtime puts on a component's root element: its render keeps them. */
@@ -19,15 +20,18 @@ const XLINK = 'http://www.w3.org/1999/xlink';
 export function attributeValues(instance, node, scope) {
     const values = new Map();
 
-    for (const attribute of node.a ?? []) {
+    /** A called Blade component's element: the caller's nitro: attributes, read with the caller's instance. */
+    for (const own of attributesOf(instance, node)) {
+        const attribute = own.attribute;
+        const [reader, readScope] = own.scope === null ? [instance, scope] : [own.instance, own.scope];
         if (attribute.on) values.set(ATTRIBUTES.handler + attribute.on.e, '');
 
         let valueContent = '';
         /** when: whether it is there (@disabled, a component's attribute); its value, if it has one, still follows. */
-        if (attribute.when !== undefined && !evaluate(instance, attribute.when, scope)) continue;
+        if (attribute.when !== undefined && !evaluate(reader, attribute.when, readScope)) continue;
         if (attribute.h) {
             for (const attributeValue of attribute.h) {
-                valueContent += attributeValue.e ? evaluate(instance, attributeValue.code, scope) : attributeValue.c;
+                valueContent += attributeValue.e ? evaluate(reader, attributeValue.code, readScope) : attributeValue.c;
             }
         }
 

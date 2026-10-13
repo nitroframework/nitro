@@ -9,6 +9,7 @@ use Nitro\Compiler\Globals;
 use Nitro\Compiler\Scope;
 use Nitro\Compiler\Template\Parts\Blocks;
 use Nitro\Compiler\Template\Parts\ChildComponents;
+use Nitro\Compiler\Template\Parts\ComponentCalls;
 use Nitro\Compiler\Template\Parts\Context;
 use Nitro\Compiler\Template\Parts\Directives;
 use Nitro\Compiler\Template\Parts\ExpressionTable;
@@ -67,6 +68,9 @@ final class TemplateCompiler
     /** @var list<string> the view's @nitroScript blocks: JavaScript, run once for each instance as it goes live */
     public array $scripts = [];
 
+    /** A Blade component's view ending a slot (ComponentViews): its end is trimmed where it renders, as Blade trims a slot. */
+    public bool $endsTrimmed = false;
+
     private readonly Context $context;
 
     public readonly Tree $tree;
@@ -84,6 +88,8 @@ final class TemplateCompiler
     public readonly NitroAttributes $nitroAttributes;
 
     public readonly ChildComponents $childComponents;
+
+    public readonly ComponentCalls $componentCalls;
 
     /**
      * @param  Closure(string): bool  $isBladeDirective
@@ -110,6 +116,60 @@ final class TemplateCompiler
         $this->inlinedViews = new InlinedViews($this, $this->context);
         $this->nitroAttributes = new NitroAttributes($this, $this->context);
         $this->childComponents = new ChildComponents($this, $this->context);
+        $this->componentCalls = new ComponentCalls($this, $this->context);
+    }
+
+    /** A compiler as this one (its directives, rendering mode, the app's attributes), for another view: a Blade component's (ComponentViews). */
+    public function sibling(): self
+    {
+        return new self($this->isBladeDirective, $this->cloneStatic, $this->attributes);
+    }
+
+    /**
+     * The Blade components' views the view calls, by ComponentViews' ids.
+     *
+     * @return list<string>
+     */
+    public function calls(): array
+    {
+        return $this->context->calls;
+    }
+
+    /**
+     * What a Blade component's view the view calls uses, used as the view's own (the bundle
+     * ships what its components' views need).
+     *
+     * @param  array<string, array<string, true>>  $uses
+     */
+    public function use(array $uses): void
+    {
+        foreach ($uses as $kind => $names) {
+            $this->context->transpiler->uses[$kind] = ($this->context->transpiler->uses[$kind] ?? []) + $names;
+        }
+    }
+
+    /**
+     * A Blade component's view: its inputs that name an error's field.
+     *
+     * @return list<string>
+     */
+    public function pathInputs(): array
+    {
+        return array_keys($this->context->transpiler->pathInputs);
+    }
+
+    /** A Blade component's view passing its input on as a field another view names an error by: it names one too. */
+    public function passesPath(string $name): void
+    {
+        if (in_array($name, $this->context->scope->inputs, true)) {
+            $this->context->transpiler->pathInputs[$name] = true;
+        }
+    }
+
+    /** The scope the view is compiled in (a Blade component's view called from it takes the build's names from it). */
+    public function scope(): Scope
+    {
+        return $this->context->scope;
     }
 
     /** "template: {...},\nexpressions: [...]": the render half of a component's definition. */
@@ -130,20 +190,22 @@ final class TemplateCompiler
         $context->tag = null;
         $context->calledMethods = [];
         $context->frames = [];
-        $context->frameParents = [];
-        $context->setAside = [];
         $context->lineMap = [];
         $context->inHandler = false;
         $context->slotText = [];
+        $context->calls = [];
 
-        /** @include and <x-components>: inlined (BladeInliner), their variables replaced as they are parsed. */
+        /** The view's use directives, as the PHP use statements Blade compiles them to: its own (an inlined view has its own, InlinedViews). */
+        $context->viewImports = self::imports(ComponentParts::setAside($source)[0]);
+        $context->transpiler->imports = $context->viewImports;
+
+        /** @include: inlined; <x-components>: calls of their views (BladeInliner). */
         if (BladeInliner::needed($source)) {
-            [$source, $context->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler'))))->expand($source, $file);
-            $context->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
+            [$source, $context->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler')), $this, app(ComponentViews::class)))->expand($source, $file, $this->endsTrimmed);
         }
 
-        /** The view's use directives: for the whole view, as the PHP use statements Blade compiles them to. */
-        $context->transpiler->imports = self::imports($source);
+        /** The variables of an inlined view, and of a Blade component's view (its frame), replaced as they are parsed. */
+        $context->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
 
         try {
             $read = $this->read($source, $file);

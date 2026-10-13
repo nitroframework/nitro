@@ -2,6 +2,7 @@
 
 namespace Nitro\Compiler\Template\Parts;
 
+use Nitro\Compiler\Template\PhpSource;
 use Nitro\Compiler\Template\TemplateNode;
 use Nitro\Compiler\Template\Token;
 
@@ -49,12 +50,18 @@ final class Directives extends Part
             return;
         }
 
+        if ($name === 'nitroCall') {
+            $this->compiler->componentCalls->call((string) $args);
+
+            return;
+        }
+
         if ($context->state === 'value') {
-            if ($name !== 'json') {
+            if (! in_array($name, ['json', 'lang', 'choice'], true)) {
                 throw $context->error("@{$name} cannot be used inside an attribute value: use @class, @style or an echo");
             }
 
-            $this->compiler->html->attributePart(['e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')]);
+            $this->compiler->html->attributePart(['e' => 1, 'code' => $table->expression($name === 'json' ? $this->json($this->required($name, $args)) : $this->translation($name, $args))]);
 
             return;
         }
@@ -100,7 +107,10 @@ final class Directives extends Part
             'endteleport' => $tree->closeBlock(['teleport']),
             'csrf' => $tree->append($this->hiddenInput('_token', $table->expression('B.session.token'), ['autocomplete' => 'off'])),
             'method' => $tree->append($this->hiddenInput('_method', $table->expression('P.toStr('.$table->expr($this->required($name, $args)).')'))),
-            'json' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'code' => $table->expression('P.fns.json_encode('.$table->expr($this->required($name, $args)).', 15)')])),
+            /** Printed as it is, as Blade echoes it: its default flags leave no markup in it, others may. */
+            'json' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'raw' => 1, 'code' => $table->expression($this->json($this->required($name, $args)))])),
+            /** Printed as they are, as Blade echoes them (a line's HTML is the line's). */
+            'lang', 'choice' => $tree->append(new TemplateNode(['t' => 'x', 'e' => 1, 'raw' => 1, 'code' => $table->expression($this->translation($name, $args))])),
             /** Renders nothing: its imports apply to the whole view (TemplateCompiler::imports()). */
             'use' => $this->required($name, $args),
             default => throw $context->error("@{$name} belongs inside a tag, such as <div @{$name}(...)>"),
@@ -117,6 +127,31 @@ final class Directives extends Part
         return $args;
     }
 
+    /**
+     * Blade's json directive, ($value, $flags, $depth), as Blade compiles it (CompilesJson):
+     * json_encode() with Blade's flags (JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP |
+     * JSON_HEX_QUOT) unless it is given some.
+     */
+    private function json(string $args): string
+    {
+        $parts = array_map(fn ($arg) => PhpSource::print($arg), PhpSource::arguments($args, '@json', $this->context->file, $this->context->line));
+
+        return 'P.toStr('.$this->compiler->expressionTable->expr('json_encode('.$parts[0].', '.($parts[1] ?? '15').', '.($parts[2] ?? '512').')').')';
+    }
+
+    /**
+     * Blade's @lang('key', [...]) and @choice('key', $count, [...]), as Blade compiles them:
+     * the translator's get() and choice(), which __() and trans_choice() are.
+     */
+    private function translation(string $name, ?string $args): string
+    {
+        if ($args === null || trim($args) === '' || str_starts_with(ltrim($args), '[')) {
+            throw $this->context->error("@{$name} ... @end{$name} cannot render in the browser: use @{$name}('key')");
+        }
+
+        return 'P.toStr('.$this->compiler->expressionTable->expr(($name === 'lang' ? '__' : 'trans_choice')."({$args})").')';
+    }
+
     /** @class, @style, @checked, ... inside a tag: attributes of it. */
     private function tagDirective(string $name, ?string $args): void
     {
@@ -124,7 +159,11 @@ final class Directives extends Part
         $table = $this->compiler->expressionTable;
 
         if (in_array($name, Syntax::INLINED_TAG_DIRECTIVES, true)) {
-            $name === 'nitroAttr' ? $this->compiler->inlinedViews->componentAttribute((string) $args) : $this->compiler->inlinedViews->inlined($name, $args);
+            match ($name) {
+                'nitroAttr' => $this->compiler->inlinedViews->componentAttribute((string) $args),
+                /** In a Blade component's view: the caller's nitro: attribute (its name as written), rendered with the caller. */
+                default => $context->tag->attributes[] = ['d' => trim((string) $args)],
+            };
 
             return;
         }

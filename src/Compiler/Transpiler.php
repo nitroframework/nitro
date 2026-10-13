@@ -14,6 +14,7 @@ use Nitro\Compiler\Php\Handlers;
 use Nitro\Compiler\Php\Statements;
 use Nitro\Compiler\Php\Writes;
 use Nitro\Compiler\Template\VariableSubstitution;
+use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -77,6 +78,9 @@ final class Transpiler
 
     /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called; bound to Context */
     public array $uses;
+
+    /** @var array<string, true> a Blade component's view: its inputs that name an error's field (the caller gives them by the browser's names) */
+    public array $pathInputs = [];
 
     private readonly Context $context;
 
@@ -179,6 +183,26 @@ final class Transpiler
     }
 
     /**
+     * The field of a template's @error('form.email'), as $errors->has() reads its own: by the
+     * browser's name (ComponentAccess::errorArguments()).
+     *
+     * @param  list<string>  $locals
+     */
+    public function errorField(string $code, Scope $scope, array $locals, int $line = 1): string
+    {
+        $this->context->scope = $scope->withVariables($scope->variable ?? fn () => null, lineOffset: $line - 1);
+        $this->context->locals = array_fill_keys($locals, true);
+        $this->context->temps = [];
+
+        $list = $this->parseExpression('['.$code.']', $line);
+        $this->handlers->forbidWrites($list);
+        $args = $list instanceof Expr\Array_ ? array_map(fn ($item) => new Node\Arg($item->value), array_filter($list->items)) : [];
+        $js = $this->component->errorArguments(array_values($args))[0] ?? 'null';
+
+        return $this->context->hasTemps() ? $this->context->withTemps("return {$js};", true) : $js;
+    }
+
+    /**
      * An event handler (nitro:click="save", nitro:click="remove($item['id'])"): component method
      * calls, the magic actions $set, $toggle, $refresh and $dispatch, and Nitro::browser() calls.
      * $event is the DOM event.
@@ -271,18 +295,32 @@ final class Transpiler
     public function templateFor(string $args, Scope $scope, array $locals, int $line): array
     {
         $this->context->scope = $scope->withVariables($scope->variable ?? fn () => null, lineOffset: $line - 1);
-        $stmts = $this->parse('<?php for ('.$args.') {}', $line);
 
-        if (count($stmts) !== 1 || ! $stmts[0] instanceof Stmt\For_) {
-            throw new CompileException('Malformed @for', $scope->file, $line);
-        }
+        /** The variables its first part assigns are the loop's own: in an inlined view, never replaced by what it was given. */
+        $substitute = $this->context->substitute;
+        $this->context->substitute = null;
 
-        $declared = [];
+        try {
+            $stmts = $this->parse('<?php for ('.$args.') {}', $line);
 
-        foreach ($stmts[0]->init as $init) {
-            if ($init instanceof Expr\Assign && $init->var instanceof Expr\Variable && is_string($init->var->name)) {
-                $declared[] = $init->var->name;
+            if (count($stmts) !== 1 || ! $stmts[0] instanceof Stmt\For_) {
+                throw new CompileException('Malformed @for', $scope->file, $line);
             }
+
+            $declared = [];
+
+            foreach ($stmts[0]->init as $init) {
+                if ($init instanceof Expr\Assign && $init->var instanceof Expr\Variable && is_string($init->var->name)) {
+                    $declared[] = $init->var->name;
+                }
+            }
+
+            if ($substitute !== null) {
+                $this->context->substitute = fn (string $name) => in_array($name, $declared, true) ? null : $substitute($name);
+                $stmts = $this->parse('<?php for ('.$args.') {}', $line);
+            }
+        } finally {
+            $this->context->substitute = $substitute;
         }
 
         $this->context->locals = array_fill_keys([...$locals, ...$declared], true);
@@ -290,6 +328,7 @@ final class Transpiler
         $this->context->loops = [];
 
         $for = $stmts[0];
+        assert($for instanceof Stmt\For_);
         $head = 'for ('.implode(', ', array_map(fn ($expression) => $this->statementExpr($expression), $for->init)).'; '
             .($for->cond === [] ? 'true' : 'P.bool(('.implode(', ', array_map(fn ($expression) => $this->expr($expression), $for->cond)).'))').'; '
             .implode(', ', array_map(fn ($expression) => $this->statementExpr($expression), $for->loop)).')';
@@ -444,7 +483,11 @@ final class Transpiler
         return $this->context->substitute === null ? $stmts : VariableSubstitution::apply($stmts, $this->context->substitute);
     }
 
-    private function parseExpression(string $code, int $line): Expr
+    /**
+     * One PHP expression of a view, parsed as its template expressions are: names resolved
+     * through the view's imports, an inlined view's variables replaced.
+     */
+    public function parseExpression(string $code, int $line): Expr
     {
         $stmts = $this->parse('<?php ('.$code.');', $line);
 

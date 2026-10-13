@@ -22,6 +22,7 @@ import { renderText, textContent } from './text.js';
 import { createScope, dispose, track } from './scope.js';
 import { renderChild, renderRawNode, renderSlot, renderTeleport } from './children.js';
 import { attributeCodes, codesIn, renderChain } from './blocks.js';
+import { attributesOf, renderCall } from './calls.js';
 export { rawParentName, refreshSlots, slotHasContent, teleported } from './children.js';
 export { directiveCodes } from './blocks.js';
 
@@ -85,6 +86,11 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
             case 'c':
                 renderChild(target, instance, node, scope, hydrate, insert);
                 break;
+            case 'v': {
+                const signal = renderCall(target, instance, node, scope, hydrate, insert, render);
+                if (signal?.kind) return signal;
+                break;
+            }
             case 's':
                 renderSlot(target, instance, node, scope, hydrate, insert);
                 break;
@@ -144,12 +150,23 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         track(instance, codes, scope, () => renderAttributeValue(instance, node, element, scope));
     }
 
-    /** Nitro: nitro:<event> handlers, made with the variables the element renders with. */
-    for (const attribute of node.a ?? []) {
+    const attributes = attributesOf(instance, node);
+
+    /** Nitro: in a called Blade component's view, the caller's nitro: attributes follow the caller's state. */
+    for (const own of attributes) {
+        if (own.scope === null || ignored) continue;
+        const ownCodes = attributeCodes({ a: [own.attribute] });
+        if (ownCodes.length) track(own.instance, ownCodes, own.scope, () => renderAttributeValue(instance, node, element, scope));
+    }
+
+    /** Nitro: nitro:<event> handlers, made with the variables the element renders with (the caller's, for the caller's). */
+    for (const own of attributes) {
+        const attribute = own.attribute;
         if (!attribute.on) continue;
-        const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(instance, attribute.on.code, scope), attribute.c);
+        const [owner, ownerScope] = own.scope === null ? [instance, scope] : [own.instance, own.scope];
+        const bind = () => instance.host.on(element, attribute.on.e, attribute.on.m ?? [], evaluate(owner, attribute.on.code, ownerScope), attribute.c);
         bind();
-        if (!ignored) track(instance, [attribute.on.code], scope, bind);
+        if (!ignored) track(owner, [attribute.on.code], ownerScope, bind);
     }
 
     if (tag === 'textarea' && ns === null) {

@@ -228,10 +228,11 @@ export function directiveCodes(node) {
     return codes;
 }
 
-/** The expressions of an element's attribute values (handlers are bound on their own). */
+/** The expressions of an element's attribute values (handlers are bound on their own; a caller's attribute, d, is the caller's to track). */
 export function attributeCodes(node) {
     const codes = [];
     for (const attribute of node.a ?? []) {
+        if (attribute.d !== undefined) continue;
         if (attribute.when !== undefined) codes.push(attribute.when);
         for (const part of attribute.h ?? []) if (part.e) codes.push(part.code);
     }
@@ -245,6 +246,11 @@ export function codesIn(nodes) {
         if (node.t === 'x' && node.e) codes.push(node.code);
         if (node.t === 't') codes.push(...attributeCodes(node));
         if (node.t === 'c') codes.push(node.props, ...(node.key !== undefined ? [node.key] : []), ...(node.is !== undefined ? [node.is] : []));
+        /** A call: its inputs, the attributes and slots it is given (the caller's); its view tracks its own. */
+        if (node.t === 'v') {
+            codes.push(node.i, ...attributeCodes({ a: Object.values(node.d ?? {}).flat() }));
+            for (const slot of Object.values(node.slots ?? {})) codes.push(...codesIn(slot.h ?? []));
+        }
         if (node.t === 'b' && node.code !== undefined) codes.push(node.code);
         if (node.t === 'template') codes.push(...directiveCodes(node));
         codes.push(...codesIn(node.h ?? []));

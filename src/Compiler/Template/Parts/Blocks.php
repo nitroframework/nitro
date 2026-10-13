@@ -181,20 +181,16 @@ final class Blocks extends Part
         }
     }
 
-    /** Blade's @error('field'): the component's validation message for the field, as $message. */
+    /**
+     * Blade's @error('field'): the component's validation message for the field, as $message.
+     * The field by the browser's name, as $errors->has() reads it (Transpiler::errorField()).
+     */
     public function errorBlock(string $args): void
     {
+        $context = $this->context;
         $table = $this->compiler->expressionTable;
-
-        /**
-         * A field written out, or one built from a start written out ('items.'.$i.'.price'): its
-         * property by the browser's name (an obfuscated build).
-         */
-        if (preg_match('/^(\s*)([\'"])([\w.*\-]+)\2/', $args, $literal) === 1) {
-            $args = $literal[1].var_export($this->context->scope->browserPath($literal[3]), true).substr($args, strlen($literal[0]));
-        }
-
-        $field = $table->expression($table->expr('['.$args.'][0]'));
+        $field = $table->expression($context->transpiler->errorField($args, $context->scope, $context->locals, $context->line));
+        $table->track();
         $node = $this->compiler->tree->openBlock('error', []);
         $node->fields['i'] = [['c' => 'error', 'code' => $field, 'message' => $table->declareFrom('message', [$field, Protocol::signal('errors')])]];
     }

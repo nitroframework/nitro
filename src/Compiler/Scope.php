@@ -38,6 +38,8 @@ final class Scope
         public readonly ?Obfuscator $names = null,
         /** @var array<string, array{name: string, scope: Scope}> the stores it uses, by property: the store's name and members */
         public readonly array $stores = [],
+        /** @var list<string> a Blade component's view's inputs: read as $this->name, by their own names in an obfuscated build; never a path */
+        public readonly array $inputs = [],
     ) {
     }
 
@@ -49,7 +51,7 @@ final class Scope
      */
     public function withStores(array $stores): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $stores);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $stores, $this->inputs);
     }
 
     /** Whether $name is a property holding a store. */
@@ -67,7 +69,7 @@ final class Scope
     /** The same scope, writing the browser's names of methods and components (an obfuscated build). */
     public function withNames(?Obfuscator $names): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $names, $this->stores);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $names, $this->stores, $this->inputs);
     }
 
     /** A method's name in the browser. */
@@ -85,7 +87,7 @@ final class Scope
     /** A property's name in the browser. */
     public function browserProperty(string $name): string
     {
-        return $this->names?->property($name) ?? $name;
+        return in_array($name, $this->inputs, true) ? $name : ($this->names?->property($name) ?? $name);
     }
 
     /** A property path ("form.email") in the browser: its property by the browser's name. */
@@ -93,7 +95,7 @@ final class Scope
     {
         $root = explode('.', $path, 2)[0];
 
-        return $this->names !== null && $this->isProperty($root) ? $this->names->path($path) : $path;
+        return $this->names !== null && in_array($root, $this->properties, true) ? $this->names->path($path) : $path;
     }
 
     /** A component's or page's name in the browser. */
@@ -105,7 +107,7 @@ final class Scope
     /** The same scope, knowing the application's components by class. */
     public function withComponentNames(Closure $componentName): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName, $this->names, $this->stores);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $this->variable, $this->file, $this->lineOffset, $this->constants, $this->locked, $this->computed, $componentName, $this->names, $this->stores, $this->inputs);
     }
 
     /** A component's name from its class, null when the class is not a component. */
@@ -116,13 +118,13 @@ final class Scope
 
     public function withVariables(Closure $variable, ?string $file = null, int $lineOffset = 0): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, $variable, $file ?? $this->file, $lineOffset, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores, $this->inputs);
     }
 
     /** The same members, for a method in $file (no template variables). */
     public function forFile(string $file): self
     {
-        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores);
+        return new self($this->properties, $this->clientMethods, $this->serverMethods, null, $file, 0, $this->constants, $this->locked, $this->computed, $this->componentName, $this->names, $this->stores, $this->inputs);
     }
 
     public function isComputed(string $name): bool
@@ -137,7 +139,7 @@ final class Scope
 
     public function isProperty(string $name): bool
     {
-        return in_array($name, $this->properties, true);
+        return in_array($name, $this->properties, true) || in_array($name, $this->inputs, true);
     }
 
     public function isClientMethod(string $name): bool

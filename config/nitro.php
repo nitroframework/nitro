@@ -283,13 +283,15 @@ return [
     | Obfuscation
     |--------------------------------------------------------------------------
     |
-    | A build (nitro:build, minify_on_change) names methods, #[Server]
-    | methods and pages by aliases derived from APP_KEY, in the bundle and in
-    | what the page carries (nitro:name, a #[Server] call's method), and
-    | leaves handlers' text (nitro:click="...") out of the page. Components
-    | are aliased too, unless a view has <nitro:dynamic-component>. Lifecycle
-    | hooks, property names, text on the page and URLs keep their names. A
-    | readable bundle (no build) is never obfuscated.
+    | A build (nitro:build, minify_on_change) names methods (hooks too),
+    | properties and pages by aliases derived from APP_KEY, in the bundle and
+    | in what the page and the browser carry (nitro:name, the state, a
+    | #[Server] call's method), and leaves handlers' text (nitro:click="...")
+    | out of the page. Components are aliased too, unless a view has
+    | <nitro:dynamic-component>. The keys inside array properties, text on
+    | the page and URLs keep their names; so does a property name built as
+    | the code runs ($errors->has('items.'.$i) aliases 'items', not a name
+    | made from a variable). A readable bundle (no build) is never obfuscated.
     |
     */
 

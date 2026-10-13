@@ -21,11 +21,15 @@ final class AttributeBag
      * {{ $attributes... }} in a tag: the attributes it prints, worked out from the bag (as
      * ComponentAttributeBag), and ->get() / ->has() elsewhere.
      *
+     * The component's $attributes, or a named slot's ($footer->attributes: <x-slot:footer class="x">,
+     * one bag the same way).
+     *
      * @param  array<string, string>  $codes  attribute => the variable holding its value ($__fa0)
      * @param  array<string, string>  $nitro  nitro: attribute => as written
      * @param  array<string, string>  $bag  attribute => PHP
+     * @param  string|null  $slot  a named slot's bag: its name; null for the component's
      */
-    public static function render(string $view, array $codes, array $nitro, array $bag, int $frame, string $path): string
+    public static function render(string $view, array $codes, array $nitro, array $bag, string $path, ?string $slot = null): string
     {
         $entries = [];
 
@@ -33,15 +37,22 @@ final class AttributeBag
             $entries[$attribute] = isset($nitro[$attribute]) ? ['nitro' => $nitro[$attribute]] : ['code' => $codes[$attribute]];
         }
 
-        $view = preg_replace_callback('/\{\{\s*(\$attributes\b(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $frame, $path, $view) {
-            $bag = self::evaluate($match[1], $entries, $path, $view, $match[0]);
+        $variable = $slot === null ? '\$attributes\b' : '\$'.preg_quote($slot, '/').'\s*->\s*attributes\b';
 
-            return self::print($bag, $frame);
+        $view = preg_replace_callback('/\{\{\s*('.$variable.'(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $path, $view, $variable, $slot) {
+            /** {{ $attributes->get('x') }} echoes one attribute's value: the pass below reads it. */
+            if (preg_match('/^'.$variable.'\s*->\s*(get|has)\s*\(/', $match[1]) === 1) {
+                return $match[0];
+            }
+
+            $bag = self::evaluate($match[1], $entries, $path, $view, $match[0], $slot);
+
+            return self::print($bag);
         }, $view);
 
-        return preg_replace_callback('/\$attributes\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $found) use ($entries, $path, $view) {
+        return preg_replace_callback('/'.$variable.'\s*->\s*(get|has)\s*\(((?:[^()]|\([^()]*\))*)\)/', function (array $found) use ($entries, $path, $view) {
             $match = array_column($found, 0);
-            $line = 1 + substr_count($view, "\n", 0, $found[0][1]);
+            $line = 1 + substr_count($view, "\n", 0, (int) $found[0][1]);
             $args = PhpSource::arguments($match[2], '$attributes->'.$match[1].'()', $path, $line);
             $key = $args[0] ?? null;
 
@@ -59,8 +70,21 @@ final class AttributeBag
                 return isset($args[1]) ? PhpSource::print($args[1]) : 'null';
             }
 
-            return $entry['code'] ?? var_export(html_entity_decode(trim($entry['nitro']), ENT_QUOTES), true);
+            return $entry['code'] ?? self::nitroValue($entry['nitro']);
         }, $view, flags: PREG_OFFSET_CAPTURE);
+    }
+
+    /**
+     * A nitro: attribute's value, as the bag gives it from the attribute as written
+     * (nitro:model="form.email" gives 'form.email'; nitro:lazy alone gives true), as PHP.
+     */
+    private static function nitroValue(string $written): string
+    {
+        if (preg_match('/=\s*(?:"([^"]*)"|\'([^\']*)\')\s*$/', $written, $value) !== 1) {
+            return 'true';
+        }
+
+        return var_export($value[2] ?? $value[1], true);
     }
 
     /**
@@ -69,7 +93,7 @@ final class AttributeBag
      * @param  array<string, array{code?: string, nitro?: string}>  $entries
      * @return array<string, array{code?: string, nitro?: string}>
      */
-    private static function evaluate(string $php, array $entries, string $path, string $view, string $echo): array
+    private static function evaluate(string $php, array $entries, string $path, string $view, string $echo, ?string $slot = null): array
     {
         $line = 1 + substr_count($view, "\n", 0, (int) strpos($view, $echo));
         $calls = [];
@@ -78,7 +102,11 @@ final class AttributeBag
             array_unshift($calls, $expr);
         }
 
-        if (! $expr instanceof Expr\Variable || $expr->name !== 'attributes') {
+        $bag = $slot === null
+            ? $expr instanceof Expr\Variable && $expr->name === 'attributes'
+            : $expr instanceof Expr\PropertyFetch && $expr->var instanceof Expr\Variable && $expr->var->name === $slot && $expr->name instanceof Node\Identifier && $expr->name->toString() === 'attributes';
+
+        if (! $bag) {
             throw new CompileException("{{ {$php} }} is not a use of \$attributes the browser can render", $path, $line);
         }
 
@@ -111,7 +139,8 @@ final class AttributeBag
         $escaped = [];
 
         foreach ($defaults as $attribute => $code) {
-            $escaped[$attribute] = "(is_null({$code}) || is_bool({$code}) ? ({$code}) : htmlspecialchars((string) ({$code}), ENT_QUOTES, 'UTF-8', true))";
+            /** The value taken once by an arrow function: copied into each check, it would be compiled once per check. */
+            $escaped[$attribute] = "(fn (\$__value) => is_null(\$__value) || is_bool(\$__value) ? \$__value : htmlspecialchars((string) \$__value, ENT_QUOTES, 'UTF-8', true))({$code})";
         }
 
         $appendable = [];
@@ -173,14 +202,14 @@ final class AttributeBag
      *
      * @param  array<string, array{code?: string, nitro?: string}>  $entries
      */
-    private static function print(array $entries, int $frame): string
+    private static function print(array $entries): string
     {
         $out = '';
 
         foreach ($entries as $attribute => $entry) {
             if (isset($entry['nitro'])) {
-                /** Written where the tag is: its handler reads the variables there. */
-                $out .= " @nitroFrame({$frame}) {$entry['nitro']} @endnitroFrame";
+                /** The caller's, compiled where the tag is: its handler reads the variables there (ComponentCalls). */
+                $out .= " @nitroCallAttribute({$attribute})";
 
                 continue;
             }

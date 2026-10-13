@@ -10,6 +10,7 @@ export function jsonEncode(v, flags = 0) {
     const HEX_AMP = 2;
     const HEX_APOS = 4;
     const HEX_QUOT = 8;
+    const FORCE_OBJECT = 16;
     const PRETTY = 128;
     const UNESCAPED_SLASHES = 64;
     const UNESCAPED_UNICODE = 256;
@@ -39,12 +40,14 @@ export function jsonEncode(v, flags = 0) {
         }
         if (typeof x === 'string') return str(x);
         const sep = flags & PRETTY ? ': ' : ':';
+        /** JSON_FORCE_OBJECT: a list too is an object, its indexes its keys. */
+        if (Array.isArray(x) && flags & FORCE_OBJECT) return walk(new Map(x.map((y, i) => [i, y])), level);
         if (Array.isArray(x)) {
             if (x.length === 0) return '[]';
             return '[' + x.map((y) => indent(level + 1) + walk(y, level + 1)).join(',') + indent(level) + ']';
         }
         if (x instanceof Map) {
-            if (x.size === 0) return flags & 16 ? '{}' : '[]';
+            if (x.size === 0) return flags & FORCE_OBJECT ? '{}' : '[]';
             return '{' + [...x.entries()].map(([k, y]) => indent(level + 1) + str(String(k)) + sep + walk(y, level + 1)).join(',') + indent(level) + '}';
         }
         return walk(new Map(Object.entries(x)), level);

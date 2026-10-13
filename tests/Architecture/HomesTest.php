@@ -302,6 +302,15 @@ final class HomesTest extends TestCase
                 'homes' => ['src/Blade/Directives.php' => 'the precompilers, the directives, and views compiled by another version dropped'],
                 'why' => 'The directives were registered in the provider, so the compiled views\' version hashed the provider: any change to its wiring dropped every compiled view',
             ],
+            'Blade components compiled once' => [
+                'patterns' => ['/nitro-call|nitro-slot|Nitro\.view\(/'],
+                'homes' => [
+                    'src/Compiler/Template/Parts/ComponentCalls.php' => 'a call\'s markers, read into its call node',
+                    'src/Compiler/Template/ComponentViews.php' => 'the views, each compiled once and written as Nitro.view()',
+                    'js/src/runtime/view/calls.js' => 'renders a call with its view',
+                ],
+                'why' => 'A component\'s view was inlined at every use: a page using it forty times compiled it forty times',
+            ],
             'view file extensions in the adapters' => [
                 'patterns' => ["/\['jsx',\s*'tsx'/"],
                 'homes' => [],

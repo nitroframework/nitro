@@ -18,6 +18,7 @@ use Nitro\Build\Bundle;
 use Nitro\Build\ServerChildren;
 use Nitro\Compiler\ComponentMeta;
 use Nitro\Compiler\Components;
+use Nitro\Compiler\Template\ComponentViews;
 use Nitro\Console\BuildCommand;
 use Nitro\Console\ClearCommand;
 use Nitro\Console\MakeCommand;
@@ -145,6 +146,9 @@ class NitroServiceProvider extends ServiceProvider
         }
 
         $this->app->scoped(Nitro::class, fn (Application $app) => new Nitro($app));
+
+        /** The Blade components' views compiled once (a bundle compile gives itself a new one). */
+        $this->app->scoped(ComponentViews::class);
 
         $this->app->scoped(Config::class, fn (Application $app) => new Config((array) $app->make('config')->get('nitro'), (bool) $app->make('config')->get('app.debug')));
 

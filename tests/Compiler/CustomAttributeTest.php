@@ -38,7 +38,7 @@ class CustomAttributeTest extends TestCase
         $js = $this->compile('<div nitro:tooltip="@json($note)"></div>');
 
         $this->assertStringContainsString('"c": "nitro:tooltip"', $js);
-        $this->assertStringContainsString('P.fns.json_encode($this.note, 15)', $js, '@json in the value: the value is the data as JSON');
+        $this->assertStringContainsString('P.fns.json_encode($this.note, 15, 512)', $js, '@json in the value: the value is the data as JSON, as Blade encodes it');
     }
 
     public function test_an_unlisted_attribute_is_refused_with_how_to_add_it(): void
