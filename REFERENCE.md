@@ -1479,6 +1479,13 @@ Run `nitro:build` when deploying; `php artisan optimize` does not run it. `php a
 nitro:clear` removes the compiled files. Until the next build after a change, the `/_nitro`
 routes serve the current code.
 
+Laravel's route and config caches (`php artisan optimize`) keep what they cached: a page routed
+or a config value changed since is missing until the next `optimize`. Nitro checks them on each
+web request against the route files, the config files and `.env`. In development (`APP_DEBUG`)
+a stale cache is an error page naming the file that changed and the fix
+(`php artisan optimize:clear`); in production the app goes on as cached, with one warning in
+the log for each stale state.
+
 With obfuscation, write property and key names out in full (`$errors->has('form.email')`,
 `'items.'.$i.'.price'`) rather than building them from variables, since only names written out
 can be aliased. Keys inside array properties, `#[Url]` query keys, `mounted()`, `destroyed()` and
