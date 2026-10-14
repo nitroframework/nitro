@@ -86,13 +86,27 @@ final class ChildComponents extends Part
             $props[] = json_encode($name === Protocol::modelProp() || $dynamic ? $name : $context->scope->names?->property($name) ?? $name).': '.$table->expr($expression);
         }
 
+        /**
+         * The server's render renders the child as NitroTags' compiled call does (Placement::tag(),
+         * Tags::start()): its name, its props by the PHP's names (is and $model among them), its
+         * key, its number, an island's start. The props expression's twin holds them all (the
+         * server's compiled view only: the browser's tree has the browser's names).
+         */
+        $phpProps = [];
+
+        foreach ($tag->props as $name => $expression) {
+            $phpProps[] = var_export($name, true).' => '.$table->php($expression);
+        }
+
+        $server = '['.var_export($tag->name, true).', ['.implode(', ', $phpProps).'], '.($tag->key === null ? 'null' : $table->php($tag->key)).', '.$tag->number.', '.var_export($tag->hydrate, true).']';
+
         $node = new TemplateNode(array_filter([
             't' => 'c',
             'c' => $dynamic ? null : $context->scope->browserComponent($tag->name),
-            'is' => $dynamic ? $table->expression('P.toStr('.$table->expr($tag->props['is']).')') : null,
+            'is' => $dynamic ? $table->expression('P.toStr('.$table->expr($tag->props['is']).')', $table->php($tag->props['is'])) : null,
             'n' => $tag->number,
-            'key' => $tag->key !== null ? $table->expression('P.toStr('.$table->expr($tag->key).')') : null,
-            'props' => $table->expression('{'.implode(', ', $props).'}'),
+            'key' => $tag->key !== null ? $table->expression('P.toStr('.$table->expr($tag->key).')', $table->php($tag->key)) : null,
+            'props' => $table->expression('{'.implode(', ', $props).'}', $server),
             'model' => $tag->model === null ? null : $this->modelPath($tag->modelPath),
         ], fn ($value) => $value !== null));
         $this->compiler->tree->append($node);
@@ -140,7 +154,8 @@ final class ChildComponents extends Part
             $parts[] = json_encode($path);
         }
 
-        return $this->compiler->expressionTable->expression(implode(' + ', $parts));
+        /** The browser's binding only: the server passes the model's value as the $model prop. */
+        return $this->compiler->expressionTable->expression(implode(' + ', $parts), null);
     }
 
     /** <nitro:slot name="footer">: a named slot of the child tag around it. */

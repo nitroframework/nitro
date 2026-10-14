@@ -27,6 +27,9 @@ final class TemplateNode
     /** @var array<string, TemplateNode> a child component's slots: name => its content (a root node) */
     public array $slots = [];
 
+    /** Its content began: something of it was read (a newline the HTML parser drops after <pre> too). */
+    public bool $started = false;
+
     /** @param  array<string, mixed>  $fields */
     public function __construct(public array $fields)
     {

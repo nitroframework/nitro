@@ -48,6 +48,8 @@ final class InlinedViews extends Part
                 break;
             case 'endnitroScope':
                 array_pop($context->frames);
+                /** What a loop left set in the view that ends is that view's (PHP's scope of an included view). */
+                $context->left = array_filter($context->left, fn (array $left) => $left['depth'] <= count($context->frames));
 
                 break;
             case 'nitroSlot':
@@ -105,6 +107,34 @@ final class InlinedViews extends Part
     }
 
     /**
+     * Which view gives a variable the value it reads (replacement()'s frames, innermost first):
+     * how many frames are open with that one (1: the outermost), or null when no frame gives it
+     * (the view's own variable, or one of the template's).
+     */
+    public function givenAt(string $name): ?int
+    {
+        $context = $this->context;
+
+        for ($i = count($context->frames) - 1; $i >= 0; $i--) {
+            $frame = $context->frames[$i];
+
+            if (in_array($name, array_slice($context->locals, $frame['mark']), true)) {
+                return null;
+            }
+
+            if (array_key_exists($name, $frame['vars'])) {
+                return $i + 1;
+            }
+
+            if ($frame['isolated']) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The marker @nitroAttr('name', $value): a component's attribute, as ComponentAttributeBag prints it:
      * left out when its value is null or false, its name for true, else its trimmed value (the
      * bag's values are as the server writes them in the HTML: the parser's decoding is done here).
@@ -125,10 +155,13 @@ final class InlinedViews extends Part
         /** The value taken once by an arrow function: copied into each check, it would be compiled once per check. */
         $value = "(fn (\$__value) => html_entity_decode(trim((string) (\$__value === true ? {$true} : \$__value)), ENT_QUOTES))({$code})";
 
+        /** The server prints it as ComponentAttributeBag::__toString() does: as it is, trimmed, " as \". */
+        $printed = "(fn (\$__value) => str_replace('\"', '\\\\\"', trim((string) (\$__value === true ? {$true} : \$__value))))({$code})";
+
         $context->tag->attributes[] = [
             'c' => $name,
             'when' => $table->condition("(fn (\$__value) => \$__value !== null && \$__value !== false)({$code})"),
-            'h' => [['e' => 1, 'code' => $table->expression('P.toStr('.$table->expr($value).')')]],
+            'h' => [['e' => 1, 'code' => $table->expression('P.toStr('.$table->expr($value).')', $table->php($printed))]],
         ];
     }
 

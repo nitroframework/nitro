@@ -38,11 +38,23 @@ final class ComponentViews
     /** @var array<string, string> id => the component members it was compiled with, for a view that uses its component */
     private array $owners = [];
 
-    /** @var array<string, list<string>> id => its inputs that name an error's field */
-    private array $pathInputs = [];
+    /** @var array<string, bool> id => whether it (or a view it calls) reads an error's field known as the page runs: its callers' definitions carry their names */
+    private array $needsNames = [];
 
     /** @var array<string, list<string>> id => the inputs it reads */
     private array $read = [];
+
+    /** @var array<string, list<string>> id => its expressions (JavaScript) */
+    private array $expressions = [];
+
+    /** @var array<string, list<array{locals: list<string>, php: string}|null>> id => its expressions' PHP twins (the server's render) */
+    private array $phpExpressions = [];
+
+    /** @var array<string, array<string, mixed>> id => its node tree */
+    private array $trees = [];
+
+    /** @var array<string, array{reach: list<array{0: string, 1: list<array{0: string, 1: ?int}>, 2: string}>, slots: array<string, list<list<array{0: string, 1: ?int}>>>}> id => what its callers decide of its nesting */
+    private array $nesting = [];
 
     /** The id of a component's view for a signature. */
     public static function id(string $file, array $signature): string
@@ -76,6 +88,7 @@ final class ComponentViews
             $this->views[$id] = '';
             $compiler = $like->sibling();
             $compiler->endsTrimmed = $trimmed;
+            $compiler->componentView = true;
             $scope = new Scope(
                 properties: $callerScope->properties,
                 clientMethods: $callerScope->clientMethods,
@@ -108,7 +121,11 @@ final class ComponentViews
             $inputs = $this->read[$id] = array_values(array_filter($inputs, fn (string $input) => preg_match('/\$this\.'.preg_quote($input, '/').'\b/', $code) === 1));
 
             $this->calls[$id] = $compiler->calls();
-            $this->pathInputs[$id] = $compiler->pathInputs();
+            $this->expressions[$id] = $compiler->expressions();
+            $this->phpExpressions[$id] = $compiler->phpExpressions();
+            $this->trees[$id] = $compiler->tree();
+            $this->needsNames[$id] = $compiler->needsNames();
+            $this->nesting[$id] = $compiler->nesting();
             $this->uses[$id] = $compiler->uses();
             $this->appScript[$id] = $compiler->runsAppScript;
             $this->views[$id] = '// '.$label." · Blade component\nNitro.view(".json_encode($id).", {\ninputs: ".json_encode($inputs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).",\n"
@@ -125,6 +142,18 @@ final class ComponentViews
     }
 
     /**
+     * What a call of the view decides of its elements' nesting (Nesting): its elements whose
+     * rule reaches its top, and what is open where each slot is placed (nothing while it
+     * compiles: a view calling itself).
+     *
+     * @return array{reach: list<array{0: string, 1: list<array{0: string, 1: ?int}>, 2: string}>, slots: array<string, list<list<array{0: string, 1: ?int}>>>}
+     */
+    public function nesting(string $id): array
+    {
+        return $this->nesting[$id] ?? ['reach' => [], 'slots' => []];
+    }
+
+    /**
      * The inputs the view reads: what a call of it gives (null while it compiles: a view calling
      * itself gives all).
      *
@@ -135,15 +164,40 @@ final class ComponentViews
         return $this->read[$id] ?? null;
     }
 
-    /**
-     * The view's inputs that name an error's field: given by the browser's names for the
-     * component's properties (an obfuscated build), as the field written in the view would be.
-     *
-     * @return list<string>
-     */
-    public function pathInputs(string $id): array
+    /** @return list<string> the views compiled, by id */
+    public function ids(): array
     {
-        return $this->pathInputs[$id] ?? [];
+        return array_keys(array_filter($this->views, fn (string $view) => $view !== ''));
+    }
+
+    /** @return list<string> a view's expressions, as JavaScript */
+    public function expressions(string $id): array
+    {
+        return $this->expressions[$id] ?? [];
+    }
+
+    /** @return list<array{locals: list<string>, php: string}|null> a view's expressions' PHP twins (the server's render), by the same index */
+    public function phpExpressions(string $id): array
+    {
+        return $this->phpExpressions[$id] ?? [];
+    }
+
+    /** @return array<string, mixed> a view's node tree */
+    public function tree(string $id): array
+    {
+        return $this->trees[$id] ?? [];
+    }
+
+    /** @return list<string> the views a view calls, by id */
+    public function callsOf(string $id): array
+    {
+        return $this->calls[$id] ?? [];
+    }
+
+    /** Whether the view, or one it calls, reads an error's field known as the page runs: a component calling it carries its names. */
+    public function needsNames(string $id): bool
+    {
+        return $this->needsNames[$id] ?? false;
     }
 
     /** Whether the view runs the app's own JavaScript (it, not the views it calls: theirs are theirs). */

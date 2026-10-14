@@ -6,6 +6,7 @@ use Illuminate\View\Factory;
 use InvalidArgumentException;
 use Nitro\Compiler\CompileException;
 use Nitro\Compiler\Template\Parts\ComponentCalls;
+use Nitro\Support\Protocol;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
 
@@ -51,14 +52,22 @@ final class BladeInliner
     /** The @each loops so far: each loop's variables are its own. */
     private int $eaches = 0;
 
+    /** @var list<string> the views being inlined, outermost first (the view compiled, then its includes): a view in it is included in itself */
+    private array $inlining = [];
+
+    /** The trimmed regions marked so far (@nitroTrim): each its own id. */
+    private int $marks = 0;
+
     /**
      * @param  TemplateCompiler|null  $compiler  the compiler reading the expanded view (a component's view is compiled like it); null: dependencies() only
+     * @param  list<string>  $shared  what the views share once the application has booted (SharedAtBoot)
      */
     public function __construct(
         private readonly Factory $views,
         private readonly ComponentTags $tags,
         private readonly ?TemplateCompiler $compiler = null,
         private readonly ?ComponentViews $componentViews = null,
+        private readonly array $shared = [],
     ) {
         $this->parts = new ComponentParts($tags);
     }
@@ -83,6 +92,8 @@ final class BladeInliner
         $this->out = '';
         $this->lines = [[$file, 1]];
         $this->eaches = 0;
+        $this->marks = 0;
+        $this->inlining = $file === null ? [] : [str_replace('\\', '/', $file)];
         $this->inline($source, $file, 1, 0, $trimmed);
 
         return [$this->out, $this->lines];
@@ -154,7 +165,7 @@ final class BladeInliner
         $length = strlen($source);
 
         while ($at < $length) {
-            if (! preg_match('/\{\{--|@verbatim\b|'.self::INCLUDES.'|<\s*\/?\s*x[-:]/', $source, $match, PREG_OFFSET_CAPTURE, $at)) {
+            if (! preg_match('/\{\{--|(?<!@)@verbatim|'.self::INCLUDES.'|<\s*\/?\s*x[-:]/', $source, $match, PREG_OFFSET_CAPTURE, $at)) {
                 $this->emit(substr($source, $at), $file, $line);
 
                 return;
@@ -275,7 +286,7 @@ final class BladeInliner
 
         $ends = self::ends($source, $after, $trimmed);
         $this->out .= $condition !== null ? '@if('.PhpSource::print($condition).')' : '';
-        $this->inlineView($path, $vars, false, $name, $depth, $ends);
+        $this->inlineView($path, $vars, false, $name, $depth, $file, $line, $ends, "@{$directive}('{$name}')");
         $this->out .= $condition !== null ? '@endif' : '';
 
         return [$after, $next];
@@ -287,14 +298,32 @@ final class BladeInliner
      *
      * @param  array<string, string>  $vars
      */
-    private function inlineView(string $path, array $vars, bool $isolated, string $label, int $depth, bool $trimmed = false): void
+    private function inlineView(string $path, array $vars, bool $isolated, string $label, int $depth, ?string $file, int $line, bool $trimmed = false, ?string $directive = null): void
     {
+        /** A view inlined in itself never ends (what ends it in Blade is data, as it renders). */
+        if (in_array(str_replace('\\', '/', $path), $this->inlining, true)) {
+            throw new CompileException(($directive ?? $label)." is in the view it includes, which Nitro cannot inline (it inlines @include and @each where they are written): make that view a Blade component, whose view compiles once and can call itself", $file, $line);
+        }
+
+        $this->inlining[] = str_replace('\\', '/', $path);
         [$included, $firstLine] = self::rendered((string) file_get_contents($path));
         $included = $trimmed ? rtrim($included) : $included;
-        $this->out .= '@nitroScope('.$this->frame($vars, $isolated, $label, ComponentParts::setAside($included)[0]).')';
+        $mark = self::rendersFirst($included) ? ++$this->marks : null;
+        $this->out .= '@nitroScope('.$this->frame($vars, $isolated, $label, ComponentParts::setAside($included)[0]).')'.($mark === null ? '' : "@nitroTrim({$mark})");
         $this->startLine($path, $firstLine);
         $this->inline($included, $path, $firstLine, $depth + 1, $trimmed);
-        $this->out .= '@endnitroScope';
+        $this->out .= ($mark === null ? '' : "@endnitroTrim({$mark})").'@endnitroScope';
+        array_pop($this->inlining);
+    }
+
+    /**
+     * Whether a view (its leading whitespace taken off) begins with what renders as it runs: a
+     * directive, an echo, a component: what it renders first may begin with whitespace, which
+     * Blade's ltrim() of the view's output takes off (runtime/view/trim.js).
+     */
+    private static function rendersFirst(string $view): bool
+    {
+        return preg_match('/^(?:@|\{|<\s*x[-:]|<nitro:)/', $view) === 1;
     }
 
     /** A view's name, written as a string (a name worked out at run time cannot be compiled). */
@@ -357,8 +386,8 @@ final class BladeInliner
 
         /** In a frame of its own: its markers keep the directives apart wherever it is written (after a word too). */
         $n = ++$this->eaches;
-        $this->out .= '@nitroScope('.$this->frame([], false, "@each('{$view}')").')@forelse('.PhpSource::print($args[1])." as \$__eachKey{$n} => \$__eachItem{$n})";
-        $this->inlineView($find($view), ['key' => "\$__eachKey{$n}", $iterator => "\$__eachItem{$n}"], true, "@each('{$view}')", $depth);
+        $this->out .= '@nitroScope('.$this->frame([], false, "@each('{$view}')").')@nitroEach('.PhpSource::print($args[1])." as \$__eachKey{$n} => \$__eachItem{$n})";
+        $this->inlineView($find($view), ['key' => "\$__eachKey{$n}", $iterator => "\$__eachItem{$n}"], true, "@each('{$view}')", $depth, $file, $line);
 
         if (isset($args[3])) {
             $this->out .= '@empty';
@@ -366,11 +395,11 @@ final class BladeInliner
             if (str_starts_with($empty, 'raw|')) {
                 $this->out .= '@nitroScope('.$this->frame([], true, "@each('{$view}')").')@verbatim'.substr($empty, 4).'@endverbatim@endnitroScope';
             } else {
-                $this->inlineView($find($empty), [], true, "@each('{$view}')", $depth);
+                $this->inlineView($find($empty), [], true, "@each('{$view}')", $depth, $file, $line);
             }
         }
 
-        $this->out .= '@endforelse@endnitroScope';
+        $this->out .= '@endnitroEach@endnitroScope';
     }
 
     /**
@@ -487,14 +516,29 @@ final class BladeInliner
             if ($slotName !== 'slot' && ! isset($vars[$slotName])) {
                 $vars[$slotName] = 'true';
             }
+
+            /** Whether it renders empty ($slot->isEmpty()): the call gives it as it renders (calls.js); a view that does not ask has no such input. */
+            $vars[Protocol::emptySlot().($slotName === 'slot' ? 'default' : $slotName)] = 'null';
         }
 
-        /** What the view only tests (isset($x), $x ?? ...) and nothing gives is undefined: null, as in Blade. */
+        /**
+         * What the view only tests (isset($x), $x ?? ...) and nothing gives is undefined: null, as in
+         * Blade; unless it is data the views share once the app has booted (View::share() in a
+         * provider: SharedAtBoot, the same in a request and in nitro:build): Blade gives it, the
+         * browser does not have it. (Data shared as a request runs, by a middleware or a composer,
+         * is not known here: a difference the docs list.)
+         */
         if (preg_match_all('/isset\s*\(\s*\$(\w+)|\$(\w+)\s*\?\?/', $view, $tested)) {
             foreach (array_filter([...$tested[1], ...$tested[2]]) as $testedName) {
-                if (! isset($vars[$testedName]) && ! in_array($testedName, ['attributes', 'slot', 'errors', 'this'], true)) {
-                    $vars[$testedName] = 'null';
+                if (isset($vars[$testedName]) || in_array($testedName, ['attributes', 'slot', 'errors', 'this'], true)) {
+                    continue;
                 }
+
+                if (in_array($testedName, $this->shared, true)) {
+                    throw new CompileException("<x-{$name}> reads \${$testedName}, which the views share (View::share()): the browser does not have it. Pass it as an attribute", $path, 1 + substr_count($view, "\n", 0, (int) strpos($view, '$'.$testedName)));
+                }
+
+                $vars[$testedName] = 'null';
             }
         }
 
@@ -545,55 +589,30 @@ final class BladeInliner
             $own[$input] = "\$this->{$input}";
         }
 
+        /** Its output ltrim()med as Blade's (a region of id 0: the view's inliner numbers its own from 1). */
+        $body = $trimmed ? rtrim($rendered) : $rendered;
         $source = '@nitroScope('.$this->frame($own, true, "<x-{$name}>", $view).')'
             .($firstLine > 1 ? '{{--'.str_repeat("\n", $firstLine - 1).'--}}' : '')
-            .($trimmed ? rtrim($rendered) : $rendered);
+            .(self::rendersFirst($body) ? "@nitroTrim(0){$body}@endnitroTrim(0)" : $body);
         [$id, $uses] = $this->componentViews->compile(ComponentViews::id($path, [$source, $trimmed]), $source, $path, "<x-{$name}>", array_keys($inputs), $this->compiler, $trimmed);
         $this->compiler->use($uses);
         $this->compiler->runsAppScript = $this->compiler->runsAppScript || $this->componentViews->runsAppScript($id);
 
-        $read = $this->componentViews->inputs($id);
-        $inputs = $read === null ? $inputs : array_intersect_key($inputs, array_flip($read));
-
-        foreach ($this->componentViews->pathInputs($id) as $input) {
-            $inputs[$input] = $this->path($inputs[$input], $path);
+        if ($this->componentViews->needsNames($id)) {
+            $this->compiler->callsNeedingNames();
         }
 
+        $read = $this->componentViews->inputs($id);
+        $inputs = $read === null ? $inputs : array_intersect_key($inputs, array_flip($read));
         $items = [];
 
         foreach ($inputs as $input => $code) {
             $items[] = var_export($input, true)." => ({$code})";
         }
 
-        return base64_encode(json_encode(['view' => $id, 'inputs' => '['.implode(', ', $items).']'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return base64_encode(json_encode(['view' => $id, 'label' => "<x-{$name}>", 'inputs' => '['.implode(', ', $items).']'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
-    /**
-     * An input the view names an error's field by, as PHP: a field written out ('form.email', or
-     * the start of one, 'items.'.$i) by the browser's name for its property; a variable of a
-     * component's view, passed on, names one in that view too.
-     */
-    private function path(string $code, string $path): string
-    {
-        $expression = PhpSource::expression($code, $path, 1);
-        $start = $expression;
-
-        while ($start instanceof Expr\BinaryOp\Concat || $start instanceof Expr\BinaryOp\Coalesce) {
-            $start = $start->left;
-        }
-
-        if ($start instanceof Expr\Variable && is_string($start->name)) {
-            $this->compiler?->passesPath($start->name);
-        }
-
-        if (! $start instanceof Scalar\String_ || $this->compiler === null) {
-            return $code;
-        }
-
-        $start->value = $this->compiler->scope()->browserPath($start->value);
-
-        return PhpSource::print($expression);
-    }
 
     /**
      * The call where the tag is: its element with the tag's nitro: attributes, and its slots, each
@@ -621,21 +640,26 @@ final class BladeInliner
 
     /**
      * {{ $slot }} and {{ $name }} (a named slot) place the slot's content ({{ $slots['name'] }}:
-     * the call's slot); $slot->isEmpty() and ->isNotEmpty() are known here.
+     * the call's slot); $slot->isEmpty() and ->isNotEmpty() read whether what it renders is empty
+     * (ComponentSlot: its trimmed output is ''), which the call works out as it renders
+     * ($__empty_name, an input: calls.js).
      *
      * @param  array<string, array{0: string, 1: int}>  $slots
      */
     private function slotsIn(string $view, array $slots, string $path): string
     {
-        foreach ($slots as $slot => [$content]) {
+        foreach (array_keys($slots) as $slot) {
             $quoted = preg_quote($slot, '/');
-            $placed = "\$slots['".($slot === 'slot' ? 'default' : $slot)."']";
-            $view = (string) preg_replace('/\{\{\s*\$'.$quoted.'\s*\}\}/', "{{ {$placed} }}", $view);
-            $view = (string) preg_replace('/\{!!\s*\$'.$quoted.'\s*!!\}/', "{!! {$placed} !!}", $view);
-            $view = preg_replace('/\$'.$quoted.'\s*->\s*isEmpty\(\s*\)/', $content === '' ? 'true' : 'false', $view);
-            $view = preg_replace('/\$'.$quoted.'\s*->\s*isNotEmpty\(\s*\)/', $content === '' ? 'false' : 'true', $view);
+            $key = $slot === 'slot' ? 'default' : $slot;
+            $placed = "\$slots['{$key}']";
+            /** A slot the tag gives is set (a ComponentSlot, printed as its HTML): {{ $slot ?? 'x' }} is {{ $slot }}. */
+            $view = (string) preg_replace('/\{\{\s*\$'.$quoted.'\s*(?:\?\?(?:(?!\}\}).)*)?\}\}/s', "{{ {$placed} }}", $view);
+            $view = (string) preg_replace('/\{!!\s*\$'.$quoted.'\s*(?:\?\?(?:(?!!!\}).)*)?!!\}/s', "{!! {$placed} !!}", $view);
+            $empty = '$'.Protocol::emptySlot().$key;
+            $view = (string) preg_replace('/\$'.$quoted.'\s*->\s*isEmpty\(\s*\)/', $empty, $view);
+            $view = (string) preg_replace('/\$'.$quoted.'\s*->\s*isNotEmpty\(\s*\)/', "(! {$empty})", $view);
 
-            if (preg_match('/\$'.$quoted.'\b(?!\s*\?\?)/', $view, $left, PREG_OFFSET_CAPTURE) && $slot === 'slot') {
+            if (preg_match('/\$'.$quoted.'\b/', $view, $left, PREG_OFFSET_CAPTURE) && $slot === 'slot') {
                 throw new CompileException('$slot is used in a way the browser cannot render: use {{ $slot }}, $slot->isEmpty() or $slot->isNotEmpty()', $path, 1 + substr_count($view, "\n", 0, $left[0][1]));
             }
         }

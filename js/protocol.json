@@ -2,11 +2,13 @@
     "namespace": "nitro:",
     "compiled": {
         "root": "r",
-        "types": ["t", "c", "x", "m", "b", "p", "s", "v", "template"],
+        "types": ["t", "c", "x", "m", "b", "p", "s", "v", "w", "template"],
         "blocks": ["if", "else-if", "else", "foreach", "for", "while", "switch", "case", "default", "empty", "error"],
         "prop": ["locked", "default", "enum", "url", "remember"],
         "url": ["as", "history", "keep", "except"],
         "model": "$model",
+        "emptySlot": "__empty_",
+        "node": ["t", "c", "h", "a", "e", "d", "i", "n", "s", "v", "l", "w", "m", "code", "raw", "src", "end", "to", "levels", "props", "slots", "key", "is", "model", "when", "on", "forData", "item", "loop", "parentLoop", "message", "vars", "positional", "nl", "ls", "ts", "left"],
         "fields": ["page", "props", "server", "listeners", "mount", "modelable", "hooks", "propertyHooks", "methods", "template", "expressions", "subs", "stores", "engine", "view", "names", "scripts", "persist", "sync", "markup", "client", "html", "inputs"]
     },
     "view": {
@@ -56,7 +58,8 @@
         "unsaved": "$unsaved",
         "status": "$status",
         "uploads": "$uploads",
-        "scroll": "$scroll"
+        "scroll": "$scroll",
+        "callerLoop": "$callerLoop"
     },
     "headers": {
         "navigate": "X-Nitro-Navigate",

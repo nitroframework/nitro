@@ -79,8 +79,8 @@ final class Transpiler
     /** @var array{routes: array<string, true>, lang: array<string, true>, config: array<string, true>, functions: array<string, true>, classes: array<string, true>} what the Laravel helpers name, and the functions of js/functions called; bound to Context */
     public array $uses;
 
-    /** @var array<string, true> a Blade component's view: its inputs that name an error's field (the caller gives them by the browser's names) */
-    public array $pathInputs = [];
+    /** Whether the code reads an error's field known as the page runs (an obfuscated build): the component's definition carries its properties' browser names */
+    public bool $needsNames = false;
 
     private readonly Context $context;
 
@@ -290,7 +290,7 @@ final class Transpiler
      * declares (they become template variables inside the loop).
      *
      * @param  list<string>  $locals
-     * @return array{0: string, 1: list<string>}
+     * @return array{0: string, 1: list<string>, 2: string} the head, the variables it declares, and the head as PHP (the server's render)
      */
     public function templateFor(string $args, Scope $scope, array $locals, int $line): array
     {
@@ -337,7 +337,11 @@ final class Transpiler
             throw new CompileException('@for is too complex for a template: compute the values in a method', $scope->file, $line);
         }
 
-        return [$head, $declared];
+        /** The same head as the server's render runs it (names its @use resolved written out). */
+        $print = fn (array $expressions) => implode(', ', array_map(fn (Expr $expression) => Template\PhpSource::printResolved($expression), $expressions));
+        $php = 'for ('.$print($for->init).'; '.$print($for->cond).'; '.$print($for->loop).')';
+
+        return [$head, $declared, $php];
     }
 
     // ------------------------------------------------------------ dispatch

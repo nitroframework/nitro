@@ -5,7 +5,11 @@ namespace Nitro\Compiler\Template;
 use Nitro\Compiler\CompileException;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\CloningVisitor;
+use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
 use PhpParser\PrettyPrinter\Standard;
@@ -70,6 +74,53 @@ final class PhpSource
     public static function print(Expr $expr): string
     {
         return (new Standard)->prettyPrintExpr($expr);
+    }
+
+    /**
+     * The variables PHP code (a statement, without "<?php") reads, $this aside: what a closure
+     * running it takes from the scope around it (use).
+     *
+     * @return list<string>
+     */
+    public static function variablesIn(string $statement): array
+    {
+        $stmts = (new ParserFactory)->createForVersion(PhpVersion::fromComponents(8, 3))->parse('<?php '.$statement) ?? [];
+        $visitor = new class extends NodeVisitorAbstract
+        {
+            /** @var array<string, true> */
+            public array $names = [];
+
+            public function enterNode(Node $node): null
+            {
+                if ($node instanceof Expr\Variable && is_string($node->name) && $node->name !== 'this') {
+                    $this->names[$node->name] = true;
+                }
+
+                return null;
+            }
+        };
+        (new NodeTraverser($visitor))->traverse($stmts);
+
+        return array_keys($visitor->names);
+    }
+
+    /**
+     * An expression as PHP that runs in no namespace and without the view's imports (a server
+     * render's compiled view): a name an @use resolved (resolvedName) written out in full.
+     */
+    public static function printResolved(Expr $expr): string
+    {
+        $traverser = new NodeTraverser(new CloningVisitor, new class extends NodeVisitorAbstract
+        {
+            public function leaveNode(Node $node): ?Node
+            {
+                return $node instanceof Name && $node->getAttribute('resolvedName') instanceof Name\FullyQualified ? $node->getAttribute('resolvedName') : null;
+            }
+        });
+        $resolved = $traverser->traverse([new Node\Stmt\Expression($expr)])[0];
+        assert($resolved instanceof Node\Stmt\Expression);
+
+        return self::print($resolved->expr);
     }
 
     /** Where a "(" is closed, strings and nested parentheses skipped. */

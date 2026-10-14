@@ -82,6 +82,12 @@ final class Protocol
         return self::get('paths')[$role] ?? throw new \LogicException("js/protocol.json has no path [{$role}]");
     }
 
+    /** What a Blade component's view's input telling whether a slot renders empty is named by: the prefix to the slot's name ($__empty_default). */
+    public static function emptySlot(): string
+    {
+        return self::get('compiled')['emptySlot'];
+    }
+
     /** A section of the protocol ('urlValues', ...). */
     public static function get(string $section): mixed
     {

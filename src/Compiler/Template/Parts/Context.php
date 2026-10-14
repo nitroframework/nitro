@@ -46,6 +46,9 @@ final class Context
     /** @var list<string> the expression table, as JavaScript function sources */
     public array $expressions = [];
 
+    /** @var list<array{locals: list<string>, php: string}|null> by expression: its PHP twin (the server's render) and the template variables it takes, by position; null: the browser's only */
+    public array $phpExpressions = [];
+
     /** @var array<string, mixed> the node tree compile() made */
     public array $tree = [];
 
@@ -59,9 +62,9 @@ final class Context
     public array $expressionSources = [];
 
     /**
-     * Open elements and blocks, innermost last.
+     * Open elements and blocks, innermost last (implied: an element the HTML parser adds, Tree::implied()).
      *
-     * @var list<array{kind: string, node: TemplateNode, line: int, locals: list<string>, sources?: array<string, list<int|string>>, loop?: bool, tag?: string, ns?: string, case?: ?TemplateNode, child?: TemplateNode, name?: string}>
+     * @var list<array{kind: string, node: TemplateNode, line: int, locals: list<string>, sources?: array<string, list<int|string>>, loop?: bool, tag?: string, ns?: string, case?: ?TemplateNode, child?: TemplateNode, name?: string, implied?: bool}>
      */
     public array $stack = [];
 
@@ -123,6 +126,21 @@ final class Context
 
     /** @var list<int> by open slot: where its text starts in the text not yet made a node (Blade trims a slot's output) */
     public array $slotText = [];
+
+    /** @var array<string, array{node: TemplateNode, from: int, sources: list<int|string>, kept: bool, depth: int, blocks: list<int>}> variables a loop left set (Blocks::ended()): name => the loop, its position there, how many frames were open (the view it was in), the blocks it was in */
+    public array $left = [];
+
+    /** @var list<array{0: string, 1: list<array{0: string, 1: ?int}>, 2: string}> a component's view's elements whose nesting its caller decides (Nesting) */
+    public array $nestingReach = [];
+
+    /** @var array<string, list<list<array{0: string, 1: ?int}>>> a component's view's slots: what is open where each is placed (Nesting) */
+    public array $slotPlaces = [];
+
+    /** @var array<int, list<array{0: string, 1: list<array{0: string, 1: ?int}>}>> by <nitro-slot>: its content's elements decided where the slot lands (Nesting) */
+    public array $slotContent = [];
+
+    /** @var array<int, list<array{0: string, 1: list<array{0: string, 1: ?int}>}>> by <nitro-slot>: this view's slots passed on in it (Nesting) */
+    public array $slotPassed = [];
 
     /** A compile error at the line being compiled. */
     public function error(string $message): CompileException

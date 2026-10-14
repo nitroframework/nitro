@@ -91,7 +91,8 @@ final class StaticParts
     private static function staticAttributes(array $attributes): bool
     {
         foreach ($attributes as $attribute) {
-            if (isset($attribute['on']) || isset($attribute['when']) || str_starts_with((string) $attribute['c'], Protocol::namespace())) {
+            /** d: a Blade component's caller's nitro: attribute (its handler, its model), rendered with the caller. */
+            if (isset($attribute['d']) || isset($attribute['on']) || isset($attribute['when']) || str_starts_with((string) $attribute['c'], Protocol::namespace())) {
                 return false;
             }
 

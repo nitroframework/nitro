@@ -13,6 +13,7 @@ use Nitro\Compiler\Functions;
 use Nitro\Compiler\Globals;
 use Nitro\Compiler\Obfuscator;
 use Nitro\Compiler\Template\ComponentViews;
+use Nitro\Compiler\Template\TemplateCompiler;
 use Nitro\Compiler\Uses;
 use Nitro\NavigationMode;
 use Nitro\Support\Config;
@@ -195,7 +196,7 @@ final class BundleCompiler
     /** Whether Blade compiles @name (a built-in directive or one the application registered). */
     public function isBladeDirective(string $name): bool
     {
-        return method_exists($this->blade, 'compile'.ucfirst($name)) || array_key_exists($name, $this->blade->getCustomDirectives());
+        return TemplateCompiler::bladeDirectives($this->blade)($name);
     }
 
     /**

@@ -91,10 +91,10 @@ final class ComponentAccess extends Part
     }
 
     /**
-     * The arguments of $errors->has(), ->first(), ... and @error(): the field written out
-     * ('form.email'), built from a start written out ('items.'.$i), or given to an inlined
-     * component by its caller (name="email", read after its variables are replaced), by the
-     * browser's name for its property (an obfuscated build).
+     * The arguments of $errors->has(), ->first(), ... and @error(): the field by the browser's
+     * name for its property (an obfuscated build): written out ('form.email') or its start
+     * ('items.'.$i), here; known as the page runs (a variable, a Blade component's input), there
+     * ($this.$field(): by the names the component's definition then carries).
      *
      * @param  list<Arg|\PhpParser\Node\VariadicPlaceholder>  $args
      * @return list<string>
@@ -108,13 +108,17 @@ final class ComponentAccess extends Part
             $field = $field->left;
         }
 
-        /** A Blade component's view: an input naming the field is given by the browser's name where it is called (Transpiler::$pathInputs). */
-        if ($field instanceof Expr\PropertyFetch && $field->var instanceof Expr\Variable && $field->var->name === 'this' && $field->name instanceof Node\Identifier && in_array($field->name->toString(), $this->context->scope->inputs, true)) {
-            $this->transpiler->pathInputs[$field->name->toString()] = true;
+        if ($this->context->scope->names === null || $field === null) {
+            return $calls->args($args);
         }
 
-        if (! $field instanceof Scalar\String_ || $this->context->scope->names === null) {
-            return $calls->args($args);
+        /** A field known as the page runs (a variable, a component's input): the browser's name for it then, by the component's names (Transpiler::$needsNames). */
+        if (! $field instanceof Scalar\String_) {
+            $compiled = $calls->args($args);
+            $compiled[0] = '$this.$field('.$compiled[0].')';
+            $this->transpiler->needsNames = true;
+
+            return $compiled;
         }
 
         $start = $field->value;

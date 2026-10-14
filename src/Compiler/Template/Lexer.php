@@ -47,7 +47,8 @@ final class Lexer
         while ($this->position < strlen($source)) {
             match (true) {
                 $this->startsWith('{{--') => $this->comment(),
-                $this->startsWith('@{{') => $this->escapedEcho(),
+                $this->startsWith('@{{') => $this->escapedEcho('}}'),
+                $this->startsWith('@{!!') => $this->escapedEcho('!!}'),
                 $this->startsWith('{!!') => $this->echo(Token::RAW, '{!!', '!!}'),
                 $this->startsWith('{{{') => $this->echo(Token::ECHO, '{{{', '}}}'),
                 $this->startsWith('{{') => $this->echo(Token::ECHO, '{{', '}}'),
@@ -75,12 +76,13 @@ final class Lexer
         $this->textLine = $this->line;
     }
 
-    /** Blade prints "{{ ... }}" as it is, without the @. */
-    private function escapedEcho(): void
+    /** Blade prints @{{ ... }} and @{!! ... !!} as they are, without the @. */
+    private function escapedEcho(string $close): void
     {
-        $end = $this->find('}}', $this->position + 3, 'Unclosed @{{');
-        $this->text .= substr($this->source, $this->position + 1, $end + 2 - $this->position - 1);
-        $this->advance($end + 2);
+        $open = $close === '}}' ? '@{{' : '@{!!';
+        $end = $this->find($close, $this->position + strlen($open), "Unclosed {$open}");
+        $this->text .= substr($this->source, $this->position + 1, $end + strlen($close) - $this->position - 1);
+        $this->advance($end + strlen($close));
     }
 
     private function echo(string $kind, string $open, string $close): void
@@ -97,8 +99,19 @@ final class Lexer
     {
         $preceding = $this->position > 0 ? $this->source[$this->position - 1] : '';
         /** BladeInliner's markers sit wherever an inlined view begins or ends, after a word too. */
-        $inlined = preg_match('/\G@(?:(?:end)?nitro(?:Scope|Slot)|nitroAttr)\b/', $this->source, $_, 0, $this->position) === 1;
+        $inlined = preg_match('/\G@(?:(?:end)?nitro(?:Scope|Slot|Trim)|nitroAttr)\b/', $this->source, $_, 0, $this->position) === 1;
         $afterMarker = $this->position === $this->afterMarker;
+
+        /** Blade's @verbatim is anywhere but right after an @ (its storeVerbatimBlocks(): after a word too). */
+        if ($preceding !== '@' && $this->startsWith('@verbatim')) {
+            $end = $this->find('@endverbatim', $this->position + 9, 'Unclosed @verbatim');
+            $this->flush();
+            $this->tokens[] = new Token(Token::VERBATIM, substr($this->source, $this->position + 9, $end - $this->position - 9), $this->line);
+            $this->advance($end + 12);
+            $this->textLine = $this->line;
+
+            return;
+        }
 
         if ((preg_match('/\w/', $preceding) && ! $inlined && ! $afterMarker) || ! preg_match('/\G@(@?)(\w+(?:::\w+)?)/', $this->source, $match, 0, $this->position)) {
             $this->character();
@@ -108,20 +121,29 @@ final class Lexer
 
         [$whole, $escaped, $name] = $match;
 
+        /** @@name prints "@name", and its parentheses as written, without the space before them (Blade's compileStatement()). */
         if ($escaped === '@') {
-            /** @@name prints "@name". */
+            $after = $this->position + strlen($whole);
+
+            if (preg_match('/\G[ \t]*\(/', $this->source, $open, 0, $after)) {
+                $start = $after + strlen($open[0]);
+                $close = $this->closingParenthesis($start);
+                $this->text .= "@{$name}(".substr($this->source, $start, $close - $start).')';
+                $this->advance($close + 1);
+
+                return;
+            }
+
             $this->text .= '@'.$name;
-            $this->advance($this->position + strlen($whole));
+            $this->advance($after);
 
             return;
         }
 
+        /** An @verbatim right after an @ is text to Blade. */
         if ($name === 'verbatim') {
-            $end = $this->find('@endverbatim', $this->position + 9, 'Unclosed @verbatim');
-            $this->flush();
-            $this->tokens[] = new Token(Token::VERBATIM, substr($this->source, $this->position + 9, $end - $this->position - 9), $this->line);
-            $this->advance($end + 12);
-            $this->textLine = $this->line;
+            $this->text .= $whole;
+            $this->advance($this->position + strlen($whole));
 
             return;
         }
@@ -165,7 +187,6 @@ final class Lexer
         }
     }
 
-    /** Plain text, up to the next place a Blade construct could start ({ or @). */
     /**
      * A child's tag (<nitro:name ...>) is text as a whole, {{ }} in it too: ChildTag reads it as
      * the server's Blade precompiler does (nitro:model="lines.{{ $i }}.qty").
@@ -182,6 +203,7 @@ final class Lexer
         return true;
     }
 
+    /** Plain text, up to the next place a Blade construct could start ({, @ or a <nitro: tag). */
     private function character(): void
     {
         $next = strcspn($this->source, '{@<', $this->position + 1) + $this->position + 1;

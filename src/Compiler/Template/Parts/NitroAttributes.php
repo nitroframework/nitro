@@ -156,12 +156,6 @@ final class NitroAttributes extends Part
     }
 
     /**
-     * nitro:transition's modifiers: Globals::TRANSITION_MODIFIERS, .duration followed by a time
-     * (300ms, 1s), .origin by a side.
-     *
-     * @param  list<string>  $modifiers
-     */
-    /**
      * nitro:loading's modifiers: .delay (with a time: .delay.500ms) first, if any, then one of
      * Globals::LOADING_FORMS.
      *
@@ -184,6 +178,12 @@ final class NitroAttributes extends Part
         }
     }
 
+    /**
+     * nitro:transition's modifiers: Globals::TRANSITION_MODIFIERS, .duration followed by a time
+     * (300ms, 1s), .origin by a side.
+     *
+     * @param  list<string>  $modifiers
+     */
     private function checkTransition(array $modifiers): void
     {
         $context = $this->context;

@@ -195,16 +195,33 @@ final class ComponentCompiler
         return $js;
     }
 
+    /**
+     * A component's Blade view, compiled in the component's scope (its members, the stores it
+     * uses, the build's names): for its definition, and for the server's render (View\ServerViews).
+     */
+    public function view(ComponentMeta $meta, string $viewSource, string $viewFile): TemplateCompiler
+    {
+        $templates = new TemplateCompiler($this->isBladeDirective, $this->cloneStatic, $this->attributes);
+        $templates->compile($viewSource, $this->scope($meta), $viewFile);
+
+        return $templates;
+    }
+
+    private function scope(ComponentMeta $meta): Scope
+    {
+        $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
+
+        return $this->withStores($scope->withNames($this->names), $meta);
+    }
+
     /** $viewSource: a Blade view's, compiled here; null for a view the app's build compiles (a JavaScript framework's). */
     private function compileComponent(ComponentMeta $meta, ?string $viewSource, string $viewFile): string
     {
-        $scope = $this->componentName === null ? $meta->scope() : $meta->scope()->withComponentNames($this->componentName);
-        $scope = $this->withStores($scope->withNames($this->names), $meta);
+        $scope = $this->scope($meta);
         $templates = null;
 
         if ($viewSource !== null) {
-            $templates = new TemplateCompiler($this->isBladeDirective, $this->cloneStatic, $this->attributes);
-            $templates->compile($viewSource, $scope, $viewFile);
+            $templates = $this->view($meta, $viewSource, $viewFile);
             $this->use($templates->uses());
         }
 
@@ -256,14 +273,18 @@ final class ComponentCompiler
          * JavaScript that reaches the component by the PHP's names (a JavaScript framework's view,
          * an app's nitro: attribute): the browser's names for them (an obfuscated build's aliases).
          */
+        $properties = array_keys($meta->properties);
+
         if ($templates === null || $templates->runsAppScript) {
-            $properties = array_keys($meta->properties);
             $definition['names'] = [
                 'properties' => (object) array_combine($properties, array_map($scope->browserProperty(...), $properties)),
                 'methods' => (object) array_combine($public, array_map($scope->browserMethod(...), $public)),
                 'server' => (object) array_combine($meta->serverMethods, array_map($scope->browserMethod(...), $meta->serverMethods)),
                 'computed' => (object) array_combine($meta->derived(), array_map($scope->browserMethod(...), $meta->derived())),
             ];
+        } elseif ($templates->needsNames()) {
+            /** Its view reads an error's field known as the page runs ($this.$field()): its properties' browser names only. */
+            $definition['names'] = ['properties' => (object) array_combine($properties, array_map($scope->browserProperty(...), $properties))];
         }
 
         /** Its @nitroScript blocks: $nitro.name by the browser's names, as $this->js() code has them. */

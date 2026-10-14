@@ -2,6 +2,7 @@
 
 namespace Nitro\Compiler\Template\Parts;
 
+use Nitro\Compiler\Template\ComponentViews;
 use Nitro\Compiler\Template\TemplateNode;
 use Nitro\Support\Protocol;
 
@@ -15,7 +16,8 @@ use Nitro\Support\Protocol;
  * where the tag is), then made the call node (the directive after it also takes the newline after
  * the tag, as Blade's component tag does):
  *
- *   {t: "v", v: the view's id, i: the inputs (an expression), d: the nitro: attributes, slots: {name: {h}}}
+ *   {t: "v", v: the view's id, i: the inputs (an expression), d: the nitro: attributes, slots: {name: {h}},
+ *    l: where the caller's $loop is, when it has one}
  *
  * Nitro's own; the markers are never written in a view.
  *
@@ -57,16 +59,22 @@ final class ComponentCalls extends Part
             }
         }
 
+        /** l: where the caller's $loop is: the view's loops have it as their parent (Blade's one loop stack). */
+        $loop = $table->visibleLoop();
         $node->fields = array_filter([
             't' => 'v',
             'v' => $call['view'],
-            'i' => $table->expression($table->expr($call['inputs'])),
+            'i' => $table->expression($table->expr($call['inputs']), $table->php($call['inputs'])),
             'd' => self::byName($node->attributes),
-        ], fn ($value) => $value !== []);
+            'l' => $loop[0] ?? null,
+        ], fn ($value) => $value !== [] && $value !== null);
         $node->attributes = [];
         $node->children = [];
         $node->slots = $slots;
         $context->calls[] = $call['view'];
+
+        /** Its view's elements and its slots' content, under what is open where the tag is. */
+        $this->compiler->nesting->called(app(ComponentViews::class)->nesting($call['view']), $slots, $call['label']);
     }
 
     /**

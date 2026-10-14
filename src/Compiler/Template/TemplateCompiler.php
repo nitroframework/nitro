@@ -3,6 +3,7 @@
 namespace Nitro\Compiler\Template;
 
 use Closure;
+use Illuminate\View\Compilers\BladeCompiler;
 use Nitro\Compiler\BrowserClasses;
 use Nitro\Compiler\CompileException;
 use Nitro\Compiler\Globals;
@@ -16,6 +17,7 @@ use Nitro\Compiler\Template\Parts\ExpressionTable;
 use Nitro\Compiler\Template\Parts\NitroAttributes;
 use Nitro\Compiler\Template\Parts\HtmlScanner;
 use Nitro\Compiler\Template\Parts\InlinedViews;
+use Nitro\Compiler\Template\Parts\Nesting;
 use Nitro\Compiler\Template\Parts\StaticParts;
 use Nitro\Compiler\Template\Parts\Syntax;
 use Nitro\Compiler\Template\Parts\Tree;
@@ -71,6 +73,9 @@ final class TemplateCompiler
     /** A Blade component's view ending a slot (ComponentViews): its end is trimmed where it renders, as Blade trims a slot. */
     public bool $endsTrimmed = false;
 
+    /** A Blade component's view (ComponentViews): what is open above its top is its caller's (Nesting). */
+    public bool $componentView = false;
+
     private readonly Context $context;
 
     public readonly Tree $tree;
@@ -91,11 +96,11 @@ final class TemplateCompiler
 
     public readonly ComponentCalls $componentCalls;
 
+    public readonly Nesting $nesting;
+
     /**
      * @param  Closure(string): bool  $isBladeDirective
      * @param  bool  $cloneStatic  clone mode (nitro.rendering = 'clone'): the static parts are marked for the browser to copy (StaticParts)
-     */
-    /**
      * @param  list<string>  $attributes  the application's own nitro: attributes (nitro.attributes, checked by Globals::customAttributes())
      */
     public function __construct(
@@ -117,6 +122,7 @@ final class TemplateCompiler
         $this->nitroAttributes = new NitroAttributes($this, $this->context);
         $this->childComponents = new ChildComponents($this, $this->context);
         $this->componentCalls = new ComponentCalls($this, $this->context);
+        $this->nesting = new Nesting($this, $this->context);
     }
 
     /** A compiler as this one (its directives, rendering mode, the app's attributes), for another view: a Blade component's (ComponentViews). */
@@ -149,21 +155,29 @@ final class TemplateCompiler
     }
 
     /**
-     * A Blade component's view: its inputs that name an error's field.
+     * A Blade component's view: what its callers decide of its elements' nesting (Nesting).
      *
-     * @return list<string>
+     * @return array{reach: list<array{0: string, 1: list<array{0: string, 1: ?int}>, 2: string}>, slots: array<string, list<list<array{0: string, 1: ?int}>>>}
      */
-    public function pathInputs(): array
+    public function nesting(): array
     {
-        return array_keys($this->context->transpiler->pathInputs);
+        return ['reach' => $this->context->nestingReach, 'slots' => $this->context->slotPlaces];
     }
 
-    /** A Blade component's view passing its input on as a field another view names an error by: it names one too. */
-    public function passesPath(string $name): void
+    /**
+     * Whether the view, or a Blade component's view it calls, reads an error's field known as the
+     * page runs (an obfuscated build): the component's definition then carries its properties'
+     * browser names (ComponentAccess::errorArguments(), $this.$field()).
+     */
+    public function needsNames(): bool
     {
-        if (in_array($name, $this->context->scope->inputs, true)) {
-            $this->context->transpiler->pathInputs[$name] = true;
-        }
+        return $this->context->transpiler->needsNames;
+    }
+
+    /** A Blade component's view it calls needs the names (ComponentViews). */
+    public function callsNeedingNames(): void
+    {
+        $this->context->transpiler->needsNames = true;
     }
 
     /** The scope the view is compiled in (a Blade component's view called from it takes the build's names from it). */
@@ -180,6 +194,7 @@ final class TemplateCompiler
         $context->file = $file;
         $context->transpiler = new Transpiler($context->scope);
         $context->expressions = [];
+        $context->phpExpressions = [];
         $context->expressionSources = [];
         $context->sources = [];
         $context->locals = [];
@@ -194,6 +209,11 @@ final class TemplateCompiler
         $context->inHandler = false;
         $context->slotText = [];
         $context->calls = [];
+        $context->left = [];
+        $context->nestingReach = [];
+        $context->slotPlaces = [];
+        $context->slotContent = [];
+        $context->slotPassed = [];
 
         /** The view's use directives, as the PHP use statements Blade compiles them to: its own (an inlined view has its own, InlinedViews). */
         $context->viewImports = self::imports(ComponentParts::setAside($source)[0]);
@@ -201,10 +221,10 @@ final class TemplateCompiler
 
         /** @include: inlined; <x-components>: calls of their views (BladeInliner). */
         if (BladeInliner::needed($source)) {
-            [$source, $context->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler')), $this, app(ComponentViews::class)))->expand($source, $file, $this->endsTrimmed);
+            [$source, $context->lineMap] = (new BladeInliner(app('view'), new ComponentTags(app('blade.compiler')), $this, app(ComponentViews::class), app()->bound(SharedAtBoot::class) ? app(SharedAtBoot::class)->names : []))->expand($source, $file, $this->endsTrimmed);
         }
 
-        /** The variables of an inlined view, and of a Blade component's view (its frame), replaced as they are parsed. */
+        /** The variables of an inlined view, and of a Blade component's view (its frame), replaced as they are parsed (one a loop left set is declared before: Blocks::leftRead()). */
         $context->transpiler->substitute = fn (string $name) => $this->inlinedViews->replacement($name);
 
         try {
@@ -277,9 +297,10 @@ final class TemplateCompiler
      */
     public function fragment(bool $parse = false): string
     {
+        $browser = Tree::forBrowser($this->context->tree);
         $tree = $parse
-            ? 'JSON.parse('.self::jsString(json_encode($this->context->tree, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)).')'
-            : $this->context->json($this->context->tree);
+            ? 'JSON.parse('.self::jsString(json_encode($browser, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)).')'
+            : $this->context->json($browser);
 
         return 'template: '.$tree.",\nexpressions: [\n".implode(",\n", $this->context->expressions)."\n]";
     }
@@ -292,6 +313,33 @@ final class TemplateCompiler
     public function uses(): array
     {
         return $this->context->transpiler->uses;
+    }
+
+    /**
+     * The expressions' PHP twins, by the same index: what the server's render prints or reads
+     * there, with the template variables it takes (by position); null for the browser's only.
+     *
+     * @return list<array{locals: list<string>, php: string}|null>
+     */
+    public function phpExpressions(): array
+    {
+        return $this->context->phpExpressions;
+    }
+
+    /** @return array<string, mixed> the node tree compile() made: the fragment's template, with Blade's source of its text (Tree::sourced()) */
+    public function tree(): array
+    {
+        return $this->context->tree;
+    }
+
+    /**
+     * Whether Blade compiles @name: a built-in directive or one the application registered.
+     *
+     * @return Closure(string): bool
+     */
+    public static function bladeDirectives(BladeCompiler $blade): Closure
+    {
+        return fn (string $name) => method_exists($blade, 'compile'.ucfirst($name)) || array_key_exists($name, $blade->getCustomDirectives());
     }
 
     /**
@@ -315,7 +363,6 @@ final class TemplateCompiler
         return $this->context->expressionSources;
     }
 
-    /** The view's tokens, each sent to its part; then the checks that everything opened was closed. */
     /**
      * @nitroScript: the component's JavaScript, kept for its definition (a <script> tag around it,
      * for an editor's sake, taken off). Anywhere in the root element but in a block: it runs once
@@ -341,6 +388,7 @@ final class TemplateCompiler
         $this->runsAppScript = true;
     }
 
+    /** The view's tokens, each sent to its part; then the checks that everything opened was closed. */
     private function read(string $source, ?string $file): string
     {
         $context = $this->context;
@@ -369,6 +417,7 @@ final class TemplateCompiler
         }
 
         $this->tree->flushText();
+        $this->tree->leaveImplied();
 
         if (count($context->stack) > 1) {
             $open = $context->stack[array_key_last($context->stack)];

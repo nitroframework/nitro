@@ -2,6 +2,7 @@
 
 namespace Nitro\Compiler\Template\Parts;
 
+use Nitro\Compiler\Template\PhpSource;
 use Nitro\Compiler\Template\TemplateNode;
 use Nitro\Support\Protocol;
 
@@ -27,7 +28,12 @@ use Nitro\Support\Protocol;
 final class Blocks extends Part
 {
     /** Blade's @foreach($items as $key => $item) and @forelse, with $loop. */
-    public function foreach(string $args, bool $forelse): void
+    /**
+     * $loopName: the variable its loop state is in: $loop for Blade's loops; another for @each's
+     * iterations (its renderEach() is PHP's foreach: no $loop, and the view's loops' parent is the
+     * loop around the @each, as Blade's loop stack has it).
+     */
+    public function foreach(string $args, bool $forelse, string $loopName = 'loop'): void
     {
         $context = $this->context;
         $table = $this->compiler->expressionTable;
@@ -44,20 +50,143 @@ final class Blocks extends Part
 
         [$keyVar, $valueVar] = isset($vars[2]) ? [$vars[1], $vars[2]] : [null, $vars[1]];
 
-        $data = $table->expression($table->expr($iteratee));
-        $parentLoop = in_array('loop', $context->locals, true);
-        /** $loop->parent is the loop around it: its state comes from that loop's data too. */
-        $loopSources = [$data, ...($parentLoop ? $context->sources['loop'] ?? [] : [])];
-        $node = $this->compiler->tree->openBlock($forelse ? 'forelse' : 'foreach', [], true);
+        $data = $table->expression($table->expr($iteratee), $table->php($iteratee));
+        /** $loop->parent is the loop around it (where its $loop is): its state comes from that loop's data too. */
+        $parent = $table->visibleLoop();
+        $parentLoop = $parent[0] ?? null;
+        /** A Blade component's view's outermost loop: its parent is the caller's $loop, which the call signals (calls.js). */
+        $parentSources = $parent !== null ? $context->sources[$parent[1]] ?? [] : ($this->compiler->componentView ? [Protocol::signal('callerLoop')] : []);
+        $loopSources = [$data, ...$parentSources];
+        $node = $this->compiler->tree->openBlock($forelse ? 'forelse' : 'foreach', [], $loopName === 'loop');
 
+        $this->declares(array_filter([$keyVar, $valueVar]));
+        $key = $keyVar !== null ? $table->declareFrom($keyVar, [$data]) : null;
+        $item = $table->declareFrom($valueVar, [$data]);
         $node->fields['i'] = [array_filter([
             'c' => 'foreach',
             'forData' => $data,
-            'key' => $keyVar !== null ? $table->declareFrom($keyVar, [$data]) : null,
-            'item' => $table->declareFrom($valueVar, [$data]),
-            'loop' => $table->declareFrom('loop', $loopSources),
-            'parentLoop' => $parentLoop ? 1 : null,
+            'key' => $key,
+            'item' => $item,
+            'loop' => $table->declareFrom($loopName, $loopSources),
+            'parentLoop' => $parentLoop,
         ], fn ($value) => $value !== null)];
+        $this->leaves($node, ($keyVar === null ? [] : [$keyVar => (int) $key]) + [$valueVar => $item], [$data], true);
+    }
+
+    /**
+     * The variables a loop's PHP leaves set when it ends (foreach's, for's), by where the loop
+     * has them: read after the loop, they have their last value (leftRead()).
+     *
+     * @param  array<string, int>  $positions  name => its position in the loop
+     * @param  list<int|string>  $sources  what the loop's iterations come from
+     * @param  bool  $kept  the variable keeps the value it had when the loop runs no iteration (foreach's; for's are set before it runs)
+     */
+    private function leaves(TemplateNode $node, array $positions, array $sources, bool $kept): void
+    {
+        $leaves = [];
+
+        foreach ($positions as $name => $position) {
+            $leaves[$name] = ['node' => $node, 'from' => $position, 'sources' => $sources, 'kept' => $kept];
+        }
+
+        $this->context->stack[array_key_last($this->context->stack)]['leaves'] = $leaves;
+    }
+
+    /**
+     * A loop ended (Tree): the variables it leaves are known as such in this view, and in the
+     * views it includes, from here on.
+     *
+     * @param  array<string, array{node: TemplateNode, from: int, sources: list<int|string>, kept: bool}>  $leaves
+     */
+    public function ended(array $leaves): void
+    {
+        foreach ($leaves as $name => $left) {
+            $this->context->left[$name] = $left + ['depth' => count($this->context->frames), 'blocks' => $this->openBlocks()];
+        }
+    }
+
+    /**
+     * The blocks open here, outermost first: a loop sets what it leaves in the scope it renders in,
+     * which the nodes after it in those blocks share (a loop's iteration, an @error branch, are
+     * scopes of their own).
+     *
+     * @return list<int>
+     */
+    private function openBlocks(): array
+    {
+        return array_values(array_map(fn (array $frame) => spl_object_id($frame['node']), array_filter($this->context->stack, fn (array $frame) => $frame['kind'] !== 'element')));
+    }
+
+    /**
+     * The variables a loop before left set that the code reads, where they are not the
+     * template's: each declared here, and the loop told to set it as it ends (its directive's
+     * left: [its position in the loop, here, and what it was before the loop]), as PHP's loop
+     * leaves it. Not where a view opened since gives the name (givenAt: @include's data is merged
+     * over the variables around it, Factory::make()).
+     */
+    public function leftRead(string $code): void
+    {
+        $context = $this->context;
+
+        if ($context->left === [] || ! preg_match_all('/\$(\w+)/', $code, $names)) {
+            return;
+        }
+
+        foreach (array_unique($names[1]) as $name) {
+            $left = $context->left[$name] ?? null;
+            $givenAt = $this->compiler->inlinedViews->givenAt($name);
+
+            if ($left === null || ($givenAt !== null && $givenAt > $left['depth'])) {
+                continue;
+            }
+
+            /** Read after a block the loop is in ended (an @if's branch, an iteration): the value is that block's, which may not have run. */
+            if (array_slice($this->openBlocks(), 0, count($left['blocks'])) !== $left['blocks']) {
+                throw $context->error("\${$name} is a loop's variable read after the block the loop is in: PHP keeps the value it had there, if the block ran, which the browser does not. Read it inside that block, or set it outside the loop");
+            }
+
+            $table = $this->compiler->expressionTable;
+            $position = array_search($name, $context->locals, true);
+
+            /** Already a variable of the template's (an outer loop's of that name, an earlier read's): the loop sets it; no iteration keeps it. */
+            if ($position !== false) {
+                $entry = [$left['from'], $position];
+            } else {
+                /** What it was before the loop, for a loop that runs no iteration: read as it is here (a property, the view's data); null when it was nothing. */
+                $before = null;
+
+                if ($left['kept']) {
+                    unset($context->left[$name]);
+
+                    try {
+                        $before = $table->expression($table->expr('$'.$name), $table->php('$'.$name));
+                    } catch (\Nitro\Compiler\CompileException) {
+                        $before = null;
+                    } finally {
+                        $context->left[$name] = $left;
+                    }
+                }
+
+                $position = $table->declareFrom($name, [...$left['sources'], ...($before === null ? [] : [$before])]);
+                $entry = $left['kept'] ? [$left['from'], $position, $before] : [$left['from'], $position];
+            }
+
+            if (! in_array($entry, $left['node']->fields['i'][0]['left'] ?? [], true)) {
+                $left['node']->fields['i'][0]['left'][] = $entry;
+            }
+        }
+    }
+
+    /**
+     * A loop declares its variables: while it runs, they are its own, not what a loop before left.
+     *
+     * @param  list<string>  $names
+     */
+    private function declares(array $names): void
+    {
+        foreach ($names as $name) {
+            unset($this->context->left[$name]);
+        }
     }
 
     /**
@@ -78,20 +207,24 @@ final class Blocks extends Part
         $context = $this->context;
         $table = $this->compiler->expressionTable;
 
-        [$head, $variables] = $context->transpiler->templateFor($args, $context->scope, $context->locals, $context->line);
+        $this->leftRead($args);
+        [$head, $variables, $php] = $context->transpiler->templateFor($args, $context->scope, $context->locals, $context->line);
         $table->track();
         $declare = $variables === [] ? '' : 'let '.implode(', ', array_map(fn ($variable) => '$'.$variable, $variables)).'; ';
         $values = '['.implode(', ', array_map(fn ($variable) => '$'.$variable, $variables)).']';
 
-        $code = $table->expression($this->iterations($declare.$head, $values, '@for'));
+        $code = $table->expression($this->iterations($declare.$head, $values, '@for'), self::phpIterations($php, $values, '@for', $variables));
         $node = $this->compiler->tree->openBlock('for', [], true);
-        $node->fields['i'] = [['c' => 'for', 'code' => $code, 'vars' => array_map(fn ($variable) => $table->declareFrom($variable, [$code]), $variables)]];
+        $this->declares($variables);
+        $vars = array_map(fn ($variable) => $table->declareFrom($variable, [$code]), $variables);
+        $node->fields['i'] = [['c' => 'for', 'code' => $code, 'vars' => $vars]];
+        $this->leaves($node, array_combine($variables, $vars), [$code], false);
     }
 
     public function while(string $args): void
     {
         $table = $this->compiler->expressionTable;
-        $code = $table->expression($this->iterations('while (P.bool('.$table->expr($args).'))', '[]', '@while'));
+        $code = $table->expression($this->iterations('while (P.bool('.$table->expr($args).'))', '[]', '@while'), self::phpIterations('while ('.$table->php($args).')', '[]', '@while', []));
         $this->compiler->tree->openBlock('while', ['c' => 'while', 'code' => $code], true);
     }
 
@@ -151,7 +284,7 @@ final class Blocks extends Part
     public function switch(string $args): void
     {
         $table = $this->compiler->expressionTable;
-        $this->compiler->tree->openBlock('switch', ['c' => 'switch', 'code' => $table->expression($table->expr($args))], true);
+        $this->compiler->tree->openBlock('switch', ['c' => 'switch', 'code' => $table->expression($table->expr($args), $table->php($args))], true);
         $this->context->stack[count($this->context->stack) - 1]['case'] = null;
     }
 
@@ -189,7 +322,9 @@ final class Blocks extends Part
     {
         $context = $this->context;
         $table = $this->compiler->expressionTable;
-        $field = $table->expression($context->transpiler->errorField($args, $context->scope, $context->locals, $context->line));
+        /** The server's: Blade's [field, bag] (CompilesErrors: $errors->getBag($bag ?? 'default')). */
+        $this->leftRead($args);
+        $field = $table->expression($context->transpiler->errorField($args, $context->scope, $context->locals, $context->line), $table->php('['.$args.']'));
         $table->track();
         $node = $this->compiler->tree->openBlock('error', []);
         $node->fields['i'] = [['c' => 'error', 'code' => $field, 'message' => $table->declareFrom('message', [$field, Protocol::signal('errors')])]];
@@ -221,9 +356,23 @@ final class Blocks extends Part
         $context->stack[] = ['kind' => 'teleport', 'node' => $node, 'line' => $context->line, 'locals' => $context->locals, 'sources' => $context->sources, 'loop' => false];
     }
 
-    /** A loop's iterations as a list: each the values its variables have in it. */
+    /** A loop's iterations ({runs, after}): the values its variables have in each, and after it (what PHP's loop leaves them). */
     private function iterations(string $loop, string $values, string $directive): string
     {
-        return "(() => { const \$\$runs = []; {$loop} { \$\$runs.push({$values}); if (\$\$runs.length > ".Syntax::MAX_ITERATIONS.") throw new Error('{$directive} ran more than ".Syntax::MAX_ITERATIONS." times'); } return \$\$runs; })()";
+        return "(() => { const \$\$runs = []; {$loop} { \$\$runs.push({$values}); if (\$\$runs.length > ".Syntax::MAX_ITERATIONS.") throw new Error('{$directive} ran more than ".Syntax::MAX_ITERATIONS." times'); } return { runs: \$\$runs, after: {$values} }; })()";
+    }
+
+    /**
+     * iterations() for the server's render, in PHP: the loop run in a closure of its own, which
+     * takes the variables around it it reads (not those its loop declares).
+     *
+     * @param  list<string>  $declared
+     */
+    private static function phpIterations(string $loop, string $values, string $directive, array $declared): string
+    {
+        $uses = array_diff(PhpSource::variablesIn($loop.' {}'), $declared);
+        $use = $uses === [] ? '' : ' use ('.implode(', ', array_map(fn (string $name) => '$'.$name, $uses)).')';
+
+        return "(function (){$use} { \$__runs = []; {$loop} { \$__runs[] = {$values}; if (count(\$__runs) > ".Syntax::MAX_ITERATIONS.") { throw new \\RuntimeException('{$directive} ran more than ".Syntax::MAX_ITERATIONS." times'); } } return ['runs' => \$__runs, 'after' => {$values}]; })()";
     }
 }

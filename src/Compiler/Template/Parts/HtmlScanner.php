@@ -69,7 +69,7 @@ final class HtmlScanner extends Part
         $last = array_key_last($parts);
 
         if (isset($part['c']) && $last !== null && isset($parts[$last]['c'])) {
-            $parts[$last]['c'] .= $part['c'];
+            $parts[$last] = Tree::joined($parts[$last], $part);
 
             return;
         }
@@ -170,10 +170,6 @@ final class HtmlScanner extends Part
 
         $tag = $namespace === 'html' ? strtolower($name) : $name;
 
-        if ($tag === 'tr' && $parent !== null && $parent['tag'] === 'table') {
-            throw $context->error('Put the rows of a <table> inside <tbody>, <thead> or <tfoot> (the browser adds a <tbody> when it is missing)');
-        }
-
         $context->tag = new TemplateNode(['t' => 't', 'c' => $tag]);
         $context->tagLine = $context->line;
         $context->state = 'tag';
@@ -186,14 +182,20 @@ final class HtmlScanner extends Part
         $tree = $this->compiler->tree;
         $node = $context->tag;
         $context->tag = null;
-        $tree->current()->children[] = $node;
-
         $tag = $node->fields['c'];
+
+        /** The table elements the parser adds around it (Tree::implied()). */
+        if (($tree->element()['ns'] ?? 'html') === 'html') {
+            $tree->implied($tag);
+        }
+
+        $tree->current()->children[] = $node;
         $parentNs = $tree->element()['ns'] ?? 'html';
         $namespace = $parentNs === 'html' && in_array($tag, ['svg', 'math'], true) ? $tag : $parentNs;
 
-        if ($parentNs === 'html' && in_array(strtolower($tag), Syntax::CLOSES_P, true)) {
-            $this->assertNoOpenP($tag);
+        /** Where the HTML parser lets it be, under what is open (here, or where its component is called). */
+        if ($parentNs === 'html') {
+            $this->compiler->nesting->opened($tag);
         }
 
         if (in_array($tag, Html::VOID, true) || ($selfClosing && $namespace !== 'html')) {
@@ -208,31 +210,6 @@ final class HtmlScanner extends Part
 
         $lower = strtolower($tag);
         $context->state = $namespace !== 'html' ? 'data' : (in_array($lower, Html::RAW_TEXT, true) ? 'raw' : (in_array($lower, Html::RCDATA, true) ? 'rcdata' : 'data'));
-    }
-
-    /**
-     * <div> (and the other Syntax::CLOSES_P) inside an open <p>: the browser's HTML parser ends the
-     * <p> there, so the server's HTML would not be the tree the view says.
-     */
-    private function assertNoOpenP(string $tag): void
-    {
-        $context = $this->context;
-
-        foreach (array_reverse($context->stack) as $frame) {
-            if (($frame['kind'] ?? null) !== 'element') {
-                continue;
-            }
-
-            $open = strtolower($frame['tag']);
-
-            if ($open === 'p') {
-                throw $context->error("<{$tag}> inside <p> (line {$frame['line']}): the browser ends the <p> before a <{$tag}>, so it cannot be in one. Close the <p> first, or make it a <div>");
-            }
-
-            if (in_array($open, Syntax::P_SCOPE, true) || ($frame['ns'] ?? 'html') !== 'html') {
-                return;
-            }
-        }
     }
 
     private function tag(string $text, int $i): int
@@ -277,7 +254,7 @@ final class HtmlScanner extends Part
 
             /** An unquoted value runs to whitespace or >. */
             preg_match('/\G[^\s>]*/', $text, $valueMatch, 0, $i);
-            $context->tag->attributes[] = ['c' => $name, 'h' => [['c' => html_entity_decode($valueMatch[0], ENT_QUOTES | ENT_HTML5, 'UTF-8')]]];
+            $context->tag->attributes[] = ['c' => $name, 'h' => [Tree::sourced(html_entity_decode($valueMatch[0], ENT_QUOTES | ENT_HTML5, 'UTF-8'), $valueMatch[0])]];
 
             return $i + strlen($valueMatch[0]);
         }
@@ -310,7 +287,8 @@ final class HtmlScanner extends Part
                 }, explode(',', $decoded)));
             }
 
-            $this->attributePart(['c' => $decoded]);
+            /** Blade's source of it, as long as it is the value (not a browser's name for it). */
+            $this->attributePart($decoded === html_entity_decode($static, ENT_QUOTES | ENT_HTML5, 'UTF-8') ? Tree::sourced($decoded, $static) : ['c' => $decoded]);
         }
 
         if ($end === false) {
@@ -368,6 +346,12 @@ final class HtmlScanner extends Part
         /** </br>, </input>: nothing to close. */
         if (in_array(strtolower($tag), Html::VOID, true)) {
             return;
+        }
+
+        /** The elements the parser added (Tree::implied()) close with the one they are in (</table>). */
+        while (($top['implied'] ?? false) && strcasecmp($top['tag'], $tag) !== 0) {
+            array_pop($context->stack);
+            $top = end($context->stack);
         }
 
         if ($top['kind'] !== 'element') {

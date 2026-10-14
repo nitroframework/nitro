@@ -32,20 +32,31 @@ final class AttributeBag
     public static function render(string $view, array $codes, array $nitro, array $bag, string $path, ?string $slot = null): string
     {
         $entries = [];
+        /** Values the tag writes with a " in them (a bound value is escaped first): the bag prints it as \", which breaks the HTML. */
+        $quoted = [];
 
-        foreach (array_keys($bag) as $attribute) {
+        foreach ($bag as $attribute => $code) {
             $entries[$attribute] = isset($nitro[$attribute]) ? ['nitro' => $nitro[$attribute]] : ['code' => $codes[$attribute]];
+            $value = isset($nitro[$attribute]) ? null : PhpSource::expression($code, $path, 1);
+
+            if ($value instanceof Scalar\String_ && str_contains($value->value, '"')) {
+                $quoted[$attribute] = true;
+            }
         }
 
         $variable = $slot === null ? '\$attributes\b' : '\$'.preg_quote($slot, '/').'\s*->\s*attributes\b';
 
-        $view = preg_replace_callback('/\{\{\s*('.$variable.'(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $path, $view, $variable, $slot) {
+        $view = preg_replace_callback('/\{\{\s*('.$variable.'(?:[^{}]|\{[^{}]*\})*?)\s*\}\}/', function (array $match) use ($entries, $path, $view, $variable, $slot, $quoted) {
             /** {{ $attributes->get('x') }} echoes one attribute's value: the pass below reads it. */
             if (preg_match('/^'.$variable.'\s*->\s*(get|has)\s*\(/', $match[1]) === 1) {
                 return $match[0];
             }
 
             $bag = self::evaluate($match[1], $entries, $path, $view, $match[0], $slot);
+
+            foreach (array_keys(array_intersect_key($bag, $quoted)) as $attribute) {
+                throw new CompileException("{$attribute}='...' has a \" in its value, which {$match[0]} prints as \\\" (ComponentAttributeBag), breaking the HTML: write &quot; in the tag instead", $path, 1 + substr_count($view, "\n", 0, (int) strpos($view, $match[0])));
+            }
 
             return self::print($bag);
         }, $view);
@@ -149,8 +160,14 @@ final class AttributeBag
         foreach ($entries as $attribute => $entry) {
             if ($attribute === 'class' || $attribute === 'style') {
                 $value = $entry['code'] ?? var_export(html_entity_decode(trim($entry['nitro']), ENT_QUOTES), true);
-                $value = $attribute === 'style' ? "(str_ends_with((string) ({$value}), ';') ? ({$value}) : ({$value}).';')" : $value;
                 $default = $escaped[$attribute] ?? "''";
+
+                /** Str::finish(..., ';'): the tag's style, and a default style that is a string with something in it. */
+                if ($attribute === 'style') {
+                    $value = "(rtrim((string) ({$value}), ';').';')";
+                    $default = "(fn (\$__value) => is_string(\$__value) && \$__value !== '' ? rtrim(\$__value, ';').';' : \$__value)({$default})";
+                }
+
                 $appendable[$attribute] = ['code' => "implode(' ', array_unique(array_filter([{$default}, {$value}])))"];
             } else {
                 $others[$attribute] = $entry;
@@ -160,23 +177,10 @@ final class AttributeBag
         return array_merge(array_map(fn (string $code) => ['code' => $code], $escaped), $appendable, $others);
     }
 
-    /** Arr::toCssClasses() of a literal list, as PHP: [$class => $when, 'always'] => "always when-true". */
+    /** ->class($list): Arr::toCssClasses() of it (which wraps what is not a list), as PHP. */
     private static function cssClasses(?Expr $list): string
     {
-        $items = $list instanceof Expr\Array_ ? $list->items : ($list === null ? [] : [new Node\ArrayItem($list)]);
-        $parts = [];
-
-        foreach ($items as $item) {
-            if ($item === null) {
-                continue;
-            }
-
-            $parts[] = $item->key === null || $item->key instanceof Scalar\Int_
-                ? PhpSource::print($item->value)
-                : '('.PhpSource::print($item->value).' ? '.PhpSource::print($item->key).' : null)';
-        }
-
-        return "implode(' ', array_filter([".implode(', ', $parts).'], fn ($c) => $c !== null))';
+        return '\Illuminate\Support\Arr::toCssClasses('.($list === null ? 'null' : PhpSource::print($list)).')';
     }
 
     /** @return list<string> names from ->only() / ->except(): a string or a literal list of them */
