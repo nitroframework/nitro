@@ -4,7 +4,7 @@ import * as P from '../../php.js';
 import { createAnchorNode, getAnchor, nextAnchorNodeId } from './anchor.js';
 import { evaluate } from './call.js';
 import { renderDynamic } from './dynamic.js';
-import { renderForeach, setLoopArguments } from './foreach.js';
+import { iterationScope, leaveLoop, parentLoop, renderForeach } from './foreach.js';
 import { conditionOf, renderIf } from './if.js';
 import { createScope, track } from './scope.js';
 import { LOOPS, render } from './render.js';
@@ -68,15 +68,17 @@ function renderCondition(target, instance, node, scope, hydrate, insert, ifCondi
         nextValue = nextValue && !ifConditions.values[ifv];
     }
     let args = scope.arguments;
+    let own = [];
     if (nextValue) {
         const condition = conditionOf(instance, directive, scope);
         nextValue = condition.value;
         args = condition.args;
+        own = condition.own ?? [];
     }
     ifConditions.values.push(nextValue);
     const anchor = hydrate ? getAnchor(instance, target) : undefined;
     const anchorBegin = createAnchorNode(instance, target, insert, anchor); // begin if
-    const nextScope = createScope(scope, directive.c, args);
+    const nextScope = createScope(scope, directive.c, args, own);
     if (nextValue) {
         render(target, instance, node.h ?? [], nextScope, hydrate, insert);
     }
@@ -96,16 +98,18 @@ function renderForeachBlock(target, instance, node, scope, hydrate, insert) {
     const anchorBegin = createAnchorNode(instance, target, insert, anchor); // begin foreach
     /** Nitro: a Map keeps PHP's order and its keys' types (Viewi keeps an object). */
     const dataArrayScope = { data: new Map() };
-    const state = B.loop(data, directive.parentLoop ? scope.arguments[directive.loop] : null);
+    const state = B.loop(data, parentLoop(instance, directive, scope));
+    let last = null;
     for (const [dataKey, dataItem] of P.iter(data)) {
         const loop = B.next(state);
-        const nextScope = createScope(scope, 'foreach', setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop));
-        nextScope.loops = [...scope.loops, loop.index];
+        const nextScope = iterationScope(instance, scope, 'foreach', directive, dataKey, dataItem, loop);
+        last = nextScope.arguments;
         const itemBeginAnchor = createAnchorNode(instance, target, insert, anchor, 'B' + nextAnchorNodeId()); // begin foreach item
         render(target, instance, node.h ?? [], nextScope, hydrate, insert);
         const itemEndAnchor = createAnchorNode(instance, target, insert, anchor, itemBeginAnchor._anchor); // end foreach item
         dataArrayScope.data.set(dataKey, { key: dataKey, value: dataItem, index: loop.index, begin: itemBeginAnchor, end: itemEndAnchor, scope: nextScope });
     }
+    leaveLoop(instance, directive, scope, last);
     const anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end foreach
 
     /** Nitro: @forelse's @empty continues from whether there were items. */
@@ -130,7 +134,7 @@ export function renderBranches(target, instance, chain, scope, hydrate, insert) 
             case 'error': {
                 const condition = conditionOf(instance, directive, scope);
                 if (!condition.value) break;
-                const branchScope = condition.args === scope.arguments ? scope : createScope(scope, directive.c, condition.args);
+                const branchScope = condition.args === scope.arguments ? scope : createScope(scope, directive.c, condition.args, condition.own ?? []);
                 return render(target, instance, children, branchScope, hydrate, insert);
             }
             case 'foreach': {
@@ -159,37 +163,43 @@ export function renderBranches(target, instance, chain, scope, hydrate, insert) 
 /** @foreach in place: returns [signal, whether it had items]. */
 function foreachInPlace(target, instance, directive, children, scope, hydrate, insert) {
     const data = evaluate(instance, directive.forData, scope);
-    const state = B.loop(data, directive.parentLoop ? scope.arguments[directive.loop] : null);
-    let produced = false;
+    const state = B.loop(data, parentLoop(instance, directive, scope));
+    let last = null;
+    let signal;
 
     for (const [key, value] of P.iter(data)) {
-        produced = true;
         const loop = B.next(state);
-        const iterationScope = createScope(scope, 'foreach', setLoopArguments(scope.arguments.slice(), directive, key, value, loop));
-        iterationScope.loops = [...scope.loops, loop.index];
-
-        const signal = render(target, instance, children, iterationScope, hydrate, insert);
-        if (signal) {
-            if (signal.levels > 1) return [{ kind: signal.kind, levels: signal.levels - 1 }, produced];
-            if (signal.kind === 'break') break;
-        }
+        const iteration = iterationScope(instance, scope, 'foreach', directive, key, value, loop);
+        last = iteration.arguments;
+        signal = render(target, instance, children, iteration, hydrate, insert);
+        if (signal && (signal.levels > 1 || signal.kind === 'break')) break;
     }
-    return [undefined, produced];
+    leaveLoop(instance, directive, scope, last);
+    return [signal?.levels > 1 ? { kind: signal.kind, levels: signal.levels - 1 } : undefined, last !== null];
 }
 
 /** @for / @while: the expression works out each iteration's variables. */
 function iterations(target, instance, directive, children, scope, hydrate, insert) {
-    for (const values of evaluate(instance, directive.code, scope)) {
+    const { runs, after } = evaluate(instance, directive.code, scope);
+    const withValues = (values) => {
         const args = scope.arguments.slice();
         (directive.vars ?? []).forEach((position, i) => (args[position] = values[i]));
+        return args;
+    };
+    /** What its variables are once it ends: after its last run, or as a @break left them. */
+    let last = withValues(after);
+    let signal;
 
-        const signal = render(target, instance, children, createScope(scope, directive.c, args), hydrate, insert);
-        if (signal) {
-            if (signal.levels > 1) return { kind: signal.kind, levels: signal.levels - 1 };
-            if (signal.kind === 'break') break;
+    for (const values of runs) {
+        const args = withValues(values);
+        signal = render(target, instance, children, createScope(scope, directive.c, args, directive.vars ?? []), hydrate, insert);
+        if (signal && (signal.levels > 1 || signal.kind === 'break')) {
+            last = args;
+            break;
         }
     }
-    return undefined;
+    leaveLoop(instance, directive, scope, last);
+    return signal?.levels > 1 ? { kind: signal.kind, levels: signal.levels - 1 } : undefined;
 }
 
 /** @switch, as PHP's: the matching @case (else @default), -1 for none. */

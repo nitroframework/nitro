@@ -5,6 +5,7 @@ import { childPlaceholder, hydrateChild, hydrateRaw } from './hydrate.js';
 import { renderRaw } from './raw.js';
 import { createScope, dispose, track } from './scope.js';
 import { render } from './render.js';
+import { trimRegion } from './trim.js';
 
 // ------------------------------------------------------------ children, raw HTML
 
@@ -75,6 +76,8 @@ export function renderSlot(target, instance, node, scope, hydrate, insert) {
     const region = { name: node.c, foreign: null, anchorNode: null };
     fillSlot(target, instance, region, hydrate, insert);
     region.anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end slot
+    /** A Blade component's slot: Blade trims what it renders (trim.js). */
+    if (instance.host.slot?.(node.c)?.trim) trimRegion(scope, anchorBegin, region.anchorNode, true);
     instance.slotRegions.add(region);
     scope.cleanups.push(() => {
         instance.slotRegions.delete(region);
@@ -133,6 +136,8 @@ export function refreshSlots(instance) {
  * one. The server put it there: hydrating, it is taken over where it is.
  */
 export function renderTeleport(target, instance, node, scope, hydrate, insert) {
+    /** A slot rendered aside to see whether it is empty (calls.js rendersEmpty()): its teleported content is not in it. */
+    if (instance.probe) return;
     const portal = { to: node.to, anchorNode: null };
     renderPortal(instance, portal, node.h ?? [], createScope(scope, 'portal'), hydrate, !hydrate);
     instance.teleports.add(portal);

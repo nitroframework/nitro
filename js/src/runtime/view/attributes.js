@@ -8,6 +8,8 @@
 import { modelAttribute } from '../dom/model.js';
 import { evaluate } from './call.js';
 import { attributesOf } from './calls.js';
+import { decoded } from './text.js';
+import { ltrim } from './trim.js';
 import { ATTRIBUTES } from '../protocol.js';
 
 /** The attributes the runtime puts on a component's root element: its render keeps them. */
@@ -30,8 +32,26 @@ export function attributeValues(instance, node, scope) {
         /** when: whether it is there (@disabled, a component's attribute); its value, if it has one, still follows. */
         if (attribute.when !== undefined && !evaluate(reader, attribute.when, readScope)) continue;
         if (attribute.h) {
+            /**
+             * w: where an included view begins (end: ends) in the value; Blade ltrim()s what each
+             * renders (trim.js): while one that has rendered nothing yet is open, whitespace goes.
+             */
+            const trimming = new Set();
             for (const attributeValue of attribute.h) {
-                valueContent += attributeValue.e ? evaluate(reader, attributeValue.code, readScope) : attributeValue.c;
+                if (attributeValue.w !== undefined) {
+                    attributeValue.end ? trimming.delete(attributeValue.w) : trimming.add(attributeValue.w);
+                    continue;
+                }
+                let part;
+                if (!attributeValue.e) part = attributeValue.c;
+                else if (attributeValue.d) part = decoded(reader.document, evaluate(reader, attributeValue.code, readScope), true);
+                else part = evaluate(reader, attributeValue.code, readScope);
+                if (trimming.size > 0) {
+                    /** No further than its literal whitespace (ls): a character reference's stays, as in Blade's string. */
+                    part = ltrim(part, attributeValue.ls ?? Infinity);
+                    if (part !== '') trimming.clear();
+                }
+                valueContent += part;
             }
         }
 

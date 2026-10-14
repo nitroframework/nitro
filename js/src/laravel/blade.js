@@ -54,7 +54,8 @@ export function classes(list) {
 
 /** @style([...]) */
 export function styles(list) {
-    const finish = (s) => (s.endsWith(';') ? s : s + ';');
+    /** Str::finish($s, ';'): any ';' it ends with, one. */
+    const finish = (s) => s.replace(/;+$/, '') + ';';
     const out = [];
     for (const [k, v] of wrap(list)) {
         if (typeof k === 'number') out.push(finish(toStr(v)));

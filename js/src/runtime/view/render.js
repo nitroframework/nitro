@@ -14,11 +14,12 @@
  * a @switch only when its case changes; a block a @break leaves is part of the loop it breaks.
  */
 import { entering, motionless, transitionOf } from './transition.js';
-import { append } from './anchor.js';
+import { append, createAnchorNode, getAnchor } from './anchor.js';
+import { dropLeadingNewline, newlineRegion, normalize, trimRegion } from './trim.js';
 import { evaluate } from './call.js';
 import { hydrateComment, hydrateTag, hydrateText } from './hydrate.js';
 import { renderAttributeValue } from './attributes.js';
-import { renderText, textContent } from './text.js';
+import { renderText, setLimits, textParts } from './text.js';
 import { createScope, dispose, track } from './scope.js';
 import { renderChild, renderRawNode, renderSlot, renderTeleport } from './children.js';
 import { attributeCodes, codesIn, renderChain } from './blocks.js';
@@ -62,10 +63,12 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
                 while (nodes[last + 1]?.t === 'x' && !nodes[last + 1].raw) last++;
                 const group = nodes.slice(i, last + 1);
                 i = last;
-                const content = textContent(instance, group, scope);
+                const parts = textParts(instance, group, scope);
+                const content = parts.map((part) => part.text).join('');
                 const textNode = hydrate
                     ? hydrateText(instance, target, content)
                     : append(target, instance.document.createTextNode(content), insert);
+                setLimits(textNode, parts);
                 const codes = group.filter((n) => n.e).map((n) => n.code);
                 if (codes.length) {
                     track(instance, codes, scope, () => renderText(instance, group, textNode, scope));
@@ -94,6 +97,9 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
             case 's':
                 renderSlot(target, instance, node, scope, hydrate, insert);
                 break;
+            case 'w':
+                renderTrimMark(target, instance, node, scope, hydrate, insert);
+                break;
             case 'p':
                 renderTeleport(target, instance, node, scope, hydrate, insert);
                 break;
@@ -107,6 +113,26 @@ export function render(target, instance, nodes, scope, hydrate = true, insert = 
         }
     }
     return undefined;
+}
+
+/**
+ * Where a view Blade renders on its own begins ({t: "w", w: id}) and ends (end: 1): an included
+ * view or an @each item, whose output Blade ltrim()s (trim.js). The two anchors are a region.
+ */
+function renderTrimMark(target, instance, node, scope, hydrate, insert) {
+    const anchorNode = createAnchorNode(instance, target, insert, hydrate ? getAnchor(instance, target) : undefined);
+    if (!node.end) {
+        (scope.trims ??= new Map()).set(node.w, anchorNode);
+        return;
+    }
+    for (let s = scope; s; s = s.parent) {
+        const begin = s.trims?.get(node.w);
+        if (begin) {
+            s.trims.delete(node.w);
+            trimRegion(scope, begin, anchorNode, false);
+            return;
+        }
+    }
 }
 
 // ------------------------------------------------------------ tags
@@ -173,6 +199,8 @@ export function renderTag(target, instance, node, scope, hydrate, insert, rootEl
         renderTextarea(instance, element, node, childScope, created);
     } else {
         render(tag === 'template' && ns === null ? element.content : element, instance, node.h ?? [], childScope, hydrate && !created, false);
+        /** Its content starts with what renders: a newline that starts it goes, as the HTML parser drops it (trim.js). */
+        if (node.nl && ns === null) newlineRegion(childScope, element);
     }
 
     if (created && !hydrate) {
@@ -233,8 +261,12 @@ function renderTextarea(instance, element, node, scope, created) {
         const scratchScope = createScope(scope, 'textarea');
         scratchScope.untracked = true;
         render(scratch, instance, node.h ?? [], scratchScope, false, false);
+        /** An included view in it: its start trimmed as Blade's (trim.js), before the text is read. */
+        normalize();
+        /** Its text starts with what renders: a newline it starts with goes, as the HTML parser drops it. */
+        const text = node.nl ? dropLeadingNewline(scratch.textContent) : scratch.textContent;
         dispose(instance, scratchScope);
-        return scratch.textContent;
+        return text;
     };
     const show = (text) => {
         if (element.value !== text && element !== instance.document.activeElement) element.value = text;

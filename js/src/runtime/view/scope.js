@@ -10,12 +10,17 @@
  */
 let trackingId = 0;
 
-/** A scope inside another (Viewi's nextScope literals). */
-export function createScope(parent, why, args = parent.arguments) {
+/**
+ * A scope inside another (Viewi's nextScope literals). own: the positions of the variables it
+ * declares itself, in arguments of its own (a loop's, @error's $message): the rest are copies of
+ * its parent's, which propagate() keeps in step.
+ */
+export function createScope(parent, why, args = parent.arguments, own = []) {
     const scope = {
         id: ++parent.counter,
         why,
         arguments: args,
+        own,
         /** Nitro: indexes of the @foreach loops around it (a child's key has them) */
         loops: parent.loops,
         depth: parent.depth + 1,
@@ -32,7 +37,36 @@ export function createScope(parent, why, args = parent.arguments) {
 }
 
 export function rootScope() {
-    return { id: 0, why: 'root', arguments: [], loops: [], depth: 0, track: [], parent: null, children: {}, counter: 0, untracked: false, cleanups: [] };
+    return { id: 0, why: 'root', arguments: [], own: [], loops: [], depth: 0, track: [], parent: null, children: {}, counter: 0, untracked: false, cleanups: [] };
+}
+
+/** In propagate(): the change is of the $loop a Blade component's caller has where it calls it (calls.js). */
+export const CALLER = 'caller';
+
+/**
+ * A scope's variables changed in place (a @foreach iteration kept with a new value, index or
+ * parent): those at the positions go to the scopes in it that copied them (a block's own stay
+ * its own); a loop in it whose parent changed has its $loop made again with the new parent (as
+ * Blade's $loop->parent and ->depth are the loop around it now). Blade components called in it
+ * hear of their caller's $loop (scope.calls).
+ */
+export function propagate(scope, positions) {
+    for (const child of Object.values(scope.children)) {
+        let carry = positions;
+        if (child.arguments !== scope.arguments) {
+            carry = positions.filter((position) => position === CALLER || !child.own.includes(position));
+            for (const position of carry) {
+                if (position !== CALLER) child.arguments[position] = scope.arguments[position];
+            }
+            if (child.loopAt !== undefined && (child.parentAt !== undefined ? positions.includes(child.parentAt) : positions.includes(CALLER))) {
+                const parent = (child.parentAt !== undefined ? scope.arguments[child.parentAt] : child.callerLoop?.()) ?? null;
+                child.arguments[child.loopAt] = Object.freeze({ ...child.arguments[child.loopAt], parent, depth: parent ? parent.depth + 1 : 1 });
+                carry = [...carry, child.loopAt];
+            }
+        }
+        propagate(child, carry);
+    }
+    for (const call of scope.calls ?? []) call(positions);
 }
 
 /** What the expressions read (Nitro: the compiler's subs, by expression); a string is a key itself. */

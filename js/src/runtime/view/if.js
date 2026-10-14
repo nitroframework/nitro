@@ -6,11 +6,11 @@
 import { inPlace, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { render } from './render.js';
-import { createScope, dispose } from './scope.js';
+import { createScope, dispose, propagate } from './scope.js';
 
 /**
- * Whether the branch's condition holds, and the variables it renders with ({value, args}):
- * @error adds $message.
+ * Whether the branch's condition holds, and the variables it renders with ({value, args, own}):
+ * @error adds $message (own: its position, in arguments of its own).
  */
 export function conditionOf(instance, directive, scope) {
     switch (directive.c) {
@@ -23,7 +23,7 @@ export function conditionOf(instance, directive, scope) {
             if (!errors.has(field)) return { value: false, args: scope.arguments };
             const args = scope.arguments.slice();
             args[directive.message] = errors.first(field);
-            return { value: true, args };
+            return { value: true, args, own: [directive.message] };
         }
         default: // else, empty
             return { value: true, args: scope.arguments };
@@ -41,10 +41,12 @@ export function renderIf(instance, node, scopeContainer, ifConditions, index) {
         return;
     }
     let args = scope.arguments;
+    let own = [];
     if (nextValue) {
         const condition = conditionOf(instance, directive, scope);
         nextValue = condition.value;
         args = condition.args;
+        own = condition.own ?? [];
     }
     const anchorNode = scopeContainer.anchorNode;
     if (ifConditions.values[index] !== nextValue) {
@@ -52,7 +54,7 @@ export function renderIf(instance, node, scopeContainer, ifConditions, index) {
         dispose(instance, scopeContainer.scope);
         if (nextValue) {
             // render
-            const nextScope = createScope(scope, directive.c, args);
+            const nextScope = createScope(scope, directive.c, args, own);
             scopeContainer.scope = nextScope;
             render(anchorNode, instance, node.h ?? [], nextScope, false, true);
         } else {
@@ -61,7 +63,10 @@ export function renderIf(instance, node, scopeContainer, ifConditions, index) {
             removeBefore(instance, anchorNode);
         }
     } else if (nextValue && args !== scopeContainer.scope.arguments) {
-        /** Nitro: the branch stays; the variables it made of its own (@error's $message) follow. */
-        Object.assign(scopeContainer.scope.arguments, args);
+        /** Nitro: the branch stays; the variables it made of its own (@error's $message) follow, and the blocks in it that copied them. */
+        const current = scopeContainer.scope.arguments;
+        const changed = args.flatMap((value, position) => (Object.is(current[position], value) ? [] : [position]));
+        Object.assign(current, args);
+        if (changed.length) propagate(scopeContainer.scope, changed);
     }
 }

@@ -14,8 +14,51 @@ import * as P from '../../php.js';
 import { createAnchorNode, inPlace, nextAnchorNodeId, removeBefore } from './anchor.js';
 import { evaluate } from './call.js';
 import { render } from './render.js';
-import { createScope, dispose } from './scope.js';
+import { createScope, dispose, propagate } from './scope.js';
 import { motionless, move, positions, transitionOf } from './transition.js';
+
+/**
+ * A @foreach's $loop->parent: the $loop where the loop opens (parentLoop: its position); for a
+ * Blade component's view's outermost loops, the caller's $loop (calls.js); else null.
+ */
+export function parentLoop(instance, directive, scope) {
+    return (directive.parentLoop === undefined ? instance.callerLoop : scope.arguments[directive.parentLoop]) ?? null;
+}
+
+/**
+ * An iteration's scope: its variables (its key, its value, $loop) its own, and where its $loop
+ * and its parent's are, for propagate() to keep $loop->parent the loop around it as that changes.
+ */
+export function iterationScope(instance, scope, why, directive, key, value, loop) {
+    const own = [directive.item, directive.loop, ...(directive.key !== undefined ? [directive.key] : [])];
+    const iteration = createScope(scope, why, setLoopArguments(scope.arguments.slice(), directive, key, value, loop), own);
+    iteration.loops = [...scope.loops, loop.index];
+    iteration.loopAt = directive.loop;
+    iteration.parentAt = directive.parentLoop;
+    if (directive.parentLoop === undefined) iteration.callerLoop = () => instance.callerLoop;
+    return iteration;
+}
+
+/**
+ * The variables a loop leaves set as PHP's does, read after it (the compiler's left: [its position
+ * in the loop, where it is read, and for a loop that ran no iteration: absent, it keeps its value;
+ * null, null; else the expression giving what it was before]). last: the arguments the loop's
+ * variables last had (its last iteration's, the one a @break left; @for's after it), null when
+ * none ran. Set in the scope the loop renders in (in a block rendered again as a whole, the one
+ * around that: around); returns that scope and the positions that changed, for propagate().
+ */
+export function leaveLoop(instance, directive, scope, last) {
+    let into = scope;
+    while (into.around) into = into.around;
+    const changed = [];
+    for (const [from, to, before] of directive.left ?? []) {
+        if (!last && before === undefined) continue;
+        const value = last ? last[from] : before === null ? null : evaluate(instance, before, into);
+        if (!Object.is(into.arguments[to], value)) changed.push(to);
+        into.arguments[to] = value;
+    }
+    return [into, changed];
+}
 
 /** An iteration's variables, at their positions: its key, its value, $loop. */
 export function setLoopArguments(args, directive, key, value, loop) {
@@ -32,7 +75,7 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     const directive = node.i[0];
     const noKey = directive.key === undefined;
     const data = evaluate(instance, directive.forData, scope);
-    const state = B.loop(data, directive.parentLoop ? scope.arguments[directive.loop] : null);
+    const state = B.loop(data, parentLoop(instance, directive, scope));
 
     const current = [...currentArrayScope.data.values()];
     const usedMap = new Set();
@@ -77,11 +120,18 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
 
     let moveBefore = pastLeaving(anchors.anchorBegin.nextSibling);
     const nextArrayScope = new Map();
+    let last = null;
     for (const { dataKey, dataItem, positionIndex, foundIndex } of matches) {
         const loop = B.next(state);
         if (foundIndex !== -1) {
             const currentScopeItem = current[foundIndex];
-            Object.assign(currentScopeItem.scope.arguments, setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop));
+            last = currentScopeItem.scope.arguments;
+            /** Its variables as they are now; what changed goes to the blocks in it that copied them (propagate()). */
+            const args = currentScopeItem.scope.arguments;
+            const next = setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop);
+            const changed = next.flatMap((value, position) => (Object.is(args[position], value) ? [] : [position]));
+            Object.assign(args, next);
+            if (changed.length) propagate(currentScopeItem.scope, changed);
             currentScopeItem.key = dataKey;
             currentScopeItem.value = dataItem;
             currentScopeItem.index = positionIndex;
@@ -99,8 +149,8 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
             }
             moveBefore = pastLeaving(currentScopeItem.end.nextSibling);
         } else {
-            const nextScope = createScope(scope, 'forItem', setLoopArguments(scope.arguments.slice(), directive, dataKey, dataItem, loop));
-            nextScope.loops = [...scope.loops, loop.index];
+            const nextScope = iterationScope(instance, scope, 'forItem', directive, dataKey, dataItem, loop);
+            last = nextScope.arguments;
             const itemBeginAnchor = createAnchorNode(instance, moveBefore, true, undefined, 'B' + nextAnchorNodeId()); // begin foreach item
             render(moveBefore, instance, node.h ?? [], nextScope, false, true);
             const itemEndAnchor = createAnchorNode(instance, moveBefore, true, undefined, itemBeginAnchor._anchor); // end foreach item
@@ -110,6 +160,10 @@ export function renderForeach(instance, node, anchors, currentArrayScope, scope,
     }
     currentArrayScope.data = nextArrayScope;
     ifConditions.values[0] = positionIndex > -1;
+
+    /** What it leaves set, read after it: what reads it renders after this (it reads what the loop reads). */
+    const [into, changed] = leaveLoop(instance, directive, scope, last);
+    if (changed.length) propagate(into, changed);
 
     /** Each row that stays slides from where it was to where it is now. */
     if (before) {

@@ -16,6 +16,7 @@ import { directiveCodes, refreshSlots, renderTag, teleported } from './render.js
 import { conditionOf } from './if.js';
 import { createScope, dispose, keysOf, rootScope, run } from './scope.js';
 import { callRoot } from './calls.js';
+import { normalize } from './trim.js';
 
 /** The component's root element, built anew (nothing tracked): the template parity test's. */
 export function render(definition, $this, host, document) {
@@ -60,6 +61,7 @@ export class View {
             const [node, scope, instance] = this.root();
             renderTag(null, instance, node, scope, true, false, el);
             cleanup(this.instance);
+            normalize();
             this.instance.live = true;
         } finally {
             this.instance.anchors = null;
@@ -71,6 +73,7 @@ export class View {
         const [node, scope, instance] = this.root();
         const fragment = this.instance.document.createDocumentFragment();
         const element = renderTag(fragment, instance, node, scope, false, false);
+        normalize();
         this.instance.live = true;
         return element;
     }
@@ -78,6 +81,7 @@ export class View {
     /** The parent passed new slots: the slot regions render them. */
     refreshSlots() {
         refreshSlots(this.instance);
+        normalize();
     }
 
     /** The top elements of its @teleport content, wherever they went. */
@@ -98,6 +102,7 @@ export class View {
             if (name === '*' ? this.instance.rootSubs.size > 0 : this.instance.rootSubs.has(name) || this.instance.rootSubs.has('*')) return false;
         }
         run(this.instance, names);
+        normalize();
         return true;
     }
 
@@ -118,7 +123,8 @@ export class View {
         const visit = (nodes, scope, instance, inputs = null) => {
             for (let i = 0; i < nodes.length; i++) {
                 const node = nodes[i];
-                if (node.t === 'm') continue;
+                /** A comment, and where a view Blade trims begins or ends (trim.js): nothing of the root. */
+                if (node.t === 'm' || node.t === 'w') continue;
                 if (node.t === 'x') {
                     const text = node.e ? evaluate(instance, node.code, scope) : node.c ?? '';
                     if (String(text).trim() !== '') throw rootError();

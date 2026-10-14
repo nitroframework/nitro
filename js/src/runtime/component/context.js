@@ -20,6 +20,13 @@ export function enumValue(prop, name, value) {
     throw new P.PhpError('TypeError', `Cannot assign ${P.typeName(value)} to property $${name}: it takes a case of its enum`);
 }
 
+/** An error's field ("form.email") by the browser's name for its property: the definition's names (an obfuscated build), else as it is. */
+export function browserField(definition, path) {
+    const [root, ...rest] = P.toStr(path).split('.');
+    const names = definition.names?.properties ?? {};
+    return Object.hasOwn(names, root) ? [names[root], ...rest].join('.') : path;
+}
+
 /** Its properties on a $this (a component's or a store's): an enum property read as its case, written as its value. */
 export function defineProperties(ctx, holder) {
     for (const [name, prop] of Object.entries(holder.definition.props)) {
@@ -63,6 +70,11 @@ export function contextOf(component) {
         $loadMore: (name) => self.runtime.loadMore(self, P.toStr(name)),
         /** $this->hasMore('posts'): whether the scroll prop has a next page. */
         $hasMore: (name) => self.nextPage(P.toStr(name)) !== null,
+        /**
+         * An error's field known as the page runs ($errors->has($field), @error($field)), by the
+         * browser's name for its property (an obfuscated build: the definition's names; else as it is).
+         */
+        $field: (path) => browserField(component.definition, path),
         /** @deferred: whether any of the properties (any, when none are named) is still loading. */
         $deferring: (names) => (names.length ? names.some((name) => self.deferred.has(name)) : self.deferred.size > 0),
     });

@@ -12,7 +12,7 @@ import { createScope, dispose, track } from './scope.js';
 export function renderDynamic(target, instance, scope, hydrate, insert, codes, content, choose = null) {
     const anchor = hydrate ? getAnchor(instance, target) : undefined;
     const anchorBegin = createAnchorNode(instance, target, insert, anchor); // begin dynamic
-    const scopeContainer = { scope: createScope(scope, 'dynamic', scope.arguments.slice()), chosen: choose?.(scope) };
+    const scopeContainer = { scope: around(createScope(scope, 'dynamic', scope.arguments.slice()), scope), chosen: choose?.(scope) };
     content(target, scopeContainer.scope, hydrate, insert);
     const anchorNode = createAnchorNode(instance, target, insert, anchor, anchorBegin._anchor); // end dynamic
 
@@ -27,7 +27,13 @@ export function renderDynamic(target, instance, scope, hydrate, insert, codes, c
         }
         dispose(instance, scopeContainer.scope);
         removeBefore(instance, anchorNode);
-        scopeContainer.scope = createScope(scope, 'dynamic', scope.arguments.slice());
+        scopeContainer.scope = around(createScope(scope, 'dynamic', scope.arguments.slice()), scope);
         content(anchorNode, scopeContainer.scope, false, true);
     });
+}
+
+/** The block's scope, with its own copy of the variables: what a loop in it leaves set is the scope's around it (foreach.js leaveLoop()). */
+function around(region, scope) {
+    region.around = scope;
+    return region;
 }

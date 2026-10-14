@@ -10,6 +10,9 @@ export const NAMESPACE = protocol.namespace;
 /** Among a child's props: the value of its tag's nitro:model: Protocol::modelProp(). */
 export const MODEL_PROP = protocol.compiled.model;
 
+/** A Blade component's view's input telling whether a slot renders empty: this, then the slot's name: Protocol::emptySlot(). */
+export const EMPTY_SLOT = protocol.compiled.emptySlot;
+
 /** The engine of a view Nitro compiles itself: Protocol::bladeEngine(). Its definitions name no engine. */
 export const BLADE_ENGINE = protocol.view.bladeEngine;
 
