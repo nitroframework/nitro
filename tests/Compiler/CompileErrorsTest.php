@@ -149,7 +149,7 @@ class CompileErrorsTest extends TestCase
             'control directive in a tag' => ["<div\n@if (\$count) hidden @endif>x</div>", '@if cannot sit inside a tag', 2],
             'directive in an attribute value' => ['<div class="a @if($count) b @endif">x</div>', '@if cannot be used inside an attribute value', 1],
             'attribute directive outside a tag' => ['<div>@disabled($count)</div>', '@disabled belongs inside a tag', 1],
-            'rows without tbody' => ["<table>\n<tr><td>1</td></tr></table>", 'Put the rows of a <table> inside <tbody>', 2],
+            'rows of a loop without tbody' => ["<table>\n@foreach (\$items as \$item)<tr><td>1</td></tr>@endforeach</table>", 'Put the rows of a <table> inside <tbody>', 2],
             'rows in a loop without tbody' => ['<table>@foreach ($items as $item)<tr><td>1</td></tr>@endforeach</table>', 'inside <tbody>', 1],
             'echo in a tag' => ['<div {{ $count }}>x</div>', 'An echo inside a tag must be an attribute value', 1],
             'mismatched end' => ["<div>\n@if (\$count)\n@endforeach\n</div>", 'Unexpected @endforeach', 3],

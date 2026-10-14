@@ -14,8 +14,9 @@ use Nitro\Tests\TestCase;
 use Nitro\Upload;
 
 /**
- * Each fixture view, in many states, rendered by Blade on the server and by its compiled render
- * function in Node: the two must be the same DOM (child components compared by key only).
+ * Each fixture view, in many states, rendered by the server (the compiled tree, View\TreeRenderer)
+ * and by its compiled render function in Node: the two must be the same DOM (child components
+ * compared by key only).
  */
 class TemplateParityTest extends TestCase
 {

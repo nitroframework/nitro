@@ -53,6 +53,9 @@ class InlinedViewsTest extends TestCase
             'an error in an included view, at its own line' => ["<div>\n\n\n@include('inline-errors.bad-line', ['cake' => \$count])</div>", '->price() is called on a value in the browser', self::VIEWS.'inline-errors/bad-line.blade.php', 3],
             'an $attributes->has() without a literal name, at its line' => ['<div><x-attribute-name /></div>', "\$attributes->has() takes the attribute's name as a string", self::VIEWS.'components/attribute-name.blade.php', 3],
             'an unclosed component tag' => ["<div>\n<x-badge>open</div>", '<x-badge> is not closed', 'view.blade.php', 2],
+            'a double quote in a value the bag prints' => ["<div>\n<x-badge title='say \"hi\"'>x</x-badge></div>", "title='...' has a \" in its value, which {{ \$attributes->merge(", self::VIEWS.'components/badge.blade.php', 2],
+            'a component testing data the views share' => ['<div><x-shared-name /></div>', '<x-shared-name> reads $siteName, which the views share', self::VIEWS.'components/shared-name.blade.php', 2],
+            'a view included in itself (twice: it would never end, not stop at a depth)' => ["<div>\n@include('partials.tree', ['nodes' => \$count])</div>", "@include('partials.tree') is in the view it includes", self::VIEWS.'partials/tree.blade.php', 3],
         ];
     }
 
@@ -70,6 +73,16 @@ class InlinedViewsTest extends TestCase
             $this->assertSame(str_replace('\\', '/', $file), str_replace('\\', '/', (string) $e->sourceFile), $e->getMessage());
             $this->assertSame($line, $e->sourceLine, $e->getMessage());
         }
+    }
+
+    /** What a request's middleware shares comes after boot: a view compiles as it does in nitro:build (the name is null in it, as the browser has it). */
+    public function test_data_shared_after_boot_does_not_change_how_a_view_compiles(): void
+    {
+        $this->boot('laravel');
+        \Illuminate\Support\Facades\View::share('lateName', 'set by a middleware');
+
+        $this->compile('<div><x-late-name /></div>');
+        $this->addToAssertionCount(1);
     }
 
     public function test_a_component_view_comments_and_verbatim_are_left_as_written(): void
@@ -147,6 +160,20 @@ class InlinedViewsTest extends TestCase
         $this->assertLessThanOrEqual(2, substr_count($js, '$this.view'), 'and a prop merged into class likewise');
     }
 
+    public function test_an_include_compiles_wherever_blade_allows_it(): void
+    {
+        $this->boot('laravel');
+
+        $tag = $this->compiled("<div @include('partials.attrs')>x</div>", new Scope(properties: ['flag'], file: 'Component.php'));
+        $this->assertStringContainsString('"c": "data-x"', $tag, 'in a tag: what it renders is the tag\'s attributes');
+
+        $value = $this->compiled("<div class=\"a @include('partials.cls')\">x</div>", new Scope(properties: ['flag'], file: 'Component.php'));
+        $this->assertStringContainsString('"w": 1', $value, 'in an attribute\'s value: where it begins, for its output to be ltrim()med there');
+
+        $textarea = $this->compiled("<textarea>@include('partials.cls')</textarea>", new Scope(properties: ['flag'], file: 'Component.php'));
+        $this->assertStringContainsString('"t": "w"', $textarea, 'in a <textarea>: likewise, as text');
+    }
+
     public function test_a_component_used_many_times_is_compiled_once(): void
     {
         $this->boot('laravel');
@@ -169,11 +196,17 @@ class InlinedViewsTest extends TestCase
         $this->boot('laravel');
         $names = new \Nitro\Compiler\Obfuscator('key', [], aliasComponents: false);
 
-        $js = $this->compiled('<div><x-field-error name="email" /></div>', new Scope(properties: ['email'], file: 'Component.php', names: $names));
+        $compiler = new TemplateCompiler(fn (string $name) => Blade::getCustomDirectives()[$name] ?? in_array($name, ['include', 'props'], true));
+        $js = $compiler->compile('<div><x-field-error name="email" /></div>', new Scope(properties: ['email'], file: 'Component.php', names: $names), 'view.blade.php')
+            ."\n".implode("\n", app(ComponentViews::class)->definitions());
 
-        $this->assertSame(1, substr_count($js, json_encode($names->property('email'))), 'the call gives the field by its alias');
-        $this->assertSame(2, substr_count($js, '$this.name'), '@error($name) and $errors->has($name) read it');
-        $this->assertStringNotContainsString('"email"', $js, 'never by its own name, which the errors do not carry');
+        $this->assertSame(2, substr_count($js, '$this.$field($this.name)'), '@error($name) and $errors->has($name) read the field by its browser name, as the page runs');
+        $this->assertTrue($compiler->needsNames(), 'so the component calling it carries its properties\' names');
+
+        $literal = new TemplateCompiler(fn (string $name) => false);
+        $literalJs = $literal->compile("<p>@error('email') x @enderror</p>", new Scope(properties: ['email'], file: 'Component.php', names: $names), 'view.blade.php');
+        $this->assertStringContainsString(json_encode($names->property('email')), $literalJs, 'a field written out is the alias when it compiles');
+        $this->assertFalse($literal->needsNames(), 'and needs no names');
     }
 
     public function test_each_inlined_view_reads_its_own_use_directives(): void

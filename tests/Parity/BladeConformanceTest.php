@@ -16,13 +16,19 @@ use Nitro\Support\Protocol;
 use Nitro\Support\Wire;
 use Nitro\Tests\Support\Node;
 use Nitro\Tests\TestCase;
+use Illuminate\Support\ViewErrorBag;
+use Nitro\Build\BrowserNames;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Blade conformance: every Blade feature Nitro compiles (Conformance/cases.php), in every context
+ * Blade conformance: every Blade feature Nitro compiles (Conformance/cases.php, the reviewer's; and
+ * Conformance/nitro-cases.php, Nitro's own), in every context
  * a view can hold it (CONTEXTS), rendered by Blade on the server and by the compiled view in Node
  * (js/test/support/run-templates.mjs: built, tracked, hydrated), then changed to a second state
- * and updated: the same DOM each time. With and without obfuscation.
+ * and updated: the same DOM each time. With and without obfuscation. Laravel's Blade renders
+ * each case as the reference; Nitro's two renders of the compiled tree must give its DOM: the
+ * server's (View\TreeRenderer, the HTML a page ships, which the browser hydrates) and the
+ * browser's.
  *
  * Each case in each context is a component of its own, written to a folder of the test's and
  * compiled by the bundle as an app's are (ComponentCompiler), so what is checked is what ships.
@@ -60,6 +66,13 @@ class BladeConformanceTest extends TestCase
         self::$root = sys_get_temp_dir().DIRECTORY_SEPARATOR.'nitro-conformance-'.bin2hex(random_bytes(4));
         $php = self::PHP;
         $definition = require __DIR__.'/Conformance/cases.php';
+
+        /** Nitro's own cases, after the reviewer's (their numbers stay theirs). */
+        $own = require __DIR__.'/Conformance/nitro-cases.php';
+
+        foreach (['components', 'partials', 'cases', 'refused'] as $part) {
+            $definition[$part] = ($definition[$part] ?? []) + $own[$part];
+        }
 
         $properties = "public string \$name = ''; public int \$count = 0; public float \$price = 0; public bool \$flag = false; public ?string \$nothing = null; "
             .'public array $items = []; public array $map = []; public array $empty = []; public string $html = \'\'; public array $tags = [];';
@@ -200,11 +213,11 @@ class BladeConformanceTest extends TestCase
                 $failures[] = "{$label}: its definition is ".strlen($defined[0]).' bytes';
             }
 
-            [$state, $errors, $ssr] = $this->rendered($meta, self::first(), ['count' => ['Count is wrong.']]);
-            [$nextState, $nextErrors, $nextSsr] = $this->rendered($meta, self::second(), ['name' => ['Name is wrong.'], 'items.1.label' => ['Bad label.']]);
+            [$state, $errors, $ssr, $tree] = $this->rendered($meta, self::first(), ['count' => ['Count is wrong.']], $names);
+            [$nextState, $nextErrors, $nextSsr, $nextTree] = $this->rendered($meta, self::second(), ['name' => ['Name is wrong.'], 'items.1.label' => ['Bad label.']], $names);
 
             if (str_starts_with($ssr, 'server error: ') || str_starts_with($nextSsr, 'server error: ')) {
-                $failures[] = "{$label}: {$ssr}";
+                $failures[] = "{$label}: Blade: {$ssr}";
 
                 continue;
             }
@@ -224,6 +237,7 @@ class BladeConformanceTest extends TestCase
                 'state' => Wire::encode($this->browserKeys($state, $names)),
                 'errors' => Wire::encode($this->browserErrors($errors, $names)),
                 'ssr' => $ssr,
+                'tree' => $tree,
                 'page' => '',
                 'emptyPage' => '',
                 'stores' => (object) [],
@@ -231,6 +245,7 @@ class BladeConformanceTest extends TestCase
                     'state' => Wire::encode($this->browserKeys($nextState, $names)),
                     'errors' => Wire::encode($this->browserErrors($nextErrors, $names)),
                     'ssr' => $nextSsr,
+                    'tree' => $nextTree,
                     'changed' => $changed,
                 ],
             ];
@@ -293,12 +308,13 @@ class BladeConformanceTest extends TestCase
     }
 
     /**
-     * The component in a state, rendered by the server: its state as the browser receives it,
-     * its errors, and its HTML.
+     * The component in a state: its state as the browser receives it, its errors, its view as
+     * Laravel's Blade renders it (what both of Nitro's renders must give), and its HTML as the
+     * server renders it (the compiled tree: TreeRenderer).
      *
-     * @return array{0: array<string, mixed>, 1: array<string, list<string>>, 2: string}
+     * @return array{0: array<string, mixed>, 1: array<string, list<string>>, 2: string, 3: string}
      */
-    private function rendered(\Nitro\Compiler\ComponentMeta $meta, array $values, array $errors): array
+    private function rendered(\Nitro\Compiler\ComponentMeta $meta, array $values, array $errors, ?Obfuscator $names): array
     {
         /** @var Component $component */
         $component = $this->app->make($meta->class);
@@ -310,14 +326,56 @@ class BladeConformanceTest extends TestCase
             $component->{$property} = $value;
         }
 
+        $html = $this->failing(fn () => app(ComponentRenderer::class)->render($component, $meta));
+        $blade = $this->failing(fn () => $this->blade($component, $meta, $names));
+
+        return [StateProperties::values($component), $errors, $blade, $html];
+    }
+
+    /**
+     * The component's view rendered by Laravel's Blade: its properties as variables, its errors as
+     * $errors (shared, as Laravel shares the session's, for the Blade components in it), with the
+     * browser's names as the server's HTML has them (an obfuscated build).
+     */
+    private function blade(Component $component, \Nitro\Compiler\ComponentMeta $meta, ?Obfuscator $names): string
+    {
+        $views = $this->app->make('view');
+        $errors = new ViewErrorBag;
+        $errors->put('default', $component->nitro()->errors);
+        $shared = $views->getShared();
+        $views->share('errors', $errors);
+
+        /** Its loops start fresh, as a component's view's do (whatever a view that failed left open). */
+        $loops = (fn () => $this->loopsStack)->call($views);
+        (fn () => $this->loopsStack = [])->call($views);
+
         try {
-            $html = app(ComponentRenderer::class)->render($component, $meta);
-        } catch (\Throwable $e) {
-            $origin = $e->getPrevious() ?? $e;
-            $html = 'server error: '.$e->getMessage().' at '.$origin->getFile().':'.$origin->getLine()."\n".implode("\n", array_slice(explode("\n", $origin->getTraceAsString()), 0, 6));
+            $html = trim($views->make($meta->view, [...StateProperties::values($component), 'errors' => $errors])->render());
+        } finally {
+            (fn () => $this->loopsStack = $loops)->call($views);
+
+            if (array_key_exists('errors', $shared)) {
+                $views->share('errors', $shared['errors']);
+            } else {
+                (function (): void {
+                    unset($this->shared['errors']);
+                })->call($views);
+            }
         }
 
-        return [StateProperties::values($component), $errors, $html];
+        return $names === null ? $html : app(BrowserNames::class)->obscure($html, [...$meta->browserMethods, ...$meta->serverMethods], array_keys($meta->properties));
+    }
+
+    /** What a render gives, or its error. */
+    private function failing(\Closure $render): string
+    {
+        try {
+            return $render();
+        } catch (\Throwable $e) {
+            $origin = $e->getPrevious() ?? $e;
+
+            return 'server error: '.$e->getMessage().' at '.$origin->getFile().':'.$origin->getLine()."\n".implode("\n", array_slice(explode("\n", $origin->getTraceAsString()), 0, 6));
+        }
     }
 
     /** @param  array<string, mixed>  $state */

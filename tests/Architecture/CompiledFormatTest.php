@@ -68,6 +68,59 @@ final class CompiledFormatTest extends TestCase
         $this->assertSame([], array_values(array_diff($emitted['fields'], $compiled['fields'])), 'definition fields the compiler gives that js/protocol.json does not list');
     }
 
+    /**
+     * A tree's fields (a node's, a directive's, an attribute's and its value's parts, a handler's):
+     * what the compiler writes, for every fixture component, and what the server's render reads
+     * (View\TreeRenderer), are listed.
+     */
+    public function test_a_trees_fields_are_the_listed_ones(): void
+    {
+        $this->boot('laravel');
+        $node = Protocol::get('compiled')['node'];
+        $code = implode("\n", $this->app->make(Bundle::class)->compileAll());
+        preg_match_all('/template: (\{.*?\n\}),\nexpressions: /s', $code, $templates);
+        $this->assertNotEmpty($templates[1]);
+        $fields = [];
+
+        foreach ($templates[1] as $json) {
+            $this->fields(json_decode($json, true, flags: JSON_THROW_ON_ERROR), $fields);
+        }
+
+        $this->assertSame([], array_values(array_diff(array_unique($fields), $node)), 'tree fields the compiler writes that js/protocol.json does not list');
+
+        preg_match_all('/\$(?:node|directive|part|own|first|attribute)\[\'(\w+)\'\]/', Scanner::code()['src/View/TreeRenderer.php'], $read);
+        $this->assertSame([], array_values(array_diff(array_unique($read[1]), $node)), 'tree fields the server\'s render reads that js/protocol.json does not list');
+    }
+
+    /**
+     * A node's fields, and those of what it holds: its directives (i), attributes (a; a call's
+     * given ones, d, by name), their parts (h) and handlers (on), its children and slots' nodes.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $fields
+     */
+    private function fields(array $node, array &$fields): void
+    {
+        array_push($fields, ...array_keys($node));
+
+        /** A block's directive; a call's i is its inputs' expression. */
+        foreach (($node['t'] ?? null) === 'template' ? $node['i'] : [] as $directive) {
+            array_push($fields, ...array_keys($directive));
+        }
+
+        foreach ([...(array) ($node['a'] ?? []), ...array_merge([], ...array_values((array) ($node['d'] ?? [])))] as $attribute) {
+            array_push($fields, ...array_keys($attribute), ...array_keys((array) ($attribute['on'] ?? [])));
+
+            foreach ((array) ($attribute['h'] ?? []) as $part) {
+                array_push($fields, ...array_keys($part));
+            }
+        }
+
+        foreach ([...(array) ($node['h'] ?? []), ...array_merge([], ...array_map(fn (array $slot) => $slot['h'] ?? [], array_values((array) ($node['slots'] ?? []))))] as $child) {
+            $this->fields($child, $fields);
+        }
+    }
+
     public function test_the_runtime_handles_every_listed_type_and_block(): void
     {
         $compiled = Protocol::get('compiled');

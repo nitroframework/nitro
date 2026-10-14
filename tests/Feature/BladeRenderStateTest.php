@@ -9,9 +9,10 @@ use Nitro\Rendering\ComponentRenderer;
 use Nitro\Tests\TestCase;
 
 /**
- * Blade's render state around a component's view (BladeEngine): a Blade component in it that
- * fails makes Laravel flush the view factory (View::render()), and the views rendered after it,
- * a component in another's slot among them, render as they would have.
+ * Laravel's view factory around a component's view (BladeEngine, rendering the compiled tree):
+ * the Blade components in it read the component's errors, and the factory is left as it was,
+ * whether the view renders or fails: the views rendered after it, a component in another's slot
+ * among them, render as they would have.
  */
 class BladeRenderStateTest extends TestCase
 {

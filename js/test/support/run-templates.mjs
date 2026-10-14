@@ -2,14 +2,15 @@
 // Each component's compiled template is rendered to DOM in Node (runtime/render.js); that DOM
 // must be the one the browser makes of the server's HTML. A case with next ({state, errors, ssr,
 // changed}) then changes to that state: the view updates what reads what changed, and must be the
-// server's HTML of the new state.
+// server's HTML of the new state. With tree (the server's render, where ssr is Blade's for
+// reference), that HTML is the one hydrated, and must give ssr's DOM itself.
 import { JSDOM } from 'jsdom';
 import * as P from '../../src/php.js';
 import * as B from '../../src/laravel/blade.js';
 import { ErrorBag } from '../../src/runtime/component/errors.js';
 import { View } from '../../src/runtime/view/view.js';
 import { defineView } from '../../src/runtime/view/calls.js';
-import { enumCase } from '../../src/runtime/component/context.js';
+import { browserField, enumCase } from '../../src/runtime/component/context.js';
 import { readStdin } from './common.mjs';
 
 const input = await readStdin();
@@ -90,6 +91,7 @@ for (const c of input.cases) {
     let errors = new ErrorBag(P.decode(c.errors));
     Object.defineProperty(ctx, '$errors', { get: () => errors });
     ctx.$computed = (name) => ctx[name]();
+    ctx.$field = (path) => browserField(definition, path);
 
     /** The server's page: its portals with the content teleported to them. */
     document.body.innerHTML = c.page;
@@ -98,6 +100,8 @@ for (const c of input.cases) {
 
     /** Built (the tree's parity), built with its bindings (anchors and all), and the server's HTML hydrated. */
     const ways = {
+        /** The server's render of the compiled tree (TreeRenderer), when the case has it: the HTML Blade's is. */
+        ...(c.tree !== undefined ? { 'server tree': () => both(parsed(c.tree), true) } : {}),
         built: () => {
             document.body.innerHTML = c.emptyPage;
             return both(new View(definition, ctx, host, document, false).create(), false);
@@ -108,7 +112,7 @@ for (const c of input.cases) {
         },
         hydrated: () => {
             document.body.innerHTML = c.page;
-            const el = parsed(c.ssr);
+            const el = parsed(c.tree ?? c.ssr);
             const server = [...el.querySelectorAll('*'), ...document.body.querySelectorAll('*')];
             new View(definition, ctx, host, document).hydrate(el);
             /** Hydration takes the server's elements over (in the portals too): none replaced by a new one, none created. */
@@ -143,6 +147,7 @@ for (const c of input.cases) {
         return view.update(new Set(c.next.changed)) ? root : view.create();
     };
     const updates = {
+        ...(c.next.tree !== undefined ? { 'server tree, second state': () => both(parsed(c.next.tree), true) } : {}),
         'updated': () => {
             document.body.innerHTML = c.emptyPage;
             const view = new View(definition, ctx, host, document);
@@ -153,7 +158,7 @@ for (const c of input.cases) {
         },
         'hydrated, then updated': () => {
             document.body.innerHTML = c.page;
-            const el = parsed(c.ssr);
+            const el = parsed(c.tree ?? c.ssr);
             const holder = document.createElement('div');
             holder.appendChild(el);
             const view = new View(definition, ctx, host, document);
