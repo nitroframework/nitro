@@ -534,8 +534,10 @@ public function rows(): array
 
 ## Views
 
-A view is Blade with one root element. It renders on the server through Blade, and in the browser
-through its compiled form, so it uses what both can do:
+A view is Blade with one root element. Nitro compiles it once, to a tree that the server and the
+browser both render by the same rules: the server with each expression as PHP, the browser with
+it as JavaScript. Laravel's Blade is the reference both are tested against, case by case. A view
+uses what the browser can run:
 
 | | |
 | --- | --- |
@@ -561,6 +563,39 @@ times calls it forty times. Anything else (`@php`, class-based Blade components,
 and the build fails with the file and line.
 
 Slot content belongs to the parent: its handlers and `nitro:model` act on the parent component.
+
+### Where it differs from Laravel's Blade
+
+What Nitro does not render as Blade would fails the build, with the file and line and what to
+write instead:
+
+- `@php`, custom directives, class-based Blade components, `@aware`, `<x-dynamic-component>`
+  (use `<nitro:dynamic-component :is>`), and `<x-slot :name>` with a name worked out at run time.
+- A loop's variable read after a block the loop is in has ended (`@foreach` in an `@if`, read after
+  `@endif`): its value is the block's, which may not have run. After the loop itself it has its
+  last value, as in PHP.
+- An element opened in a block (`@if`, `@foreach`) and closed outside it, and markup the HTML
+  parser would rebuild: a block element (`<div>`, `<section>`, ...) inside a `<p>`, a row or cell
+  inside an open row or cell, markup inside an `<option>`; also when a Blade component's view
+  puts it there. Table elements HTML lets you leave out (`<tbody>`, `<tr>`, `<colgroup>`) are
+  added as the browser adds them, except around rows a block renders directly in a `<table>`
+  (write the `<tbody>`).
+- `$slot` and `$attributes` used beyond what is listed above, and an attribute whose value has a
+  `"` printed by `{{ $attributes }}` (Blade would print it as `\"`: write `&quot;`).
+- A Blade component that reads data the views share (`View::share()`) without being given it:
+  pass it as an attribute.
+
+And what renders, but not as Laravel would:
+
+- Data shared while a request runs (a view composer, a middleware's `View::share()`) does not
+  reach an `@include`d view or a Blade component: they are compiled into the view, not rendered
+  by Laravel. Pass what they need as `@include`'s data or as attributes.
+- `@includeFirst` picks its view when the view is compiled, not on each render.
+- The server's HTML is written from the compiled tree: the page the browser builds from it is the
+  one Blade's HTML gives, but the bytes may differ (attributes in double quotes, character
+  references written once). A test of a component's HTML compares what it shows
+  (`assertSee`), not Blade's exact bytes.
+- Numbers in the browser follow JavaScript's (see [Limitations](#limitations)).
 
 ## Directives
 
