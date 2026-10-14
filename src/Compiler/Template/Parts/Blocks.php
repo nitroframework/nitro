@@ -124,7 +124,8 @@ final class Blocks extends Part
      * leaves it. Not where a view opened since gives the name (givenAt: @include's data is merged
      * over the variables around it, Factory::make()).
      */
-    public function leftRead(string $code): void
+    /** @param  list<string>  $declared  names the code declares, not reads (@for's first clause) */
+    public function leftRead(string $code, array $declared = []): void
     {
         $context = $this->context;
 
@@ -132,7 +133,7 @@ final class Blocks extends Part
             return;
         }
 
-        foreach (array_unique($names[1]) as $name) {
+        foreach (array_diff(array_unique($names[1]), $declared) as $name) {
             $left = $context->left[$name] ?? null;
             $givenAt = $this->compiler->inlinedViews->givenAt($name);
 
@@ -207,7 +208,9 @@ final class Blocks extends Part
         $context = $this->context;
         $table = $this->compiler->expressionTable;
 
-        $this->leftRead($args);
+        /** What its first clause assigns ($i = 0) it declares, not reads: an earlier loop's $i is not read here. */
+        preg_match_all('/\$(\w+)\s*=(?![=>])/', explode(';', $args, 2)[0], $assigned);
+        $this->leftRead($args, $assigned[1]);
         [$head, $variables, $php] = $context->transpiler->templateFor($args, $context->scope, $context->locals, $context->line);
         $table->track();
         $declare = $variables === [] ? '' : 'let '.implode(', ', array_map(fn ($variable) => '$'.$variable, $variables)).'; ';

@@ -68,6 +68,7 @@ class LoopVariablesTest extends TestCase
             'a property after a loop over other names' => ['<p>@foreach ($items as $item)a @endforeach{{ $name }}</p>'],
             'after an included view\'s loop of that name (the view\'s own)' => ["<div>@include('partials.loop-only'){{ \$name }}</div>"],
             'in the @else of the @if whose branch looped (that branch did not run)' => ['<p>@if ($items) @foreach ($items as $name)a @endforeach @else {{ $name }} @endif</p>'],
+            '@for loops of one variable in different blocks (each assigns it)' => ['<div>@if ($items)@for ($i = 0; $i < 2; $i++)a @endfor @endif<p>@for ($i = 0; $i < 3; $i++){{ $i }}@endfor</p></div>'],
             'in a view included after the loop, given that name (its data is merged over)' => ["<div>@foreach (\$items as \$title)x @endforeach @include('partials.heading', ['title' => 'T', 'level' => 1])</div>"],
         ];
     }
