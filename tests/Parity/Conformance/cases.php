@@ -85,6 +85,11 @@ return [
         'component bag filters' => ['$attributes->whereStartsWith() is not supported in the browser', 'bag-more.blade.php'],
         'component bag prepends' => ['$attributes is used in a way the browser cannot render', 'bag-prepends.blade.php'],
         'component bag filter' => ['$attributes->filter() is not supported in the browser', 'bag-filter.blade.php'],
+        /** Markup the HTML parser rebuilds, or browsers read differently. */
+        'review block element in a paragraph through a component' => 'the browser ends the <p> before a <section>',
+        'review2 row in a row' => '<tr> inside an open <tr>',
+        'review2 cell component in a cell' => '<td> (in <x-conf::cell>) inside an open <td>',
+        'review2 markup in an option' => '<b> inside <option>',
     ],
 
     'cases' => [
@@ -216,7 +221,7 @@ return [
         'review slot empty when it renders nothing' => "<div><x-conf::card>@if (\$flag){{ \$count }}@endif</x-conf::card></div>",
         'review merged style' => '<p><x-conf::styled style="margin: 0" /></p>',
         'review class of a variable' => "<p><x-conf::classy :list=\"['a', 'b' => \$flag]\" /></p>",
-        'review json of a literal array' => "<p>@json(['a' => \$name, 'b' => 1])</p>",
+        'review json of a literal array' => "<p>@json(['a' => \$count, 'b' => 1])</p>",
         'review raw echo in an attribute and a textarea' => "<div title=\"{!! 'a &amp; b' !!}\"><textarea>{!! 'c &amp; d' !!}</textarea></div>",
         'review loop variable after the loop' => '<p>@foreach ($tags as $name){{ $name }}@endforeach|{{ $name }}</p>',
         'review block element in a paragraph through a component' => '<p><x-conf::card title="T">x</x-conf::card></p>',
