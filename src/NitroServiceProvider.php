@@ -30,6 +30,7 @@ use Nitro\Http\FinishPage;
 use Nitro\Http\PageResponses;
 use Nitro\Http\PersistentMiddleware;
 use Nitro\Http\ServerTiming;
+use Nitro\Http\StaleCaches;
 use Nitro\Http\UpdateController;
 use Nitro\Http\UploadController;
 use Nitro\Support\ComponentHooks;
@@ -250,14 +251,18 @@ class NitroServiceProvider extends ServiceProvider
     }
 
     /**
-     * Nitro's middleware in the web group: the page's data block and @portal content filled in any
-     * web answer (FinishPage), and with the dev overlay on, each answer's time on the server and its
+     * Nitro's middleware in the web group: Laravel's route and config caches checked against what
+     * they cache (StaleCaches), the page's data block and @portal content filled in any web answer
+     * (FinishPage), and with the dev overlay on, each answer's time on the server and its
      * database's (ServerTiming). Pushed to the router's group now and whenever an HTTP kernel is
      * made: a kernel made after boot (as in an app's tests) sets the router's groups from its own.
      */
     private function webMiddleware(): void
     {
         $push = function () {
+            /** First: a stale cache is said before another middleware answers (a redirect to the login). */
+            $this->app->make('router')->prependMiddlewareToGroup('web', StaleCaches::class);
+
             foreach ([FinishPage::class, ServerTiming::class] as $middleware) {
                 $this->app->make('router')->pushMiddlewareToGroup('web', $middleware);
             }

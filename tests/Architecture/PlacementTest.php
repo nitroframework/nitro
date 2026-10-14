@@ -17,6 +17,7 @@ final class PlacementTest extends TestCase
         'src/Http/IncomingState.php' => 'makes the state a request brings from the browser trusted',
         'src/Http/FinishPage.php' => 'middleware: finishes any HTML answer (portals, the page\'s data block)',
         'src/Http/ServerTiming.php' => 'middleware: each answer\'s server and database time, for the dev overlay',
+        'src/Http/StaleCaches.php' => 'middleware: Laravel\'s route and config caches older than what they cache',
     ];
 
     /** Support: what every part uses and none owns. */
