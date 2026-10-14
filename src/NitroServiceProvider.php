@@ -18,7 +18,9 @@ use Nitro\Build\Bundle;
 use Nitro\Build\ServerChildren;
 use Nitro\Compiler\ComponentMeta;
 use Nitro\Compiler\Components;
+use Nitro\Compiler\Globals;
 use Nitro\Compiler\Template\ComponentViews;
+use Nitro\Compiler\Template\SharedAtBoot;
 use Nitro\Console\BuildCommand;
 use Nitro\Console\ClearCommand;
 use Nitro\Console\MakeCommand;
@@ -38,6 +40,7 @@ use Nitro\Rendering\PageHead;
 use Nitro\Rendering\Placement;
 use Nitro\Rendering\Portals;
 use Nitro\Rendering\Scripts;
+use Nitro\Rendering\ServerHost;
 use Nitro\Rendering\Tags;
 use Nitro\State\MethodCache;
 use Nitro\State\SharedData;
@@ -49,6 +52,7 @@ use Nitro\Support\Protocol;
 use Nitro\View\BladeEngine;
 use Nitro\View\ColocatedViews;
 use Nitro\View\ScriptEngine;
+use Nitro\View\ServerViews;
 use Nitro\View\ServerRendering\NodeRenderer;
 use Nitro\View\ServerRendering\NullRenderer;
 use Nitro\View\ServerRendering\ServerRenderer;
@@ -101,7 +105,7 @@ class NitroServiceProvider extends ServiceProvider
 
         $this->app->scoped(ViewEngines::class, function (Application $app) {
             $engines = new ViewEngines;
-            $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler')));
+            $engines->add(new BladeEngine($app->make('view'), $app->make('blade.compiler'), fn () => $app->make(ServerViews::class), fn () => $app->make(ServerHost::class)));
 
             foreach ((array) $app->make('config')->get('nitro.views') as $name => $view) {
                 $engines->add($this->scriptEngine($app, (string) $name, (array) $view));
@@ -141,7 +145,7 @@ class NitroServiceProvider extends ServiceProvider
         ));
 
         /** Nitro's parts, one each per request: each takes what it needs in its constructor. */
-        foreach ([PageData::class, BrowserNames::class, ServerChildren::class, Placement::class, SharedData::class, Stores::class, Tags::class, Portals::class, PageHead::class, Scripts::class, PageResponses::class] as $part) {
+        foreach ([PageData::class, BrowserNames::class, ServerChildren::class, Placement::class, ServerHost::class, SharedData::class, Stores::class, Tags::class, Portals::class, PageHead::class, Scripts::class, PageResponses::class] as $part) {
             $this->app->scoped($part);
         }
 
@@ -149,6 +153,17 @@ class NitroServiceProvider extends ServiceProvider
 
         /** The Blade components' views compiled once (a bundle compile gives itself a new one). */
         $this->app->scoped(ComponentViews::class);
+
+        /** Components' Blade views as the server renders them, cached by the sources' version (the bundle's). */
+        $this->app->scoped(ServerViews::class, fn (Application $app) => new ServerViews(
+            $app,
+            $app->make('files'),
+            $app->make('blade.compiler'),
+            rtrim((string) $app->make('config')->get('nitro.compiled'), '/\\').DIRECTORY_SEPARATOR.'server',
+            fn () => $app->make(Bundle::class)->version(),
+            fn (string $class) => $app->make(Components::class)->meta($class),
+            Globals::customAttributes((array) $app->make('config')->get('nitro.attributes')),
+        ));
 
         $this->app->scoped(Config::class, fn (Application $app) => new Config((array) $app->make('config')->get('nitro'), (bool) $app->make('config')->get('app.debug')));
 
@@ -256,6 +271,9 @@ class NitroServiceProvider extends ServiceProvider
     {
         $this->routes();
         Directives::register($this->app->make('blade.compiler'), (string) $this->app->make('config')->get('view.compiled'));
+
+        /** What the views share once every provider has booted: a view compiles the same in a request and in nitro:build. */
+        $this->app->booted(fn () => $this->app->instance(SharedAtBoot::class, new SharedAtBoot(array_map('strval', array_keys($this->app->make('view')->getShared())))));
         $this->testing();
 
         $this->webMiddleware();
