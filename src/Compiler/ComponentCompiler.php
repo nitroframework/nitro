@@ -342,7 +342,7 @@ final class ComponentCompiler
         }
     }
 
-    /** @return array<string, array{locked: bool, default?: mixed, url?: array<string, mixed>, remember?: true}> */
+    /** @return array<string, array{locked: bool, default?: mixed, url?: array<string, mixed>, remember?: true, blur?: true}> */
     private function props(ComponentMeta $meta, Scope $scope): array
     {
         $props = [];
@@ -373,6 +373,11 @@ final class ComponentCompiler
 
             if ($property->remember) {
                 $props[$name]['remember'] = true;
+            }
+
+            /** #[Validate(onBlur: true)]: a field bound to it is checked on the server as it is left. */
+            if ($property->onBlur) {
+                $props[$name]['blur'] = true;
             }
         }
 

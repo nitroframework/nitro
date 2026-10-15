@@ -17,6 +17,9 @@
  *   handle.upload(path, files, progress)
  *                                 files into an Upload (or #[Uploads]) property, as nitro:model
  *                                 does for a file input: a promise of its new value
+ *   handle.validate(path)         a property (or a key under it) checked on the server against its
+ *                                 #[Validate] rules, as onBlur does for a field left: a promise
+ *                                 of its messages; nothing else changes
  *   handle.id, handle.el          the component's id on the page, and its root element
  *   handle.properties, .methods, .server, .computed    the names
  *   handle.component              the component itself, as Nitro.find() gives it
@@ -139,6 +142,20 @@ export function handleOf(runtime, definition, $this, id) {
                 if (result.refused) return null;
                 return toPlain(valueAt(browser, keys));
             });
+        },
+
+        /**
+         * A check on the server (#[Validate(onBlur: true)] does one as a field is left): the
+         * property's rules against the values here, and only its messages change. Resolves with
+         * them ([] when it passes); rejects when the request failed. For a JavaScript view's own
+         * blur, or any moment it chooses.
+         */
+        validate(path) {
+            const [browser, keys] = property(path);
+            const owner = component();
+            if (!owner) return Promise.reject(new Error('Nitro: the component has left the page'));
+            const checked = [browser, ...keys].join('.');
+            return runtime.network.check(owner, [checked]).then(() => [...(owner.errors.messages.get(checked) ?? [])]);
         },
     };
 }

@@ -15,10 +15,10 @@ use Nitro\Tests\Fixtures\Components\Store;
  */
 class SignUp extends Component
 {
-    #[Validate('required|email', as: 'email address')]
+    #[Validate('required|email', as: 'email address', onBlur: true)]
     public string $email = '';
 
-    #[Validate('required|min:8|confirmed')]
+    #[Validate('required|min:8|confirmed', onBlur: true)]
     public string $password = '';
 
     public string $password_confirmation = '';

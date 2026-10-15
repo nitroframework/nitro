@@ -40,5 +40,6 @@ export function handleFrom(state) {
         unsaved: () => [],
         dispatch: browserOnly('dispatch()'),
         upload: browserOnly('upload()'),
+        validate: browserOnly('validate()'),
     };
 }

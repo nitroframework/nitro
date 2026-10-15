@@ -4,7 +4,7 @@
         "root": "r",
         "types": ["t", "c", "x", "m", "b", "p", "s", "v", "w", "template"],
         "blocks": ["if", "else-if", "else", "foreach", "for", "while", "switch", "case", "default", "empty", "error"],
-        "prop": ["locked", "default", "enum", "url", "remember"],
+        "prop": ["locked", "default", "enum", "url", "remember", "blur"],
         "url": ["as", "history", "keep", "except"],
         "model": "$model",
         "emptySlot": "__empty_",

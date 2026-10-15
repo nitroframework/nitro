@@ -165,7 +165,7 @@ browser:
 | `#[Url]` | Kept in the query string (`as`, `history`, `keep`, `except`); read before `mount()` and kept in step with the property |
 | `#[Remember]` | Kept in the browser's history entry: back, forward and a reload bring back its value, such as a half-filled form. Not for `#[Locked]` properties, models or uploads |
 | `#[Modelable]` | On one property, lets a parent bind it: `<nitro:search-box nitro:model="query" />` |
-| `#[Validate]` | Rules checked on the server whenever the browser changes the property: `#[Validate('integer\|min:1\|max:10')]`; for an array's keys, `#[Validate(['tags' => 'array\|max:3', 'tags.*' => 'string'])]`; `as:` names it in messages |
+| `#[Validate]` | Rules checked on the server whenever the browser changes the property: `#[Validate('integer\|min:1\|max:10')]`; for an array's keys, `#[Validate(['tags' => 'array\|max:3', 'tags.*' => 'string'])]`; `as:` names it in messages; `onBlur: true` checks a field bound to it as it is left |
 
 **What the browser can change.** Every public property that is not `#[Locked]` can be set by the
 browser to **any value of its type**: anyone can send a request without the page, so
@@ -188,6 +188,24 @@ public function checkout(): void
 Put a rule on every property a `#[Server]` method relies on, or validate in the method itself.
 `$this->validate()` with no rules checks every property's `#[Validate]` rules, for example
 before saving a form.
+
+**Checked as a field is left.** With `onBlur: true`, a field bound to the property with
+`nitro:model`, left holding something it was not last checked with, is checked on the server: its
+rules (every Laravel rule, `unique` too) against the values in the browser, rules that read other
+fields (`confirmed`) included. Only that field's messages in `$errors` change. Nothing of the
+component runs (no hooks, no method), its state stays as the browser has it, the change still
+counts as unsaved (`nitro:dirty`), and the rules run again before a `#[Server]` method. A row's
+field (`lines.0.qty`) is checked with its list's rules (`lines.*.qty`). Not on a `#[Locked]`
+property or a store's.
+
+```php
+#[Validate('required|email|unique:users', onBlur: true)]
+public string $email = '';
+```
+
+A check shows no progress bar and no untargeted `nitro:loading`; `nitro:loading
+nitro:target="email"` shows while the email is checked. A JavaScript view checks a field with
+`validate('email')` (a promise of its messages), for its own blur.
 
 Pages also take `#[Title]`, `#[Description]`, `#[Layout]`, `#[LazyLoad]` and `#[Navigate]` (see
 [Pages](#pages) and [Navigation](#navigation)).
@@ -707,7 +725,7 @@ Nitro.hook('store.initialized', (store) => {
 | `component.destroyed` | a component left the page, whoever took it out: the same | |
 | `store.initialized` | a store made in this tab: `{ name, persist, sync, get(property), values(), set(property, value), onChange(listener) }` | |
 | `store.updated` | a store's values changed (here, from the server, from another tab): the same | |
-| `beforeRequest` | before a request: a `#[Server]` call (`kind: 'call'`), a partial reload (`'reload'`, method `$reload`), an upload (`'upload'`, `$upload`). `{ component, method, kind, headers }`; a header added is sent, Nitro's own cannot be changed. `preventDefault()` sends nothing: a call resolves `null`, what changed stays for the next one | `nitro:before-request` |
+| `beforeRequest` | before a request: a `#[Server]` call (`kind: 'call'`), a partial reload (`'reload'`, method `$reload`), an upload (`'upload'`, `$upload`), a field's check (`'check'`, `$check`). `{ component, method, kind, headers }`; a header added is sent, Nitro's own cannot be changed. `preventDefault()` sends nothing: a call resolves `null`, what changed stays for the next one | `nitro:before-request` |
 | `afterRequest` | its answer came: `{ component, method, kind, status, cancelled, ms, bytes, serverMs, dbMs }` (status 0: none came; `cancelled`: a `beforeRequest` listener stopped it; `serverMs` and `dbMs` in development) | `nitro:after-request` |
 | `beforeNavigate` | a `nitro:navigate` visit starts: `{ url, cancelable, history }`. `preventDefault()` stops a visit from a link or `Nitro.visit()`; back and forward (`history`) cannot be stopped (`cancelable` is false: the address has moved) | `nitro:before-navigate` |
 | `afterNavigate` | the visit is over: `{ url, cancelled, history }` (its page shown; or cancelled: stopped, or replaced by a newer visit before its page came) | `nitro:after-navigate` |

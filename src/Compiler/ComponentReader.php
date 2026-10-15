@@ -93,7 +93,7 @@ final class ComponentReader
                     'attributes' => $validate->as === null ? [] : [$field => $validate->as],
                 ];
             }
-            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== [], $property->getAttributes(Uploads::class) !== []);
+            $properties[$property->getName()] = PropertyMeta::from($property, $property->getAttributes(Locked::class) !== [], $file, $url, $property->getAttributes(Remember::class) !== [], $property->getAttributes(Uploads::class) !== [], $validate->onBlur ?? false);
 
             if ($property->getAttributes(Modelable::class) !== []) {
                 if ($modelable !== null || $properties[$property->getName()]->locked) {
@@ -468,6 +468,10 @@ final class ComponentReader
                 if ($property->getAttributes($attribute) !== []) {
                     throw new CompileException("{$label} is for components: \${$property->getName()} of the store {$class} cannot have it", $file);
                 }
+            }
+
+            if (($property->getAttributes(Validate::class)[0] ?? null)?->newInstance()->onBlur) {
+                throw new CompileException("#[Validate(onBlur: true)] is for components: \${$property->getName()} of the store {$class} cannot have it", $file);
             }
         }
     }

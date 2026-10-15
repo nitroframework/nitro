@@ -79,9 +79,9 @@ function settle() {
 }
 
 /**
- * The handle, with what the view has bound written back before a method runs, a file uploads or
- * an event goes: Svelte runs effects after the code that changed a value, and a handler may call
- * save() in the same breath as it sets a bound value.
+ * The handle, with what the view has bound written back before a method runs, a file uploads, a
+ * field is checked or an event goes: Svelte runs effects after the code that changed a value, and
+ * a handler may call save() in the same breath as it sets a bound value.
  */
 function written(handle) {
     const settled = (run) => (...args) => {
@@ -92,6 +92,7 @@ function written(handle) {
     return Object.create(handle, {
         call: { value: settled(handle.call.bind(handle)) },
         upload: { value: settled(handle.upload.bind(handle)) },
+        validate: { value: settled(handle.validate.bind(handle)) },
         dispatch: { value: settled(handle.dispatch.bind(handle)) },
     });
 }

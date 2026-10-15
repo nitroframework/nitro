@@ -52,10 +52,12 @@ final class PropertyMeta
         public readonly bool $remember = false,
         /** An array that takes files from the browser (#[Uploads]): a list of Uploads. */
         public readonly bool $uploads = false,
+        /** Checked on the server as a field bound to it is left (#[Validate(onBlur: true)]). */
+        public readonly bool $onBlur = false,
     ) {
     }
 
-    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null, bool $remember = false, bool $uploads = false): self
+    public static function from(ReflectionProperty $property, bool $locked, ?string $file, ?Url $url = null, bool $remember = false, bool $uploads = false, bool $onBlur = false): self
     {
         $type = $property->getType();
         $types = [];
@@ -120,6 +122,10 @@ final class PropertyMeta
             throw new CompileException("\${$property->getName()} is #[Remember]: the browser brings its value back, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
         }
 
+        if ($onBlur && (! in_array($kind, [self::VALUE, self::ENUM], true) || $locked)) {
+            throw new CompileException("\${$property->getName()} is #[Validate(onBlur: true)]: a field bound to it is checked as it is left, so it is a plain value the browser can change (not #[Locked], not a model or an upload)", $file, $property->getDeclaringClass()->getStartLine());
+        }
+
         /** A default PHP cannot work out (an undefined constant) is the class's error, not Nitro's. */
         try {
             $default = $property->hasDefaultValue() ? $property->getDefaultValue() : null;
@@ -138,6 +144,7 @@ final class PropertyMeta
             $url,
             $remember,
             $uploads,
+            $onBlur,
         );
     }
 

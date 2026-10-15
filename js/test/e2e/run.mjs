@@ -1112,6 +1112,52 @@ await scenario('livewire', async () => {
     window.close();
 });
 
+// ------------------------------------------------------------------ a field checked as it is left (/sign-up)
+await scenario('#[Validate(onBlur: true)]', async () => {
+    const window = await open('/sign-up');
+    const { document } = window;
+    const form = document.querySelector('.sign-up');
+    const email = form.querySelector('input.email');
+    const password = form.querySelector('input.password');
+    const component = window.Nitro.find(form.getAttribute('nitro:id'));
+    const heard = [];
+    window.Nitro.use(({ on }) => on('request', ({ kind }) => heard.push(kind)));
+    /** Typed but not left: the value, without moving the focus (which leaves the field before). */
+    const hold = (el, value) => {
+        el.value = value;
+        el.dispatchEvent(new window.Event('input', { bubbles: true }));
+    };
+    const leave = (el) => el.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+
+    leave(email);
+    await wait(50);
+    check('a field left as the server has it asks nothing', heard.length === 0, heard.join(', '));
+
+    hold(password, 'short');
+    hold(email, 'not an email');
+    leave(email);
+    await until('the email\'s message shows', () => /must be a valid email address/.test(text(form.querySelector('.error-email')) ?? ''));
+    check('as a check, not a call', heard.join(',') === 'check', heard.join(', '));
+    check('the password, sent but not left, has no message', form.querySelector('.error-password') === null);
+    check('what was typed stays', email.value === 'not an email' && password.value === 'short');
+    check('still unsaved: a check is not the server taking the change', component.unsaved().includes(P_('email')) && component.unsaved().includes(P_('password')));
+
+    leave(email);
+    await wait(50);
+    check('left again unchanged: no second check', heard.length === 1, heard.join(', '));
+
+    hold(email, 'ada@example.com');
+    leave(email);
+    await until('a good value clears its message', () => form.querySelector('.error-email') === null);
+
+    leave(password);
+    await until('the password\'s message shows', () => /at least 8 characters/.test(text(form.querySelector('.error-password')) ?? ''));
+    check('the email\'s stays cleared', form.querySelector('.error-email') === null);
+
+    click(window, form.querySelector('.save'));
+    await until('the save checks every rule again', () => /at least 8 characters/.test(text(form.querySelector('.error-password')) ?? '') && heard.includes('call'));
+});
+
 // ------------------------------------------------------------------ uploads (/gallery)
 await scenario('uploads', async () => {
     const window = await open('/gallery');

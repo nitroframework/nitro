@@ -9,6 +9,10 @@
  *   .boolean                stores true/false
  *
  * On a file input it uploads the chosen files (runtime/server/upload.js) and binds what the server answers.
+ *
+ * A field bound to a property with #[Validate(onBlur: true)], left holding something other than
+ * what was last checked (at first: what the server signed), is checked on the server
+ * (network.check()): its messages change, nothing else does.
  */
 import * as P from '../../php.js';
 import { timing } from './events.js';
@@ -21,9 +25,13 @@ export function modelAttribute(el) {
 export class Model {
     constructor(runtime, document) {
         this.runtime = runtime;
+        /** A .debounce field's waiting value: its timer, and how to set it now. */
         this.timers = new WeakMap();
+        /** What each checked path held when it was last checked, encoded, by component. */
+        this.checked = new WeakMap();
         document.addEventListener('input', (e) => this.handle(e, 'input'));
         document.addEventListener('change', (e) => this.handle(e, 'change'));
+        document.addEventListener('focusout', (e) => this.left(e));
     }
 
     handle(event, type) {
@@ -52,11 +60,45 @@ export class Model {
         const apply = () => component.setPath(path, this.read(el, component.getPath(path), modifiers));
 
         if (modifiers.includes('debounce')) {
-            clearTimeout(this.timers.get(el));
-            this.timers.set(el, setTimeout(apply, timing(modifiers) ?? 150));
+            clearTimeout(this.timers.get(el)?.timer);
+            const timer = setTimeout(() => {
+                this.timers.delete(el);
+                apply();
+            }, timing(modifiers) ?? 150);
+            this.timers.set(el, { timer, apply });
         } else {
             apply();
         }
+    }
+
+    /** A field left: checked on the server when its property is #[Validate(onBlur: true)] and it holds something new. */
+    left(event) {
+        const el = event.target;
+        if (!(el instanceof Element) || el.type === 'file') return;
+        const attribute = modelAttribute(el);
+        if (!attribute) return;
+        const component = this.runtime.owner(el);
+        if (!component || component.isStore) return;
+        const path = el.getAttribute(attribute);
+        const [root, ...keys] = String(path).split('.');
+        if (!component.definition.props[root]?.blur) return;
+
+        /** A .debounce value still waiting: set now, so the check has it. */
+        const waiting = this.timers.get(el);
+        if (waiting) {
+            clearTimeout(waiting.timer);
+            this.timers.delete(el);
+            waiting.apply();
+        }
+
+        const checked = this.checked.get(component) ?? new Map();
+        this.checked.set(component, checked);
+        const holds = JSON.stringify(P.encode(component.getPath(path) ?? null));
+        const last = checked.get(path) ?? JSON.stringify(P.encode(P.getIn(component.serverData.get(root) ?? null, keys) ?? null));
+        if (holds === last) return;
+
+        checked.set(path, holds);
+        this.runtime.network.check(component, [path]);
     }
 
     read(el, current, modifiers) {

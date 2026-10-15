@@ -3,8 +3,12 @@
 namespace Nitro\Tests\Feature;
 
 use Nitro\Build\Bundle;
+use Nitro\Compiler\CompileException;
+use Nitro\Compiler\ComponentReader;
 use Nitro\Support\Wire;
 use Nitro\Tests\Fixtures\Components\Store;
+use Nitro\Tests\Fixtures\Invalid\BlurInStore;
+use Nitro\Tests\Fixtures\Invalid\BlurLocked;
 use Nitro\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
@@ -152,6 +156,34 @@ class CheckTest extends TestCase
         /** Of a store made from its defaults: there is no signed state to check, and nothing is made for it. */
         $this->app->forgetScopedInstances();
         $this->assertSame(400, $this->update(['snapshot' => null, 'store' => 'stores::cart', 'check' => ['items']])->getStatusCode());
+    }
+
+    #[DataProvider('frameworks')]
+    public function test_on_blur_is_marked_for_the_browser(string $framework): void
+    {
+        $this->boot($framework);
+
+        $chunk = $this->app->make(Bundle::class)->compileAll()['sign-up'];
+
+        $this->assertStringContainsString('"email":{"locked":false,"default":"","blur":true}', $chunk);
+        $this->assertStringContainsString('"password_confirmation":{"locked":false,"default":""}', $chunk, 'no rules, no check');
+        $this->assertStringContainsString('"lines":{"locked":false,"default":[]}', $chunk, 'rules, but not on blur');
+    }
+
+    public function test_on_blur_needs_a_property_the_browser_can_change(): void
+    {
+        $this->expectException(CompileException::class);
+        $this->expectExceptionMessage('$total is #[Validate(onBlur: true)]: a field bound to it is checked as it is left, so it is a plain value the browser can change (not #[Locked], not a model or an upload)');
+
+        ComponentReader::read(BlurLocked::class, 'blur-locked', 'nitro.components.blur-locked');
+    }
+
+    public function test_on_blur_is_a_components_not_a_stores(): void
+    {
+        $this->expectException(CompileException::class);
+        $this->expectExceptionMessage('#[Validate(onBlur: true)] is for components: $email of the store');
+
+        ComponentReader::read(BlurInStore::class, 'stores::blur-in-store', 'nitro.stores.blur-in-store');
     }
 
     #[DataProvider('frameworks')]

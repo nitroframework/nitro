@@ -14,6 +14,8 @@
  *                     its value), `set(path, value)`, `dispatch(event, ...params)`,
  *                     `upload(path, files)` (files into an Upload or #[Uploads] property, as
  *                     nitro:model does for a file input: a promise of its new value),
+ *                     `validate(path)` (the property checked on the server against its
+ *                     #[Validate] rules, as onBlur does for a field left: `errors` follows),
  *                     `link(href, ...modifiers)` (a nitro:navigate link's attributes, to spread)
  *                     and `visit(url)`
  *   subscribe(fn)     fn(names) when something changed; returns the unsubscribe
@@ -183,6 +185,12 @@ export function connect(handle, { status = (initial) => initial } = {}) {
             },
         );
     };
+
+    /**
+     * A property (or a key under it) checked on the server against its #[Validate] rules, for a
+     * field's own blur: `errors` follows. Resolves with its messages ([] when it passes).
+     */
+    functions.validate = (path) => handle.validate(path);
 
     /** names.json and this core are one list: a name it lists and the core does not give is a mistake here. */
     const given = read();
