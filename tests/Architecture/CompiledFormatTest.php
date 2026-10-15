@@ -132,6 +132,42 @@ final class CompiledFormatTest extends TestCase
     }
 
     /**
+     * The handle the adapters bind a view to: what they use of it is in the browser's handle
+     * (runtime/component/handle.js) and in the render service's (adapters/server/handle.js), so a
+     * view renders on the server with the same calls, and a method that is the browser's fails
+     * there with Nitro's message, not "is not a function".
+     */
+    public function test_the_render_services_handle_has_what_the_adapters_use(): void
+    {
+        $code = Scanner::code();
+        $members = function (string $file) use ($code): array {
+            preg_match('/\n    return \{\n(.*?)\n    \};/s', $code[$file], $returned);
+            preg_match_all('/^ {8}(?:get )?(\w+)\s*(?:\(|:|,)/m', $returned[1] ?? '', $found);
+
+            return $found[1];
+        };
+
+        $browser = $members('js/src/runtime/component/handle.js');
+        $server = $members('js/adapters/server/handle.js');
+        $this->assertContains('get', $browser, 'the browser\'s handle is found');
+        $this->assertContains('get', $server, 'the render service\'s handle is found');
+
+        $used = [];
+
+        foreach ($code as $path => $source) {
+            if (str_starts_with($path, 'js/adapters/') && ! str_starts_with($path, 'js/adapters/server/')) {
+                preg_match_all('/\bhandle\.(\w+)/', $source, $found);
+                $used = [...$used, ...$found[1]];
+            }
+        }
+
+        $used = array_values(array_unique($used));
+        $this->assertNotEmpty($used, 'the adapters use the handle');
+        $this->assertSame([], array_values(array_diff($used, $browser)), 'what the adapters use of the handle that the browser\'s handle does not have');
+        $this->assertSame([], array_values(array_diff($used, $server)), 'what the adapters use of the handle that the render service\'s handle does not have');
+    }
+
+    /**
      * A JavaScript view's two formats: the state the server sends the render service (ViewState),
      * and the names its definition gives the view's handle (the compiler's "names").
      */
