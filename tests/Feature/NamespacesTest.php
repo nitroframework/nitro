@@ -43,8 +43,11 @@ class NamespacesTest extends TestCase
         self::write('views/components/order-list.blade.php', '<div class="orders"><nitro:shop::cart-badge :count="$open" /></div>');
         self::write('views/pages/orders/index.blade.php', '<div>Orders</div>');
         self::write('vue/tally.vue', "<php>\nnew class extends Component {\n    public int \$count = 1;\n};\n</php>\n<template><b>{{ count }}</b></template>\n");
+        /** Its view by #[View] in a Blade namespace of another folder (View::addNamespace), not its own views. */
+        self::write('Ui/Login.php', "<?php namespace {$php}\\Ui; #[\\Nitro\\Attributes\\View('admin::login')] class Login extends \\Nitro\\Component { public string \$email = ''; }");
+        self::write('admin-views/login.blade.php', '<form class="login"><input nitro:model="email"> {{ $email }}</form>');
 
-        foreach (['Ui/CartBadge.php', 'Ui/OrderList.php', 'Ui/Pages/Orders/Index.php', 'Stores/Basket.php'] as $file) {
+        foreach (['Ui/CartBadge.php', 'Ui/OrderList.php', 'Ui/Login.php', 'Ui/Pages/Orders/Index.php', 'Stores/Basket.php'] as $file) {
             require_once self::$root.'/'.$file;
         }
     }
@@ -60,6 +63,7 @@ class NamespacesTest extends TestCase
         $this->boot('laravel');
         $this->app->make('config')->set('nitro.namespaces.shop', self::shop());
         $this->app->make('view')->addNamespace('shop', self::$root.'/views');
+        $this->app->make('view')->addNamespace('admin', self::$root.'/admin-views');
         /** As between requests: the parts read nitro.* again. */
         $this->app->forgetScopedInstances();
     }
@@ -120,6 +124,27 @@ class NamespacesTest extends TestCase
         }
 
         $this->assertMatchesRegularExpression('/<span nitro:id="\w+" nitro:name="shop::cart-badge" class="badge">3<\/span>/', $html);
+    }
+
+    /** #[View('admin::login')]: a Blade view of any folder Laravel's view finder knows, by its Blade namespace. */
+    public function test_a_view_named_in_a_blade_namespace_of_another_folder_renders_on_both_sides(): void
+    {
+        $this->assertSame('admin::login', $this->app->make(Components::class)->meta('shop::login')->view);
+
+        $view = self::APP.'/resources/views/admin-login-tag.blade.php';
+        file_put_contents($view, "<main><nitro:shop::login email=\"ada@example.com\" /></main>\n");
+
+        try {
+            $html = view('admin-login-tag')->render();
+        } finally {
+            @unlink($view);
+        }
+
+        $this->assertMatchesRegularExpression('/<form nitro:id="\w+" nitro:name="shop::login" class="login">/', $html, 'the server renders it from admin-views/login.blade.php');
+        $this->assertStringContainsString('ada@example.com</form>', $html);
+
+        $bundle = implode("\n", $this->app->make(Bundle::class)->compileAll());
+        $this->assertMatchesRegularExpression('/Nitro\.define\("shop::login", \{/', $bundle, 'and the browser has it compiled');
     }
 
     public function test_a_namespaced_child_compiles_for_the_browser(): void
