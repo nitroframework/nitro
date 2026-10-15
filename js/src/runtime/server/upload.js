@@ -17,7 +17,7 @@
  */
 import * as P from '../../php.js';
 import { SIGNALS } from '../protocol.js';
-import { ErrorBag } from '../component/errors.js';
+import { takeErrors } from '../component/errors.js';
 import { sendFiles } from './request.js';
 
 /** nitro:model on a file input: its chosen files, the input told how it goes. */
@@ -81,7 +81,7 @@ export function send(runtime, component, path, files, on = {}) {
 
             if (status === 200 && answer && Array.isArray(answer.uploads)) {
                 const uploads = answer.uploads.map(P.decode);
-                clearErrors(component, root);
+                fieldErrors(component, root, []);
                 component.setPath(path, on.multiple ? uploads : uploads[0] ?? null);
                 on.finish?.();
                 resolve({ ok: true });
@@ -89,7 +89,7 @@ export function send(runtime, component, path, files, on = {}) {
             }
 
             const message = answer?.message ?? (status === 0 ? 'The server could not be reached.' : `The server answered ${status}.`);
-            if (status === 422) setErrors(component, root, answer?.errors?.[root] ?? [message]);
+            if (status === 422) fieldErrors(component, root, answer?.errors?.[root] ?? [message]);
             else runtime.report(component, new Error(`Nitro: uploading ${root}: ${message}`));
             on.error?.(status, message);
             resolve(status === 422 ? { refused: true } : { failed: true, status, message });
@@ -99,20 +99,12 @@ export function send(runtime, component, path, files, on = {}) {
     });
 }
 
-/** The server refused the file: its messages, as $errors has them after validate(). */
-function setErrors(component, field, messages) {
-    const all = new Map(component.errors.messages);
-    all.set(field, messages.map(P.toStr));
-    component.errors = new ErrorBag(all);
-    component.dirty.add(SIGNALS.errors);
-    component.schedule();
-}
-
-function clearErrors(component, field) {
-    if (!component.errors.messages.has(field)) return;
-    const all = new Map(component.errors.messages);
-    all.delete(field);
-    component.errors = new ErrorBag(all);
+/**
+ * The property's messages, as $errors has them after validate(): the server's refusal, or none
+ * once it took the files (and none below it: those were of the files before).
+ */
+function fieldErrors(component, field, messages) {
+    if (!takeErrors(component, component.errors.withPaths([field], messages.length > 0 ? { [field]: messages } : {}))) return;
     component.dirty.add(SIGNALS.errors);
     component.schedule();
 }

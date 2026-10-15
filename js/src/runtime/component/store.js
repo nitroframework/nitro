@@ -8,7 +8,7 @@
  * values again. It has no element and no view.
  */
 import * as P from '../../php.js';
-import { ErrorBag } from './errors.js';
+import { ErrorBag, takeErrors } from './errors.js';
 import { defineProperties } from './context.js';
 import { HOOK } from '../hooks.js';
 import { defaultsOf, keepEnvelope, readState, sameValue, updatesOf } from './snapshot.js';
@@ -162,8 +162,7 @@ export class Store {
 
         keepEnvelope(this, envelope);
         this.serverData = new Map(data);
-        if (JSON.stringify([...errors.messages]) !== JSON.stringify([...this.errors.messages])) changed = true;
-        this.errors = errors;
+        if (takeErrors(this, errors)) changed = true;
         if (changed) this.changed();
     }
 

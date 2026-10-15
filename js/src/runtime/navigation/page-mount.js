@@ -4,7 +4,7 @@
  * (renderEarly()), which then arrives (arrive()).
  */
 import { defaultsOf, readState } from '../component/snapshot.js';
-import { ErrorBag } from '../component/errors.js';
+import { ErrorBag, takeErrors } from '../component/errors.js';
 import { ATTRIBUTES, SIGNALS } from '../protocol.js';
 
 export class PageMount {
@@ -75,7 +75,7 @@ export class PageMount {
         component.el.setAttribute(ATTRIBUTES.id, state.id);
         runtime.instances.set(state.id, component);
         component.early = false;
-        component.errors = state.errors;
+        takeErrors(component, state.errors);
         component.deferred = new Set(state.deferred);
         component.setScroll(state.scroll, true);
         component.dirty.add(SIGNALS.deferred);

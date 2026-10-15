@@ -5,7 +5,7 @@
  */
 import * as P from '../../php.js';
 import { merge as mergeValues } from './merge.js';
-import { ErrorBag } from './errors.js';
+import { ErrorBag, takeErrors } from './errors.js';
 import { HTML_FIELD, SIGNALS } from '../protocol.js';
 
 /**
@@ -118,12 +118,11 @@ export function snapshotInto(component, envelope, sent) {
         }
     }
 
-    if (JSON.stringify([...errors.messages]) !== JSON.stringify([...component.errors.messages])) component.dirty.add(SIGNALS.errors);
+    if (takeErrors(component, errors)) component.dirty.add(SIGNALS.errors);
 
     for (const name of keepEnvelope(component, envelope)) component.dirty.add(name);
     component.serverData = new Map(data);
     component.data = fresh;
-    component.errors = errors;
     component.memo.clear();
     const modelable = component.definition.modelable;
     const modelChanged = modelable && component.dirty.has(modelable);

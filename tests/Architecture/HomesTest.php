@@ -238,6 +238,19 @@ final class HomesTest extends TestCase
                 ],
                 'why' => 'Keys and tags written where a result is used would differ: a page kept under one key, expired under another',
             ],
+            'a component\'s $errors' => [
+                /** Written in one place each side: cleared and set by a failed validation on the server, taken in the browser. */
+                'patterns' => ['/(->|\.)errors\s*=(?!=)/'],
+                'homes' => [
+                    'src/Lifecycle/Validation.php' => 'clear() as a method starts, failed() with a validation\'s messages',
+                    'src/Lifecycle/Context.php' => 'an instance starts without errors',
+                    'js/src/runtime/component/errors.js' => 'takeErrors(): a component or a store takes a bag',
+                    'js/src/runtime/component/component.js' => 'a component starts with the errors it was made with',
+                    'js/src/runtime/component/store.js' => 'a store starts with the errors it was made with',
+                    'js/src/devtools/overlay.js' => 'the overlay\'s own list of runtime errors, not $errors',
+                ],
+                'why' => 'The server wrote a failure\'s messages in two places; the browser replaced a field\'s messages in uploads by hand, and compared bags in three',
+            ],
             'a state by its own names' => [
                 'patterns' => ['/->fromBrowser\(/'],
                 'homes' => ['src/State/Snapshots.php' => 'ownNames(): the component\'s and its properties\', an obfuscated build\'s aliases read'],

@@ -20,6 +20,7 @@ use Nitro\Compiler\PropertyMeta;
 use Nitro\Component;
 use Nitro\Http\IncomingState;
 use Nitro\Lifecycle\Features;
+use Nitro\Lifecycle\Validation;
 use Nitro\Rendering\ComponentRenderer;
 use Nitro\Rendering\Fallbacks;
 use Nitro\State\MethodCache;
@@ -296,8 +297,7 @@ final class UpdateController
         }
 
         $arguments = $this->arguments($meta->serverParameters[$method], $params);
-        $context = $component->nitro();
-        $context->errors = new \Illuminate\Support\MessageBag;
+        Validation::clear($component);
 
         $features = $this->features();
         $features->calling($component, $method, $arguments);
@@ -306,7 +306,7 @@ final class UpdateController
             /** Through the features' call(), around the method (and #[Cached], which may answer for it). */
             $returned = $features->call($component, $method, $arguments, fn () => app(MethodCache::class)->call($component, $meta, $method, $arguments, fn () => $component->{$method}(...$arguments)));
         } catch (ValidationException $exception) {
-            $context->errors = $exception->validator->errors();
+            Validation::failed($component, $exception->validator->errors());
 
             return null;
         } catch (Throwable $exception) {
