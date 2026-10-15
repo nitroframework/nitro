@@ -21,6 +21,7 @@ final class SizeTest extends TestCase
         'src/Compiler/Template/BladeInliner.php' => 'Blade\'s @include and component tags, worked out as Blade does (the user: "dont split")',
         'src/View/TreeRenderer.php' => 'the server\'s render of a compiled tree, node by node: render.js and the modules it uses, in one',
         'src/Compiler/Transpiler.php' => 'PHP to JavaScript, statement by statement, with each template head\'s PHP twin',
+        'src/Http/UpdateController.php' => 'the update endpoint: a call and a check, each checked the same way (the signed state, partials, stores, updates)',
     ];
 
     public function test_a_file_stays_one_job_in_size(): void

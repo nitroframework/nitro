@@ -119,6 +119,37 @@ final class ComponentMeta
         return [$rules, $attributes];
     }
 
+    /**
+     * The rules of some paths (#[Validate]): a property's, or a key under an array property's,
+     * each with the rules below it ('form.email', 'lines.*.qty'), and the names messages give them.
+     *
+     * @param  list<string>  $paths
+     * @return array{0: array<string, mixed>, 1: array<string, string>}
+     */
+    public function rulesOf(array $paths): array
+    {
+        [$rules, $attributes] = $this->rulesFor(array_values(array_unique(array_map(fn (string $path) => explode('.', $path, 2)[0], $paths))));
+
+        return [array_filter($rules, fn (string $key) => self::under($key, $paths), ARRAY_FILTER_USE_KEY), $attributes];
+    }
+
+    /**
+     * Whether a key ('lines.0.qty', a rule's or a message's field) is one of these paths or below
+     * one ('lines', 'lines.0').
+     *
+     * @param  list<string>  $paths
+     */
+    public static function under(string $key, array $paths): bool
+    {
+        foreach ($paths as $path) {
+            if ($key === $path || str_starts_with($key, $path.'.')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function isComputed(string $name): bool
     {
         return in_array($name, $this->computed, true);

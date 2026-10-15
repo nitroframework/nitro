@@ -24,12 +24,14 @@ use Nitro\Tests\Fixtures\Pages\Panels;
 use Nitro\Tests\Fixtures\Pages\Report;
 use Nitro\Tests\Fixtures\Pages\Shelf;
 use Nitro\Tests\Fixtures\Pages\Showcase;
+use Nitro\Tests\Fixtures\Pages\SignUp;
 use Nitro\Tests\Fixtures\Pages\StudentPage;
 use Nitro\Tests\Fixtures\Pages\Terms;
 use Nitro\Tests\Fixtures\Pages\ToolsLibraries;
 use Nitro\Tests\Fixtures\Pages\Transitions;
 
 Route::nitro('/students/{student}', StudentPage::class)->name('students.show');
+Route::nitro('/sign-up', SignUp::class)->name('sign-up');
 Route::nitro('/counter', Counter::class)->name('counter');
 Route::nitro('/board', Board::class)->name('board');
 Route::nitro('/links', Links::class)->name('links');

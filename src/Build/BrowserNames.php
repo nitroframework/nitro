@@ -50,6 +50,12 @@ final class BrowserNames
         return $this->obfuscator()?->property($name) ?? $name;
     }
 
+    /** A path in the browser ("email", "form.email"): its property by the browser's name, the rest as it is. */
+    public function path(string $path): string
+    {
+        return $this->obfuscator()?->path($path) ?? $path;
+    }
+
     /** A method's name in the browser (a #[Server] call names it so). */
     public function method(string $name): string
     {

@@ -6,6 +6,7 @@
 import * as P from '../../php.js';
 import { HEADERS, SIGNALS } from '../protocol.js';
 import { fingerprintsField } from '../component/snapshot.js';
+import { takeErrors } from '../component/errors.js';
 import { webUrl } from '../navigation/addresses.js';
 import { REQUEST_KINDS } from '../hooks.js';
 import { applyEffects } from './effects.js';
@@ -19,16 +20,102 @@ export class Network {
     }
 
     /**
-     * Call a #[Server] method (null: just sync the state, as $refresh does). A failure is reported
-     * (console and nitro:error) here, once; the promise still rejects for code that awaits it.
+     * In the component's queue, after the requests before it. A failure is reported (console and
+     * nitro:error) here, once; the promise still rejects for code that awaits it.
      */
-    /** leaving: the component's goodbye, a #[Server] destroyed(): sent though it has left the page. */
-    call(component, method, args = [], { leaving = false } = {}) {
+    enqueue(component, run) {
         const previous = this.queues.get(component) ?? Promise.resolve();
-        const next = previous.catch(() => {}).then(() => this.send(component, method, args, false, leaving));
+        const next = previous.catch(() => {}).then(run);
         next.catch((error) => this.runtime.report(component, error));
         this.queues.set(component, next);
         return next;
+    }
+
+    /**
+     * Call a #[Server] method (null: just sync the state, as $refresh does).
+     * leaving: the component's goodbye, a #[Server] destroyed(): sent though it has left the page.
+     */
+    call(component, method, args = [], { leaving = false } = {}) {
+        return this.enqueue(component, () => this.send(component, method, args, false, leaving));
+    }
+
+    /**
+     * A check (#[Validate(onBlur: true)]): the server checks these paths' rules against the values
+     * here, and only their messages change; the state, and what it has not taken, stay as they
+     * are. A component made here, with no signed state yet, is not checked: its first call checks it.
+     */
+    check(component, paths) {
+        return this.enqueue(component, () => this.sendCheck(component, paths));
+    }
+
+    async sendCheck(component, paths) {
+        if (component.destroyed || component.snapshot === null || component.isStore) return;
+        const body = {
+            snapshot: component.snapshot,
+            partials: component.partials.length > 0 ? component.partials : undefined,
+            updates: component.updates(),
+            check: paths,
+        };
+
+        const answer = await this.exchange(component, '$check', REQUEST_KINDS.check, body, { busy: (on) => this.runtime.checking(component, paths, on) });
+        if (answer === null) return;
+
+        /** Messages by field, in the wire format (a PHP array, its keys in order). */
+        if (takeErrors(component, component.errors.withPaths(paths, P.decode(answer.errors)))) {
+            component.dirty.add(SIGNALS.errors);
+            component.schedule();
+        }
+    }
+
+    /**
+     * A request to the update endpoint (a call, a check), and its answer read: busy(on) around the
+     * sending, beforeRequest and afterRequest heard once each. Resolves the answer; null when a
+     * beforeRequest listener stopped it, or when the component left the page meanwhile (unless
+     * leaving). failed(text): what a failed answer does besides rejecting.
+     */
+    async exchange(component, method, kind, body, { busy, leaving = false, failed = () => {} }) {
+        const label = method ?? '$refresh';
+        busy(true);
+        const started = this.runtime.window.performance.now();
+        let response;
+        try {
+            response = await call(this.runtime, component, method, body, kind);
+        } catch (error) {
+            busy(false);
+            this.runtime.hooks.afterRequest(component, method, kind, 0, timingOf(this.runtime, null, started));
+            throw new ServerCallError(`${label}(): the server could not be reached`, 0, String(error?.message ?? error));
+        }
+        busy(false);
+
+        /** A beforeRequest listener stopped it: nothing was sent, what changed here stays for the next request. */
+        if (response === null) {
+            this.runtime.hooks.afterRequest(component, method, kind, 0, { ...timingOf(this.runtime, null, started), cancelled: true });
+            return null;
+        }
+
+        /** afterRequest once the answer is read, whatever happens reading it: each beforeRequest has its after. */
+        let text = '';
+        try {
+            text = await response.text();
+        } finally {
+            this.runtime.hooks.afterRequest(component, method, kind, response.status, timingOf(this.runtime, response, started, text));
+        }
+        /**
+         * It left the page meanwhile (a visit, its view, a script): the answer is for a page no
+         * longer shown, its state and its effects (a redirect, events) too (ARCHITECTURE.md, "What Nitro shares").
+         */
+        if (component.destroyed && !leaving) return null;
+        if (!response.ok) {
+            failed(text);
+            throw new ServerCallError(`${label}(): the server answered ${response.status}`, response.status, text);
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch {
+            /** A 200 that is not Nitro's answer: PHP printing a warning or an error page, a proxy. */
+            throw new ServerCallError(`${label}(): the server's answer is not JSON`, response.status, text);
+        }
     }
 
     /**
@@ -38,11 +125,7 @@ export class Network {
      * the named properties taken from it. In the component's queue, after the calls before it.
      */
     reload(component, only = [], deferred = false, url = null) {
-        const previous = this.queues.get(component) ?? Promise.resolve();
-        const next = previous.catch(() => {}).then(() => this.load(component, only, deferred, url));
-        next.catch((error) => this.runtime.report(component, error));
-        this.queues.set(component, next);
-        return next;
+        return this.enqueue(component, () => this.load(component, only, deferred, url));
     }
 
     /** url: a function giving the URL to ask ($loadMore: the next page; null: nothing to load), else the page's. */
@@ -119,50 +202,16 @@ export class Network {
             stores: stores.size > 0 ? Object.fromEntries([...stores].map(([name, store]) => [name, { snapshot: store.snapshot, updates: store.updates() }])) : undefined,
         };
 
-        this.runtime.loading(component, method, true);
-        const started = this.runtime.window.performance.now();
-        let response;
-        try {
-            response = await call(this.runtime, component, method, body);
-        } catch (error) {
-            this.runtime.loading(component, method, false);
-            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, 0, timingOf(this.runtime, null, started));
-            throw new ServerCallError(`${method ?? '$refresh'}(): the server could not be reached`, 0, String(error?.message ?? error));
-        }
-        this.runtime.loading(component, method, false);
-
-        /** A beforeRequest listener stopped it: nothing was sent, what changed here stays for the next call. */
-        if (response === null) {
-            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, 0, { ...timingOf(this.runtime, null, started), cancelled: true });
-            return null;
-        }
-
-        /** afterRequest once the answer is read, whatever happens reading it: each beforeRequest has its after. */
-        let text = '';
-        try {
-            text = await response.text();
-        } finally {
-            this.runtime.hooks.afterRequest(component, method, REQUEST_KINDS.call, response.status, timingOf(this.runtime, response, started, text));
-        }
-        /**
-         * It left the page meanwhile (a visit, its view, a script): the answer is for a page no
-         * longer shown, its state and its effects (a redirect, events) too (ARCHITECTURE.md, "What Nitro shares").
-         */
-        if (component.destroyed && !leaving) return null;
-        if (!response.ok) {
+        const answer = await this.exchange(component, method, REQUEST_KINDS.call, body, {
+            busy: (on) => this.runtime.loading(component, method, on),
+            leaving,
             /** With fallbacks on, a call that failed answers with the component's fallback: it shows in its place. */
-            const fallback = fallbackIn(text);
-            if (fallback !== null) component.fail(fallback);
-            throw new ServerCallError(`${method ?? '$refresh'}(): the server answered ${response.status}`, response.status, text);
-        }
-
-        let answer;
-        try {
-            answer = JSON.parse(text);
-        } catch {
-            /** A 200 that is not Nitro's answer: PHP printing a warning or an error page, a proxy. */
-            throw new ServerCallError(`${method ?? '$refresh'}(): the server's answer is not JSON`, response.status, text);
-        }
+            failed: (text) => {
+                const fallback = fallbackIn(text);
+                if (fallback !== null) component.fail(fallback);
+            },
+        });
+        if (answer === null) return null;
 
         const { snapshot, effects = {} } = answer;
         this.runtime.receive(answer, component);

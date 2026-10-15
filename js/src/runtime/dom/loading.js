@@ -6,7 +6,10 @@
  *   nitro:loading.class="opacity-50" classes added while loading (.class.remove: removed)
  *   nitro:loading.attr="disabled"   attribute set while loading
  *   nitro:loading.delay...          any of them once the call has taken 200ms (.delay.500ms, .delay.1s)
- *   nitro:target="save,delete"      only for calls to these methods
+ *   nitro:target="save,delete"      only for calls to these methods (or checks of these properties)
+ *
+ * A check (#[Validate(onBlur: true)]) shows only where nitro:target names its property: the
+ * untargeted forms are for calls.
  *
  * The plain forms are hidden by the stylesheet; a delayed one, whose name the stylesheet can't
  * know, by data-nitro-loading-hidden, which this sets.
@@ -23,7 +26,11 @@ const DELAY = 200;
 /** Delayed attributes, by element: each one's timer, and whether its wait is over. */
 const waits = new WeakMap();
 
-export function applyLoading(component, active) {
+/** No checks running. */
+const NONE = new Set();
+
+/** active: the calls running (by method, or a property for an upload); checks: the properties being checked. */
+export function applyLoading(component, active, checks = NONE) {
     const methods = active;
     for (const el of component.scan('*')) {
         if (component.runtime.owner(el) !== component) continue;
@@ -31,7 +38,9 @@ export function applyLoading(component, active) {
         if (attributes.length === 0) continue;
 
         const target = el.getAttribute('nitro:target');
-        const on = methods.size > 0 && (!target || target.split(',').map((t) => t.trim()).some((t) => methods.has(t)));
+        const on = target
+            ? target.split(',').map((t) => t.trim()).some((t) => methods.has(t) || checks.has(t))
+            : methods.size > 0;
 
         on ? el.setAttribute('data-nitro-loading', '') : el.removeAttribute('data-nitro-loading');
 

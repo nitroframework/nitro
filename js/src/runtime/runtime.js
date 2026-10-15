@@ -48,6 +48,8 @@ export class Runtime {
         this.chunks = new Chunks(this);
         this.instances = new Map();
         this.inflight = new WeakMap();
+        /** The properties each component's checks are of (checking()). */
+        this.checks = new WeakMap();
         /** The children a render places, and components made in the browser (component/placement.js). */
         this.placement = new Placement(this);
         /** A visit's page mounted in place (navigation/page-mount.js). */
@@ -341,7 +343,7 @@ export class Runtime {
         this.events.watch(component);
         this.navigator.prefetcher.watch(component.el);
         this.model.sync(component);
-        applyLoading(component, this.inflight.get(component) ?? new Set());
+        applyLoading(component, this.inflight.get(component) ?? new Set(), this.checks.get(component));
         applyDirty(component);
         this.triggers.sync(component);
         this.directives.sync(component);
@@ -353,6 +355,17 @@ export class Runtime {
         if (component.destroyed || !component.el || component.isStore) return;
         applyDirty(component);
         component.view?.saved?.();
+    }
+
+    /** A check of these paths (network.check()): nitro:loading naming one of them with nitro:target shows; polls and the untargeted forms wait for calls only. */
+    checking(component, paths, on) {
+        const checked = this.checks.get(component) ?? new Set();
+        for (const path of paths) {
+            const root = String(path).split('.')[0];
+            on ? checked.add(root) : checked.delete(root);
+        }
+        this.checks.set(component, checked);
+        applyLoading(component, this.inflight.get(component) ?? new Set(), checked);
     }
 
     loading(component, method, on) {
@@ -369,7 +382,7 @@ export class Runtime {
             return;
         }
 
-        applyLoading(component, methods);
+        applyLoading(component, methods, this.checks.get(component));
     }
 
     /** What a response brings besides state: shared, once and flash data (shared.js). */

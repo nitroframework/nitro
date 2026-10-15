@@ -4,6 +4,7 @@ namespace Nitro\Lifecycle;
 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\MessageBag;
+use Nitro\Compiler\ComponentMeta;
 use Nitro\Compiler\Components;
 use Nitro\Component;
 use Nitro\Feature;
@@ -41,6 +42,28 @@ final class Validation extends Feature
         }
 
         return true;
+    }
+
+    /**
+     * A check: the messages of these paths, against the component's values as they are. Each
+     * path's property is validated with its rules (so 'lines.*.qty' covers 'lines.0.qty'), and
+     * only the messages of the paths, and of keys below them, are kept. Nothing is set.
+     *
+     * @param  list<string>  $paths
+     * @return array<string, list<string>> messages by field
+     */
+    public function check(Component $component, array $paths): array
+    {
+        [$rules, $attributes] = $this->components->meta($component::class)->rulesFor(array_values(array_unique(array_map(fn (string $path) => explode('.', $path, 2)[0], $paths))));
+
+        if ($rules === []) {
+            return [];
+        }
+
+        $validator = Validator::make(StateProperties::values($component), $rules, [], $attributes);
+        $validator->passes();
+
+        return array_filter($validator->errors()->toArray(), fn (string $field) => ComponentMeta::under($field, $paths), ARRAY_FILTER_USE_KEY);
     }
 
     /** A method starts with no errors: those it had are its last call's. */

@@ -16,7 +16,8 @@ use Symfony\Component\HttpFoundation\Response;
  *
  *   - the answer is never a server error (5xx): bad input is refused (4xx) or handled;
  *   - a refused call changes nothing the server keeps (Store, the fixtures' record of what ran);
- *   - an accepted call answers JSON with a signed snapshot.
+ *   - an accepted call answers JSON with a signed snapshot;
+ *   - a check runs nothing of its component, accepted or not, and answers its messages only.
  *
  * Off unless asked for:   FUZZ_ENDPOINT=500 FUZZ_SEED=1 phpunit tests/Fuzz/EndpointFuzzTest.php
  * A failure names its seed: FUZZ_SEED=N FUZZ_ENDPOINT=1 makes it again.
@@ -42,11 +43,14 @@ class EndpointFuzzTest extends TestCase
             $mutator = new Mutator($caseSeed);
             [$label, $base] = $mutator->pick($bases);
             Store::$saved = [];
+            Store::$log = [];
 
             /** An accepted remove() deletes the student: back, so the next requests meet the page as it was. */
             if (! Student::query()->whereKey(1)->exists()) {
                 Student::create(['id' => 1, 'name' => 'Ada Lovelace', 'email' => 'ada@example.com', 'secret' => 'hidden']);
             }
+
+            $isCheck = false;
 
             if ($base['kind'] === 'visit') {
                 $headers = $base['headers'];
@@ -57,9 +61,11 @@ class EndpointFuzzTest extends TestCase
             } else {
                 $payload = $base['payload'];
 
-                /** Mostly past the signature (a bent snapshot stops at 419): the updates, the call, its arguments. */
+                /** Mostly past the signature (a bent snapshot stops at 419): the updates, the call, its arguments; a check's paths. */
                 for ($n = mt_rand(1, 3); $n > 0; $n--) {
-                    $part = $mutator->pick(['updates', 'updates', 'updates', 'call', 'call', 'call', 'children', 'partials', 'snapshot', '']);
+                    $part = $mutator->pick($base['kind'] === 'check'
+                        ? ['updates', 'updates', 'check', 'check', 'check', 'partials', 'snapshot', '']
+                        : ['updates', 'updates', 'updates', 'call', 'call', 'call', 'children', 'partials', 'snapshot', '']);
                     $part === '' || ! is_array($payload)
                         ? $payload = $mutator->value($payload)
                         : $payload[$part] = $mutator->value($payload[$part] ?? null);
@@ -73,6 +79,9 @@ class EndpointFuzzTest extends TestCase
                 }
 
                 $what = "{$label}: ".substr((string) $json, 0, 300);
+                /** A check is what was sent with a check in it: mutated out of it, it is a call. */
+                $sent = json_decode((string) $json, true);
+                $isCheck = is_array($sent) && array_key_exists('check', $sent);
                 $response = $this->send(fn () => $this->request('POST', '/_nitro/update', [
                     'CONTENT_TYPE' => 'application/json',
                     'HTTP_ACCEPT' => 'application/json',
@@ -95,6 +104,10 @@ class EndpointFuzzTest extends TestCase
                 $failures[] = "seed {$caseSeed}, {$what}\n  refused ({$status}) but ran: ".json_encode(Store::$saved);
             } elseif ($status === 200 && $base['kind'] === 'call' && ! is_array($this->json($response)['snapshot'] ?? null)) {
                 $failures[] = "seed {$caseSeed}, {$what}\n  accepted without a snapshot: ".substr((string) $response->getContent(), 0, 300);
+            } elseif ($isCheck && (Store::$log !== [] || Store::$saved !== [])) {
+                $failures[] = "seed {$caseSeed}, {$what}\n  a check ran its component ({$status}): ".json_encode([Store::$log, Store::$saved]);
+            } elseif ($status === 200 && $isCheck && array_keys($this->json($response) ?? []) !== ['errors']) {
+                $failures[] = "seed {$caseSeed}, {$what}\n  a check answered more than messages: ".substr((string) $response->getContent(), 0, 300);
             }
         }
 
@@ -152,6 +165,12 @@ class EndpointFuzzTest extends TestCase
         $student = $snapshot('/students/1', 'pages::student-page');
         $panels = $snapshot('/panels', 'pages::panels');
         $shelf = $snapshot('/shop', 'shop-shelf');
+        $signUp = $snapshot('/sign-up', 'pages::sign-up');
+        $check = fn (array $envelope, array $paths, array $updates) => ['kind' => 'check', 'payload' => [
+            'snapshot' => $envelope,
+            'updates' => array_map(Wire::encode(...), $updates),
+            'check' => $paths,
+        ]];
         $this->app->forgetScopedInstances();
         preg_match('#data-nitro-globals>(.*?)</script>#s', (string) $this->get('/shop')->getContent(), $globals);
         $cart = json_decode($globals[1], true)['stores']['stores::cart'];
@@ -169,6 +188,8 @@ class EndpointFuzzTest extends TestCase
             ['shelf with its store', $call($shelf, 'checkout', [], [], ['stores' => ['stores::cart' => ['snapshot' => $cart, 'updates' => ['items' => Wire::encode([['name' => 'Pen', 'price' => 2]])]]]])],
             ['store save', $call($cart, 'save', [], ['items' => [['name' => 'Pen', 'price' => 2]]])],
             ['store made in the browser', ['kind' => 'call', 'payload' => ['snapshot' => null, 'store' => 'stores::cart', 'updates' => ['items' => Wire::encode([['name' => 'Book', 'price' => 10]])], 'call' => ['method' => 'save', 'params' => []]]]],
+            ['sign-up check', $check($signUp, ['email', 'lines.0.qty'], ['email' => 'x', 'password' => 'secret-words', 'password_confirmation' => 'other', 'lines' => [['qty' => 0]]])],
+            ['student check', $check($student, ['copies', 'tags.1'], ['copies' => 50, 'tags' => ['ok', 'x']])],
             ['visit counter', ['kind' => 'visit', 'uri' => '/counter', 'headers' => $visit]],
             ['partial student', ['kind' => 'visit', 'uri' => '/students/1', 'headers' => [...$visit, 'HTTP_X_NITRO_PARTIAL' => 'fabcdefghij', 'HTTP_X_NITRO_ONLY' => 'note,tags']]],
         ];

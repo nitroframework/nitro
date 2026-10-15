@@ -79,6 +79,11 @@ final class UpdateController
             throw new HttpException(400, 'Malformed component update.');
         }
 
+        /** A check is of a component's state the server signed: nothing is made for it. */
+        if (array_key_exists('check', $payload) && ($payload['snapshot'] ?? null) === null) {
+            throw new HttpException(400, 'Malformed component update.');
+        }
+
         /**
          * A store the browser made from its defaults, with no state from the server yet (no
          * component the server rendered used it): made here, with its mount(), as for a page.
@@ -107,6 +112,11 @@ final class UpdateController
             /** A store's own call: the store this request's components would use. */
             if ($component instanceof Store) {
                 app(Stores::class)->adopt($component, $memo);
+            }
+
+            /** A check: its state, checked as a call's is, and nothing of it runs (check()). */
+            if (array_key_exists('check', $payload)) {
+                return $this->check($component, $meta, $payload);
             }
         }
 
@@ -169,6 +179,43 @@ final class UpdateController
                 'returns' => $call !== null ? Wire::encode($returned) : null,
             ], fn ($value) => $value !== null && $value !== []),
         ]);
+    }
+
+    /**
+     * A check (#[Validate(onBlur: true)]): the values the browser sent, laid over the state it
+     * signed and checked as a call's are, against the rules of the paths it names. Nothing of the
+     * component runs (no hooks, no stores, no method) and nothing is kept: the answer is those
+     * paths' messages, by the browser's names.
+     */
+    private function check(Component $component, ComponentMeta $meta, array $payload): JsonResponse
+    {
+        $paths = $payload['check'];
+
+        if ($component instanceof Store || ! is_array($paths) || ! array_is_list($paths) || $paths === [] || count($paths) > 50) {
+            throw new HttpException(400, 'Malformed component update.');
+        }
+
+        $this->applyUpdates($component, $meta, $payload['updates'] ?? []);
+        $properties = array_keys($meta->properties);
+        $checked = [];
+
+        foreach ($paths as $path) {
+            if (! is_string($path) || $path === '') {
+                throw new HttpException(400, 'Malformed component update.');
+            }
+
+            $path = $this->names()->propertyPath($path, $properties);
+
+            if ($meta->property(explode('.', $path, 2)[0]) === null) {
+                throw new HttpException(403, 'This property cannot be checked.');
+            }
+
+            $checked[] = $path;
+        }
+
+        $messages = app(Validation::class)->check($component, $checked);
+
+        return new JsonResponse(['errors' => Wire::encode(array_combine(array_map($this->names()->path(...), array_keys($messages)), array_values($messages)))]);
     }
 
     /**

@@ -44,8 +44,14 @@
         "app": "nitro",
         "db": "db"
     },
+    "request": {
+        "update": ["snapshot", "html", "store", "partials", "updates", "call", "children", "stores", "check"],
+        "call": ["method", "params"],
+        "store": ["snapshot", "updates"]
+    },
     "answer": {
         "call": ["snapshot", "children", "stores", "shared", "once", "flash", "effects"],
+        "check": ["errors"],
         "page": ["nitro", "snapshot", "partial", "children", "title", "head", "layout", "shared", "once", "flash", "stores"],
         "effects": ["dispatches", "redirect", "js", "reload", "returns"],
         "dispatch": ["event", "params", "to", "self"],

@@ -42,7 +42,7 @@
  */
 
 /** A request's kind: a #[Server] call, a reload of a page's properties, an upload. */
-export const REQUEST_KINDS = Object.freeze({ call: 'call', reload: 'reload', upload: 'upload' });
+export const REQUEST_KINDS = Object.freeze({ call: 'call', check: 'check', reload: 'reload', upload: 'upload' });
 
 /** Each hook: its window event (on the document for init), whether it can be stopped, and the names it had before 2.x's hooks. */
 const HOOKS = {

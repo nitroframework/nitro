@@ -171,19 +171,7 @@ abstract class Component
      */
     final protected function validateOnly(string|array $properties, array $messages = [], array $attributes = []): array
     {
-        $properties = (array) $properties;
-        $roots = array_map(fn (string $path) => explode('.', $path, 2)[0], $properties);
-        [$rules, $named] = app(Components::class)->meta(static::class)->rulesFor($roots);
-
-        $rules = array_filter($rules, function (string $key) use ($properties) {
-            foreach ($properties as $path) {
-                if ($key === $path || str_starts_with($key, $path.'.')) {
-                    return true;
-                }
-            }
-
-            return false;
-        }, ARRAY_FILTER_USE_KEY);
+        [$rules, $named] = app(Components::class)->meta(static::class)->rulesOf((array) $properties);
 
         return Validator::make(StateProperties::values($this), $rules, $messages, $attributes + $named)->validate();
     }

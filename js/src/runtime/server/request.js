@@ -75,10 +75,13 @@ export function timingOf(runtime, response, started, text = null) {
     return timing;
 }
 
-/** A #[Server] call (method null: $refresh) with its body; null when a beforeRequest listener stopped it. */
-export async function call(runtime, component, method, body) {
+/**
+ * A #[Server] call (method null: $refresh), or a check (kind check, heard as $check), with its
+ * body; null when a beforeRequest listener stopped it.
+ */
+export async function call(runtime, component, method, body, kind = REQUEST_KINDS.call) {
     /** beforeRequest's listeners may add headers; Nitro's own are set after theirs. */
-    const headers = runtime.hooks.beforeRequest(component, method, REQUEST_KINDS.call);
+    const headers = runtime.hooks.beforeRequest(component, method, kind);
     if (headers === null) return null;
     const response = await runtime.window.fetch(`${runtime.config.endpoint}/${PATHS.update}`, {
         method: 'POST',

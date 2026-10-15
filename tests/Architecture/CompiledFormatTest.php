@@ -286,6 +286,40 @@ final class CompiledFormatTest extends TestCase
         $this->assertSame([], array_values(array_diff(array_map('trim', explode(',', $dispatchRead[1] ?? '')), $answer['dispatch'])), 'dispatch fields the runtime reads that js/protocol.json does not list');
     }
 
+    /** A request to the update endpoint (a call, a check), and a check's answer: what the runtime sends, what UpdateController reads, the listed fields only. */
+    public function test_a_requests_fields_are_the_listed_ones(): void
+    {
+        $request = Protocol::get('request');
+        $answer = Protocol::get('answer');
+        $code = Scanner::code();
+        $network = $code['js/src/runtime/server/network.js'];
+        $update = $code['src/Http/UpdateController.php'];
+
+        preg_match_all('/const body = \{\n(.*?)\n        \};/s', $network, $bodies);
+        $this->assertCount(2, $bodies[1], 'a call\'s body and a check\'s are found in network.js');
+        preg_match_all('/^ {12}(\w+):/m', implode("\n", $bodies[1]), $sent);
+        $this->assertSame([], array_values(array_diff(array_unique($sent[1]), $request['update'])), 'request fields the runtime sends that js/protocol.json does not list');
+
+        preg_match_all("/\\\$payload\['(\w+)'\]/", $update, $read);
+        $this->assertNotEmpty($read[1], 'the request is found in UpdateController');
+        $this->assertSame([], array_values(array_diff(array_unique($read[1]), $request['update'])), 'request fields UpdateController reads that js/protocol.json does not list');
+
+        preg_match_all("/\\\$entry\['(\w+)'\]/", $update, $store);
+        $this->assertSame([], array_values(array_diff(array_unique($store[1]), $request['store'])), 'a store\'s request fields UpdateController reads that js/protocol.json does not list');
+
+        preg_match_all("/\\\$call\['(\w+)'\]/", $update, $call);
+        $this->assertSame([], array_values(array_diff(array_unique($call[1]), $request['call'])), 'a call\'s fields UpdateController reads that js/protocol.json does not list');
+
+        preg_match_all("/new JsonResponse\(\['(\w+)' =>/", $update, $checked);
+        $this->assertNotEmpty($checked[1], 'a check\'s answer is found in UpdateController');
+        $this->assertSame([], array_values(array_diff($checked[1], $answer['check'])), 'check answer fields UpdateController sends that js/protocol.json does not list');
+
+        preg_match('/async sendCheck\(.*?\n    \}\n/s', $network, $check);
+        preg_match_all('/\banswer\.(\w+)/', $check[0] ?? '', $checkRead);
+        $this->assertNotEmpty($checkRead[1], 'the runtime reads a check\'s answer in network.js');
+        $this->assertSame([], array_values(array_diff(array_unique($checkRead[1]), $answer['check'])), 'check answer fields the runtime reads that js/protocol.json does not list');
+    }
+
     public function test_the_runtime_reads_only_listed_definition_fields(): void
     {
         $compiled = Protocol::get('compiled');
