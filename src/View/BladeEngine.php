@@ -51,6 +51,12 @@ final class BladeEngine implements ViewEngine
         return $this->views->getFinder()->find($meta->view);
     }
 
+    /** As the component names it: Laravel's view finder reads its dots, and the browser has the view compiled. */
+    public function resolved(ComponentMeta $meta): string
+    {
+        return $meta->view;
+    }
+
     public function compiledByNitro(): bool
     {
         return true;

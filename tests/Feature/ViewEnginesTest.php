@@ -172,4 +172,105 @@ class ViewEnginesTest extends TestCase
 
         $engine->file($meta);
     }
+
+    /** @var list<string> the folders views() made, removed after each test */
+    private array $folders = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->folders as $folder) {
+            (new \Illuminate\Filesystem\Filesystem)->deleteDirectory($folder);
+        }
+
+        parent::tearDown();
+    }
+
+    /** Views in a folder of the test's own: path => contents. */
+    private function views(array $files): string
+    {
+        $root = $this->folders[] = sys_get_temp_dir().DIRECTORY_SEPARATOR.'nitro-dotted-views-'.bin2hex(random_bytes(4));
+
+        foreach ($files as $path => $contents) {
+            @mkdir(dirname($root.'/'.$path), 0777, true);
+            file_put_contents($root.'/'.$path, $contents);
+        }
+
+        return $root;
+    }
+
+    /** A Vue component's meta, its view named so. */
+    private function named(string $view): \Nitro\Compiler\ComponentMeta
+    {
+        $meta = ComponentReader::read(get_class(new #[View(vue: 'placeholder')] class extends Component {}), 'x', 'nitro.x');
+
+        return new \Nitro\Compiler\ComponentMeta(...['view' => $view] + get_object_vars($meta));
+    }
+
+    /** A JavaScript view's name reads dots as folders too, as Blade's: "auth.login" is auth/login.vue. */
+    public function test_a_javascript_views_dots_and_slashes_are_folders(): void
+    {
+        $root = $this->views(['auth/login.vue' => '', 'admin/auth/login.vue' => '', 'card.vue' => '']);
+        $engine = new ScriptEngine('vue', [$root], ['vue']);
+
+        foreach (['auth.login', 'auth/login', 'auth\\login'] as $name) {
+            $this->assertSame($root.DIRECTORY_SEPARATOR.'auth'.DIRECTORY_SEPARATOR.'login.vue', $engine->file($this->named($name)), $name);
+            $this->assertSame('auth/login', $engine->resolved($this->named($name)), "{$name}: the browser and the render service get its path");
+        }
+
+        $this->assertSame('admin/auth/login', $engine->resolved($this->named('admin/auth.login')), 'slashes and dots together');
+        $this->assertSame('admin/auth/login', $engine->resolved($this->named('admin.auth.login')));
+        $this->assertSame('card', $engine->resolved($this->named('card')), 'a name without either, as before');
+    }
+
+    public function test_a_file_with_dots_in_its_own_name_is_still_found(): void
+    {
+        $engine = new ScriptEngine('vue', [$this->views(['chart.client.vue' => ''])], ['vue']);
+
+        $this->assertSame('chart.client', $engine->resolved($this->named('chart.client')), 'the name as written first');
+    }
+
+    public function test_a_name_that_is_two_files_is_a_compile_error(): void
+    {
+        $engine = new ScriptEngine('vue', [$this->views(['chart.client.vue' => '', 'chart/client.vue' => ''])], ['vue']);
+
+        $this->expectException(CompileException::class);
+        $this->expectExceptionMessageMatches('/View \[chart\.client\] of .* is two files: .*chart\.client\.vue and .*client\.vue\. Rename one, or name the view by its path with slashes\./');
+
+        $engine->file($this->named('chart.client'));
+    }
+
+    public function test_a_namespaces_view_reads_dots_as_folders_too(): void
+    {
+        $engine = new ScriptEngine('vue', [], ['vue']);
+        $engine->addNamespace('shop', [$this->views(['cart/badge.vue' => ''])]);
+
+        $this->assertSame('shop::cart/badge', $engine->resolved($this->named('shop::cart.badge')));
+    }
+
+    /** What the browser loads and what the render service renders: the path, so neither reads dots. */
+    public function test_the_browser_and_the_render_service_get_the_path(): void
+    {
+        $root = $this->views(['auth/login.vue' => '']);
+        $engine = new ScriptEngine('vue', [$root], ['vue']);
+        $meta = $this->named('auth.login');
+
+        $definition = (new \Nitro\Compiler\ComponentCompiler(fn () => false))->compile($meta, null, $engine->file($meta), $engine->resolved($meta));
+        $this->assertStringContainsString('view: "auth/login",', $definition);
+
+        $renderer = new class implements \Nitro\View\ServerRendering\ServerRenderer
+        {
+            public ?\Nitro\View\ServerRendering\ViewState $state = null;
+
+            public function render(\Nitro\View\ServerRendering\ViewState $state): ?string
+            {
+                $this->state = $state;
+
+                return null;
+            }
+        };
+
+        $this->boot('laravel');
+        (new ScriptEngine('vue', [$root], ['vue'], $renderer))->render(new ($meta->class), $meta);
+        $this->assertSame('auth/login', $renderer->state?->view);
+    }
 }

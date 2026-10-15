@@ -118,6 +118,10 @@ folder that holds it, so pages may sit inside the components' folder. A namespac
 kebab case, and not `pages` or `stores`.
 
 `#[View(vue: 'billing::invoice-chart')]` is `invoice-chart.vue` in the namespace's `vue` folder.
+A JavaScript view's name reads dots and slashes as folders, as a Blade view's dots: `'charts.sales'`
+and `'charts/sales'` are both `charts/sales.vue`. A file with dots in its own name
+(`sales.client.vue`) is found by the name as written first; a name that is two files fails the
+build, naming both.
 The browser finds it among the views given with `namespaced()` (from `nitro/vue`, `nitro/react`,
 `nitro/solid` or `nitro/svelte`):
 

@@ -36,8 +36,8 @@ final class ViewState implements JsonSerializable
     ) {
     }
 
-    /** The component as its view sees it now. */
-    public static function of(Component $component, ComponentMeta $meta): self
+    /** The component as its view sees it now; $view: the view by its path, as the render service finds it (ScriptEngine::resolved()). */
+    public static function of(Component $component, ComponentMeta $meta, string $view): self
     {
         $properties = [];
 
@@ -55,7 +55,7 @@ final class ViewState implements JsonSerializable
         /** @var array<string, list<string>> $errors */
         $errors = $component->nitro()->errors->toArray();
 
-        return new self($component->getId(), $meta->engine, $meta->view, $properties, $computed, $meta->publicMethods(), $meta->serverMethods, $errors);
+        return new self($component->getId(), $meta->engine, $view, $properties, $computed, $meta->publicMethods(), $meta->serverMethods, $errors);
     }
 
     /** @return array<string, mixed> */

@@ -98,7 +98,7 @@ final class BundleCompiler
                 $engine = $this->views->of($meta);
                 $meta->assertNamesFree($engine->reservedNames(), $engine->label());
                 $viewFile = $engine->file($meta);
-                $definition = $compiler->compile($meta, $engine->compiledByNitro() ? $this->files->get($viewFile) : null, $viewFile);
+                $definition = $compiler->compile($meta, $engine->compiledByNitro() ? $this->files->get($viewFile) : null, $viewFile, $engine->resolved($meta));
             } catch (CompileException $exception) {
                 if ($build) {
                     throw $exception;

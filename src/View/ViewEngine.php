@@ -41,6 +41,12 @@ interface ViewEngine
     public function file(ComponentMeta $meta): string;
 
     /**
+     * The view's name as the browser finds it: a JavaScript view's path under its views
+     * ("auth/login" for "auth.login"); Blade's as the component names it.
+     */
+    public function resolved(ComponentMeta $meta): string;
+
+    /**
      * Whether Nitro compiles the view for the browser (and reads it for the children it
      * places); otherwise the app's own build does, and the view places no Nitro children.
      */

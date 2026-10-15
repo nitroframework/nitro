@@ -90,24 +90,57 @@ class ScriptEngine implements ViewEngine
     /** The view's file: in the first of its paths that has it (a namespace's, for "issues::list"). */
     public function file(ComponentMeta $meta): string
     {
-        $tried = [];
+        return $this->find($meta)[0];
+    }
+
+    /** The view by its path under its views ("auth/login", "issues::list"): what the browser and the render service find. */
+    public function resolved(ComponentMeta $meta): string
+    {
+        return $this->find($meta)[1];
+    }
+
+    /**
+     * A view's file and path. Its name's slashes and dots are folders, as a Blade view's dots
+     * are: "auth.login" and "auth/login" are auth/login.vue. The name as written is looked for
+     * first, dots kept in the file's name (chart.client.jsx); when both are there, the build says
+     * so rather than choose.
+     *
+     * @return array{0: string, 1: string} the file, and the view's path
+     */
+    private function find(ComponentMeta $meta): array
+    {
         [$namespace, $view] = Naming::split($meta->view);
 
         if ($namespace !== null && ! isset($this->namespaces[$namespace])) {
             throw new CompileException("View [{$meta->view}] of {$meta->class} not found: [{$namespace}] has no {$this->name} views (nitro.namespaces.{$namespace}.views.{$this->name}).", $meta->file);
         }
 
-        foreach ($this->paths($namespace) as $path) {
-            $base = rtrim($path, '/\\').DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $view);
+        $tried = [];
+        $found = [];
 
-            foreach ($this->extensions as $extension) {
-                if (is_file($tried[] = $base.'.'.$extension)) {
-                    return $base.'.'.$extension;
+        foreach (array_unique([str_replace('\\', '/', $view), str_replace(['.', '\\'], '/', $view)]) as $path) {
+            foreach ($this->paths($namespace) as $root) {
+                $base = rtrim($root, '/\\').DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $path);
+
+                foreach ($this->extensions as $extension) {
+                    if (is_file($tried[] = $base.'.'.$extension)) {
+                        $found[$path] = $base.'.'.$extension;
+
+                        continue 3;
+                    }
                 }
             }
         }
 
-        throw new CompileException("View [{$meta->view}] of {$meta->class} not found: no ".implode(' or ', $tried).'.', $meta->file);
+        if (count($found) > 1) {
+            throw new CompileException("View [{$meta->view}] of {$meta->class} is two files: ".implode(' and ', $found).'. Rename one, or name the view by its path with slashes.', $meta->file);
+        }
+
+        if ($found === []) {
+            throw new CompileException("View [{$meta->view}] of {$meta->class} not found: no ".implode(' or ', $tried).'.', $meta->file);
+        }
+
+        return [reset($found), Naming::within($namespace, (string) key($found))];
     }
 
     public function compiledByNitro(): bool
@@ -134,8 +167,7 @@ class ScriptEngine implements ViewEngine
      */
     public function render(Component $component, ComponentMeta $meta): string
     {
-        $this->file($meta);
-        $html = $this->server->render(ViewState::of($component, $meta));
+        $html = $this->server->render(ViewState::of($component, $meta, $this->resolved($meta)));
 
         $wrapper = Protocol::get('view')['wrapper'];
 

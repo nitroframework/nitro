@@ -3,6 +3,7 @@
 namespace Nitro\Compiler;
 
 use Closure;
+use LogicException;
 use Nitro\Compiler\Template\TemplateCompiler;
 use Nitro\Support\Wire;
 use ReflectionMethod;
@@ -138,11 +139,12 @@ final class ComponentCompiler
 
     /**
      * A component, and the #[Browser] class methods it reaches (compiled once for the bundle,
-     * compileClasses()). One that does not compile fails the component.
+     * compileClasses()). One that does not compile fails the component. $view: a JavaScript
+     * view's path (ViewEngine::resolved()), which the browser loads it by; a Blade view's is not needed.
      */
-    public function compile(ComponentMeta $meta, ?string $viewSource, string $viewFile): string
+    public function compile(ComponentMeta $meta, ?string $viewSource, string $viewFile, ?string $view = null): string
     {
-        return $this->reaching(fn () => $this->compileComponent($meta, $viewSource, $viewFile));
+        return $this->reaching(fn () => $this->compileComponent($meta, $viewSource, $viewFile, $view));
     }
 
     /**
@@ -214,8 +216,11 @@ final class ComponentCompiler
         return $this->withStores($scope->withNames($this->names), $meta);
     }
 
-    /** $viewSource: a Blade view's, compiled here; null for a view the app's build compiles (a JavaScript framework's). */
-    private function compileComponent(ComponentMeta $meta, ?string $viewSource, string $viewFile): string
+    /**
+     * $viewSource: a Blade view's, compiled here; null for a view the app's build compiles (a
+     * JavaScript framework's), which the browser loads by $view (its path: ViewEngine::resolved()).
+     */
+    private function compileComponent(ComponentMeta $meta, ?string $viewSource, string $viewFile, ?string $view): string
     {
         $scope = $this->scope($meta);
         $templates = null;
@@ -263,10 +268,10 @@ final class ComponentCompiler
             $definition['html'] = array_map($scope->browserMethod(...), $meta->html);
         }
 
-        /** A view the app's build compiles: its engine, and its name (the engine loads it). */
+        /** A view the app's build compiles: its engine, and its path (the engine loads it by it). */
         if ($templates === null) {
             $definition['engine'] = $meta->engine;
-            $definition['view'] = $meta->view;
+            $definition['view'] = $view ?? throw new LogicException("{$meta->class}: a {$meta->engine} view is compiled with its path (ViewEngine::resolved())");
         }
 
         /**
