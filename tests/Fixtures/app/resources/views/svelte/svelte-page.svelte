@@ -1,5 +1,5 @@
 <script>
-    let { greeting, knocks, knock, shout } = $props();
+    let { greeting, knocks, later, knock, shout } = $props();
     let shouted = $state('');
 </script>
 
@@ -9,4 +9,5 @@
     <button type="button" class="knock" onclick={() => knock()}>Knock</button>
     <button type="button" class="shout" onclick={async () => (shouted = await shout())}>Shout</button>
     <span class="shouted">{shouted}</span>
+    <span class="later">{later ?? 'Loading'}</span>
 </section>

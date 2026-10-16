@@ -2482,27 +2482,39 @@ for (const [engine, Engine] of [['vue', 'Vue'], ['react', 'React'], ['solid', 'S
         /** Loaded directly: the server renders its element and state, the framework mounts its view in it. */
         let window = await open(`/${engine}-page`);
         let $ = (selector) => window.document.querySelector(selector);
+        const meta = (name) => window.document.head.querySelectorAll(`meta[name="${name}"]`);
         await until(`the page's ${Engine} view mounts, with what mount() set`, () => text($(`${page} .greeting`)) === 'Hello from mount()');
         check('its title', window.document.title.startsWith(`${Engine} page`), window.document.title);
+        const head = () => `${meta('description')[0]?.getAttribute('content')} / ${meta('framework')[0]?.getAttribute('content')}`;
+        check('head(): its description and tags', head() === `A page whose view is ${Engine} / ${Engine}`, head());
+
+        /** defer(): the server's HTML is without the property; the page asks for it once shown. */
+        const html = await (await window.fetch(`/${engine}-page`)).text();
+        check('the deferred property is not in the first HTML', !html.includes('Loaded after the page'));
+        await until('the deferred property loads after the page', () => text($(`${page} .later`)) === 'Loaded after the page');
 
         click(window, $(`${page} .knock`));
         await until('a browser method from its view', () => text($(`${page} .knocks`)) === '2');
         click(window, $(`${page} .shout`));
         await until('a #[Server] method from its view', () => text($(`${page} .shouted`)) === 'HELLO FROM MOUNT()');
 
-        /** Visited from a Blade page with the frameworks loaded (/engines): the page swaps in without a reload, and back returns. */
-        window = await open('/engines');
+        /** Visited from a Blade page in its layout, with the frameworks loaded (/article): the page swaps in without a reload, and back returns. */
+        window = await open('/article');
         $ = (selector) => window.document.querySelector(selector);
         const before = window.document.querySelector('body');
         await window.Nitro.visit(`/${engine}-page`);
         await until(`a visit swaps in the ${Engine} page`, () => text($(`${page} .greeting`)) === 'Hello from mount()');
         check('without a reload', window.document.querySelector('body') === before);
         check('the address and title follow', window.location.pathname === `/${engine}-page` && window.document.title.startsWith(`${Engine} page`), `${window.location.pathname} ${window.document.title}`);
+        check('head() tags follow', head() === `A page whose view is ${Engine} / ${Engine}`, head());
         click(window, $(`${page} .knock`));
         await until('its view works after the visit', () => text($(`${page} .knocks`)) === '2');
+        await until('the deferred property loads after the visit', () => text($(`${page} .later`)) === 'Loaded after the page');
+        check('what changed meanwhile is kept', text($(`${page} .knocks`)) === '2', text($(`${page} .knocks`)));
 
         window.history.back();
-        await until('back returns to the Blade page', () => window.location.pathname === '/engines' && $(page) === null);
+        await until('back returns to the Blade page', () => window.location.pathname === '/article' && $(page) === null);
+        await until('its head() tags go with it, the Blade page\'s are back', () => meta('framework').length === 0 && meta('author').length === 1);
     });
 }
 

@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useNitro } from 'nitro/vue';
 
-const { greeting, knocks, knock, shout } = useNitro();
+const { greeting, knocks, later, knock, shout } = useNitro();
 const shouted = ref('');
 
 async function loud() {
@@ -17,5 +17,6 @@ async function loud() {
         <button type="button" class="knock" @click="knock()">Knock</button>
         <button type="button" class="shout" @click="loud">Shout</button>
         <span class="shouted">{{ shouted }}</span>
+        <span class="later">{{ later ?? 'Loading' }}</span>
     </section>
 </template>

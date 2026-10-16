@@ -10,6 +10,7 @@ export default function SolidPage(props) {
             <button type="button" class="knock" onClick={() => props.knock()}>Knock</button>
             <button type="button" class="shout" onClick={() => props.shout().then(setShouted)}>Shout</button>
             <span class="shouted">{shouted()}</span>
+            <span class="later">{props.later ?? 'Loading'}</span>
         </section>
     );
 }
