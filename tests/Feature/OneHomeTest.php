@@ -5,6 +5,7 @@ namespace Nitro\Tests\Feature;
 use Nitro\Compiler\CompileException;
 use Nitro\Compiler\ComponentReader;
 use Nitro\Tests\Fixtures\Invalid\SetInVueView;
+use Nitro\Tests\Support\Node;
 use Nitro\Tests\TestCase;
 use Nitro\View\Adapters\VueAdapter;
 use Nitro\View\ScriptEngine;
@@ -46,6 +47,30 @@ class OneHomeTest extends TestCase
 
         $this->assertNotEmpty($match, 'vite.js names the files whose <php> block it leaves out');
         $this->assertEqualsCanonicalizing($extensions, explode('|', $match[1]));
+    }
+
+    /**
+     * The same two homes for only(): the Vite plugin's React and Solid folders are the ones
+     * config/nitro.php gives, and only() tells a plugin its own views from the other's.
+     */
+    public function test_vite_knows_where_react_and_solid_views_are_as_config_does(): void
+    {
+        $this->boot('laravel');
+        $vite = Node::run('js/test/support/run-only.mjs', []);
+
+        $this->assertSame([], $vite['failures']);
+
+        /** Nitro's own defaults, not the fixture app's. */
+        $views = (require dirname(__DIR__, 2).'/config/nitro.php')['views'];
+
+        foreach (['react', 'solid'] as $framework) {
+            $folders = array_map(
+                fn (string $path) => str_replace('\\', '/', substr($path, strlen(base_path()) + 1)),
+                (array) $views[$framework]['path'],
+            );
+
+            $this->assertSame($folders, $vite['folders'][$framework], "{$framework}'s folders");
+        }
     }
 
     #[DataProvider('frameworks')]
