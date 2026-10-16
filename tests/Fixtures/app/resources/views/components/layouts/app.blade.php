@@ -22,8 +22,8 @@
             <script src="/_test/lib/{{ $library }}.js"></script>
         @endforeach
     @endif
-    @if (request()->is('engines', 'parity', 'talk'))
-        {{-- Vue and the fixture's Vue views (nitroVue() registers them on nitro:starting): only the page that has them. --}}
+    @if (request()->is('engines', 'parity', 'talk', 'vue-page', 'react-page', 'solid-page', 'svelte-page'))
+        {{-- Vue and the fixture's Vue views (nitroVue() registers them on nitro:starting): only the pages that have them. --}}
         <script src="/_test/vue.js"></script>
         <script src="/_test/react.js"></script>
         <script src="/_test/solid.js"></script>

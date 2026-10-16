@@ -2474,11 +2474,44 @@ await scenario('parity', async () => {
     window.close();
 });
 
+// ------------------------------------------------------------------ a page whose own view is Vue, React, Solid or Svelte (/vue-page …)
+for (const [engine, Engine] of [['vue', 'Vue'], ['react', 'React'], ['solid', 'Solid'], ['svelte', 'Svelte']]) {
+    await scenario(`a page whose view is ${Engine}`, async () => {
+        const page = `.${engine}-page`;
+
+        /** Loaded directly: the server renders its element and state, the framework mounts its view in it. */
+        let window = await open(`/${engine}-page`);
+        let $ = (selector) => window.document.querySelector(selector);
+        await until(`the page's ${Engine} view mounts, with what mount() set`, () => text($(`${page} .greeting`)) === 'Hello from mount()');
+        check('its title', window.document.title.startsWith(`${Engine} page`), window.document.title);
+
+        click(window, $(`${page} .knock`));
+        await until('a browser method from its view', () => text($(`${page} .knocks`)) === '2');
+        click(window, $(`${page} .shout`));
+        await until('a #[Server] method from its view', () => text($(`${page} .shouted`)) === 'HELLO FROM MOUNT()');
+
+        /** Visited from a Blade page with the frameworks loaded (/engines): the page swaps in without a reload, and back returns. */
+        window = await open('/engines');
+        $ = (selector) => window.document.querySelector(selector);
+        const before = window.document.querySelector('body');
+        await window.Nitro.visit(`/${engine}-page`);
+        await until(`a visit swaps in the ${Engine} page`, () => text($(`${page} .greeting`)) === 'Hello from mount()');
+        check('without a reload', window.document.querySelector('body') === before);
+        check('the address and title follow', window.location.pathname === `/${engine}-page` && window.document.title.startsWith(`${Engine} page`), `${window.location.pathname} ${window.document.title}`);
+        click(window, $(`${page} .knock`));
+        await until('its view works after the visit', () => text($(`${page} .knocks`)) === '2');
+
+        window.history.back();
+        await until('back returns to the Blade page', () => window.location.pathname === '/engines' && $(page) === null);
+    });
+}
+
 /**
  * Events between components whatever their views (Components\Talk): each of Blade, Vue, React and
  * Solid sends from a browser method, from a #[Server] method, from its view, and to one component
  * (->to()); the others' #[On] methods hear it, and their views show it.
  */
+
 await scenario('events between engines', async () => {
     const window = await open('/talk');
     const { document } = window;
