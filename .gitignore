@@ -6,6 +6,7 @@
 /CHANGELOG.md
 /CLAUDE.md
 /TASKS.md
+/TEMPLATES.md
 # What the tests write (TestCase makes the folders): logs, uploads, compiled views, manifests, builds.
 /tests/Fixtures/app/storage/
 /tests/Fixtures/app/public/nitro/
